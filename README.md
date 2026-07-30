@@ -1,99 +1,77 @@
-# AGFusion
+# ⚡ AGFusion: Autonomous Stablecoin OS on Arc
 
-**Stablecoin operations workspace on Arc** — payments, treasury, agents, and developer tooling.
+**AGFusion** is a next-generation stablecoin operations workspace built natively on **Arc Network**. It leverages intelligent agents to orchestrate complex natural-language payments, unified cross-chain balances, and treasury management—settling seamlessly with sub-second finality using USDC as gas.
 
-Arc is Circle’s open Layer-1, the **Economic OS** for programmable money: USDC as gas, sub-second finality, EVM compatibility, and opt-in privacy.
+🔗 **Live Demo:** [https://agfusion.vercel.app](https://agfusion.vercel.app)
+🐦 **X / Twitter:** [Follow @AGFusionApp](https://x.com/AGFusionApp) *(Placeholder - please update this URL with your actual X handle!)*
 
 ---
 
-## Public URL
+## 🏆 Why We Built on Arc
 
-See [docs/PUBLIC.md](./docs/PUBLIC.md) for the current tunnel / Vercel URL.
+Arc is Circle’s open Layer-1, the **Economic OS** for programmable money. We chose Arc because it natively supports:
+- **Unified Balances:** AGFusion uses the **Unified Balance Kit** to automatically allocate cross-chain spends using greedy optimization, allowing users to spend across Ethereum, Base, Avalanche, and Arc without worrying about bridging.
+- **USDC as Gas:** frictionless user onboarding without needing native volatile tokens.
+- **Sub-Second Finality:** critical for our AI-agent-driven payment orchestration.
+- **Opt-in Privacy:** preparing for future enterprise treasury use-cases.
 
-## Quick start
+## 🚀 Deployed on Arc Testnet
+
+AGFusion's smart contract infrastructure is fully deployed and verified on the Arc Testnet.
+- **Network:** Arc Testnet (`5042002`)
+- **RPC:** `https://rpc.testnet.arc.network`
+- **AGFusionRegistry Contract:** `0x76bb5678ec11ae94b34ed9cf90b25c9eea440483`
+- **Explorer:** [View on ArcScan](https://testnet.arcscan.app/address/0x76bb5678ec11ae94b34ed9cf90b25c9eea440483)
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend:** Next.js 15, React 19, Tailwind CSS 4, Framer Motion
+- **Blockchain / Wallets:** Arc AppKit, Unified Balance Kit, `viem`, SIWE (Sign-In With Ethereum)
+- **AI Agents:** Integrated with BazaarLink / xAI for intent parsing and transaction staging
+- **Database:** Prisma with Serverless PostgreSQL
+- **Smart Contracts:** Foundry (Solidity)
+
+---
+
+## ⚙️ Quick Start (Local Development)
 
 ```bash
+git clone https://github.com/Sayed01740/agfusion.git
 cd agfusion
 npm install
+
+# Setup environment variables
 cp .env.example .env
+
+# Initialize database
 npx prisma db push
+
+# Build and Run
 npm run build
 npm run start
 ```
-
 Open [http://localhost:3000](http://localhost:3000).
 
-### Live path (required for money)
-
-1. Connect a browser wallet → Arc Testnet (`5042002`)
-2. Fund test USDC via [Circle Faucet](https://faucet.circle.com)
-3. Send / transfer / agent **Confirm** → wallet signature
-4. View settlement on [ArcScan](https://testnet.arcscan.app)
-
----
-
-## Product modules
-
-| Module | Description |
-|--------|-------------|
-| **Workspace** | Natural-language payments: estimate → confirm → settle on Arc |
-| **Cross-chain transfer** | Move USDC across networks with progress and recovery |
-| **Unified balance** | One spendable view across chains; pay on Arc |
-| **Developer studio** | Snippets and Arc Build / Arc House documentation links |
-| **Agents** | Policy-bound payroll, treasury, and FX agents (ERC-8004 patterns) |
-| **Analytics** | Volume, success rate, and allocation |
+### Interacting with the App
+1. Connect your wallet (e.g., Rabby or MetaMask) and switch to **Arc Testnet (`5042002`)**.
+2. Fund your wallet with test USDC via the [Circle Faucet](https://faucet.circle.com).
+3. Use the AGFusion AI Workspace to issue natural language commands (e.g., *"Pay 100 USDC to John"*).
+4. The AI estimates fees, prepares the batched transaction using Arc AppKit, and waits for your confirmation.
 
 ---
 
-## Arc resources
+## 🧠 AI Agent Architecture (Tool-First)
 
-| Resource | URL |
-|----------|-----|
-| Arc homepage | [arc.io](https://www.arc.io) |
-| Developer docs (Arc Build) | [docs.arc.io](https://docs.arc.io) |
-| Arc House community | [community.arc.io](https://community.arc.io) |
-| Arc Builders Fund | [Circle blog](https://www.circle.com/blog/introducing-the-arc-builders-fund) |
-| Connect to Arc | [docs](https://docs.arc.io/arc/references/connect-to-arc) |
-| Agentic economy | [docs](https://docs.arc.io/build/agentic-economy) |
-
-### Network (Testnet)
-
-- **Chain ID:** `5042002`
-- **RPC:** `https://rpc.testnet.arc.network`
-- **Explorer:** `https://testnet.arcscan.app`
-- **Gas:** USDC (18 decimals)
-
----
-
-## Stack
-
-- Next.js 15 · React 19 · TypeScript · Tailwind 4 · Framer Motion · Zustand
-- **viem** for Arc Testnet RPC and live sends
-- Optional Circle payment tooling for multi-chain workflows
-- Optional **LLM** for smarter agent replies / tool-calling (server-only):
-  - **BazaarLink** (`BAZAARLINK_API_KEY=sk-bl-…`, default model `openai/gpt-4.1`)
-  - or **xAI** (`XAI_API_KEY`)
-
-## Production notes
-
-| Pillar | Detail |
-|--------|--------|
-| Mode flags | `NEXT_PUBLIC_EXECUTION_MODE`, `NEXT_PUBLIC_ALLOW_DEMO` |
-| Auth | SIWE + Prisma sessions |
-| Agent | Tool-first loop; execute only after confirm |
-| Staging | [docs/STAGING.md](./docs/STAGING.md) |
-
-```bash
-npx prisma db push
-npm run build
-```
-
-## Agent (tool-first)
-
+AGFusion agents follow a strict "Trust but Verify" execution loop:
 1. `get_wallet_state` + `get_balances`
-2. `estimate_*`
-3. `prepare_payment` → **Confirm**
-4. `execute_*` only after confirm
+2. `estimate_fees`
+3. `prepare_payment` → **Stops and requires explicit User Confirmation**
+4. `execute_transfer` → **Executed via Arc Network**
 
-- Streaming API: `POST /api/ai/agent` (SSE)
-- Docs: [docs/AGENT.md](./docs/AGENT.md)
+## 📚 Arc Resources We Used
+
+- [Arc Developer Docs](https://docs.arc.io)
+- [Unified Balance AppKit](https://docs.arc.io/app-kit/unified-balance)
+- [Arc Builders Fund](https://www.circle.com/blog/introducing-the-arc-builders-fund)
