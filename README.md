@@ -3,8 +3,7 @@
 **AGFusion** is a next-generation stablecoin operations workspace built natively on **Arc Network**. It leverages intelligent agents to orchestrate complex natural-language payments, unified cross-chain balances, and treasury management—settling seamlessly with sub-second finality using USDC as gas.
 
 🔗 **Live Demo:** [https://agfusion.vercel.app](https://agfusion.vercel.app)
-🐦 **X / Twitter:** [Follow @AGFusionApp](https://x.com/AGFusionApp) *(Placeholder - please update this URL with your actual X handle!)*
-
+🐦 **X / Twitter:** [Follow @AGfusion_](https://x.com/AGfusion_) 
 ---
 
 ## 🏆 Why We Built on Arc
