@@ -1,0 +1,24 @@
+data: {"type":"status","message":"Working…"}
+
+data: {"type":"status","message":"Using HCNSEC · glm-5.2…"}
+
+data: {"type":"status","message":"Agent reasoning (hcnsec/glm-5.2, round 1)…"}
+
+data: {"type":"status","message":"Retrying without tools…"}
+
+data: {"type":"status","message":"Model glm-5.2 unavailable (504) — trying next…"}
+
+data: {"type":"status","message":"HCNSEC unavailable — trying fallback LLM…"}
+
+data: {"type":"status","message":"Using built-in agent (smart AI offline)…"}
+
+data: {"type":"status","message":"Understanding your request…"}
+
+data: {"type":"status","message":"Tool · explain_arc…"}
+
+data: {"type":"tool","name":"explain_arc","ok":true}
+
+data: {"type":"message","content":"Arc is Circle's open Layer-1 — the Economic OS for programmable money. USDC gas, sub-second finality, EVM-compatible. Testnet chain ID 5042002.\n\nAsk me to **send**, **swap**, **bridge**, or **show balances**."}
+
+data: {"type":"done","message":{"id":"msg_kv5vf14u","role":"assistant","content":"Arc is Circle's open Layer-1 — the Economic OS for programmable money. USDC gas, sub-second finality, EVM-compatible. Testnet chain ID 5042002.\n\nAsk me to **send**, **swap**, **bridge**, or **show balances**.","createdAt":"2026-07-23T17:20:20.344Z","intent":"explain","toolTrace":[{"name":"explain_arc","ok":true}]}}
+

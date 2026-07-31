@@ -1,0 +1,366 @@
+@import "tailwindcss";
+
+/**
+ * AGFusion · Arc theme
+ * “Liquidity Void” — deep navy economic OS + Arc cyan liquidity.
+ * Presentation-ready for Arc House / reviewers.
+ */
+@theme {
+  --color-background: #030712;
+  --color-foreground: #f1f5f9;
+  --color-card: #0b1220;
+  --color-card-foreground: #f8fafc;
+  --color-muted: #0c1424;
+  --color-muted-foreground: #94a3b8;
+  --color-border: rgba(125, 211, 252, 0.1);
+  --color-primary: #22d3ee;
+  --color-primary-foreground: #020617;
+  --color-secondary: #152033;
+  --color-secondary-foreground: #e2e8f0;
+  --color-accent: #38bdf8;
+  --color-accent-foreground: #f0f9ff;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-glow: #06b6d4;
+  --color-arc-mint: #5eead4;
+  --color-arc-ice: #bae6fd;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01" on, "cv11" on;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.011em;
+    line-height: 1.55;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+    font-weight: 600;
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.38);
+    color: #f8fafc;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(34, 211, 238, 0.55);
+    outline-offset: 2px;
+  }
+
+  code,
+  kbd,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono);
+    letter-spacing: 0;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: linear-gradient(
+      155deg,
+      rgba(15, 23, 42, 0.82) 0%,
+      rgba(8, 15, 30, 0.72) 100%
+    );
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border: 1px solid rgba(125, 211, 252, 0.1);
+  }
+
+  .glass-strong {
+    background: linear-gradient(
+      165deg,
+      rgba(12, 20, 36, 0.96) 0%,
+      rgba(5, 10, 22, 0.92) 100%
+    );
+    backdrop-filter: blur(32px) saturate(170%);
+    -webkit-backdrop-filter: blur(32px) saturate(170%);
+    border: 1px solid rgba(34, 211, 238, 0.16);
+  }
+
+  .glass-soft {
+    background: rgba(10, 18, 32, 0.5);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+  }
+
+  .glow-cyan {
+    box-shadow:
+      0 0 0 1px rgba(34, 211, 238, 0.1),
+      0 10px 40px rgba(6, 182, 212, 0.14),
+      0 28px 80px rgba(14, 165, 233, 0.1);
+  }
+
+  .glow-border {
+    position: relative;
+  }
+
+  .glow-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(94, 234, 212, 0.55) 0%,
+      rgba(34, 211, 238, 0.4) 28%,
+      rgba(56, 189, 248, 0.18) 55%,
+      rgba(148, 163, 184, 0.04) 78%,
+      transparent 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .text-gradient {
+    background: linear-gradient(
+      115deg,
+      #f8fafc 0%,
+      #ccfbf1 22%,
+      #5eead4 42%,
+      #22d3ee 62%,
+      #38bdf8 88%,
+      #a5b4fc 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .text-gradient-subtle {
+    background: linear-gradient(180deg, #f8fafc 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .text-arc {
+    background: linear-gradient(90deg, #5eead4, #22d3ee 50%, #38bdf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(
+      ellipse 85% 70% at 50% 25%,
+      black 15%,
+      transparent 72%
+    );
+  }
+
+  .mesh-bg {
+    background:
+      radial-gradient(
+        ellipse 100% 70% at 12% -20%,
+        rgba(45, 212, 191, 0.16),
+        transparent 52%
+      ),
+      radial-gradient(
+        ellipse 80% 55% at 92% 0%,
+        rgba(14, 165, 233, 0.18),
+        transparent 48%
+      ),
+      radial-gradient(
+        ellipse 55% 45% at 50% 105%,
+        rgba(6, 182, 212, 0.12),
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse 40% 35% at 70% 45%,
+        rgba(99, 102, 241, 0.07),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 30% 25% at 20% 60%,
+        rgba(34, 211, 238, 0.05),
+        transparent 50%
+      ),
+      #030712;
+  }
+
+  .noise-overlay {
+    position: relative;
+  }
+
+  .noise-overlay::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    opacity: 0.028;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px 180px;
+    mix-blend-mode: overlay;
+    z-index: 0;
+  }
+
+  .surface-card {
+    border-radius: 1.125rem;
+    background: linear-gradient(
+      155deg,
+      rgba(14, 22, 40, 0.92) 0%,
+      rgba(8, 14, 28, 0.88) 55%,
+      rgba(6, 12, 24, 0.9) 100%
+    );
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid rgba(125, 211, 252, 0.1);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 18px 48px rgba(0, 0, 0, 0.32);
+    transition:
+      box-shadow 0.35s ease,
+      border-color 0.35s ease,
+      transform 0.35s ease;
+  }
+
+  .surface-card:hover {
+    border-color: rgba(34, 211, 238, 0.18);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 0 0 1px rgba(34, 211, 238, 0.06),
+      0 20px 50px rgba(0, 0, 0, 0.38);
+  }
+
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(45, 212, 191, 0.85);
+  }
+
+  .prose-app {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: #cbd5e1;
+  }
+
+  .prose-app strong {
+    color: #f1f5f9;
+    font-weight: 600;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 211, 238, 0.28) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.28);
+    border-radius: 999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 211, 238, 0.45);
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(34, 211, 238, 0.08),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2.8s ease-in-out infinite;
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Arc liquid line under headings */
+  .arc-underline {
+    position: relative;
+    display: inline-block;
+  }
+
+  .arc-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.2em;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      #5eead4 20%,
+      #22d3ee 50%,
+      #38bdf8 80%,
+      transparent
+    );
+    opacity: 0.7;
+  }
+}

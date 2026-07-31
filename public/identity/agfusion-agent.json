@@ -1,0 +1,31 @@
+{
+  "name": "AGFusion Agent",
+  "description": "AI-native stablecoin operations agent on Arc Testnet. Plans payments, bridges, and swaps; executes only after human confirm and wallet signature. Product: AGFusion — https://agfusion.vercel.app",
+  "image": "https://agfusion.vercel.app/icon-180.png",
+  "external_url": "https://agfusion.vercel.app",
+  "agent_type": "stablecoin_ops",
+  "project": {
+    "name": "AGFusion",
+    "website": "https://agfusion.vercel.app",
+    "x": "https://x.com/AGfusion_",
+    "docs": "https://agfusion.vercel.app",
+    "network": "Arc Testnet",
+    "chainId": 5042002,
+    "registry": "0x76BB5678eC11Ae94b34Ed9cF90B25C9Eea440483",
+    "deployer": "0xB00f41172c23d31571a3bE850AA0e81e58Ab8828",
+    "deployTx": "0x2db9e1244770254ac0a80bc2d2052fe504965272f6dd076465203b6c32bfab99",
+    "explorer": "https://testnet.arcscan.app/address/0x76BB5678eC11Ae94b34Ed9cF90B25C9Eea440483"
+  },
+  "capabilities": [
+    "natural_language_payments",
+    "usdc_send_arc",
+    "usdc_eurc_swap",
+    "cctp_bridge",
+    "confirm_before_execute",
+    "wallet_user_controlled",
+    "onchain_project_registry"
+  ],
+  "version": "1.0.0",
+  "standards": ["ERC-8004", "CCTP", "Circle App Kit", "AGFusionRegistry"],
+  "active": true
+}

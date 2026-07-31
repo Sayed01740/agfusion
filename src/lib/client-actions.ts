@@ -1,0 +1,176 @@
+/**
+ * Client-safe action runners with API-first + local fallback.
+ */
+
+import { orchestrateUserMessage } from "@/ai/orchestrator";
+import {
+  runBridgeFlow,
+  runBridgeWithRecovery,
+  runSendFlow,
+  runSwapFlow,
+  runUnifiedDeposit,
+  runUnifiedSpend,
+} from "@/blockchain/appkit-service";
+import type {
+  ActionPreview,
+  ChainId,
+  ChatMessage,
+  TransactionRecord,
+} from "@/types";
+
+function withTimeout(ms: number): AbortSignal | undefined {
+  try {
+    if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+      return AbortSignal.timeout(ms);
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+export async function chatWithAI(
+  message: string,
+  execute = false,
+  wallet?: {
+    address?: string | null;
+    chainId?: number | null;
+    liveBalanceUsdc?: string | null;
+    forceDemo?: boolean;
+  },
+): Promise<{ message: ChatMessage; transaction?: TransactionRecord }> {
+  // Prefer non-stream agent JSON, then legacy orchestrator
+  try {
+    const res = await fetch("/api/ai/agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        execute,
+        confirmed: execute,
+        wallet: wallet || {},
+        stream: false,
+      }),
+      signal: withTimeout(120_000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.message) return data;
+    }
+  } catch {
+    /* try legacy */
+  }
+
+  try {
+    const res = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, execute }),
+      signal: withTimeout(120_000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.message) return data;
+    }
+  } catch {
+    /* local */
+  }
+  return orchestrateUserMessage(message, { execute });
+}
+
+export async function executeBridge(params: {
+  amount: string;
+  fromChain: ChainId;
+  toChain: ChainId;
+  token?: string;
+  preferLive?: boolean;
+}): Promise<TransactionRecord> {
+  // Always browser-local — wallet signature required
+  return runBridgeFlow({
+    amount: params.amount,
+    token: params.token || "USDC",
+    fromChain: params.fromChain,
+    toChain: params.toChain,
+    preferLive: params.preferLive ?? true,
+  });
+}
+
+export async function executeSwap(params: {
+  amount: string;
+  tokenIn?: string;
+  tokenOut?: string;
+  chain?: ChainId;
+}): Promise<TransactionRecord> {
+  // Always browser-local — App Kit swap needs wallet + kit key (not serverless)
+  return runSwapFlow({
+    amount: params.amount,
+    tokenIn: params.tokenIn || "USDC",
+    tokenOut: params.tokenOut || "EURC",
+    chain: params.chain || "Arc_Testnet",
+  });
+}
+
+export async function executeSend(params: {
+  amount: string;
+  token?: string;
+  chain?: ChainId;
+  recipient: string;
+  recipientLabel?: string;
+  preferLive?: boolean;
+}): Promise<TransactionRecord> {
+  // Always browser-local — wallet signature required
+  return runSendFlow({
+    amount: params.amount,
+    token: params.token || "USDC",
+    chain: params.chain || "Arc_Testnet",
+    recipient: params.recipient,
+    recipientLabel: params.recipientLabel,
+    preferLive: params.preferLive ?? true,
+  });
+}
+
+export async function executeUnifiedDeposit(params: {
+  amount: string;
+  fromChain: ChainId;
+}): Promise<TransactionRecord> {
+  return runUnifiedDeposit(params);
+}
+
+export async function executeUnifiedSpend(params: {
+  amount: string;
+  recipient: string;
+  recipientLabel?: string;
+}): Promise<TransactionRecord> {
+  return runUnifiedSpend(params);
+}
+
+export async function executeBridgeRecovery(params: {
+  amount: string;
+  fromChain: ChainId;
+  toChain: ChainId;
+}): Promise<TransactionRecord> {
+  return runBridgeWithRecovery(params);
+}
+
+export function commandFromPreview(preview: ActionPreview): string {
+  const amount = preview.amount || "50";
+  const token = preview.token || "USDC";
+  const label = preview.recipientLabel;
+
+  switch (preview.type) {
+    case "route":
+      return preview.recipient
+        ? `Move $${amount} to Arc and pay ${preview.recipient}`
+        : `Move $${amount} to Arc — need 0x recipient`;
+    case "bridge":
+      return `Bridge $${amount} from ${preview.fromChain || "Arc_Testnet"} to ${preview.toChain || "Base_Sepolia"}`;
+    case "swap":
+      return `Swap ${amount} ${token} to ${preview.tokenOut || "EURC"}`;
+    case "send":
+      return preview.recipient
+        ? `Send $${amount} ${token} to ${preview.recipient}`
+        : `Send $${amount} ${token} — paste 0x address`;
+    default:
+      return `Show my balances`;
+  }
+}

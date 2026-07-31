@@ -1,0 +1,6 @@
+data: {"type":"status","message":"Working…"}
+
+data: {"type":"status","message":"Using HCNSEC · glm-5.2…"}
+
+data: {"type":"status","message":"Agent reasoning (hcnsec/glm-5.2, round 1)…"}
+

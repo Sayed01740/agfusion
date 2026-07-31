@@ -1,0 +1,96 @@
+// AGFusion production data model
+// Dev: SQLite  DATABASE_URL="file:./dev.db"
+// Staging/Prod: PostgreSQL  DATABASE_URL="postgresql://..."
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions     Session[]
+  transactions Transaction[]
+  agentRuns    AgentRun[]
+  nonces       AuthNonce[]
+}
+
+model AuthNonce {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  address   String
+  nonce     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([address])
+  @@index([nonce])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  clientId       String?
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  walletAddress  String?
+  type           String
+  status         String
+  amount         String
+  token          String
+  tokenOut       String?
+  fromChain      String?
+  toChain        String?
+  recipient      String?
+  recipientLabel String?
+  feeUsd         Float?
+  txHash         String?
+  explorerUrl    String?
+  executionMode  String   @default("demo")
+  message        String?
+  stepsJson      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([walletAddress])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([txHash])
+}
+
+model AgentRun {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  walletAddress String?
+  message      String
+  execute      Boolean  @default(false)
+  confirmed    Boolean  @default(false)
+  ip           String?
+  toolTraceJson String?
+  resultSummary String?
+  createdAt    DateTime @default(now())
+
+  @@index([walletAddress])
+  @@index([createdAt])
+}

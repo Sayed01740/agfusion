@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AGFusion: The Future of Programmable Money</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/simple.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #2563eb;
+      --text: #1e293b;
+      --subtext: #475569;
+    }
+    .reveal {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+    }
+    .reveal h1, .reveal h2, .reveal h3 {
+      font-family: 'Inter', sans-serif;
+      text-transform: none;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .reveal h1 { font-size: 2.2em; color: #0f172a; margin-bottom: 0.1em; }
+    .reveal h2 { font-size: 1.6em; color: var(--primary); margin-bottom: 0.4em; }
+    .reveal h3 { font-size: 1.1em; color: var(--subtext); font-weight: 400; }
+    
+    .reveal p, .reveal li { 
+      font-size: 0.85em; 
+      line-height: 1.4; 
+      color: var(--subtext);
+    }
+    
+    .reveal .slides section {
+      text-align: left;
+    }
+    
+    .reveal .slides section.center {
+      text-align: center;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    .feature-box {
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 10px;
+      border-left: 4px solid var(--primary);
+    }
+    
+    .feature-box h4 {
+      margin: 0 0 5px 0;
+      font-size: 0.9em;
+      color: #0f172a;
+      font-weight: 600;
+    }
+    
+    .feature-box p {
+      margin: 0;
+      font-size: 0.75em;
+    }
+
+    .highlight {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .workflow-step {
+      padding: 10px 15px;
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+    }
+    
+    .workflow-step span.num {
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin-right: 12px;
+      flex-shrink: 0;
+      font-size: 0.75em;
+    }
+    
+    .workflow-step p {
+      margin: 0;
+      color: #0f172a;
+      font-size: 0.75em;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- Slide 1: Welcome -->
+      <section class="center" data-transition="zoom">
+        <h1>AGFusion</h1>
+        <h3>Empowering the Future of Finance</h3>
+        <p style="margin-top: 20px; font-size: 0.9em;">
+          A next-generation stablecoin operations workspace built on Arc.<br>
+          Designed for humans, powered by intelligence.
+        </p>
+      </section>
+
+      <!-- Slide 2: The Vision -->
+      <section data-transition="slide">
+        <h2>The Vision</h2>
+        <p>Imagine a world where money moves as seamlessly as a text message.</p>
+        <p>Built on Circle's <strong>Arc Layer-1</strong>, we are leveraging the true Economic OS for programmable money. By utilizing USDC as our foundation, we bring sub-second finality and opt-in privacy to real-world financial operations.</p>
+      </section>
+
+      <!-- Slide 3: Ecosystem -->
+      <section data-transition="slide">
+        <h2>Tools Built for You</h2>
+        <p style="margin-bottom: 10px;">We've designed a comprehensive suite of modules that remove the friction from blockchain finance:</p>
+        
+        <div class="feature-grid">
+          <div class="feature-box">
+            <h4>Intuitive Workspaces</h4>
+            <p>Execute complex payments simply by typing natural language commands.</p>
+          </div>
+          <div class="feature-box">
+            <h4>Unified Balances</h4>
+            <p>Stop juggling networks. Get one clear, spendable view of your assets.</p>
+          </div>
+          <div class="feature-box">
+            <h4>Seamless Cross-Chain</h4>
+            <p>Move value globally without worrying about underlying bridges.</p>
+          </div>
+          <div class="feature-box">
+            <h4>Intelligent Agents</h4>
+            <p>Automate your payroll and treasury with policy-bound AI.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 4: Trust & Safety -->
+      <section data-transition="slide">
+        <h2>You're Always in Control</h2>
+        <p style="margin-bottom: 10px;">Our intelligent agents are designed to do the heavy lifting, but <strong>they never act without your permission</strong>. Here is how our safe workflow operates:</p>
+        
+        <div class="workflow-grid">
+          <div class="workflow-step">
+            <span class="num">1</span>
+            <p><strong>Analyze:</strong> The AI securely checks your wallet state.</p>
+          </div>
+          <div class="workflow-step">
+            <span class="num">2</span>
+            <p><strong>Estimate:</strong> We calculate exact fees upfront.</p>
+          </div>
+          <div class="workflow-step">
+            <span class="num">3</span>
+            <p><strong>Review:</strong> The payment is staged for your eyes only.</p>
+          </div>
+          <div class="workflow-step" style="border-color: #2563eb; background: #eff6ff;">
+            <span class="num" style="background: #10b981;">✓</span>
+            <p><strong>Execute:</strong> Funds move after explicit confirmation.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 5: The Engine -->
+      <section data-transition="slide" class="center">
+        <h2>The Engine Under the Hood</h2>
+        <p>We've combined the most robust modern technologies to ensure reliability, speed, and beautiful user experiences.</p>
+        <p style="font-size: 0.85em; margin-top: 20px; line-height: 1.8;">
+          <span class="highlight">Frontend:</span> Next.js 15 &bull; React 19 &bull; Tailwind 4<br>
+          <span class="highlight">Intelligence:</span> Advanced LLMs (BazaarLink / xAI)<br>
+          <span class="highlight">Blockchain:</span> viem &bull; Arc Testnet &bull; SIWE Auth
+        </p>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      transition: 'slide',
+      controls: true,
+      progress: true,
+      center: true,
+      margin: 0.05,
+      width: 1024,
+      height: 700,
+      minScale: 0.1,
+      maxScale: 3.0
+    });
+  </script>
+</body>
+</html>
