@@ -74,3 +74,16 @@ AGFusion agents follow a strict "Trust but Verify" execution loop:
 - [Arc Developer Docs](https://docs.arc.io)
 - [Unified Balance AppKit](https://docs.arc.io/app-kit/unified-balance)
 - [Arc Builders Fund](https://www.circle.com/blog/introducing-the-arc-builders-fund)
+
+---
+
+## 🤖 AI MCP Server Setup
+
+This repository is configured to use the **Arc Model Context Protocol (MCP) Server** so AI development tools can directly index and read the Arc network documentation. 
+
+Supported IDE configurations have been automatically added to the project root:
+- `.cursor/mcp.json` (For Cursor)
+- `.vscode/mcp.json` (For VS Code Copilot)
+- `.windsurf/mcp.json` (For Windsurf)
+
+To verify the connection, simply open your AI chat window and ask: *"What smart contract standards does Arc support?"*. The AI should automatically query the `docs.arc.io/mcp` server.
