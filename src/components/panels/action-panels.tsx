@@ -11,6 +11,7 @@ import {
   executeBridgeRecovery,
   executeSend,
   executeSwap,
+  executeUnifiedDeposit,
 } from "@/lib/client-actions";
 import type { ChainId } from "@/types";
 import { FeeLineItems } from "@/components/ui/fee-line-items";
@@ -35,6 +36,10 @@ export function ActionPanels() {
       <div className="rounded-xl border border-white/10 p-4">
         <p className="mb-3 text-xs font-semibold text-slate-300">Bridge</p>
         <BridgePanelBody />
+      </div>
+      <div className="rounded-xl border border-white/10 p-4">
+        <p className="mb-3 text-xs font-semibold text-slate-300">Unified Balance</p>
+        <UnifiedBalancePanelBody />
       </div>
       <RecoveryPanelBody />
     </div>
@@ -337,7 +342,7 @@ export function SwapPanelBody() {
         <Field label="Amount (USDC → EURC on Arc)">
           <Input
             type="number"
-            min="0"
+            placeholder="50"
             step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -485,14 +490,6 @@ export function SendPanelBody() {
   return (
     <>
       <div className="space-y-3">
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2.5">
-          <p className="text-[11px] leading-relaxed text-emerald-100/90">
-            <strong className="font-semibold text-emerald-50">Best first action.</strong>{" "}
-            Send a tiny amount of test USDC to an address you control (or a
-            teammate). Full <code className="text-cyan-300">0x…</code> only (42
-            chars). Wallet popup = normal.
-          </p>
-        </div>
         <Field label="Amount (USDC on Arc)">
           <Input
             type="number"
@@ -593,5 +590,104 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+export function UnifiedBalancePanelBody() {
+  const { addTransaction, setActiveTx, setThinking, executionMode } =
+    usePilotStore();
+  const [amount, setAmount] = useState("10");
+  const [from, setFrom] = useState<ChainId>("Base_Sepolia");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const mode = executionMode();
+
+  async function run() {
+    const n = Number(amount);
+    if (!amount || Number.isNaN(n) || n <= 0) {
+      setError("Enter a valid amount");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    setThinking(true);
+    setConfirm(false);
+    try {
+      const transaction = await executeUnifiedDeposit({
+        amount,
+        fromChain: from,
+      });
+      addTransaction(transaction);
+      setActiveTx(transaction.id);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Deposit failed — check source USDC and wallet network",
+      );
+    } finally {
+      setBusy(false);
+      setThinking(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="space-y-3">
+        <Field label="Deposit Amount (USDC)">
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={busy}
+          />
+        </Field>
+        <Field label="From network">
+          <select
+            className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+            value={from}
+            disabled={busy}
+            onChange={(e) => setFrom(e.target.value as ChainId)}
+          >
+            {CHAIN_LIST.filter((c) => c.id !== "Solana_Devnet").map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          Deposit USDC from <strong className="text-slate-300">{from.replace(/_/g, " ")}</strong> into your Unified Balance. 
+          This abstracts away the underlying chain so it can be spent on Arc.
+        </p>
+        <FeeLineItems quote={quoteBridgeFee(amount)} compact />
+        {error && (
+          <p className="text-xs text-red-300 whitespace-pre-wrap leading-relaxed">
+            {error}
+          </p>
+        )}
+        <Button
+          className="w-full"
+          disabled={busy}
+          onClick={() => setConfirm(true)}
+          type="button"
+        >
+          {busy ? "Processing…" : "Continue · Confirm deposit"}
+        </Button>
+      </div>
+      <ConfirmDialog
+        open={confirm}
+        title="Confirm deposit"
+        summary={`Deposit ${amount} USDC from ${from.replace(/_/g, " ")} to your Unified Balance.`}
+        feeQuote={quoteBridgeFee(amount)}
+        mode={mode}
+        busy={busy}
+        onCancel={() => setConfirm(false)}
+        onConfirm={() => void run()}
+      />
+    </>
   );
 }

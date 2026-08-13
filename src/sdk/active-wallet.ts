@@ -12,6 +12,7 @@ export type ActiveWalletMeta = {
   name: string;
   rdns?: string;
   address?: string;
+  smartAccountAddress?: string; // Added for ZeroDev Account Abstraction
 };
 
 let activeProvider: InjectedProvider | null = null;
@@ -41,6 +42,7 @@ function saveMeta(meta: ActiveWalletMeta | null) {
 export function setActiveWallet(
   wallet: DiscoveredWallet,
   address?: string,
+  smartAccountAddress?: string,
 ): void {
   activeProvider = wallet.provider;
   activeMeta = {
@@ -48,6 +50,7 @@ export function setActiveWallet(
     name: wallet.name,
     rdns: wallet.rdns,
     address: address?.toLowerCase(),
+    smartAccountAddress: smartAccountAddress?.toLowerCase(),
   };
   saveMeta(activeMeta);
 }
@@ -112,6 +115,7 @@ export async function resolveActiveProvider(
         name: hit.name,
         rdns: hit.rdns,
         address: meta.address,
+        smartAccountAddress: meta.smartAccountAddress,
       };
       return { provider: hit.provider, meta: activeMeta };
     }

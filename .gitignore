@@ -51,3 +51,4 @@ next-env.d.ts
 .env*
 *.db
 *.apk
+.env*.local

@@ -724,3 +724,35 @@ export async function createAppKitAdapterFromBrowser(opts?: {
 }
 
 export { ARC_CHAIN_ID, ARC_TESTNET_RPC, ARC_EXPLORER };
+
+/**
+ * Integrates ZeroDev Account Abstraction for AI Agent.
+ * Wraps the base EOA provider in a Kernel Smart Account so the agent can execute transactions
+ * automatically using Session Keys without prompting the user.
+ */
+export async function setupAgentSmartWallet(baseProvider: InjectedProvider, eoaAddress: string) {
+  try {
+    const { createSmartAccountClient, createEIP1193ProviderProxy } = await import("./zerodev-adapter");
+    
+    // Create Kernel Client
+    const smartClient = await createSmartAccountClient(baseProvider, eoaAddress as `0x${string}`);
+    
+    // Wrap it in EIP-1193 Proxy
+    const proxyProvider = createEIP1193ProviderProxy(smartClient, baseProvider);
+    
+    // Update active wallet meta with smart account address
+    const currentMeta = getActiveWalletMeta();
+    if (currentMeta) {
+      setActiveWallet(
+        { uuid: currentMeta.uuid, name: currentMeta.name, provider: proxyProvider },
+        eoaAddress,
+        (smartClient as any)?.account?.address
+      );
+    }
+    
+    return proxyProvider;
+  } catch (e) {
+    console.error("[AGFusion] Failed to setup Agent Smart Wallet:", e);
+    throw e;
+  }
+}

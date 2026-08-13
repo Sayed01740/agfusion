@@ -8,10 +8,15 @@ import { AGFUSION_X_HANDLE, AGFUSION_X_URL } from "@/lib/social";
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <WalletProvider>
-      <div className="min-h-screen mesh-bg noise-overlay">
-        <div className="pointer-events-none fixed inset-0 grid-bg opacity-50" />
+      <div className="min-h-screen mesh-bg noise-overlay overflow-hidden relative">
+        {/* Ambient Drifting Orbs */}
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] rounded-full bg-cyan-500/10 blur-[120px] animate-ambient-drift mix-blend-screen" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-indigo-500/10 blur-[150px] animate-ambient-drift mix-blend-screen" style={{ animationDelay: '-9s' }} />
+        </div>
+        <div className="pointer-events-none fixed inset-0 grid-bg opacity-50 animate-grid-pulse z-0" />
         {/* Soft vignette */}
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(2,6,23,0.55)_100%)]" />
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(2,6,23,0.55)_100%)] z-0" />
         <div className="relative z-[1]">
           <Navbar />
           <main className="pb-24 md:pb-10">{children}</main>

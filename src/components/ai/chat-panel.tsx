@@ -233,8 +233,8 @@ export function ChatPanel() {
     setThinking(true);
     setStatusLine(
       preview.type === "swap"
-        ? "Opening swap — check Rabby for signature…"
-        : "Opening wallet for signature…",
+        ? "Executing swap..."
+        : "Executing transaction..."
     );
 
     try {
@@ -356,6 +356,48 @@ export function ChatPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-6 px-2 animate-fade-in my-8">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/30">
+              <Zap className="h-8 w-8 text-cyan-400" />
+            </div>
+            
+            <div className="space-y-2 max-w-[280px]">
+              <h3 className="text-xl font-semibold text-white tracking-tight">Auto-Agent</h3>
+              <p className="text-sm text-slate-400">
+                Your smart assistant for the Arc Blockchain.
+              </p>
+            </div>
+
+            <div className="w-full max-w-sm space-y-3 text-left">
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                <div className="text-[12px] font-semibold uppercase tracking-wider text-cyan-400">What I can do</div>
+                <ul className="space-y-2 text-sm text-slate-300">
+                  <li className="flex gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <span><strong>Send USDC</strong> to any address on Arc Testnet</span>
+                  </li>
+                  <li className="flex gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <span><strong>Swap</strong> between USDC and EURC</span>
+                  </li>
+                  <li className="flex gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <span>Check your <strong>balances</strong> and transactions</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                <div className="text-[12px] font-semibold uppercase tracking-wider text-cyan-400">How to use</div>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Type what you want in plain English. I will create a secure plan. <strong>Nothing moves until you press Confirm</strong> and sign in your wallet.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <AnimatePresence initial={false}>
           {messages.map((m) => (
             <motion.div

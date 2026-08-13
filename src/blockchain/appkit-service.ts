@@ -93,6 +93,7 @@ async function tryLiveAppKitBridge(params: {
   amount: string;
   fromChain: ChainId;
   toChain: ChainId;
+  onStep?: (steps: TxStep[]) => void;
 }): Promise<TransactionRecord> {
   if (typeof window === "undefined") {
     throw new Error(
@@ -241,7 +242,11 @@ async function tryLiveAppKitBridge(params: {
       config: { kitKey },
     };
 
-    const result = (await kit.bridge(bridgeParams)) as {
+    kit.on("*", (payload) => {
+      console.log("[AGFusion Bridge Lifecycle] Action:", payload);
+    });
+
+    let result = (await kit.bridge(bridgeParams)) as {
       state?: string;
       steps?: Array<{
         name?: string;
@@ -251,6 +256,18 @@ async function tryLiveAppKitBridge(params: {
       }>;
       amount?: string;
     };
+
+    if (result.state === "error") {
+      console.warn("[AGFusion] Bridge returned error state, attempting recovery via retryBridge...");
+      try {
+        result = (await (kit as any).retryBridge(result, {
+          from: wired.adapter,
+          to: wired.adapter,
+        })) as typeof result;
+      } catch (retryErr) {
+        console.warn("[AGFusion] Bridge recovery failed:", retryErr);
+      }
+    }
 
     const steps: TxStep[] = (result.steps || []).map((s) => ({
       name: s.name || "Step",
@@ -334,7 +351,7 @@ async function tryLiveAppKitBridge(params: {
           "AGFusion proxies Arc/Base RPC server-side. Usually this is still a wallet/RPC issue:",
           "1. Hard-refresh (Ctrl+Shift+R) so the latest proxy code loads",
           `2. Rabby must stay on **${src}** while approving the burn (chain id 5042002 for Arc)`,
-          "3. Arc RPC in Rabby: https://rpc.testnet.arc.network · currency USDC",
+          "3. Arc RPC in Rabby: https://rpc.testnet.arc.io · currency USDC",
           "4. You need **USDC on the source chain** (Arc for Arc→Base)",
           "5. Check /api/rpc?chain=arc returns ok:true",
           "",
@@ -417,6 +434,7 @@ export async function runBridgeFlow(params: {
     amount: params.amount,
     fromChain: params.fromChain,
     toChain: params.toChain,
+    onStep: params.onStep,
   });
 }
 
@@ -514,18 +532,31 @@ export async function runSwapFlow(params: {
     );
   }
 
-  // Switch to Arc + build adapter only after eth_chainId === 5042002
+  const { switchToChainId, getInjectedProvider, requestAccounts } =
+    await import("@/sdk/wallet-adapter");
+  const provider = await getInjectedProvider();
+  await requestAccounts(provider);
+  try {
+    await switchToChainId(provider, params.chain);
+  } catch (e) {
+    throw new Error(
+      e instanceof Error
+        ? e.message
+        : `Switch wallet to ${params.chain} before swapping.`,
+    );
+  }
+
   let wired: Awaited<ReturnType<typeof createAppKitAdapterFromBrowser>>;
   try {
-    wired = await createAppKitAdapterFromBrowser({ requireArc: true });
+    wired = await createAppKitAdapterFromBrowser({ requireArc: false });
   } catch (e) {
     throw e instanceof Error
       ? e
-      : new Error("Could not switch wallet to Arc Testnet");
+      : new Error(`Could not switch wallet to ${params.chain}`);
   }
   if (!wired) {
     throw new Error(
-      "Wallet not ready. Click Connect → pick **Rabby** (not MetaMask if both installed) → Arc Testnet (5042002), then swap again.",
+      `Wallet not ready. Connect your wallet on ${params.chain}, then swap again.`,
     );
   }
 
@@ -562,7 +593,7 @@ export async function runSwapFlow(params: {
   const tokenOut = (params.tokenOut || "EURC").toUpperCase();
 
   const swapParams = {
-    from: { adapter: wired.adapter, chain: "Arc_Testnet" as const },
+    from: { adapter: wired.adapter, chain: params.chain },
     tokenIn,
     tokenOut,
     amountIn: String(params.amount),
@@ -609,7 +640,7 @@ export async function runSwapFlow(params: {
       const sMsg = formatKitError(swapErr);
       // Retry once: re-assert Arc + force approve only
       if (
-        /permit|chainId should be same|allowanceStrategy|VALIDATION_FAILED|1098|chain/i.test(
+        /permit|chainId should be same|allowanceStrategy|VALIDATION_FAILED|1098|unrecognized chain/i.test(
           sMsg,
         )
       ) {
@@ -618,14 +649,16 @@ export async function runSwapFlow(params: {
           sMsg.slice(0, 200),
         );
         const { ensureArcChainId } = await import("@/sdk/wallet-adapter");
-        await ensureArcChainId(wired.provider);
+        // We shouldn't force Arc here either, we need the correct chain
+        const { switchToChainId } = await import("@/sdk/wallet-adapter");
+        await switchToChainId(wired.provider, params.chain);
         const retryWired = await createAppKitAdapterFromBrowser({
-          requireArc: true,
+          requireArc: false,
         });
         if (!retryWired) throw swapErr;
         result = (await kit.swap({
           ...swapParams,
-          from: { adapter: retryWired.adapter, chain: "Arc_Testnet" },
+          from: { adapter: retryWired.adapter, chain: params.chain },
           config: {
             kitKey,
             slippageBps: 100,
@@ -687,7 +720,7 @@ export async function runSwapFlow(params: {
         `${msg}\n\n` +
           `Tips:\n` +
           `• In Rabby, select the **exact account** connected to AGFusion\n` +
-          `• Network must be **Arc Testnet** · chain id **5042002** · RPC **https://rpc.testnet.arc.network**\n` +
+          `• Network must be **Arc Testnet** · chain id **5042002** · RPC **https://rpc.testnet.arc.io**\n` +
           `• If MetaMask + Rabby both installed: Connect → choose **Rabby** in AGFusion\n` +
           `• Delete a bad Arc network entry and re-add if needed`,
       );

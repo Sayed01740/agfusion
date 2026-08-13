@@ -99,22 +99,28 @@ export default function LandingPage() {
           className="mx-auto max-w-4xl text-center animate-fade-up"
         >
           <div className="mb-8 flex justify-center">
-            <Image
-              src="/logo-light.png"
-              alt="AGFusion"
-              width={120}
-              height={120}
-              priority
-              className="h-[5.5rem] w-[5.5rem] sm:h-28 sm:w-28 rounded-2xl object-contain shadow-2xl shadow-cyan-500/20 ring-1 ring-white/10"
-            />
+            <div className="relative inline-block">
+              <div className="absolute inset-0 bg-cyan-500/30 blur-[60px] rounded-full animate-pulse z-0" />
+              <Image
+                src="/logo-light.png"
+                alt="AGFusion"
+                width={120}
+                height={120}
+                priority
+                className="relative h-[6.5rem] w-[6.5rem] sm:h-32 sm:w-32 rounded-3xl object-contain shadow-[0_0_50px_rgba(34,211,238,0.3)] ring-1 ring-cyan-400/30 z-10 hover:scale-105 transition-transform duration-500"
+              />
+            </div>
           </div>
           <Badge variant="cyan" className="mb-7 gap-1.5 px-3.5 py-1.5 shadow-lg shadow-cyan-500/10">
             <Shield className="h-3 w-3" />
             Free testnet app · real wallet practice · not a bank
           </Badge>
-          <h1 className="font-display text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl md:text-[3.4rem]">
-            Send, swap, and move USDC —{" "}
-            <span className="text-gradient">without juggling five apps</span>
+          <h1 className="font-display text-5xl font-extrabold leading-[1.1] tracking-tighter sm:text-6xl md:text-[4.5rem]">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-teal-300 to-indigo-400">
+              Send, swap, and move USDC
+            </span>
+            <br />
+            <span className="text-slate-100">without juggling five apps</span>
           </h1>
           <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
             <strong className="font-semibold text-slate-200">AGFusion</strong> is
@@ -124,10 +130,10 @@ export default function LandingPage() {
             pay or convert. The AI plans; you always Confirm.
           </p>
           <div className="mt-11 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button asChild size="lg" className="min-w-[200px] glow-cyan">
+            <Button asChild size="lg" className="min-w-[200px] h-14 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold text-base shadow-[0_0_25px_rgba(34,211,238,0.4)] transition-all duration-300 hover:scale-[1.03] border border-cyan-400/50">
               <Link href="/dashboard">
                 Start here — open app
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-5 w-5 ml-2" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="min-w-[200px]">
@@ -178,10 +184,10 @@ export default function LandingPage() {
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.55 }}
+          transition={{ duration: 0.3 }}
           className="mx-auto mt-14 max-w-3xl"
         >
-          <div className="rounded-2xl border border-white/[0.08] bg-slate-900/50 p-5 sm:p-6">
+          <div className="liquid-glass rounded-2xl border border-cyan-500/10 p-5 sm:p-6 hover:border-cyan-400/30 hover:shadow-[0_0_40px_rgba(34,211,238,0.15)] transition-all duration-300">
             <p className="section-label mb-3">Inside the app</p>
             <h2 className="text-lg font-semibold text-slate-50">
               Two columns — that’s the whole workspace
@@ -213,10 +219,10 @@ export default function LandingPage() {
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.7 }}
+          transition={{ duration: 0.4 }}
           className="mx-auto mt-10 max-w-3xl"
         >
-          <div className="glass-strong glow-border rounded-3xl p-1 shadow-2xl shadow-cyan-500/15">
+          <div className="liquid-glass glow-border rounded-3xl p-1 shadow-[0_0_50px_rgba(34,211,238,0.25)] hover:shadow-[0_0_80px_rgba(34,211,238,0.4)] transition-shadow duration-300">
             <div className="rounded-[1.35rem] bg-gradient-to-b from-slate-950/90 to-slate-950/70 p-6 sm:p-8">
               <div className="flex items-center justify-between gap-3 text-xs text-slate-500 mb-6">
                 <span className="section-label">Payment flow</span>
@@ -230,7 +236,7 @@ export default function LandingPage() {
                     key={step}
                     initial={{ opacity: 0, x: -12 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.35 + i * 0.1 }}
+                    transition={{ duration: 0.3 }}
                     className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3.5 hover:border-cyan-500/20 hover:bg-cyan-500/[0.04] transition-colors"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500/25 to-blue-500/15 text-xs font-mono font-semibold text-cyan-200 ring-1 ring-cyan-400/20">
@@ -292,9 +298,9 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.04 }}
-                className="glass rounded-2xl p-5 hover:border-cyan-500/20 transition border border-transparent"
+                className="liquid-glass rounded-2xl p-5 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(34,211,238,0.25)] transition-all duration-500 border border-white/5 hover:-translate-y-1"
               >
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-teal-300 shadow-[0_0_15px_rgba(94,234,212,0.2)]">
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="font-medium text-slate-100">{f.title}</h3>

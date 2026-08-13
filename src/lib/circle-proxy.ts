@@ -11,6 +11,7 @@ let installed = false;
 
 /** Map host → /api/rpc?chain=… */
 const RPC_HOST_TO_CHAIN: Record<string, string> = {
+  "rpc.testnet.arc.io": "arc",
   "rpc.testnet.arc.network": "arc",
   "sepolia.base.org": "base",
   "base-sepolia-rpc.publicnode.com": "base",

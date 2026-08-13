@@ -76,7 +76,7 @@ const UI_MAP = [
  * Plain-language guide for first-time users who find crypto UI confusing.
  */
 export function UserGuideCard() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [helpQ, setHelpQ] = useState("");
   const [helpA, setHelpA] = useState<string | null>(null);
   const [helpBusy, setHelpBusy] = useState(false);

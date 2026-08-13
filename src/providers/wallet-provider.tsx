@@ -44,6 +44,7 @@ type WalletContextValue = {
   signInSiwe: () => Promise<boolean>;
   error: string | null;
   clearError: () => void;
+  enableAgentMode: () => Promise<void>;
 };
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -242,6 +243,38 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [setAuthenticated, loadServerTransactions, setWallet],
   );
 
+  const enableAgentMode = useCallback(async () => {
+    if (!provider || !walletAddress) {
+      setError("Connect a wallet first before enabling Auto-Agent.");
+      return;
+    }
+    try {
+      setConnecting(true);
+      const { setupAgentSmartWallet } = await import("@/sdk/wallet-adapter");
+      const agentProvider = await setupAgentSmartWallet(provider, walletAddress);
+      
+      setProvider(agentProvider);
+      
+      // Update UI with the new smart account address
+      const accounts = (await agentProvider.request({ method: "eth_accounts" })) as string[];
+      if (accounts?.[0]) {
+        setWallet(accounts[0], ARC_CHAIN_ID);
+        attachListeners(agentProvider, accounts[0]);
+        alert(
+          "Auto-Agent enabled successfully! Your autonomous smart account is ready.\n\n" +
+          "IMPORTANT: Since the agent signs automatically without Rabby, it has its own unique address. " +
+          "You must transfer some USDC on Arc Testnet to this new address before the Agent can swap for you."
+        );
+      }
+    } catch (e: any) {
+      console.error("[AGFusion] Auto-Agent setup failed:", e);
+      alert("Error enabling Auto-Agent: " + (e.message || "Unknown error"));
+      setError(e.message || "Failed to enable agent mode.");
+    } finally {
+      setConnecting(false);
+    }
+  }, [provider, walletAddress, setWallet, attachListeners]);
+
   const connectWith = useCallback(
     async (wallet: DiscoveredWallet) => {
       setConnecting(true);
@@ -355,6 +388,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       signInSiwe,
       error,
       clearError: () => setError(null),
+      enableAgentMode,
     }),
     [
       connecting,
@@ -370,6 +404,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       refreshBalance,
       signInSiwe,
       error,
+      enableAgentMode,
     ],
   );
 

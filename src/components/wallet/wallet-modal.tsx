@@ -48,6 +48,8 @@ export function WalletModal({
   const [wallets, setWallets] = useState<DiscoveredWallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailConnecting, setEmailConnecting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +70,7 @@ export function WalletModal({
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-md glass-strong rounded-2xl border border-cyan-500/20 shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md liquid-glass rounded-2xl border border-cyan-500/20 shadow-2xl overflow-hidden animate-fade-up">
         <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-slate-50">
@@ -88,6 +90,93 @@ export function WalletModal({
         </div>
 
         <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto scrollbar-thin">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!email) return;
+              setEmailConnecting(true);
+              try {
+                const { authenticateWithCircleEmail } = await import("@/sdk/circle-pw");
+                const { setActiveProvider } = await import("@/sdk/active-wallet");
+                const { usePilotStore } = await import("@/store/pilot-store");
+                const address = await authenticateWithCircleEmail(email);
+                
+                // For a User-Controlled Wallet, we don't have a standard window.ethereum.
+                // We create a minimal mock provider so the app recognizes a wallet is connected.
+                  const mockProvider = {
+                    request: async (args: any) => {
+                      if (args.method === "eth_accounts") return [address];
+                      if (args.method === "eth_chainId") return "0x4cef52"; // 5042002 in hex
+                      if (args.method === "wallet_switchEthereumChain") return null;
+                      if (args.method === "wallet_addEthereumChain") return null;
+                      if (args.method === "personal_sign") {
+                        // Return a deterministic signature based on the address for Agent Wallet generation
+                        return `0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000${address.slice(2)}`;
+                      }
+                      throw new Error(`Method ${args.method} not supported by Circle PW mock provider`);
+                    },
+                    on: () => {},
+                    removeListener: () => {},
+                  };
+                
+                setActiveProvider(mockProvider as any, {
+                  uuid: "circle-pw",
+                  name: "Circle Email Wallet",
+                  address: address.toLowerCase(),
+                });
+
+                const { setupAgentSmartWallet } = await import("@/sdk/wallet-adapter");
+                const agentProvider = await setupAgentSmartWallet(mockProvider as any, address);
+                
+                const agentAccounts = (await agentProvider.request({ method: "eth_accounts" })) as string[];
+                const finalAddress = agentAccounts?.[0] || address;
+
+                usePilotStore.getState().setWallet(finalAddress, 5042002);
+                usePilotStore.getState().setAuthenticated(true);
+                
+                alert(`Connected Circle Email Wallet!\nYour Auto-Agent is ready at: ${finalAddress}\n\nPlease fund this address with USDC on Arc Testnet to use the AI workspace seamlessly.`);
+                onClose();
+              } catch (err: any) {
+                alert(err.message || "Failed to create Circle Wallet");
+              } finally {
+                setEmailConnecting(false);
+              }
+            }}
+            className="space-y-3"
+          >
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium text-slate-400">
+                Create a wallet with email
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all"
+                />
+                <Button
+                  type="submit"
+                  disabled={emailConnecting || !email}
+                  className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white min-w-[100px] shadow-[0_0_15px_rgba(34,211,238,0.3)] transition-all duration-300 hover:scale-[1.02]"
+                >
+                  {emailConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
+                </Button>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Powered by Circle Programmable Wallets
+              </p>
+            </div>
+          </form>
+
+          <div className="relative flex items-center py-2">
+            <div className="flex-grow border-t border-white/10"></div>
+            <span className="flex-shrink-0 mx-4 text-xs text-slate-500">or</span>
+            <div className="flex-grow border-t border-white/10"></div>
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
@@ -130,9 +219,9 @@ export function WalletModal({
                     onSelect(w);
                   }}
                   className={cn(
-                    "w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition",
-                    "border-white/10 bg-white/[0.03] hover:border-cyan-500/40 hover:bg-cyan-500/5",
-                    "disabled:opacity-60",
+                    "w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-300",
+                    "border-white/10 bg-white/[0.03] hover:border-cyan-500/40 hover:bg-cyan-500/5 hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(34,211,238,0.1)]",
+                    "disabled:opacity-60 disabled:hover:scale-100",
                     selectedId === w.uuid && connecting && "border-cyan-500/50",
                   )}
                 >

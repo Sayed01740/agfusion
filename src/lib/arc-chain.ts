@@ -16,11 +16,11 @@ import { defineChain } from "viem";
 
 export const ARC_TESTNET_RPC =
   process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() ||
-  "https://rpc.testnet.arc.network";
+  "https://rpc.testnet.arc.io";
 
 export const ARC_TESTNET_WS =
   process.env.NEXT_PUBLIC_ARC_WS_URL?.trim() ||
-  "wss://rpc.testnet.arc.network";
+  "wss://rpc.testnet.arc.io";
 
 export const ARC_CHAIN_ID = 5042002;
 /** Live RPC eth_chainId from rpc.testnet.arc.network */
@@ -43,7 +43,7 @@ export const ARC_TESTNET_WALLET_PARAMS = {
     symbol: "USDC",
     decimals: 18,
   },
-  rpcUrls: ["https://rpc.testnet.arc.network"] as string[],
+  rpcUrls: ["https://rpc.testnet.arc.io"] as string[],
   blockExplorerUrls: ["https://testnet.arcscan.app"] as string[],
 };
 
@@ -148,7 +148,7 @@ export function isArcChainId(id: number | null | undefined): boolean {
 
 export const ARC_NETWORK_MANUAL = {
   networkName: "Arc Testnet",
-  rpcUrl: "https://rpc.testnet.arc.network",
+  rpcUrl: "https://rpc.testnet.arc.io",
   chainId: "5042002",
   chainIdHex: "0x4cef52",
   currencySymbol: "USDC",
