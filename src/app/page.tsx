@@ -107,7 +107,7 @@ export default function LandingPage() {
                 width={120}
                 height={120}
                 priority
-                className="relative h-[6.5rem] w-[6.5rem] sm:h-32 sm:w-32 rounded-3xl object-contain shadow-[0_0_50px_rgba(34,211,238,0.3)] ring-1 ring-cyan-400/30 z-10 hover:scale-105 transition-transform duration-500"
+                className="relative h-[6.5rem] w-[6.5rem] sm:h-32 sm:w-32 rounded-3xl object-contain shadow-[0_0_50px_rgba(34,211,238,0.3)] ring-1 ring-cyan-400/30 z-10 hover:scale-105 transition-transform duration-500 animate-float"
               />
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function LandingPage() {
             pay or convert. The AI plans; you always Confirm.
           </p>
           <div className="mt-11 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button asChild size="lg" className="min-w-[200px] h-14 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold text-base shadow-[0_0_25px_rgba(34,211,238,0.4)] transition-all duration-300 hover:scale-[1.03] border border-cyan-400/50">
+            <Button asChild size="lg" className="min-w-[200px] h-14 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold text-base shadow-[0_0_25px_rgba(34,211,238,0.4)] transition-all duration-300 hover:scale-[1.03] border border-cyan-400/50 animate-pulse-ring">
               <Link href="/dashboard">
                 Start here — open app
                 <ArrowRight className="h-5 w-5 ml-2" />
@@ -185,9 +185,9 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="mx-auto mt-14 max-w-3xl"
+          className="mx-auto mt-14 max-w-3xl perspective-1000"
         >
-          <div className="liquid-glass rounded-2xl border border-cyan-500/10 p-5 sm:p-6 hover:border-cyan-400/30 hover:shadow-[0_0_40px_rgba(34,211,238,0.15)] transition-all duration-300">
+          <div className="glass-ultra rounded-2xl p-5 sm:p-6 group hover:-translate-y-1 transition-all duration-500">
             <p className="section-label mb-3">Inside the app</p>
             <h2 className="text-lg font-semibold text-slate-50">
               Two columns — that’s the whole workspace
@@ -222,7 +222,7 @@ export default function LandingPage() {
           transition={{ duration: 0.4 }}
           className="mx-auto mt-10 max-w-3xl"
         >
-          <div className="liquid-glass glow-border rounded-3xl p-1 shadow-[0_0_50px_rgba(34,211,238,0.25)] hover:shadow-[0_0_80px_rgba(34,211,238,0.4)] transition-shadow duration-300">
+          <div className="glass-ultra glow-border rounded-3xl p-1 transition-all duration-500 hover:scale-[1.01]">
             <div className="rounded-[1.35rem] bg-gradient-to-b from-slate-950/90 to-slate-950/70 p-6 sm:p-8">
               <div className="flex items-center justify-between gap-3 text-xs text-slate-500 mb-6">
                 <span className="section-label">Payment flow</span>
@@ -298,9 +298,9 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.04 }}
-                className="liquid-glass rounded-2xl p-5 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(34,211,238,0.25)] transition-all duration-500 border border-white/5 hover:-translate-y-1"
+                className="glass-ultra rounded-2xl p-5 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(34,211,238,0.15)] group"
               >
-                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-teal-300 shadow-[0_0_15px_rgba(94,234,212,0.2)]">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-teal-300 shadow-[0_0_15px_rgba(94,234,212,0.2)] group-hover:scale-110 transition-transform duration-300">
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="font-medium text-slate-100">{f.title}</h3>

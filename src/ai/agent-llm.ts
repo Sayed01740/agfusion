@@ -535,13 +535,13 @@ export async function runLlmAgentLoop(input: {
   return null;
 }
 
-const MONEY_INTENTS = new Set(["swap", "send", "bridge", "route"]);
+const MONEY_INTENTS = new Set(["swap", "send", "bridge", "route", "register_agent"]);
 
 function isMoneyCommand(message: string): boolean {
   try {
     return MONEY_INTENTS.has(parseIntent(message).type);
   } catch {
-    return /\b(swap|bridge|send|pay|transfer|convert)\b/i.test(message);
+    return /\b(swap|bridge|send|pay|transfer|convert|register)\b/i.test(message);
   }
 }
 

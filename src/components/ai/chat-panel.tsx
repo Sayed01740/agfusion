@@ -30,9 +30,9 @@ const SUGGESTIONS = [
   "What can you do?",
   "Show my balances",
   "How do I send USDC?",
-  "Swap 1 USDC to EURC",
+  "Register an ERC-8004 Agent",
   "Bridge 5 USDC from Arc to Base",
-  "Help me get started",
+  "Check transaction status",
 ];
 
 function renderMarkdownish(text: string) {
@@ -329,7 +329,13 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex h-full min-h-[520px] max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border border-cyan-400/12 bg-gradient-to-b from-[#0c1628]/95 to-[#060d18] shadow-2xl shadow-black/40 glow-border">
+    <div
+      className={`flex h-full min-h-[520px] max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#0c1628]/95 to-[#060d18] transition-all duration-700 glow-border ${
+        isThinking
+          ? "border-cyan-400/50 shadow-[0_0_80px_rgba(34,211,238,0.25)]"
+          : "border-cyan-400/12 shadow-2xl shadow-black/40"
+      }`}
+    >
       <div className="flex items-center justify-between border-b border-white/[0.06] bg-gradient-to-r from-cyan-500/[0.06] to-transparent px-4 py-3.5 shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl ring-1 ring-cyan-400/25 shadow-md shadow-cyan-500/15">
@@ -418,21 +424,27 @@ export function ChatPanel() {
                 <div className="text-slate-100">{renderMarkdownish(m.content)}</div>
 
                 {m.toolTrace && m.toolTrace.length > 0 && (
-                  <div className="rounded-xl border border-white/10 bg-slate-950/50 p-2.5 space-y-1">
-                    <div className="text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                      <Wrench className="h-3 w-3" />
-                      {m.toolTrace.length} tool step
-                      {m.toolTrace.length === 1 ? "" : "s"}
+                  <div className="rounded-xl border border-white/10 bg-[#020617] p-3 space-y-1.5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
+                    <div className="text-[10px] uppercase tracking-wider text-cyan-500/70 flex items-center gap-1 mb-2">
+                      <Terminal className="h-3 w-3" />
+                      Agent Sub-Routine [{m.toolTrace.length} calls]
                     </div>
-                    {m.toolTrace.slice(0, 6).map((t, i) => (
+                    {m.toolTrace.slice(0, 8).map((t, i) => (
                       <div
                         key={`${t.name}-${i}`}
-                        className={`text-[11px] font-mono ${
-                          t.ok ? "text-slate-400" : "text-red-300/90"
+                        className={`text-[11px] font-mono flex gap-2 ${
+                          t.ok ? "text-cyan-400/80" : "text-red-400/90"
                         }`}
                       >
-                        {t.ok ? "✓" : "✗"} {t.name}
-                        {t.summary ? ` — ${t.summary.slice(0, 80)}` : ""}
+                        <span>{t.ok ? "❯" : "✖"}</span>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{t.name}</span>
+                          {t.summary && (
+                            <span className="text-slate-500 text-[10px] opacity-80 leading-tight">
+                              {t.summary}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -469,17 +481,31 @@ export function ChatPanel() {
 
         {isThinking && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-2 px-1"
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3 px-1"
           >
-            <div className="flex items-center gap-2 text-sm text-cyan-300/80">
+            <div className="flex items-center gap-2 text-sm text-cyan-400 font-medium">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {statusLine || "Agent working…"}
+              {statusLine || "Agent reasoning…"}
             </div>
             {liveTrace.length > 0 && (
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-[11px] text-slate-400">
-                Running secure agent tools… ({liveTrace.length})
+              <div className="rounded-xl border border-cyan-500/30 bg-[#020617] p-3 text-[11px] text-cyan-300 font-mono shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
+                <div className="flex items-center gap-2 mb-2 text-[10px] text-cyan-500/70 uppercase">
+                  <Terminal className="h-3 w-3" /> Live Terminal
+                </div>
+                <div className="space-y-1">
+                  {liveTrace.slice(-3).map((t, i) => (
+                    <div key={i} className="flex gap-2 animate-fade-in opacity-80">
+                      <span>❯</span>
+                      <span>{t.name}</span>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 animate-pulse text-cyan-500">
+                    <span>_</span>
+                    <span>processing...</span>
+                  </div>
+                </div>
               </div>
             )}
           </motion.div>
