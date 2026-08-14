@@ -124,33 +124,41 @@ async function tryLiveAppKitBridge(params: {
     );
   }
 
-  // Critical: do NOT force Arc first — source may be Base/ETH Sepolia
-  const { switchToChainId, getInjectedProvider, requestAccounts } =
-    await import("@/sdk/wallet-adapter");
-  const provider = await getInjectedProvider();
-  await requestAccounts(provider);
-  try {
-    await switchToChainId(provider, params.fromChain);
-  } catch (e) {
-    throw new Error(
-      e instanceof Error
-        ? e.message
-        : `Switch Rabby to ${params.fromChain} (source network) before bridging.`,
-    );
-  }
+  const { getActiveWalletMeta } = await import("@/sdk/wallet-adapter");
+  const meta = getActiveWalletMeta();
+  const isAgent = meta?.id === "agfusion-agent";
 
-  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
-  if (!wired) {
-    throw new Error(
-      "Wallet not ready. Connect Rabby, then Confirm bridge again.",
-    );
-  }
+  let wiredAdapter: any = undefined;
 
-  // Ensure adapter provider is on source chain again after build
-  try {
-    await switchToChainId(wired.provider, params.fromChain);
-  } catch {
-    /* kit may switch itself */
+  if (isAgent) {
+    // Only inject custom viem adapter if using the headless Agent
+    const { switchToChainId, getInjectedProvider, requestAccounts } =
+      await import("@/sdk/wallet-adapter");
+    const provider = await getInjectedProvider();
+    await requestAccounts(provider);
+    try {
+      await switchToChainId(provider, params.fromChain);
+    } catch (e) {
+      throw new Error(
+        e instanceof Error
+          ? e.message
+          : `Agent failed to switch to ${params.fromChain}.`,
+      );
+    }
+
+    const { createAppKitAdapterFromBrowser } = await import("@/sdk/wallet-adapter");
+    const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+    if (!wired) {
+      throw new Error("Agent wallet adapter not ready.");
+    }
+    
+    try {
+      await switchToChainId(wired.provider, params.fromChain);
+    } catch {
+      /* ignore */
+    }
+    
+    wiredAdapter = wired.adapter;
   }
 
   // Hard preflight: source + dest public RPCs must answer eth_chainId
@@ -230,17 +238,20 @@ async function tryLiveAppKitBridge(params: {
   try {
     const bridgeParams: Record<string, unknown> = {
       from: {
-        adapter: wired.adapter,
         chain: params.fromChain,
       },
       to: {
-        adapter: wired.adapter,
         chain: params.toChain,
       },
       amount: String(params.amount),
       token: "USDC",
       config: { kitKey },
     };
+
+    if (wiredAdapter) {
+      (bridgeParams.from as any).adapter = wiredAdapter;
+      (bridgeParams.to as any).adapter = wiredAdapter;
+    }
 
     const { EVM_CHAIN_PARAMS } = await import("@/sdk/wallet-adapter");
     if (typeof window !== "undefined") {
