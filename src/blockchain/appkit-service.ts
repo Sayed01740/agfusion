@@ -242,8 +242,19 @@ async function tryLiveAppKitBridge(params: {
       config: { kitKey },
     };
 
-    kit.on("*", (payload) => {
+    const { EVM_CHAIN_PARAMS } = await import("@/sdk/wallet-adapter");
+    if (typeof window !== "undefined") {
+      (window as any).__agfusion_expected_chain = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
+    }
+
+    kit.on("*", (payload: any) => {
       console.log("[AGFusion Bridge Lifecycle] Action:", payload);
+      if (typeof window !== "undefined" && payload?.state === "active") {
+        const name = (payload?.name || "").toLowerCase();
+        if (name.includes("receive") || name.includes("mint") || name.includes("destination")) {
+          (window as any).__agfusion_expected_chain = EVM_CHAIN_PARAMS[params.toChain]?.chainId;
+        }
+      }
     });
 
     let result = (await kit.bridge(bridgeParams)) as {

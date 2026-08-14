@@ -598,6 +598,46 @@ export async function createAppKitAdapterFromBrowser(opts?: {
       }
     }
 
+    let proxyProvider = provider;
+    if (typeof window !== "undefined") {
+      proxyProvider = {
+        ...provider,
+        request: async (args: { method: string; params?: any }) => {
+          if (args.method === "eth_chainId") {
+            const expected = (window as any).__agfusion_expected_chain;
+            if (expected) return `0x${expected.toString(16)}`;
+          }
+          if (args.method === "eth_sendTransaction") {
+            const expected = (window as any).__agfusion_expected_chain;
+            if (expected) {
+              const expectedHex = `0x${expected.toString(16)}`.toLowerCase();
+              let actualId: any;
+              try {
+                actualId = await provider.request({ method: "eth_chainId" });
+                if (typeof actualId === "number") actualId = `0x${actualId.toString(16)}`;
+                actualId = String(actualId).toLowerCase();
+              } catch {
+                actualId = "";
+              }
+              if (actualId !== expectedHex) {
+                console.log("[AGFusion] Auto-switching wallet to chain", expectedHex, "before tx");
+                try {
+                  await provider.request({
+                    method: "wallet_switchEthereumChain",
+                    params: [{ chainId: expectedHex }],
+                  });
+                  await new Promise((r) => setTimeout(r, 800));
+                } catch (e) {
+                  console.warn("[AGFusion] Auto-switch failed, tx may fail", e);
+                }
+              }
+            }
+          }
+          return provider.request(args);
+        },
+      } as InjectedProvider;
+    }
+
     const mod = await import("@circle-fin/adapter-viem-v2");
     const create =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -640,7 +680,7 @@ export async function createAppKitAdapterFromBrowser(opts?: {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const adapter = await create({
-      provider,
+      provider: proxyProvider,
       capabilities: { addressContext: "user-controlled" },
       getPublicClient: (args: {
         chain: {
