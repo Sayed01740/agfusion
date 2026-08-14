@@ -126,7 +126,7 @@ async function tryLiveAppKitBridge(params: {
 
   const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
   const meta = getActiveWalletMeta();
-  const isAgent = meta?.id === "agfusion-agent";
+  const isAgent = !!meta?.smartAccountAddress;
 
   let wiredAdapter: any = undefined;
 
