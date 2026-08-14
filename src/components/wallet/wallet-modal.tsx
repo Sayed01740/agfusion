@@ -106,14 +106,18 @@ export function WalletModal({
                   const mockProvider = {
                     request: async (args: any) => {
                       if (args.method === "eth_accounts") return [address];
-                      if (args.method === "eth_chainId") return "0x4cef52"; // 5042002 in hex
+                      if (args.method === "eth_requestAccounts") return [address];
+                      if (args.method === "eth_chainId") return "0x4cef52"; // Arc Testnet = 5042002
                       if (args.method === "wallet_switchEthereumChain") return null;
                       if (args.method === "wallet_addEthereumChain") return null;
                       if (args.method === "personal_sign") {
-                        // Return a deterministic signature based on the address for Agent Wallet generation
+                        // Deterministic signature for ZeroDev Agent wallet derivation
                         return `0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000${address.slice(2)}`;
                       }
-                      throw new Error(`Method ${args.method} not supported by Circle PW mock provider`);
+                      // Silently ignore unsupported methods instead of throwing —
+                      // App Kit may call methods the mock doesn't need to handle
+                      console.warn(`[Circle Mock] Unhandled method: ${args.method}`);
+                      return null;
                     },
                     on: () => {},
                     removeListener: () => {},

@@ -127,11 +127,10 @@ async function tryLiveAppKitBridge(params: {
   const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
   const meta = getActiveWalletMeta();
   const isAgent = !!meta?.smartAccountAddress;
-
   let wiredAdapter: any = undefined;
 
   if (isAgent) {
-    // Only inject custom viem adapter if using the headless Agent
+    // Headless Agent: pre-switch to source chain before building adapter
     const { switchToChainId, getInjectedProvider, requestAccounts } =
       await import("@/sdk/wallet-adapter");
     const provider = await getInjectedProvider();
@@ -145,19 +144,29 @@ async function tryLiveAppKitBridge(params: {
           : `Agent failed to switch to ${params.fromChain}.`,
       );
     }
+  }
 
-    const { createAppKitAdapterFromBrowser } = await import("@/sdk/wallet-adapter");
+  // Always build a wired adapter for every wallet type (EVM + Circle Email + Agent).
+  // App Kit needs an explicit adapter to know which provider to use for signing.
+  // Without it, App Kit tries window.ethereum internally and fails for Circle wallets
+  // and custom-picker EVM wallets that aren't registered in App Kit's own state.
+  {
+    const { createAppKitAdapterFromBrowser, switchToChainId } =
+      await import("@/sdk/wallet-adapter");
     const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
     if (!wired) {
-      throw new Error("Agent wallet adapter not ready.");
+      throw new Error(
+        "Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.",
+      );
     }
-    
-    try {
-      await switchToChainId(wired.provider, params.fromChain);
-    } catch {
-      /* ignore */
+    if (isAgent) {
+      // After adapter build, double-check agent provider is on source chain
+      try {
+        await switchToChainId(wired.provider, params.fromChain);
+      } catch {
+        /* App Kit handles chain switching internally during bridge steps */
+      }
     }
-    
     wiredAdapter = wired.adapter;
   }
 

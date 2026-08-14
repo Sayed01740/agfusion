@@ -12,6 +12,7 @@ import {
 } from "@/lib/arc-chain";
 import {
   clearActiveWallet,
+  getActiveProvider,
   getActiveWalletMeta,
   resolveActiveProvider,
   setActiveWallet,
@@ -164,6 +165,14 @@ export async function discoverWallets(): Promise<DiscoveredWallet[]> {
 export async function getInjectedProvider(
   preferredRdns?: string,
 ): Promise<InjectedProvider> {
+  // ① Highest priority: in-memory active provider.
+  //    Circle Email Wallet and ZeroDev Agent are stored here via setActiveProvider();
+  //    they never appear in window.ethereum / EIP-6963 discovery.
+  if (!preferredRdns) {
+    const activeP = getActiveProvider();
+    if (activeP) return activeP;
+  }
+
   const wallets = await discoverWallets();
 
   if (preferredRdns) {
@@ -184,7 +193,7 @@ export async function getInjectedProvider(
   }
 
   throw new Error(
-    "No browser wallet found (MetaMask, Rabby). Circle Email Wallets cannot be used for this action.",
+    "No wallet connected. Use the Connect Wallet button to connect MetaMask, Rabby, or a Circle Email Wallet.",
   );
 }
 
