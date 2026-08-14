@@ -35,6 +35,8 @@ export default function DashboardPage() {
   const active =
     transactions.find((t) => t.id === activeTxId) || transactions[0];
   const [mobileTab, setMobileTab] = useState<"chat" | "tools">("chat");
+  const [payRequest, setPayRequest] = useState<{ amount: string; to?: string; memo?: string } | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
 
   useEffect(() => {
     if (walletAddress) {

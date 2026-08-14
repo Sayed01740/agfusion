@@ -91,7 +91,7 @@ export default function LandingPage() {
   return (
     <div className="relative overflow-hidden">
       {/* Hero */}
-      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 pt-20 sm:pt-24 pb-20">
+      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 pt-12 sm:pt-24 pb-12 sm:pb-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -253,7 +253,7 @@ export default function LandingPage() {
 
       {/* Network stats */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 pb-16">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {networkStats.map((s) => (
             <div
               key={s.label}

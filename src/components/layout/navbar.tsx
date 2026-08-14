@@ -85,23 +85,23 @@ export function Navbar() {
     <>
       <header className="sticky top-0 z-50 border-b border-cyan-400/20 bg-[#030712]/80 backdrop-blur-2xl supports-[backdrop-filter]:bg-[#030712]/65 shadow-[0_4px_30px_rgba(34,211,238,0.1)]">
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
-        <div className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
           <Link
             href="/"
-            className="flex items-center gap-2.5 group"
+            className="flex items-center gap-2 sm:gap-2.5 group"
             aria-label="AGFusion home"
           >
             <BrandLogo
               variant="icon"
               height={40}
               priority
-              className="group-hover:shadow-cyan-400/40 transition-shadow"
+              className="h-8 w-8 sm:h-10 sm:w-10 group-hover:shadow-cyan-400/40 transition-shadow"
             />
             <div className="leading-tight hidden xs:block sm:block">
               <div className="font-display text-sm font-semibold tracking-tight">
                 <span className="text-gradient">AGFusion</span>
               </div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-400/70">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-400/70 hidden sm:block">
                 On Arc · programmable money
               </div>
             </div>
@@ -142,7 +142,7 @@ export function Navbar() {
             })}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative" ref={settingsRef}>
               <button
                 onClick={() => setSettingsOpen(!settingsOpen)}
@@ -159,7 +159,7 @@ export function Navbar() {
               </button>
 
               {settingsOpen && (
-                <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] max-w-[14rem] sm:w-56 sm:max-w-none rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5 origin-top-right">
+                <div className="absolute right-0 top-full mt-3 w-[calc(100vw-1.5rem)] max-w-[14rem] sm:w-56 sm:max-w-none rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5 origin-top-right">
                   <div className="px-3 py-2 text-[10px] text-cyan-500/80 uppercase tracking-widest font-bold">
                     Preferences
                   </div>
@@ -218,7 +218,7 @@ export function Navbar() {
                 </Button>
 
                 {walletOpen && (
-                  <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] max-w-[16rem] sm:w-64 sm:max-w-none rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5 origin-top-right">
+                  <div className="absolute right-0 top-full mt-3 w-[calc(100vw-1.5rem)] max-w-[16rem] sm:w-64 sm:max-w-none rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5 origin-top-right">
                     <div className="px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
                       <span>Status</span>
                       <span className="text-cyan-400 font-medium px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/20 text-[10px] uppercase tracking-wider">

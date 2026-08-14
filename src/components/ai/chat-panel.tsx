@@ -437,11 +437,11 @@ export function ChatPanel() {
               <div
                 className={
                   m.role === "user"
-                    ? "max-w-[90%] rounded-2xl rounded-br-md bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/20 px-4 py-3 text-sm"
-                    : "max-w-[95%] rounded-2xl rounded-bl-md bg-white/[0.03] border border-white/5 px-4 py-3 text-sm space-y-3"
+                    ? "max-w-[90%] min-w-0 rounded-2xl rounded-br-md bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/20 px-4 py-3 text-sm"
+                    : "max-w-[95%] min-w-0 rounded-2xl rounded-bl-md bg-white/[0.03] border border-white/5 px-4 py-3 text-sm space-y-3"
                 }
               >
-                <div className="text-slate-100">{renderMarkdownish(m.content)}</div>
+                <div className="text-slate-100 break-words">{renderMarkdownish(m.content)}</div>
 
                 {m.toolTrace && m.toolTrace.length > 0 && (
                   <div className="rounded-xl border border-white/10 bg-[#020617] p-3 space-y-1.5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
@@ -541,7 +541,7 @@ export function ChatPanel() {
               type="button"
               disabled={isThinking}
               onClick={() => send(s)}
-              className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 min-h-[36px] flex items-center justify-center text-[12px] text-slate-300 hover:border-cyan-500/30 hover:text-cyan-200 transition disabled:opacity-50"
+              className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 min-h-[40px] flex items-center justify-center text-[12px] text-slate-300 hover:border-cyan-500/30 hover:text-cyan-200 transition disabled:opacity-50"
             >
               {s}
             </button>

@@ -112,10 +112,10 @@ export function BridgePanelBody() {
             disabled={busy}
           />
         </Field>
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-end">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
           <Field label="From network">
             <select
-              className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
               value={from}
               disabled={busy}
               onChange={(e) => setFrom(e.target.value as ChainId)}
@@ -127,20 +127,22 @@ export function BridgePanelBody() {
               ))}
             </select>
           </Field>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-10 px-2 mb-0.5"
-            disabled={busy}
-            title="Flip direction"
-            onClick={flipDirection}
-          >
-            ⇄
-          </Button>
+          <div className="flex justify-center sm:block sm:pb-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 w-10 px-0 sm:h-11 sm:w-11 rounded-xl"
+              disabled={busy}
+              title="Flip direction"
+              onClick={flipDirection}
+            >
+              <span className="rotate-90 sm:rotate-0">⇄</span>
+            </Button>
+          </div>
           <Field label="To network">
             <select
-              className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
               value={to}
               disabled={busy}
               onChange={(e) => setTo(e.target.value as ChainId)}
@@ -647,7 +649,7 @@ export function UnifiedBalancePanelBody() {
         </Field>
         <Field label="From network">
           <select
-            className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+            className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
             value={from}
             disabled={busy}
             onChange={(e) => setFrom(e.target.value as ChainId)}

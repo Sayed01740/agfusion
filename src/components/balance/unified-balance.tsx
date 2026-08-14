@@ -227,7 +227,7 @@ export function UnifiedBalanceCard({
               Deposit from chain
             </label>
             <select
-              className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
               value={depositFrom}
               disabled={busy}
               onChange={(e) =>
