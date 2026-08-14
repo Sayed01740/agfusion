@@ -115,28 +115,34 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+    <div className="mx-auto max-w-7xl sm:px-6 sm:py-8 pb-4">
       {/* Page intro */}
-      <header className="mb-6 animate-fade-up">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-2xl">
+      <header className="mb-4 sm:mb-6 animate-fade-up px-4 sm:px-0 pt-4 sm:pt-0">
+        <div className="flex items-start justify-between gap-4">
+          <div className="max-w-2xl hidden sm:block">
             <p className="section-label mb-1.5">Dashboard</p>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
               Your Arc <span className="text-gradient">money workspace</span>
             </h1>
-            <p className="prose-app mt-2.5 max-w-xl text-sm hidden sm:block">
+            <p className="prose-app mt-2.5 max-w-xl text-sm">
               Two ways to work: <strong>chat with the agent</strong> (left) or
               use <strong>Send / Swap / Bridge</strong> forms (right). Testnet
               only — nothing leaves your wallet until you confirm.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="cyan" className="gap-1">
+          
+          <div className="flex sm:hidden flex-col gap-1 w-full">
+            <h1 className="font-display text-xl font-semibold text-slate-50">Workspace</h1>
+            <p className="text-xs text-slate-400">Manage your Arc assets</p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+            <Badge variant="cyan" className="gap-1 hidden xs:inline-flex">
               <Activity className="h-3 w-3" />
-              Arc Testnet
+              Arc
             </Badge>
             {walletAddress && (
-              <Badge variant="outline" className="font-mono text-[11px]">
+              <Badge variant="outline" className="font-mono text-[11px] bg-slate-900/50">
                 {shortenAddress(walletAddress)}
                 {liveBalanceUsdc != null && liveBalanceUsdc !== ""
                   ? ` · ${formatUsdc(Number(liveBalanceUsdc))} USDC`
@@ -198,31 +204,33 @@ export default function DashboardPage() {
       </header>
 
       {/* Mobile Tab Switcher */}
-      <div className="flex p-1 mb-6 rounded-xl bg-slate-900/60 ring-1 ring-white/10 lg:hidden">
-        <button
-          onClick={() => setMobileTab("chat")}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300",
-            mobileTab === "chat"
-              ? "bg-gradient-to-b from-cyan-400/20 to-teal-500/10 text-cyan-50 shadow-sm ring-1 ring-cyan-500/30"
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-          )}
-        >
-          <MessageSquare className={cn("w-4 h-4", mobileTab === "chat" ? "text-cyan-300" : "text-slate-500")} />
-          AI Agent
-        </button>
-        <button
-          onClick={() => setMobileTab("tools")}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300",
-            mobileTab === "tools"
-              ? "bg-gradient-to-b from-blue-500/20 to-indigo-500/10 text-blue-50 shadow-sm ring-1 ring-blue-500/30"
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-          )}
-        >
-          <Wrench className={cn("w-4 h-4", mobileTab === "tools" ? "text-blue-300" : "text-slate-500")} />
-          Money Tools
-        </button>
+      <div className="px-4 sm:px-0">
+        <div className="flex p-1 mb-4 sm:mb-6 rounded-xl bg-slate-900/60 ring-1 ring-white/10 lg:hidden">
+          <button
+            onClick={() => setMobileTab("chat")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300",
+              mobileTab === "chat"
+                ? "bg-gradient-to-b from-cyan-400/20 to-teal-500/10 text-cyan-50 shadow-sm ring-1 ring-cyan-500/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+            )}
+          >
+            <MessageSquare className={cn("w-4 h-4", mobileTab === "chat" ? "text-cyan-300" : "text-slate-500")} />
+            AI Agent
+          </button>
+          <button
+            onClick={() => setMobileTab("tools")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300",
+              mobileTab === "tools"
+                ? "bg-gradient-to-b from-blue-500/20 to-indigo-500/10 text-blue-50 shadow-sm ring-1 ring-blue-500/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+            )}
+          >
+            <Wrench className={cn("w-4 h-4", mobileTab === "tools" ? "text-blue-300" : "text-slate-500")} />
+            Money Tools
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-8 lg:gap-5 lg:grid-cols-12">
@@ -236,7 +244,7 @@ export default function DashboardPage() {
 
         {/* RIGHT: clear tools stack */}
         <div className={cn(
-          "space-y-4 lg:col-span-5 xl:col-span-4 animate-fade-up",
+          "space-y-4 lg:col-span-5 xl:col-span-4 animate-fade-up px-4 sm:px-0",
           mobileTab !== "tools" && "hidden lg:block"
         )}>
 

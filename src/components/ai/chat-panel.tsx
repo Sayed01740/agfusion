@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUp,
+  Bot,
   CheckCircle2,
   Loader2,
   Terminal,
@@ -350,34 +351,38 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-[calc(100vh-16rem)] min-h-[400px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#0c1628]/95 to-[#060d18] transition-all duration-700 glow-border ${
-        isThinking
-          ? "border-cyan-400/50 shadow-[0_0_80px_rgba(34,211,238,0.25)]"
-          : "border-cyan-400/12 shadow-2xl shadow-black/40"
+      className={`flex h-[calc(100dvh-13.5rem)] min-h-[400px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-2xl bg-[#0a1120] sm:bg-gradient-to-b sm:from-[#0c1628]/95 sm:to-[#060d18] transition-all duration-700 ${
+        focused ? "ring-1 ring-cyan-500/50 shadow-[0_0_30px_-5px_rgba(34,211,238,0.15)]" : "border-y sm:border border-white/5 sm:border-cyan-400/12 sm:shadow-xl"
       }`}
     >
-      <div className="flex items-center justify-between border-b border-white/[0.06] bg-gradient-to-r from-cyan-500/[0.06] to-transparent px-4 py-3.5 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl ring-1 ring-cyan-400/25 shadow-md shadow-cyan-500/15">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/icon-180.png"
-              alt=""
-              width={36}
-              height={36}
-              className="h-9 w-9 object-cover"
-            />
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/[0.04] bg-white/[0.01] px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur-md relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-purple-500/20 ring-1 ring-white/10">
+            <Bot className="h-4 w-4 text-cyan-100" />
+            {isThinking && (
+              <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-500"></span>
+              </span>
+            )}
           </div>
           <div>
-            <div className="text-sm font-semibold tracking-tight">AGFusion Agent</div>
-            <div className="text-[11px] text-slate-500">
-              Plan · confirm · wallet sign
+            <h2 className="text-sm font-semibold tracking-wide text-slate-100">
+              AGFusion Agent
+            </h2>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+              <span>Plan</span>
+              <span className="h-0.5 w-0.5 rounded-full bg-slate-600" />
+              <span>confirm</span>
+              <span className="h-0.5 w-0.5 rounded-full bg-slate-600" />
+              <span>wallet sign</span>
             </div>
           </div>
         </div>
-        <Badge variant="outline" className="gap-1.5 font-medium">
-          <Terminal className="h-3 w-3" />
-          Live tools
+        <Badge variant="outline" className="gap-1 border-white/5 bg-slate-900/40 text-[10px] text-cyan-400">
+          <Zap className="h-3 w-3" />
+          Live
         </Badge>
       </div>
 
@@ -533,7 +538,7 @@ export function ChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-white/5 p-3 space-y-3 shrink-0">
+      <div className="border-t border-white/5 bg-white/[0.01] p-3 sm:p-4 space-y-3 shrink-0">
         <div className="flex gap-2 overflow-x-auto scrollbar-thin [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:[scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block pb-1">
           {SUGGESTIONS.map((s) => (
             <button
@@ -541,7 +546,7 @@ export function ChatPanel() {
               type="button"
               disabled={isThinking}
               onClick={() => send(s)}
-              className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 min-h-[40px] flex items-center justify-center text-[12px] text-slate-300 hover:border-cyan-500/30 hover:text-cyan-200 transition disabled:opacity-50"
+              className="shrink-0 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 min-h-[40px] flex items-center justify-center text-[13px] text-cyan-100 hover:bg-cyan-500/20 hover:text-cyan-50 transition disabled:opacity-50"
             >
               {s}
             </button>
@@ -567,7 +572,7 @@ export function ChatPanel() {
               rows={2}
               disabled={isThinking}
               placeholder='Try: "Show my balances" or "How do I send USDC?"'
-              className="w-full resize-none rounded-2xl border border-white/[0.1] bg-[#040a14]/85 px-4 py-3 pr-12 text-sm leading-relaxed text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/35 focus:ring-2 focus:ring-cyan-400/25 disabled:opacity-60"
+              className="w-full resize-none rounded-2xl border border-white/[0.15] bg-white/[0.04] px-4 py-3.5 pr-12 text-sm leading-relaxed text-slate-50 shadow-inner placeholder:text-slate-400 focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 disabled:opacity-60"
             />
           </div>
           <Button
