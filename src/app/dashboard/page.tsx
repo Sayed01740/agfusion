@@ -233,10 +233,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-8 lg:gap-5 lg:grid-cols-12">
+      <div className="grid gap-8 lg:gap-5 lg:grid-cols-12 max-w-[100vw] overflow-x-hidden">
         {/* LEFT: chat only — do not redesign */}
         <div className={cn(
-          "lg:min-h-[560px] lg:col-span-7 xl:col-span-8 animate-fade-up",
+          "min-w-0 w-full lg:min-h-[560px] lg:col-span-7 xl:col-span-8 animate-fade-up",
           mobileTab !== "chat" && "hidden lg:block"
         )}>
           <ChatPanel />
