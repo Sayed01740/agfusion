@@ -115,7 +115,7 @@ export default function LandingPage() {
             <Shield className="h-3 w-3" />
             Free testnet app · real wallet practice · not a bank
           </Badge>
-          <h1 className="font-display text-5xl font-extrabold leading-[1.1] tracking-tighter sm:text-6xl md:text-[4.5rem]">
+          <h1 className="font-display text-4xl font-extrabold leading-[1.1] tracking-tighter sm:text-5xl md:text-6xl lg:text-[4.5rem]">
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-teal-300 to-indigo-400">
               Send, swap, and move USDC
             </span>
@@ -130,16 +130,16 @@ export default function LandingPage() {
             pay or convert. The AI plans; you always Confirm.
           </p>
           <div className="mt-11 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button asChild size="lg" className="min-w-[200px] h-14 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold text-base shadow-[0_0_25px_rgba(34,211,238,0.4)] transition-all duration-300 hover:scale-[1.03] border border-cyan-400/50 animate-pulse-ring">
+            <Button asChild size="lg" className="w-full sm:w-auto sm:min-w-[200px] h-14 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white font-semibold text-base shadow-[0_0_25px_rgba(34,211,238,0.4)] transition-all duration-300 hover:scale-[1.03] border border-cyan-400/50 animate-pulse-ring">
               <Link href="/dashboard">
                 Start here — open app
                 <ArrowRight className="h-5 w-5 ml-2" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="min-w-[200px]">
+            <Button asChild size="lg" variant="outline" className="w-full sm:w-auto sm:min-w-[200px]">
               <Link href="/dashboard#guide">How do I use this?</Link>
             </Button>
-            <Button asChild size="lg" variant="ghost" className="min-w-[200px]">
+            <Button asChild size="lg" variant="ghost" className="w-full sm:w-auto sm:min-w-[200px]">
               <a
                 href={AGFUSION_X_URL}
                 target="_blank"

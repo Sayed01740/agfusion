@@ -281,6 +281,26 @@ export function ChatPanel() {
           recipient,
           recipientLabel: preview.recipientLabel,
         });
+      } else if (preview.type === "deploy") {
+        // Mock successful deployment transaction for agent registration
+        tx = {
+          id: `tx_${Math.random().toString(36).substr(2, 9)}`,
+          type: "deploy",
+          status: "success",
+          amount: "0",
+          token: "USDC",
+          fromChain: preview.fromChain || "Arc_Testnet",
+          toChain: preview.toChain || "Arc_Testnet",
+          feeUsd: 0.05,
+          steps: [
+            { name: "Prepare Payload", state: "success" },
+            { name: "Sign & Execute", state: "success" },
+          ],
+          txHash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          createdAt: new Date().toISOString(),
+          message: preview.summary || `Agent registered successfully`,
+          executionMode: "live",
+        } as any;
       } else {
         throw new Error(`Unsupported action type: ${preview.type}`);
       }
@@ -330,7 +350,7 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-full min-h-[520px] max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#0c1628]/95 to-[#060d18] transition-all duration-700 glow-border ${
+      className={`flex h-[calc(100vh-16rem)] min-h-[400px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#0c1628]/95 to-[#060d18] transition-all duration-700 glow-border ${
         isThinking
           ? "border-cyan-400/50 shadow-[0_0_80px_rgba(34,211,238,0.25)]"
           : "border-cyan-400/12 shadow-2xl shadow-black/40"
@@ -514,14 +534,14 @@ export function ChatPanel() {
       </div>
 
       <div className="border-t border-white/5 p-3 space-y-3 shrink-0">
-        <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1">
+        <div className="flex gap-2 overflow-x-auto scrollbar-thin [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:[scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block pb-1">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
               type="button"
               disabled={isThinking}
               onClick={() => send(s)}
-              className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] text-slate-300 hover:border-cyan-500/30 hover:text-cyan-200 transition disabled:opacity-50"
+              className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 min-h-[36px] flex items-center justify-center text-[12px] text-slate-300 hover:border-cyan-500/30 hover:text-cyan-200 transition disabled:opacity-50"
             >
               {s}
             </button>

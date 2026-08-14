@@ -159,7 +159,7 @@ export function Navbar() {
               </button>
 
               {settingsOpen && (
-                <div className="absolute right-0 top-full mt-3 w-56 rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5">
+                <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] max-w-[14rem] sm:w-56 sm:max-w-none rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5 origin-top-right">
                   <div className="px-3 py-2 text-[10px] text-cyan-500/80 uppercase tracking-widest font-bold">
                     Preferences
                   </div>
@@ -218,7 +218,7 @@ export function Navbar() {
                 </Button>
 
                 {walletOpen && (
-                  <div className="absolute right-0 top-full mt-3 w-64 rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5">
+                  <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] max-w-[16rem] sm:w-64 sm:max-w-none rounded-2xl border border-cyan-500/20 bg-[#060c18]/95 p-2 shadow-[0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-xl glass z-50 flex flex-col gap-1 ring-1 ring-white/5 origin-top-right">
                     <div className="px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
                       <span>Status</span>
                       <span className="text-cyan-400 font-medium px-2 py-0.5 rounded-md bg-cyan-950/50 border border-cyan-500/20 text-[10px] uppercase tracking-wider">
@@ -300,7 +300,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[10px] font-semibold tracking-tight transition",
+                  "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 min-h-[48px] text-[10px] font-semibold tracking-tight transition",
                   active
                     ? "text-cyan-200 bg-cyan-500/12 ring-1 ring-cyan-400/20"
                     : "text-slate-500 hover:text-slate-300",

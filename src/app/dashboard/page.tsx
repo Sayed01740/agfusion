@@ -198,9 +198,9 @@ export default function DashboardPage() {
         )}
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-12">
+      <div className="grid gap-8 lg:gap-5 lg:grid-cols-12">
         {/* LEFT: chat only — do not redesign */}
-        <div className="min-h-[560px] lg:col-span-7 xl:col-span-8">
+        <div className="lg:min-h-[560px] lg:col-span-7 xl:col-span-8">
           <div className="mb-2 flex items-center gap-2 px-0.5 lg:hidden">
             <MessageSquare className="h-3.5 w-3.5 text-cyan-400" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
