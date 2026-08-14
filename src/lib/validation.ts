@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { maxTransferAmount } from "@/lib/config";
+import { isAddress } from "viem";
 
 const chainIdSchema = z.enum([
   "Arc_Testnet",
@@ -15,7 +16,7 @@ const chainIdSchema = z.enum([
 export const walletContextSchema = z.object({
   address: z
     .string()
-    .regex(/^0x[a-fA-F0-9]{40}$/)
+    .refine((val) => isAddress(val, { strict: false }), "Invalid EVM address")
     .nullable()
     .optional()
     .or(z.literal("").transform(() => null)),
@@ -56,7 +57,7 @@ export const sendBodySchema = z.object({
   amount: amountSchema,
   token: z.string().default("USDC"),
   chain: chainIdSchema.default("Arc_Testnet"),
-  recipient: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  recipient: z.string().refine((val) => isAddress(val, { strict: false }), "Invalid recipient address checksum"),
   recipientLabel: z.string().max(64).optional(),
   preferLive: z.boolean().optional(),
 });
