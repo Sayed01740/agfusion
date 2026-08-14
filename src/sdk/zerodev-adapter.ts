@@ -29,7 +29,6 @@ export async function createSmartAccountClient(provider: InjectedProvider, addre
       });
       
       const { keccak256, toHex, stringToHex } = await import("viem");
-      // keccak256 returns a hex string starting with 0x, which is exactly what we need
       pk = keccak256(stringToHex(signature as string));
       localStorage.setItem(storageKey, pk);
     } catch (e) {
@@ -45,12 +44,14 @@ export async function createSmartAccountClient(provider: InjectedProvider, addre
       ? `${window.location.origin}/api/rpc?chain=arc`
       : arcTestnet.rpcUrls.default.http[0];
 
-  // Create a standard Viem WalletClient using the local key for autonomous execution
   const agentClient = createWalletClient({
     account: localAccount,
     chain: arcTestnet,
     transport: http(rpcUrl),
   });
+  
+  // Attach pk so the proxy can rebuild the client for other chains
+  (agentClient as any)._pk = pk;
 
   return agentClient;
 }
@@ -59,19 +60,22 @@ export function createEIP1193ProviderProxy(
   agentClient: any,
   baseProvider: InjectedProvider
 ): InjectedProvider {
+  // Mutable reference to current active agent client
+  let currentAgentClient = agentClient;
+
   return {
     ...baseProvider, // Inherit events (on, removeListener)
     request: async (args: { method: string; params?: any }) => {
       switch (args.method) {
         case "eth_requestAccounts":
         case "eth_accounts":
-          return [agentClient.account.address];
+          return [currentAgentClient.account.address];
         
         case "eth_sendTransaction": {
           const tx = args.params?.[0];
           if (!tx) throw new Error("Missing transaction params");
-          return await agentClient.sendTransaction({
-            account: agentClient.account,
+          return await currentAgentClient.sendTransaction({
+            account: currentAgentClient.account,
             to: tx.to,
             value: tx.value ? BigInt(tx.value) : 0n,
             data: tx.data,
@@ -83,19 +87,78 @@ export function createEIP1193ProviderProxy(
         }
         
         case "personal_sign":
-          return await agentClient.signMessage({ message: args.params[0] });
+          return await currentAgentClient.signMessage({ message: args.params[0] });
           
         case "eth_signTypedData_v4":
-          return await agentClient.signTypedData(JSON.parse(args.params[1]));
+          return await currentAgentClient.signTypedData(JSON.parse(args.params[1]));
           
-        case "wallet_switchEthereumChain":
+        case "wallet_switchEthereumChain": {
+          const chainIdHex = args.params?.[0]?.chainId;
+          if (!chainIdHex) throw new Error("Missing chainId in switch request");
+          
+          const chainId = parseInt(chainIdHex, 16);
+          const { EVM_CHAIN_PARAMS } = await import("./wallet-adapter");
+          
+          let targetRpc = "";
+          let targetChainObj: any = arcTestnet;
+          
+          if (chainId === ARC_CHAIN_ID) {
+            targetRpc = typeof window !== "undefined" ? `${window.location.origin}/api/rpc?chain=arc` : arcTestnet.rpcUrls.default.http[0];
+          } else {
+            const param = Object.values(EVM_CHAIN_PARAMS).find((p: any) => p.chainId === chainId);
+            if (param) {
+              targetChainObj = {
+                id: param.chainId,
+                name: param.chainName,
+                nativeCurrency: param.nativeCurrency,
+                rpcUrls: { default: { http: param.rpcUrls } },
+                blockExplorers: { default: { name: 'Explorer', url: param.explorers[0] } }
+              };
+              
+              const proxyMap: Record<number, string> = {
+                84532: "base",
+                11155111: "eth",
+                421614: "arb",
+                11155420: "op",
+                80002: "polygon",
+                43113: "avax",
+              };
+              const short = proxyMap[chainId];
+              if (short && typeof window !== "undefined") {
+                targetRpc = `${window.location.origin}/api/rpc?chain=${short}`;
+              } else {
+                targetRpc = param.rpcUrls[0];
+              }
+            } else {
+              throw new Error(`Unsupported chain ID for Agent: ${chainId}`);
+            }
+          }
+          
+          const { createWalletClient, http } = await import("viem");
+          const { privateKeyToAccount } = await import("viem/accounts");
+          
+          const localAccount = privateKeyToAccount(currentAgentClient._pk as `0x${string}`);
+          const newClient = createWalletClient({
+            account: localAccount,
+            chain: targetChainObj,
+            transport: http(targetRpc),
+          });
+          (newClient as any)._pk = currentAgentClient._pk;
+          
+          currentAgentClient = newClient;
+          
+          // Return null to signify successful switch (EIP-3326)
+          return null;
+        }
+        
         case "wallet_addEthereumChain":
-          return baseProvider.request(args);
+          return null; // Agent doesn't need to save chains
+          
+        case "eth_chainId":
+          return `0x${currentAgentClient.chain.id.toString(16)}`;
 
         default:
-          // Route all other RPCs natively through the Agent's WalletClient transport.
-          // This includes eth_gasPrice, eth_feeHistory, eth_getTransactionReceipt, etc.
-          return await agentClient.request(args);
+          return await currentAgentClient.request(args);
       }
     },
   };

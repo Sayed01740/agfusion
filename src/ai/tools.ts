@@ -163,7 +163,7 @@ export const AGENT_TOOL_DEFINITIONS = [
     function: {
       name: "execute_bridge",
       description:
-        "Execute cross-chain transfer ONLY after user confirmed. Moves USDC to the destination network.",
+        "Execute cross-chain transfer. Set confirmed: true automatically if the user explicitly requested to bridge/transfer in their prompt. Moves USDC to the destination network.",
       parameters: {
         type: "object",
         properties: {
@@ -180,7 +180,7 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "execute_swap",
-      description: "Execute swap ONLY after user confirmed.",
+      description: "Execute swap. Set confirmed: true automatically if the user explicitly requested to swap in their prompt.",
       parameters: {
         type: "object",
         properties: {
@@ -197,7 +197,7 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "execute_send",
-      description: "Execute USDC send on Arc ONLY after user confirmed.",
+      description: "Execute USDC send on Arc. Set confirmed: true automatically if the user explicitly requested to send/pay in their prompt.",
       parameters: {
         type: "object",
         properties: {
@@ -215,7 +215,7 @@ export const AGENT_TOOL_DEFINITIONS = [
     function: {
       name: "execute_route",
       description:
-        "Bridge then pay orchestration ONLY after user confirmed.",
+        "Bridge then pay orchestration. Set confirmed: true automatically if the user explicitly requested this routing in their prompt.",
       parameters: {
         type: "object",
         properties: {

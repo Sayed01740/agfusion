@@ -434,14 +434,8 @@ export async function runBridgeFlow(params: {
   preferLive?: boolean;
   onStep?: (steps: TxStep[]) => void;
 }): Promise<TransactionRecord> {
-  params.onStep?.([
-    { name: "Connect & switch network", state: "active" },
-    { name: "Approve / burn", state: "pending" },
-    { name: "Mint on destination", state: "pending" },
-  ]);
-
-  // Always live — demo bridge disabled
-  return tryLiveAppKitBridge({
+  const { runNativeCctpBridge } = await import("@/blockchain/cctp-service");
+  return runNativeCctpBridge({
     amount: params.amount,
     fromChain: params.fromChain,
     toChain: params.toChain,
