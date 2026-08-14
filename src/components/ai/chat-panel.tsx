@@ -351,7 +351,7 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-[calc(100dvh-13.5rem)] min-h-[400px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-2xl bg-[#0a1120] sm:bg-gradient-to-b sm:from-[#0c1628]/95 sm:to-[#060d18] transition-all duration-700 ${
+      className={`flex h-[calc(100dvh-17.5rem)] min-h-[400px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-2xl bg-[#0a1120] sm:bg-gradient-to-b sm:from-[#0c1628]/95 sm:to-[#060d18] transition-all duration-700 ${
         isThinking ? "ring-1 ring-cyan-500/50 shadow-[0_0_30px_-5px_rgba(34,211,238,0.15)]" : "border-y sm:border border-white/5 sm:border-cyan-400/12 sm:shadow-xl"
       }`}
     >
@@ -435,9 +435,9 @@ export function ChatPanel() {
               key={m.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={
-                m.role === "user" ? "flex justify-end" : "flex justify-start"
-              }
+              className={`flex w-full ${
+                m.role === "user" ? "justify-end" : "justify-start"
+              }`}
             >
               <div
                 className={
