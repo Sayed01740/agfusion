@@ -25,8 +25,8 @@ export async function POST(req: Request) {
       {
         error: "browser_wallet_required",
         message:
-          "Bridge needs your wallet. Use the agent Confirm button — Rabby will open to sign.",
-        hint: "Connect wallet → Confirm & open wallet to transfer",
+          "Bridge needs a browser wallet (MetaMask/Rabby). Email wallets cannot bridge yet. Use the agent Confirm button — your wallet will open to sign.",
+        hint: "Connect browser wallet → Confirm & open wallet to transfer",
       },
       { status: 400 },
     );

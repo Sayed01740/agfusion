@@ -184,7 +184,7 @@ export async function getInjectedProvider(
   }
 
   throw new Error(
-    "No browser wallet found. Install MetaMask, Rabby, Coinbase Wallet, or another EVM wallet.",
+    "No browser wallet found (MetaMask, Rabby). Circle Email Wallets cannot be used for this action.",
   );
 }
 
