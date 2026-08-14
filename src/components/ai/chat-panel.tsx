@@ -351,12 +351,12 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-[calc(100dvh-17.5rem)] min-h-[400px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-2xl bg-[#0a1120] sm:bg-gradient-to-b sm:from-[#0c1628]/95 sm:to-[#060d18] transition-all duration-700 ${
+      className={`flex h-[calc(100dvh-20rem)] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-2xl bg-[#0a1120] sm:bg-gradient-to-b sm:from-[#0c1628]/95 sm:to-[#060d18] transition-all duration-700 ${
         isThinking ? "ring-1 ring-cyan-500/50 shadow-[0_0_30px_-5px_rgba(34,211,238,0.15)]" : "border-y sm:border border-white/5 sm:border-cyan-400/12 sm:shadow-xl"
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/[0.04] bg-white/[0.01] px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur-md relative z-10">
+      <div className="flex items-center justify-between border-b border-white/[0.04] bg-white/[0.01] px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur-md relative z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-purple-500/20 ring-1 ring-white/10">
             <Bot className="h-4 w-4 text-cyan-100" />
@@ -386,7 +386,7 @@ export function ChatPanel() {
         </Badge>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6 px-2 animate-fade-in my-8">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/30">
@@ -435,7 +435,7 @@ export function ChatPanel() {
               key={m.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex w-full ${
+              className={`flex w-full min-w-0 ${
                 m.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
