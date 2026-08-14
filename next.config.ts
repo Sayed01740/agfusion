@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org;
+      frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://*.circle.com;
       connect-src 'self' wss://*.walletconnect.com wss://*.walletconnect.org https://*.walletconnect.com https://*.walletconnect.org https://*.circle.com wss://*.circle.com https://*.arc.network wss://*.arc.network https://*.base.org https://*.alchemy.com https://*.publicnode.com https://*.avax.network https://*.polygon.technology https://*.optimism.io https://*.arbitrum.io;
     `.replace(/\s{2,}/g, ' ').trim();
 
