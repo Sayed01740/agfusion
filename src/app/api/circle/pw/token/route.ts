@@ -8,7 +8,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.CIRCLE_API_KEY;
+    const apiKey = process.env.CIRCLE_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json(
         { error: "CIRCLE_API_KEY is not configured" },

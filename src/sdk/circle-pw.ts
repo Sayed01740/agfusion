@@ -7,7 +7,7 @@ export async function getCircleSdk(): Promise<W3SSdk> {
   if (circleSdk) return circleSdk;
   
   circleSdk = new W3SSdk();
-  const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID;
+  const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID?.trim();
   if (appId) {
     circleSdk.setAppSettings({ appId });
   }
