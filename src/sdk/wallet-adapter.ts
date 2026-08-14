@@ -377,7 +377,7 @@ export async function ensureArcChainId(
 }
 
 /** Well-known EVM testnet params for bridge source chains */
-const EVM_CHAIN_PARAMS: Record<
+export const EVM_CHAIN_PARAMS: Record<
   string,
   {
     chainId: number;
