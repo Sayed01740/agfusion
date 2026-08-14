@@ -124,7 +124,7 @@ async function tryLiveAppKitBridge(params: {
     );
   }
 
-  const { getActiveWalletMeta } = await import("@/sdk/wallet-adapter");
+  const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
   const meta = getActiveWalletMeta();
   const isAgent = meta?.id === "agfusion-agent";
 
@@ -282,10 +282,12 @@ async function tryLiveAppKitBridge(params: {
     if (result.state === "error") {
       console.warn("[AGFusion] Bridge returned error state, attempting recovery via retryBridge...");
       try {
-        result = (await (kit as any).retryBridge(result, {
-          from: wired.adapter,
-          to: wired.adapter,
-        })) as typeof result;
+        const retryParams: Record<string, any> = {};
+        if (wiredAdapter) {
+          retryParams.from = wiredAdapter;
+          retryParams.to = wiredAdapter;
+        }
+        result = (await (kit as any).retryBridge(result, retryParams)) as typeof result;
       } catch (retryErr) {
         console.warn("[AGFusion] Bridge recovery failed:", retryErr);
       }
