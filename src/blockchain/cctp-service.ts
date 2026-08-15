@@ -210,7 +210,8 @@ export async function runNativeCctpBridge(params: {
     // 1. Prepare Source Chain
     const { provider, walletClient: srcWallet, publicClient: srcPublic } = await getViemClients(params.fromChain);
     
-    await switchToChainId(provider, params.fromChain);
+    // Use the AppKit chain identifier (e.g., "Base_Sepolia") for wallet switching
+    await switchToChainId(provider, CHAINS[params.fromChain].appKitName);
     
     const [address] = await srcWallet.getAddresses();
     if (!address) throw new Error("No wallet connected");
@@ -313,7 +314,8 @@ export async function runNativeCctpBridge(params: {
     const { provider: dstProvider, walletClient: dstWallet, publicClient: dstPublic } = await getViemClients(params.toChain);
     
     console.log(`[CCTP] Switching to ${params.toChain}`);
-    await switchToChainId(dstProvider, params.toChain);
+    // Switch destination wallet using the AppKit chain name
+    await switchToChainId(dstProvider, CHAINS[params.toChain].appKitName);
     
     const [dstAddress] = await dstWallet.getAddresses();
     if (!dstAddress) throw new Error("No wallet connected on destination");

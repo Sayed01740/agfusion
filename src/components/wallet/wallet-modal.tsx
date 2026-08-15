@@ -103,25 +103,37 @@ export function WalletModal({
                 
                 // For a User-Controlled Wallet, we don't have a standard window.ethereum.
                 // We create a minimal mock provider so the app recognizes a wallet is connected.
-                  const mockProvider = {
-                    request: async (args: any) => {
-                      if (args.method === "eth_accounts") return [address];
-                      if (args.method === "eth_requestAccounts") return [address];
-                      if (args.method === "eth_chainId") return "0x4cef52"; // Arc Testnet = 5042002
-                      if (args.method === "wallet_switchEthereumChain") return null;
-                      if (args.method === "wallet_addEthereumChain") return null;
-                      if (args.method === "personal_sign") {
-                        // Deterministic signature for ZeroDev Agent wallet derivation
-                        return `0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000${address.slice(2)}`;
-                      }
-                      // Silently ignore unsupported methods instead of throwing —
-                      // App Kit may call methods the mock doesn't need to handle
-                      console.warn(`[Circle Mock] Unhandled method: ${args.method}`);
-                      return null;
-                    },
-                    on: () => {},
-                    removeListener: () => {},
-                  };
+                    // Simple mock provider for Circle Email wallet. It tracks a mutable chainId so that bridge steps can switch chains during the flow.
+                    let mockChainId = "0x4cef52"; // Arc Testnet = 5042002
+                    const mockProvider = {
+                      request: async (args: any) => {
+                        switch (args.method) {
+                          case "eth_accounts":
+                          case "eth_requestAccounts":
+                            return [address];
+                          case "eth_chainId":
+                            return mockChainId;
+                          case "wallet_switchEthereumChain":
+                            // args.params[0].chainId is a hex string, e.g., "0x84532" for Base Sepolia
+                            if (args.params && args.params[0] && args.params[0].chainId) {
+                              mockChainId = args.params[0].chainId;
+                            }
+                            return null;
+                          case "wallet_addEthereumChain":
+                            return null;
+                          case "personal_sign":
+                            // Deterministic signature for ZeroDev Agent wallet derivation
+                            return `0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000${address.slice(2)}`;
+                          default:
+                            // Silently ignore unsupported methods instead of throwing —
+                            // App Kit may call methods the mock doesn't need to handle
+                            console.warn(`[Circle Mock] Unhandled method: ${args.method}`);
+                            return null;
+                        }
+                      },
+                      on: () => {},
+                      removeListener: () => {},
+                    };
                 
                 setActiveProvider(mockProvider as any, {
                   uuid: "circle-pw",
