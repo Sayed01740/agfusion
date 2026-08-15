@@ -129,12 +129,26 @@ async function tryLiveAppKitBridge(params: {
   const isAgent = !!meta?.smartAccountAddress;
   let wiredAdapter: any = undefined;
 
+  // Import wallet adapter utilities once — used in agent/EVM setup AND in the
+  // kit.on("*") lifecycle listener for mid-bridge chain switching.
+  const {
+    createAppKitAdapterFromBrowser,
+    switchToChainId,
+    getInjectedProvider: getBridgeProvider,
+    requestAccounts: reqAccounts,
+    EVM_CHAIN_PARAMS,
+  } = await import("@/sdk/wallet-adapter");
+
+  // Capture the active provider so we can physically switch chains at each
+  // bridge step (burn on fromChain → mint on toChain).
+  // eslint-disable-next-line prefer-const
+  let bridgeProvider: Awaited<ReturnType<typeof getBridgeProvider>> | null = null;
+
   if (isAgent) {
     // Headless Agent: pre-switch to source chain before building adapter
-    const { switchToChainId, getInjectedProvider, requestAccounts } =
-      await import("@/sdk/wallet-adapter");
-    const provider = await getInjectedProvider();
-    await requestAccounts(provider);
+    const provider = await getBridgeProvider();
+    await reqAccounts(provider);
+    bridgeProvider = provider;
     try {
       await switchToChainId(provider, params.fromChain);
     } catch (e) {
@@ -144,6 +158,22 @@ async function tryLiveAppKitBridge(params: {
           : `Agent failed to switch to ${params.fromChain}.`,
       );
     }
+  } else {
+    // EVM / Circle Email wallet: physically switch to the source chain BEFORE
+    // building the adapter so viem's assertCurrentChain() sees the right chain ID
+    // instead of Arc Testnet (5042002) when bridging from e.g. Base Sepolia (84532).
+    try {
+      bridgeProvider = await getBridgeProvider();
+      await switchToChainId(bridgeProvider, params.fromChain);
+    } catch (e) {
+      console.warn(
+        "[AGFusion] Pre-bridge chain switch to",
+        params.fromChain,
+        "failed:",
+        e instanceof Error ? e.message : e,
+      );
+      // Non-fatal: proxy auto-switch will attempt the switch before each tx
+    }
   }
 
   // Always build a wired adapter for every wallet type (EVM + Circle Email + Agent).
@@ -151,14 +181,14 @@ async function tryLiveAppKitBridge(params: {
   // Without it, App Kit tries window.ethereum internally and fails for Circle wallets
   // and custom-picker EVM wallets that aren't registered in App Kit's own state.
   {
-    const { createAppKitAdapterFromBrowser, switchToChainId } =
-      await import("@/sdk/wallet-adapter");
     const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
     if (!wired) {
       throw new Error(
         "Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.",
       );
     }
+    // Use the wired provider as bridge provider if we couldn't get one earlier
+    if (!bridgeProvider) bridgeProvider = wired.provider;
     if (isAgent) {
       // After adapter build, double-check agent provider is on source chain
       try {
@@ -171,22 +201,24 @@ async function tryLiveAppKitBridge(params: {
   }
 
   // Hard preflight: source + dest public RPCs must answer eth_chainId
-  const chainQuery = (c: string) =>
-    c === "Arc_Testnet"
-      ? "arc"
-      : c === "Base_Sepolia"
-        ? "base"
-        : c === "Ethereum_Sepolia"
-          ? "eth"
-          : c === "Arbitrum_Sepolia"
-            ? "arb"
-            : c === "Optimism_Sepolia"
-              ? "op"
-              : c === "Polygon_Amoy_Testnet" || c === "Polygon_Amoy"
-                ? "polygon"
-                : c === "Avalanche_Fuji"
-                  ? "avax"
-                  : "arc";
+  // Maps ChainId → /api/rpc?chain=<key> proxy key used by assertRpc() below.
+  // Every CCTP-supported testnet chain must be listed here so preflight RPC
+  // health checks use the correct server-side upstream instead of falling back
+  // to the Arc RPC endpoint for unrecognized chains.
+  const CHAIN_PROXY_KEY: Record<string, string> = {
+    Arc_Testnet:          "arc",
+    Base_Sepolia:         "base",
+    Ethereum_Sepolia:     "eth",
+    Arbitrum_Sepolia:     "arb",
+    Optimism_Sepolia:     "op",
+    Polygon_Amoy_Testnet: "polygon",
+    Polygon_Amoy:         "polygon",
+    Avalanche_Fuji:       "avax",
+    Unichain_Sepolia:     "unichain",
+    Linea_Sepolia:        "linea",
+    Sonic_Testnet:        "sonic",
+  };
+  const chainQuery = (c: string) => CHAIN_PROXY_KEY[c] ?? "arc";
 
   async function assertRpc(label: string, chainQ: string): Promise<void> {
     // Prefer GET health endpoint
@@ -262,17 +294,33 @@ async function tryLiveAppKitBridge(params: {
       (bridgeParams.to as any).adapter = wiredAdapter;
     }
 
-    const { EVM_CHAIN_PARAMS } = await import("@/sdk/wallet-adapter");
+    // EVM_CHAIN_PARAMS already imported above — no duplicate import needed.
+    const fromChainNumericId = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
+    const toChainNumericId = EVM_CHAIN_PARAMS[params.toChain]?.chainId;
+
     if (typeof window !== "undefined") {
-      (window as any).__agfusion_expected_chain = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
+      (window as any).__agfusion_expected_chain = fromChainNumericId;
     }
 
     kit.on("*", (payload: any) => {
       console.log("[AGFusion Bridge Lifecycle] Action:", payload);
-      if (typeof window !== "undefined" && payload?.state === "active") {
+      if (payload?.state === "active") {
         const name = (payload?.name || "").toLowerCase();
         if (name.includes("receive") || name.includes("mint") || name.includes("destination")) {
-          (window as any).__agfusion_expected_chain = EVM_CHAIN_PARAMS[params.toChain]?.chainId;
+          // Update the chain hint used by the proxy's eth_sendTransaction handler
+          if (typeof window !== "undefined") {
+            (window as any).__agfusion_expected_chain = toChainNumericId;
+          }
+          // Physically switch the wallet to the destination chain so the real
+          // wallet chain state matches what Circle's kit will submit the mint tx on.
+          if (bridgeProvider && params.toChain) {
+            switchToChainId(bridgeProvider, params.toChain).catch((e) => {
+              console.warn(
+                "[AGFusion] Mid-bridge toChain switch failed:",
+                e instanceof Error ? e.message : e,
+              );
+            });
+          }
         }
       }
     });

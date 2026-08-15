@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePilotStore } from "@/store/pilot-store";
-import { CHAIN_LIST } from "@/lib/chains";
+import { CHAIN_LIST, CHAINS } from "@/lib/chains";
 import {
   executeBridge,
   executeBridgeRecovery,
@@ -56,6 +56,20 @@ export function BridgePanelBody() {
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
   const mode = executionMode();
+
+  // Only show chains that have Circle CCTP v2 contracts deployed on testnet.
+  // Chains not in this set (Monad, Cronos, Edge, etc.) have no CCTP support
+  // and would fail at the burn step with "contract not found".
+  const CCTP_BRIDGE_CHAINS: ChainId[] = [
+    "Arc_Testnet",
+    "Ethereum_Sepolia",
+    "Base_Sepolia",
+    "Arbitrum_Sepolia",
+    "Optimism_Sepolia",
+    "Polygon_Amoy_Testnet",
+    "Avalanche_Fuji",
+    "Unichain_Sepolia",
+  ];
 
   function flipDirection() {
     setFrom(to);
@@ -120,9 +134,9 @@ export function BridgePanelBody() {
               disabled={busy}
               onChange={(e) => setFrom(e.target.value as ChainId)}
             >
-              {CHAIN_LIST.filter((c) => c.id !== "Solana_Devnet").map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
+              {CCTP_BRIDGE_CHAINS.map((id) => (
+                <option key={id} value={id}>
+                  {CHAINS[id]?.label ?? id.replace(/_/g, " ")}
                 </option>
               ))}
             </select>
@@ -147,9 +161,9 @@ export function BridgePanelBody() {
               disabled={busy}
               onChange={(e) => setTo(e.target.value as ChainId)}
             >
-              {CHAIN_LIST.filter((c) => c.id !== "Solana_Devnet").map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
+              {CCTP_BRIDGE_CHAINS.map((id) => (
+                <option key={id} value={id}>
+                  {CHAINS[id]?.label ?? id.replace(/_/g, " ")}
                 </option>
               ))}
             </select>

@@ -441,7 +441,17 @@ export const EVM_CHAIN_PARAMS: Record<
     explorers: ["https://sepolia-optimism.etherscan.io"],
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   },
+  // Polygon Amoy is registered under two keys so switchToChainId works with
+  // both the AppKit name (Polygon_Amoy) and the chains.ts id (Polygon_Amoy_Testnet)
   Polygon_Amoy: {
+    chainId: 80002,
+    chainIdHex: "0x13882",
+    chainName: "Polygon Amoy",
+    rpcUrls: ["https://rpc-amoy.polygon.technology"],
+    explorers: ["https://amoy.polygonscan.com"],
+    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+  },
+  Polygon_Amoy_Testnet: {
     chainId: 80002,
     chainIdHex: "0x13882",
     chainName: "Polygon Amoy",
@@ -456,6 +466,31 @@ export const EVM_CHAIN_PARAMS: Record<
     rpcUrls: ["https://api.avax-test.network/ext/bc/C/rpc"],
     explorers: ["https://testnet.snowtrace.io"],
     nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
+  },
+  // Circle CCTP v2 testnet additional chains
+  Unichain_Sepolia: {
+    chainId: 1301,
+    chainIdHex: "0x515",
+    chainName: "Unichain Sepolia",
+    rpcUrls: ["https://sepolia.unichain.org"],
+    explorers: ["https://sepolia.uniscan.xyz"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  },
+  Linea_Sepolia: {
+    chainId: 59141,
+    chainIdHex: "0xe705",
+    chainName: "Linea Sepolia",
+    rpcUrls: ["https://rpc.sepolia.linea.build"],
+    explorers: ["https://sepolia.lineascan.build"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  },
+  Sonic_Testnet: {
+    chainId: 64165,
+    chainIdHex: "0xfaa5",
+    chainName: "Sonic Testnet",
+    rpcUrls: ["https://rpc.testnet.soniclabs.com"],
+    explorers: ["https://testnet.sonicscan.org"],
+    nativeCurrency: { name: "Sonic", symbol: "S", decimals: 18 },
   },
 };
 
@@ -579,6 +614,13 @@ export function getStoredWalletName(): string | null {
 export async function createAppKitAdapterFromBrowser(opts?: {
   /** Force switch to Arc before building adapter (required for Arc swaps) */
   requireArc?: boolean;
+  /**
+   * Lock the adapter to a specific chain ID.
+   * The proxy provider will auto-switch the wallet to this chain before every
+   * eth_chainId report and eth_sendTransaction — permanently fixing viem's
+   * ChainMismatchError when App Kit uses the same adapter for two different chains.
+   */
+  targetChainId?: number;
 }): Promise<{
   adapter: unknown;
   address: string;
@@ -596,7 +638,10 @@ export async function createAppKitAdapterFromBrowser(opts?: {
     if (!address) return null;
 
     let chainId = ARC_CHAIN_ID;
-    if (opts?.requireArc !== false) {
+    if (opts?.targetChainId) {
+      // Chain-locked mode: don't switch on adapter creation — proxy handles it at tx time
+      chainId = opts.targetChainId;
+    } else if (opts?.requireArc !== false) {
       // Hard require — do not swallow switch failures
       chainId = await ensureArcChainId(provider);
     } else {
@@ -609,33 +654,67 @@ export async function createAppKitAdapterFromBrowser(opts?: {
 
     let proxyProvider = provider;
     if (typeof window !== "undefined") {
+      const targetChainId = opts?.targetChainId;
+      const targetHex = targetChainId
+        ? `0x${targetChainId.toString(16)}`.toLowerCase()
+        : null;
+
+      // Auto-switch the underlying wallet to targetChainId if not already there.
+      const autoSwitch = async () => {
+        if (!targetHex) return;
+        try {
+          const raw = await provider.request({ method: "eth_chainId" });
+          const s = String(raw ?? "").toLowerCase();
+          const actual = s.startsWith("0x")
+            ? parseInt(s, 16)
+            : parseInt(s, 10);
+          if (actual !== targetChainId) {
+            await provider.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: targetHex }],
+            });
+            // Give wallet time to settle after switch
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        } catch {
+          /* wallet may not support switching — proceed anyway */
+        }
+      };
+
       proxyProvider = {
         ...provider,
         request: async (args: { method: string; params?: any }) => {
           if (args.method === "eth_chainId") {
+            if (targetHex) {
+              // Chain-locked: ensure wallet is on the right chain, then report it.
+              // This prevents viem's assertCurrentChain() from throwing ChainMismatchError.
+              await autoSwitch();
+              return targetHex;
+            }
+            // Legacy path: respect __agfusion_expected_chain global
             const expected = (window as any).__agfusion_expected_chain;
             if (expected) return `0x${expected.toString(16)}`;
           }
           if (args.method === "eth_sendTransaction") {
-            const expected = (window as any).__agfusion_expected_chain;
-            if (expected) {
-              const expectedHex = `0x${expected.toString(16)}`.toLowerCase();
-              let actualId: any;
-              try {
-                actualId = await provider.request({ method: "eth_chainId" });
-                if (typeof actualId === "number") actualId = `0x${actualId.toString(16)}`;
-                actualId = String(actualId).toLowerCase();
-              } catch {
-                actualId = "";
-              }
-              if (actualId !== expectedHex) {
-                console.log("[AGFusion] Auto-switching wallet to chain", expectedHex, "before tx");
+            // Ensure correct chain immediately before tx submission
+            if (targetHex) {
+              await autoSwitch();
+            } else {
+              // Legacy path
+              const expected = (window as any).__agfusion_expected_chain;
+              if (expected) {
+                const expectedHex = `0x${expected.toString(16)}`.toLowerCase();
                 try {
-                  await provider.request({
-                    method: "wallet_switchEthereumChain",
-                    params: [{ chainId: expectedHex }],
-                  });
-                  await new Promise((r) => setTimeout(r, 800));
+                  const raw = await provider.request({ method: "eth_chainId" });
+                  const actual = String(raw ?? "").toLowerCase();
+                  if (actual !== expectedHex) {
+                    console.log("[AGFusion] Auto-switching wallet to chain", expectedHex, "before tx");
+                    await provider.request({
+                      method: "wallet_switchEthereumChain",
+                      params: [{ chainId: expectedHex }],
+                    });
+                    await new Promise((r) => setTimeout(r, 800));
+                  }
                 } catch (e) {
                   console.warn("[AGFusion] Auto-switch failed, tx may fail", e);
                 }
@@ -677,12 +756,15 @@ export async function createAppKitAdapterFromBrowser(opts?: {
       if (!origin) return null;
       const map: Record<number, string> = {
         [ARC_CHAIN_ID]: `${origin}/api/rpc?chain=arc`,
-        84532: `${origin}/api/rpc?chain=base`,
+        84532:    `${origin}/api/rpc?chain=base`,
         11155111: `${origin}/api/rpc?chain=eth`,
-        421614: `${origin}/api/rpc?chain=arb`,
+        421614:   `${origin}/api/rpc?chain=arb`,
         11155420: `${origin}/api/rpc?chain=op`,
-        80002: `${origin}/api/rpc?chain=polygon`,
-        43113: `${origin}/api/rpc?chain=avax`,
+        80002:    `${origin}/api/rpc?chain=polygon`,
+        43113:    `${origin}/api/rpc?chain=avax`,
+        1301:     `${origin}/api/rpc?chain=unichain`,
+        59141:    `${origin}/api/rpc?chain=linea`,
+        64165:    `${origin}/api/rpc?chain=sonic`,
       };
       return map[id] ?? null;
     };
@@ -745,7 +827,7 @@ export async function createAppKitAdapterFromBrowser(opts?: {
 
     // Final re-check after adapter build
     const postId = await getChainId(provider);
-    if (opts?.requireArc !== false && postId !== ARC_CHAIN_ID) {
+    if (!opts?.targetChainId && opts?.requireArc !== false && postId !== ARC_CHAIN_ID) {
       throw new Error(
         `Wallet left Arc after connect (chainId=${postId}). Keep Rabby on Arc Testnet and retry.`,
       );

@@ -20,10 +20,24 @@ import { CHAINS } from "@/lib/chains";
 import { estimateBridgeDemo } from "@/blockchain/appkit-service";
 
 // --- CCTP Configuration ---
+// Circle CCTP v2 testnet domain assignments.
+// Reference: https://developers.circle.com/stablecoins/docs/supported-domains
 const CCTP_DOMAINS: Partial<Record<ChainId, number>> = {
-  Arc_Testnet: 26,
-  Base_Sepolia: 6,
+  Ethereum_Sepolia:    0,
+  Avalanche_Fuji:      1,
+  Optimism_Sepolia:    2,
+  Arbitrum_Sepolia:    3,
+  Base_Sepolia:        6,
+  Polygon_Amoy_Testnet: 7,
+  Unichain_Sepolia:    10,
+  Arc_Testnet:         26,
 };
+
+// Circle CCTP v2 testnet contract addresses.
+// TokenMessenger and MessageTransmitter are IDENTICAL across all EVM chains for V2.
+// Only the USDC token address differs per chain.
+const CCTP_V2_TOKEN_MESSENGER    = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as `0x${string}`;
+const CCTP_V2_MSG_TRANSMITTER    = "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" as `0x${string}`;
 
 const CCTP_CONTRACTS: Partial<
   Record<
@@ -33,13 +47,43 @@ const CCTP_CONTRACTS: Partial<
 > = {
   Arc_Testnet: {
     USDC: "0x3600000000000000000000000000000000000000",
-    TokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
-    MessageTransmitter: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Ethereum_Sepolia: {
+    USDC: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
   },
   Base_Sepolia: {
     USDC: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    TokenMessenger: "0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5", // Using V1 for Base Sepolia
-    MessageTransmitter: "0x7865fAfC2db2093669d92c0F33AeEF291086BEFD",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Arbitrum_Sepolia: {
+    USDC: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Optimism_Sepolia: {
+    USDC: "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Polygon_Amoy_Testnet: {
+    USDC: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Avalanche_Fuji: {
+    USDC: "0x5425890298aed601595a70AB815c96711a31Bc65",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Unichain_Sepolia: {
+    USDC: "0x31d0220469827808B5c07F8b8a56800bAB864Fa1",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
   },
 };
 
@@ -112,8 +156,17 @@ async function getViemClients(chainId: ChainId) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   let proxyRpc = rpcUrl;
   if (origin) {
-    if (chainId === "Arc_Testnet") proxyRpc = `${origin}/api/rpc?chain=arc`;
-    else if (chainId === "Base_Sepolia") proxyRpc = `${origin}/api/rpc?chain=base`;
+    const chainProxyMap: Partial<Record<ChainId, string>> = {
+      Arc_Testnet:          `${origin}/api/rpc?chain=arc`,
+      Base_Sepolia:         `${origin}/api/rpc?chain=base`,
+      Ethereum_Sepolia:     `${origin}/api/rpc?chain=eth`,
+      Arbitrum_Sepolia:     `${origin}/api/rpc?chain=arb`,
+      Optimism_Sepolia:     `${origin}/api/rpc?chain=op`,
+      Polygon_Amoy_Testnet: `${origin}/api/rpc?chain=polygon`,
+      Avalanche_Fuji:       `${origin}/api/rpc?chain=avax`,
+      Unichain_Sepolia:     `${origin}/api/rpc?chain=unichain`,
+    };
+    proxyRpc = chainProxyMap[chainId] ?? rpcUrl;
   }
 
   const publicClient = createPublicClient({

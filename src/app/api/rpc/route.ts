@@ -47,6 +47,16 @@ const RPC_UPSTREAMS: Record<string, string[]> = {
     "https://polygon-amoy-bor-rpc.publicnode.com",
   ],
   avax: ["https://api.avax-test.network/ext/bc/C/rpc"],
+  unichain: [
+    "https://sepolia.unichain.org",
+  ],
+  linea: [
+    "https://rpc.sepolia.linea.build",
+    "https://linea-sepolia-rpc.publicnode.com",
+  ],
+  sonic: [
+    "https://rpc.testnet.soniclabs.com",
+  ],
 };
 
 function chainKey(raw: string | null): string {
