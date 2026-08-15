@@ -330,6 +330,16 @@ async function tryLiveAppKitBridge(params: {
       }
     });
 
+    // Switch wallet to source chain before bridging (enforce active network matches the source chain)
+    const fromChainHex = EVM_CHAIN_PARAMS[params.fromChain]?.chainIdHex;
+    if (fromChainHex && bridgeProvider) {
+      console.log(`[AGFusion] Switching wallet to source chain ${params.fromChain} (${fromChainHex}) before bridge starts`);
+      await bridgeProvider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: fromChainHex.toLowerCase() }],
+      });
+    }
+
     let result = (await kit.bridge(bridgeParams)) as {
       state?: string;
       steps?: Array<{
