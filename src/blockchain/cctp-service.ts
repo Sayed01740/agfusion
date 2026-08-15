@@ -30,6 +30,8 @@ const CCTP_DOMAINS: Partial<Record<ChainId, number>> = {
   Base_Sepolia:        6,
   Polygon_Amoy_Testnet: 7,
   Unichain_Sepolia:    10,
+  Linea_Sepolia:       11,
+  Sonic_Testnet:       13,
   Arc_Testnet:         26,
 };
 
@@ -82,6 +84,16 @@ const CCTP_CONTRACTS: Partial<
   },
   Unichain_Sepolia: {
     USDC: "0x31d0220469827808B5c07F8b8a56800bAB864Fa1",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Linea_Sepolia: {
+    USDC: "0xFEce4462D57bD51A6A552365A011b95f0E16d9B7",
+    TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+  },
+  Sonic_Testnet: {
+    USDC: "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
     TokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     MessageTransmitter: CCTP_V2_MSG_TRANSMITTER,
   },

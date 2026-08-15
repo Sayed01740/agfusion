@@ -318,13 +318,15 @@ async function tryLiveAppKitBridge(params: {
 
     kit.on("*", (payload: any) => {
       console.log("[AGFusion Bridge Lifecycle] Action:", payload);
-      const name = (payload?.name || "").toLowerCase();
-      const state = (payload?.state || "").toLowerCase();
+      const name = (payload?.method || payload?.name || "").toLowerCase();
+      const state = (payload?.values?.state || payload?.values?.status || payload?.state || "").toLowerCase();
       
+      console.log(`[AGFusion Bridge Lifecycle] Extracted name: "${name}", state: "${state}"`);
       // Trigger switch to destination chain as soon as burn succeeds or mint/receive becomes active
       if (
         (state === "success" && name.includes("burn")) ||
-        (state === "active" && (name.includes("receive") || name.includes("mint") || name.includes("destination")))
+        (state === "active" && (name.includes("receive") || name.includes("mint") || name.includes("destination"))) ||
+        name.includes("mint") || name.includes("receive") // Eager switch on mint/receive step start
       ) {
         switchToDestination();
       }

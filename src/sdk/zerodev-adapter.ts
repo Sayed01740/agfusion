@@ -122,6 +122,9 @@ export function createEIP1193ProviderProxy(
                 11155420: "op",
                 80002: "polygon",
                 43113: "avax",
+                1301: "unichain",
+                59141: "linea",
+                64165: "sonic",
               };
               const short = proxyMap[chainId];
               if (short && typeof window !== "undefined") {

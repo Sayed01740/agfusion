@@ -69,6 +69,8 @@ export function BridgePanelBody() {
     "Polygon_Amoy_Testnet",
     "Avalanche_Fuji",
     "Unichain_Sepolia",
+    "Linea_Sepolia",
+    "Sonic_Testnet",
   ];
 
   function flipDirection() {
