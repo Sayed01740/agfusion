@@ -302,26 +302,31 @@ async function tryLiveAppKitBridge(params: {
       (window as any).__agfusion_expected_chain = fromChainNumericId;
     }
 
+    const switchToDestination = () => {
+      if (typeof window !== "undefined") {
+        (window as any).__agfusion_expected_chain = toChainNumericId;
+      }
+      if (bridgeProvider && params.toChain) {
+        switchToChainId(bridgeProvider, params.toChain).catch((e) => {
+          console.warn(
+            "[AGFusion] Mid-bridge toChain switch failed:",
+            e instanceof Error ? e.message : e,
+          );
+        });
+      }
+    };
+
     kit.on("*", (payload: any) => {
       console.log("[AGFusion Bridge Lifecycle] Action:", payload);
-      if (payload?.state === "active") {
-        const name = (payload?.name || "").toLowerCase();
-        if (name.includes("receive") || name.includes("mint") || name.includes("destination")) {
-          // Update the chain hint used by the proxy's eth_sendTransaction handler
-          if (typeof window !== "undefined") {
-            (window as any).__agfusion_expected_chain = toChainNumericId;
-          }
-          // Physically switch the wallet to the destination chain so the real
-          // wallet chain state matches what Circle's kit will submit the mint tx on.
-          if (bridgeProvider && params.toChain) {
-            switchToChainId(bridgeProvider, params.toChain).catch((e) => {
-              console.warn(
-                "[AGFusion] Mid-bridge toChain switch failed:",
-                e instanceof Error ? e.message : e,
-              );
-            });
-          }
-        }
+      const name = (payload?.name || "").toLowerCase();
+      const state = (payload?.state || "").toLowerCase();
+      
+      // Trigger switch to destination chain as soon as burn succeeds or mint/receive becomes active
+      if (
+        (state === "success" && name.includes("burn")) ||
+        (state === "active" && (name.includes("receive") || name.includes("mint") || name.includes("destination")))
+      ) {
+        switchToDestination();
       }
     });
 
