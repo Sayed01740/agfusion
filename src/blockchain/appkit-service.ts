@@ -430,8 +430,11 @@ async function tryLiveAppKitBridge(params: {
       );
     }
     if (/insufficient|balance/i.test(msg)) {
+      const extra = isAgent
+        ? `\n\n**Note for Circle Email Wallet**: Your Auto-Agent uses a Smart Account (${meta?.smartAccountAddress || "shown in navbar"}). Please copy the address in the top-right and fund it directly.`
+        : "";
       throw new Error(
-        `Insufficient USDC on ${params.fromChain}. Bridge pulls funds from the **source** chain.`,
+        `Insufficient USDC on ${params.fromChain}. Bridge pulls funds from the **source** chain.${extra}`,
       );
     }
     if (
