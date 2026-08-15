@@ -38,51 +38,99 @@ export async function GET(req: Request) {
 
   try {
     const rpc = process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || ARC_TESTNET_RPC;
-    const res = await fetch(rpc, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_getBalance",
-        params: [address, "latest"],
-      }),
-      // short timeout for serverless
-      signal: AbortSignal.timeout?.(12_000),
-    });
+    const cleanAddress = address.toLowerCase().replace(/^0x/, "");
+    const balanceOfData = `0x70a08231${"0".repeat(24)}${cleanAddress}`;
 
-    if (!res.ok) {
-      throw new Error(`RPC HTTP ${res.status}`);
+    const [gasRes, tokenRes] = await Promise.all([
+      fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "eth_getBalance",
+          params: [address, "latest"],
+        }),
+        signal: AbortSignal.timeout?.(10_000),
+      }),
+      fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "eth_call",
+          params: [
+            {
+              to: "0x3600000000000000000000000000000000000000",
+              data: balanceOfData,
+            },
+            "latest",
+          ],
+        }),
+        signal: AbortSignal.timeout?.(10_000),
+      }),
+    ]);
+
+    let gasAmount = "0";
+    let gasUsd = 0;
+    if (gasRes.ok) {
+      const data = (await gasRes.json()) as {
+        result?: string;
+        error?: { message?: string };
+      };
+      if (data.result && !data.error) {
+        const weiHex = data.result;
+        const wei = BigInt(weiHex);
+        const whole = Number(wei) / 1e18;
+        gasAmount = Number.isFinite(whole)
+          ? whole.toLocaleString("en-US", {
+              maximumFractionDigits: 6,
+              useGrouping: false,
+            })
+          : "0";
+        gasUsd = Number.isFinite(whole) ? whole : 0;
+      }
     }
 
-    const data = (await res.json()) as {
-      result?: string;
-      error?: { message?: string };
-    };
-    if (data.error?.message) throw new Error(data.error.message);
+    let tokenBalance = 0;
+    if (tokenRes.ok) {
+      const data = (await tokenRes.json()) as {
+        result?: string;
+        error?: { message?: string };
+      };
+      if (data.result && !data.error) {
+        const valHex = data.result === "0x" ? "0x0" : data.result;
+        const val = BigInt(valHex);
+        tokenBalance = Number(val) / 1e6; // ERC-20 USDC uses 6 decimals
+      }
+    }
 
-    const weiHex = data.result || "0x0";
-    const wei = BigInt(weiHex);
-    // Arc USDC native uses 18 decimals
-    const whole = Number(wei) / 1e18;
-    const amount = Number.isFinite(whole)
-      ? whole.toLocaleString("en-US", {
+    const tokenAmountStr = Number.isFinite(tokenBalance)
+      ? tokenBalance.toLocaleString("en-US", {
           maximumFractionDigits: 6,
           useGrouping: false,
         })
       : "0";
-    const usd = Number.isFinite(whole) ? whole : 0;
 
     return NextResponse.json({
-      totalUsd: usd,
+      totalUsd: tokenBalance,
       address,
       balances: [
         {
           chain: "Arc_Testnet",
           chainName: "Arc Testnet",
           token: "USDC",
-          amount,
-          usdValue: usd,
+          amount: tokenAmountStr,
+          usdValue: tokenBalance,
+          source: "rpc",
+        },
+        {
+          chain: "Arc_Testnet",
+          chainName: "Arc Testnet",
+          token: "USDC (Gas)",
+          amount: gasAmount,
+          usdValue: gasUsd,
           source: "rpc",
         },
       ],
