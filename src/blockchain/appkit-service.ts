@@ -95,15 +95,8 @@ async function tryLiveAppKitBridge(params: {
   const { installCircleApiProxy } = await import("@/lib/circle-proxy");
   installCircleApiProxy();
 
-  const {
-    ensureKitKey,
-    normalizeKitKey,
-    formatKitError,
-    KIT_KEY_HELP,
-  } = await import("@/lib/kit-key");
-
-  let kitKey = await ensureKitKey();
-  if (kitKey) kitKey = normalizeKitKey(kitKey);
+  const { formatKitError, KIT_KEY_HELP } = await import("@/lib/kit-key");
+  const kitKey: string | undefined = undefined;
 
   const kit = await getAppKit();
   if (!kit) {
@@ -136,103 +129,27 @@ async function tryLiveAppKitBridge(params: {
     }
   }
   let wiredAdapter: any = undefined;
-  let wiredDestAdapter: any = undefined;
+  let bridgeProvider: any = null;
 
-  // Import wallet adapter utilities once — used in agent/EVM setup AND in the
-  // kit.on("*") lifecycle listener for mid-bridge chain switching.
   const {
     createAppKitAdapterFromBrowser,
     switchToChainId,
     getInjectedProvider: getBridgeProvider,
     requestAccounts: reqAccounts,
-    EVM_CHAIN_PARAMS,
   } = await import("@/sdk/wallet-adapter");
 
-  // Capture the active provider so we can physically switch chains at each
-  // bridge step (burn on fromChain → mint on toChain).
-  // eslint-disable-next-line prefer-const
-  let bridgeProvider: Awaited<ReturnType<typeof getBridgeProvider>> | null = null;
-
-  if (isAgent) {
-    // Headless Agent: pre-switch to source chain before building adapter
-    const provider = await getBridgeProvider();
-    await reqAccounts(provider);
-    bridgeProvider = provider;
-    try {
-      await switchToChainId(provider, params.fromChain);
-    } catch (e) {
-      throw new Error(
-        e instanceof Error
-          ? e.message
-          : `Agent failed to switch to ${params.fromChain}.`,
-      );
-    }
-  } else {
-    // EVM / Circle Email wallet: physically switch to the source chain BEFORE
-    // building the adapter so viem's assertCurrentChain() sees the right chain ID
-    // instead of Arc Testnet (5042002) when bridging from e.g. Base Sepolia (84532).
-    try {
-      bridgeProvider = await getBridgeProvider();
-      await switchToChainId(bridgeProvider, params.fromChain);
-    } catch (e) {
-      console.warn(
-        "[AGFusion] Pre-bridge chain switch to",
-        params.fromChain,
-        "failed:",
-        e instanceof Error ? e.message : e,
-      );
-      // Non-fatal: proxy auto-switch will attempt the switch before each tx
-    }
+  bridgeProvider = await getBridgeProvider();
+  await reqAccounts(bridgeProvider);
+  try {
+    await switchToChainId(bridgeProvider, params.fromChain);
+  } catch (e) {
+    throw new Error(e instanceof Error ? e.message : `Could not switch wallet to ${params.fromChain} before bridging.`);
   }
 
-  // Always build wired adapters for every wallet type (EVM + Circle Email + Agent).
-  // App Kit needs an explicit adapter to know which provider to use for signing.
-  // Without it, App Kit tries window.ethereum internally and fails for Circle wallets
-  // and custom-picker EVM wallets that aren't registered in App Kit's own state.
-  //
-  // Phase 8: each side gets a chain-locked adapter with an explicit targetChainId
-  // so the proxy auto-switches the wallet to the right chain before every tx
-  // (approve/burn on source, mint on destination). This removes the fragile
-  // __agfusion_expected_chain global from the bridge path.
-  {
-    const fromChainId = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
-    const toChainId = EVM_CHAIN_PARAMS[params.toChain]?.chainId;
-
-    const srcAdapter = await createAppKitAdapterFromBrowser({
-      requireArc: false,
-      targetChainId: fromChainId,
-    });
-    if (!srcAdapter) {
-      throw new Error(
-        "Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.",
-      );
-    }
-
-    // Destination adapter is chain-locked only for user wallets (EVM + Circle).
-    // Agent smart accounts do not support mid-bridge physical chain switching,
-    // so they reuse the source adapter (the app already locks agents to Arc).
-    const dstAdapter =
-      !isAgent && toChainId
-        ? await createAppKitAdapterFromBrowser({
-            requireArc: false,
-            targetChainId: toChainId,
-          })
-        : null;
-
-    wiredAdapter = srcAdapter.adapter;
-    wiredDestAdapter = (dstAdapter?.adapter ?? srcAdapter.adapter) as any;
-
-    // Use the wired provider as bridge provider if we couldn't get one earlier
-    if (!bridgeProvider) bridgeProvider = srcAdapter.provider;
-    if (isAgent) {
-      // After adapter build, double-check agent provider is on source chain
-      try {
-        await switchToChainId(srcAdapter.provider, params.fromChain);
-      } catch {
-        /* App Kit handles chain switching internally during bridge steps */
-      }
-    }
-  }
+  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+  if (!wired) throw new Error("Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.");
+  wiredAdapter = wired.adapter;
+  bridgeProvider = wired.provider;
 
   // Hard preflight: source + dest public RPCs must answer eth_chainId
   // Maps ChainId → /api/rpc?chain=<key> proxy key. Source of truth is the
@@ -289,12 +206,6 @@ async function tryLiveAppKitBridge(params: {
     );
   }
 
-  // Ensure kit key — CCTP attestation needs it on many routes
-  if (!kitKey || !/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(kitKey)) {
-    throw new Error(
-      `Circle kit key missing for bridge.\n\n${KIT_KEY_HELP}`,
-    );
-  }
 
   // Track step events so the persisted state machine and the recovery path
   // always have the real per-step hashes — even when kit.bridge() throws
@@ -338,24 +249,14 @@ async function tryLiveAppKitBridge(params: {
       },
       amount: String(params.amount),
       token: "USDC",
-      config: { kitKey },
+      
     };
 
     if (wiredAdapter) {
       (bridgeParams.from as any).adapter = wiredAdapter;
-      (bridgeParams.to as any).adapter = wiredDestAdapter ?? wiredAdapter;
+      (bridgeParams.to as any).adapter = wiredAdapter;
     }
 
-    const switchToDestination = () => {
-      if (bridgeProvider && params.toChain) {
-        switchToChainId(bridgeProvider, params.toChain).catch((e) => {
-          console.warn(
-            "[AGFusion] Mid-bridge toChain switch failed:",
-            e instanceof Error ? e.message : e,
-          );
-        });
-      }
-    };
 
     // Named handler so the lifecycle listener can be removed after the
     // attempt — otherwise repeated bridge attempts stack duplicate listeners.
@@ -384,27 +285,9 @@ async function tryLiveAppKitBridge(params: {
           deriveBridgeState(txIdForState, stepEvents);
         }
       }
-      // Safety net: physically switch the wallet to the destination chain as
-      // soon as the burn succeeds or the mint step begins. Primary switching is
-      // handled by the chain-locked adapters (Phase 8).
-      if (
-        (state === "success" && stepName === "burn") ||
-        (state === "active" && (stepName === "mint" || stepName.includes("receive")))
-      ) {
-        switchToDestination();
-      }
     };
     kit.on("*", onBridgeEvent);
 
-    // Switch wallet to source chain before bridging (enforce active network matches the source chain)
-    const fromChainHex = EVM_CHAIN_PARAMS[params.fromChain]?.chainIdHex;
-    if (fromChainHex && bridgeProvider) {
-      console.log(`[AGFusion] Switching wallet to source chain ${params.fromChain} (${fromChainHex}) before bridge starts`);
-      await bridgeProvider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: fromChainHex.toLowerCase() }],
-      });
-    }
 
     let result = (await kit.bridge(bridgeParams)) as {
       state?: string;
@@ -426,21 +309,18 @@ async function tryLiveAppKitBridge(params: {
     deriveBridgeState(txIdForState, stepEvents);
 
     if (result.state === "error") {
-      console.warn("[AGFusion] Bridge returned error state, attempting recovery via retryBridge...");
-      try {
-        const retryParams: Record<string, any> = {
-          from: wiredAdapter,
-          to: wiredDestAdapter ?? wiredAdapter,
-        };
-        result = (await (kit as any).retryBridge(result, retryParams)) as typeof result;
-        for (const s of result.steps || []) {
-          if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) {
-            stepEvents.push(s);
+      const errorText = (result.steps || []).filter((s) => s.state === "error").map((s) => s.errorMessage || "").join(" ");
+      const hardError = /4001|user rejected|denied|rejected by user|insufficient|invalid|unauthorized|forbidden|validation|unsupported|kit.?key/i.test(errorText);
+      if (!hardError && typeof (kit as any).retryBridge === "function") {
+        try {
+          result = (await (kit as any).retryBridge(result, { from: wiredAdapter, to: wiredAdapter })) as typeof result;
+          for (const s of result.steps || []) {
+            if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) stepEvents.push(s);
           }
+          deriveBridgeState(txIdForState, stepEvents);
+        } catch (retryErr) {
+          console.warn("[AGFusion] Bridge recovery failed:", retryErr);
         }
-        deriveBridgeState(txIdForState, stepEvents);
-      } catch (retryErr) {
-        console.warn("[AGFusion] Bridge recovery failed:", retryErr);
       }
     }
 
@@ -798,22 +678,14 @@ export async function runBridgeWithRecovery(params: {
   if (previousResult) {
     try {
       const kit = await getAppKit();
-      const {
-        createAppKitAdapterFromBrowser: createAdapter,
-        EVM_CHAIN_PARAMS,
-      } = await import("@/sdk/wallet-adapter");
-      const fromChainId = EVM_CHAIN_PARAMS[fromChain]?.chainId;
-      const toChainId = EVM_CHAIN_PARAMS[toChain]?.chainId;
-      const src = await createAdapter({ requireArc: false, targetChainId: fromChainId });
-      const dst = toChainId
-        ? await createAdapter({ requireArc: false, targetChainId: toChainId })
-        : null;
+      const { createAppKitAdapterFromBrowser: createAdapter } = await import("@/sdk/wallet-adapter");
+      const src = await createAdapter({ requireArc: false });
       if (!kit || !src) {
         throw new Error("App Kit unavailable for bridge recovery.");
       }
       const retried = (await (kit as any).retryBridge(previousResult, {
         from: src.adapter,
-        to: (dst?.adapter ?? src.adapter) as any,
+        to: src.adapter,
       })) as {
         state?: string;
         steps?: Array<{ name?: string; state?: string; txHash?: string; errorMessage?: string }>;
@@ -919,7 +791,7 @@ async function resumeFromBurn(
   recipient?: string,
 ): Promise<TransactionRecord> {
   const kit = await getAppKit();
-  const { createAppKitAdapterFromBrowser: createAdapter, EVM_CHAIN_PARAMS } = await import("@/sdk/wallet-adapter");
+  const { createAppKitAdapterFromBrowser: createAdapter } = await import("@/sdk/wallet-adapter");
   if (!kit) throw new Error("App Kit unavailable for bridge recovery.");
 
   const supported = (kit as any).getSupportedChains?.() as Array<{ chain: string }> | undefined;
@@ -930,10 +802,7 @@ async function resumeFromBurn(
     throw new Error("Circle App Kit could not resolve the bridge chains for recovery.");
   }
 
-  const fromChainId = EVM_CHAIN_PARAMS[fromChain]?.chainId;
-  const toChainId = EVM_CHAIN_PARAMS[toChain]?.chainId;
-  const src = await createAdapter({ requireArc: false, targetChainId: fromChainId });
-  const dst = toChainId ? await createAdapter({ requireArc: false, targetChainId: toChainId }) : null;
+  const src = await createAdapter({ requireArc: false });
   if (!src) throw new Error("Could not reconnect the wallet for bridge recovery.");
 
   // Step history: only the confirmed burn is present, so the SDK continues at
@@ -943,14 +812,14 @@ async function resumeFromBurn(
     amount,
     token,
     source: { address: src.address, chain: srcDef },
-    destination: { address: (dst?.address ?? src.address), chain: dstDef, recipientAddress: recipient },
+    destination: { address: src.address, chain: dstDef, recipientAddress: recipient },
     steps: [{ name: "burn", state: "success", txHash: burnHash }],
     config: {},
   };
 
   const retried = (await (kit as any).retryBridge(reconstructed, {
     from: src.adapter,
-    to: (dst?.adapter ?? src.adapter) as any,
+    to: src.adapter,
   })) as {
     state?: string;
     steps?: Array<{ name?: string; state?: string; txHash?: string; errorMessage?: string }>;
