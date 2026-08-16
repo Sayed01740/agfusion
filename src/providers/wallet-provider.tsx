@@ -134,9 +134,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
+      // Route browser reads through the same-origin /api/rpc proxy so a flaky
+      // or CORS-blocked public RPC can never surface as "Network connection
+      // failed for Arc Testnet" on the balance card.
+      void import("@/lib/circle-proxy").then((m) => m.installCircleApiProxy());
       const client = createPublicClient({
         chain: arcTestnet,
-        transport: http(arcTestnet.rpcUrls.default.http[0]),
+        transport: http(
+          typeof window !== "undefined"
+            ? `${window.location.origin}/api/rpc?chain=arc`
+            : arcTestnet.rpcUrls.default.http[0],
+        ),
       });
       const bal = await client.getBalance({
         address: walletAddress as Address,

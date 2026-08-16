@@ -37,12 +37,19 @@ export async function getLiveWalletContext(): Promise<{
   }
 }
 
+/** Same-origin /api/rpc proxy URL (browser) or the raw RPC (server). */
+function arcRpcUrl(): string {
+  return typeof window !== "undefined"
+    ? `${window.location.origin}/api/rpc?chain=arc`
+    : arcTestnet.rpcUrls.default.http[0];
+}
+
 export async function fetchArcNativeBalance(
   address: Address,
 ): Promise<string> {
   const client = createPublicClient({
     chain: arcTestnet,
-    transport: http(arcTestnet.rpcUrls.default.http[0]),
+    transport: http(arcRpcUrl()),
   });
   const bal = await client.getBalance({ address });
   return formatEther(bal);
@@ -61,6 +68,10 @@ export async function liveSendUsdcOnArc(params: {
       "Live send must run in the browser with your connected wallet.",
     );
   }
+
+  // Ensure reads (balance, receipt) go through the same-origin /api/rpc proxy.
+  const { installCircleApiProxy } = await import("@/lib/circle-proxy");
+  installCircleApiProxy();
 
   const id = uid("tx");
   const steps: TxStep[] = [
@@ -114,7 +125,7 @@ export async function liveSendUsdcOnArc(params: {
 
   const publicClient = createPublicClient({
     chain: arcTestnet,
-    transport: http(arcTestnet.rpcUrls.default.http[0]),
+    transport: http(arcRpcUrl()),
   });
 
   try {

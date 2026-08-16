@@ -11,9 +11,15 @@ let installed = false;
 
 /** Map host → /api/rpc?chain=… */
 const RPC_HOST_TO_CHAIN: Record<string, string> = {
-  // Arc Testnet
+  // Arc Testnet — all endpoints from docs.arc.io/references/rpc-endpoints
+  // plus the viem/SDK .network variants, so no Arc RPC ever bypasses the proxy.
   "rpc.testnet.arc.io": "arc",
   "rpc.testnet.arc.network": "arc",
+  "rpc.blockdaemon.testnet.arc.io": "arc",
+  "rpc.blockdaemon.testnet.arc.network": "arc",
+  "rpc.drpc.testnet.arc.io": "arc",
+  "rpc.quicknode.testnet.arc.io": "arc",
+  "rpc.quicknode.testnet.arc.network": "arc",
   // Base Sepolia
   "sepolia.base.org": "base",
   "base-sepolia-rpc.publicnode.com": "base",

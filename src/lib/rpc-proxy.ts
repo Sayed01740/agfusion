@@ -1,10 +1,11 @@
 /**
  * Shared JSON-RPC proxy logic used by /api/rpc.
  *
- * Arc Testnet upstreams were verified on 2026-08-16: every entry answered
- * `eth_chainId` → 0x4cef52. They are genuinely independent providers
- * (Circle primary, Blockdaemon, dRPC, QuickNode) — not the same endpoint
- * repeated with different path spellings.
+ * Arc Testnet upstreams follow docs.arc.io/references/rpc-endpoints:
+ * Circle primary (rpc.testnet.arc.io), Blockdaemon, dRPC, QuickNode — all
+ * verified on 2026-08-16 to answer `eth_chainId` → 0x4cef52. They are
+ * genuinely independent providers, not the same endpoint repeated with
+ * different path spellings.
  *
  * Safety rules:
  * - Read-only requests may fail over across upstreams.
@@ -17,9 +18,12 @@ export const ARC_EXPECTED_CHAIN_ID_HEX = "0x4cef52";
 
 /** Ordered upstreams per chain key — first healthy provider wins. */
 export const RPC_UPSTREAMS: Record<string, string[]> = {
-  // Genuinely independent Arc Testnet RPC providers (all return 0x4cef52):
-  // Circle primary, Blockdaemon, dRPC, QuickNode. See docs.arc.io/references/rpc-endpoints.
+  // Genuinely independent Arc Testnet RPC providers (all return 0x4cef52).
+  // Order: docs primary (Circle .io) first, then the SDK/viem .network
+  // endpoint, then Blockdaemon / dRPC / QuickNode. See
+  // docs.arc.io/references/rpc-endpoints.
   arc: [
+    "https://rpc.testnet.arc.io",
     "https://rpc.testnet.arc.network",
     "https://rpc.blockdaemon.testnet.arc.io",
     "https://rpc.drpc.testnet.arc.io",

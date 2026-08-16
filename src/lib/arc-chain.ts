@@ -6,7 +6,7 @@ import { defineChain } from "viem";
  * | Field            | Value                              |
  * |------------------|------------------------------------|
  * | Network name     | Arc Testnet                        |
- * | New RPC URL      | https://rpc.testnet.arc.network    |
+ * | New RPC URL      | https://rpc.testnet.arc.io         |
  * | Chain ID         | 5042002  (hex 0x4cef52)            |
  * | Currency symbol  | USDC                               |
  * | Explorer URL     | https://testnet.arcscan.app        |

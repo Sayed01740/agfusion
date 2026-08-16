@@ -56,30 +56,30 @@ describe("rpc-proxy failover (Phase 2)", () => {
   it("health check succeeds on the primary Arc upstream", async () => {
     mockFetch([
       {
-        url: "https://rpc.testnet.arc.network",
+        url: "https://rpc.testnet.arc.io",
         response: jsonRpcResponse(ARC_EXPECTED_CHAIN_ID_HEX),
       },
     ]);
     const h = await healthCheck("arc");
     expect(h.ok).toBe(true);
     expect(h.chainId).toBe(ARC_EXPECTED_CHAIN_ID_HEX);
-    expect(h.upstream).toContain("rpc.testnet.arc.network");
+    expect(h.upstream).toContain("rpc.testnet.arc.io");
     expect(typeof h.latencyMs).toBe("number");
   });
 
   it("falls back to the next upstream when the primary fails", async () => {
     mockFetch([
-      { url: "https://rpc.testnet.arc.network", response: jsonRpcResponse("0x0", false) },
-      { url: "https://rpc.blockdaemon.testnet.arc.io", response: jsonRpcResponse(ARC_EXPECTED_CHAIN_ID_HEX) },
+      { url: "https://rpc.testnet.arc.io", response: jsonRpcResponse("0x0", false) },
+      { url: "https://rpc.testnet.arc.network", response: jsonRpcResponse(ARC_EXPECTED_CHAIN_ID_HEX) },
     ]);
     const h = await healthCheck("arc");
     expect(h.ok).toBe(true);
-    expect(h.upstream).toContain("blockdaemon");
+    expect(h.upstream).toContain("rpc.testnet.arc.network");
   });
 
   it("rejects a wrong chainId upstream and uses the correct one", async () => {
     mockFetch([
-      { url: "https://rpc.testnet.arc.network", response: jsonRpcResponse("0x1") },
+      { url: "https://rpc.testnet.arc.io", response: jsonRpcResponse("0x1") },
       { url: "https://rpc.blockdaemon.testnet.arc.io", response: jsonRpcResponse(ARC_EXPECTED_CHAIN_ID_HEX) },
     ]);
     const h = await healthCheck("arc");
@@ -90,7 +90,7 @@ describe("rpc-proxy failover (Phase 2)", () => {
 
   it("treats an HTTP 200 HTML response as a failure", async () => {
     mockFetch([
-      { url: "https://rpc.testnet.arc.network", response: htmlResponse() },
+      { url: "https://rpc.testnet.arc.io", response: htmlResponse() },
       { url: "https://rpc.blockdaemon.testnet.arc.io", response: jsonRpcResponse(ARC_EXPECTED_CHAIN_ID_HEX) },
     ]);
     const h = await healthCheck("arc");
@@ -100,7 +100,7 @@ describe("rpc-proxy failover (Phase 2)", () => {
 
   it("treats malformed JSON as a failure", async () => {
     mockFetch([
-      { url: "https://rpc.testnet.arc.network", response: malformedJsonResponse() },
+      { url: "https://rpc.testnet.arc.io", response: malformedJsonResponse() },
       { url: "https://rpc.blockdaemon.testnet.arc.io", response: jsonRpcResponse(ARC_EXPECTED_CHAIN_ID_HEX) },
     ]);
     const h = await healthCheck("arc");
@@ -110,7 +110,7 @@ describe("rpc-proxy failover (Phase 2)", () => {
 
   it("reports failure when every upstream is down", async () => {
     mockFetch([
-      { url: "https://rpc.testnet.arc.network", response: jsonRpcResponse("0x0", false) },
+      { url: "https://rpc.testnet.arc.io", response: jsonRpcResponse("0x0", false) },
       { url: "https://rpc.blockdaemon.testnet.arc.io", response: jsonRpcResponse("0x0", false) },
     ]);
     const h = await healthCheck("arc");
