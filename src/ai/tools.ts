@@ -55,6 +55,21 @@ export type ToolName =
   | "get_transaction_status"
   | "register_erc8004_agent";
 
+/**
+ * Resolve a same-origin API path to an absolute URL so tools work both in the
+ * browser (relative fetch is fine) and in the Node runtime where relative
+ * fetch URLs throw (e.g. the /api/ai/agent route).
+ */
+export function absoluteApiUrl(path: string): string {
+  if (typeof window !== "undefined") return path;
+  const base = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export type ToolResult = {
   ok: boolean;
   summary: string;
@@ -765,7 +780,10 @@ export async function executeTool(
           return { ok: false, summary: "Invalid transaction hash provided. Must be a 66-character hex string starting with 0x." };
         }
         try {
-          const res = await fetch(`/api/rpc?chain=arc`, {
+          // This tool runs both server-side (agent route) and in the browser —
+          // a relative /api/rpc URL only works client-side, so build an
+          // absolute URL from the deployment origin when on the server.
+          const res = await fetch(absoluteApiUrl("/api/rpc?chain=arc"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

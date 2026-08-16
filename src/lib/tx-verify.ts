@@ -19,6 +19,20 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Absolute same-origin API URL — works in the browser and in Node (relative
+ * fetch URLs throw server-side).
+ */
+function apiUrl(path: string): string {
+  if (typeof window !== "undefined") return path;
+  const base = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+/**
  * Poll eth_getTransactionReceipt for a hash through the /api/rpc proxy.
  * - receipt found + status 0x1      → "success"
  * - receipt found + other status    → "reverted"
@@ -41,7 +55,7 @@ export async function verifyReceiptOnChain(opts: {
 
   let lastReceipt: unknown = null;
   for (let i = 0; i < attempts; i += 1) {
-    const res = await fetchImpl(`/api/rpc?chain=${encodeURIComponent(opts.chainKey)}`, {
+    const res = await fetchImpl(apiUrl(`/api/rpc?chain=${encodeURIComponent(opts.chainKey)}`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
