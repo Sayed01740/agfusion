@@ -1,1 +1,0 @@
-One-shot trigger for the isolated bridge-fix workflow. This file can be removed after validation.
