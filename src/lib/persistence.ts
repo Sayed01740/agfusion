@@ -3,10 +3,26 @@ import type { TransactionRecord } from "@/types";
 const TX_KEY = "AGFusion_txs_v1";
 const MAX_TXS = 40;
 
-export function loadTransactions(): TransactionRecord[] {
+/**
+ * Storage key per wallet so history never leaks between wallets.
+ * No address (disconnected) resolves to the legacy key so callers that
+ * intentionally pass no wallet still have a deterministic target.
+ */
+function txKey(address?: string | null): string {
+  if (!address) return TX_KEY;
+  return `${TX_KEY}:${address.toLowerCase()}`;
+}
+
+/**
+ * Load transactions for a specific wallet. Without a wallet address nothing
+ * is returned — a disconnected session never shows another wallet's history
+ * (the pre-wallet-scoping global key is intentionally ignored on read).
+ */
+export function loadTransactions(address?: string | null): TransactionRecord[] {
   if (typeof window === "undefined") return [];
+  if (!address) return [];
   try {
-    const raw = localStorage.getItem(TX_KEY);
+    const raw = localStorage.getItem(txKey(address));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as TransactionRecord[];
     return Array.isArray(parsed) ? parsed : [];
@@ -15,12 +31,30 @@ export function loadTransactions(): TransactionRecord[] {
   }
 }
 
-export function saveTransactions(txs: TransactionRecord[]) {
+/** Persist transactions under the given wallet's key. */
+export function saveTransactions(
+  txs: TransactionRecord[],
+  address?: string | null,
+) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(TX_KEY, JSON.stringify(txs.slice(0, MAX_TXS)));
+    localStorage.setItem(
+      txKey(address),
+      JSON.stringify(txs.slice(0, MAX_TXS)),
+    );
   } catch {
     /* quota */
+  }
+}
+
+/** Remove a wallet's persisted history (plus the legacy global key). */
+export function clearTransactions(address?: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(txKey(address));
+    localStorage.removeItem(TX_KEY);
+  } catch {
+    /* ignore */
   }
 }
 

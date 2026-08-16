@@ -169,9 +169,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [walletAddress, setLiveBalance, refreshBalances]);
 
+  // Live data: fetch on connect, then poll on-chain balance + server history
+  // every 15s while a wallet is connected so the UI reflects new sends/bridges
+  // without a manual refresh.
   useEffect(() => {
+    if (!walletAddress) return;
     void refreshBalance();
-  }, [refreshBalance]);
+    void usePilotStore.getState().loadServerTransactions(walletAddress);
+    const id = window.setInterval(() => {
+      void refreshBalance();
+      void usePilotStore.getState().loadServerTransactions(walletAddress);
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [walletAddress, refreshBalance]);
 
   const attachListeners = useCallback(
     (p: InjectedProvider, address: string) => {
@@ -390,6 +400,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     void fetch("/api/auth/logout", { method: "POST" });
     void import("@/sdk/circle-pw").then((mod) => mod.clearCircleSession());
     disconnectActiveWallet();
+    // Wipe this session's history + balances so a previous user's data never
+    // remains on screen after disconnect.
+    usePilotStore.getState().clearTransactions();
     setProvider(null);
     setWallet(null, null);
     setLiveBalance(null);

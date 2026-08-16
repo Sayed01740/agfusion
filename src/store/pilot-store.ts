@@ -10,6 +10,7 @@ import type {
 import { emptyBalanceSnapshot } from "@/lib/balances-empty";
 import { welcomeMessage } from "@/ai/orchestrator";
 import {
+  clearTransactions as clearStoredTransactions,
   loadTransactions,
   mergeTransactions,
   saveTransactions,
@@ -49,6 +50,8 @@ interface PilotState {
   markPreviewExecuted: (messageId: string) => void;
   hydrate: () => void;
   executionMode: () => ExecutionMode;
+  /** Clear in-memory + persisted history (used on wallet disconnect). */
+  clearTransactions: () => void;
 }
 
 export const usePilotStore = create<PilotState>((set, get) => ({
@@ -70,7 +73,7 @@ export const usePilotStore = create<PilotState>((set, get) => ({
 
   setMessages: (msgs) => set({ messages: msgs }),
 
-  addTransaction: (tx) =>
+  addTransaction: (tx) => {
     set((s) => {
       const record = {
         ...tx,
@@ -80,8 +83,9 @@ export const usePilotStore = create<PilotState>((set, get) => ({
         record,
         ...s.transactions.filter((t) => t.id !== record.id),
       ];
-      // Always persist to localStorage so Analytics + activity work without SIWE/DB
-      saveTransactions(transactions);
+      // Always persist to localStorage (scoped to the connected wallet) so
+      // Analytics + activity work without SIWE/DB
+      saveTransactions(transactions, s.walletAddress);
       const wallet = s.walletAddress;
       void fetch("/api/transactions", {
         method: "POST",
@@ -107,23 +111,39 @@ export const usePilotStore = create<PilotState>((set, get) => ({
         }),
       }).catch(() => {});
       return { transactions, activeTxId: record.id };
-    }),
+    });
+    // A send/bridge/swap changed the wallet balance — refresh immediately.
+    get().refreshBalances();
+  },
 
   updateTransaction: (id, patch) =>
     set((s) => {
       const transactions = s.transactions.map((t) =>
         t.id === id ? { ...t, ...patch } : t,
       );
-      saveTransactions(transactions);
+      saveTransactions(transactions, s.walletAddress);
       return { transactions };
     }),
 
   setActiveTx: (id) => set({ activeTxId: id }),
   setThinking: (v) => set({ isThinking: v }),
   setWallet: (address, chainId = null) =>
-    set({
-      walletAddress: address,
-      walletChainId: chainId ?? null,
+    set((s) => {
+      // History is scoped to the connected wallet: switching accounts (or
+      // disconnecting) swaps the visible transactions accordingly. Reload only
+      // when the address actually changed so unrelated setWallet calls (e.g.
+      // chainChanged with the same account) don't clobber in-memory merges.
+      const prev = (s.walletAddress || "").toLowerCase();
+      const next = (address || "").toLowerCase();
+      let transactions = s.transactions;
+      if (prev !== next) {
+        transactions = address ? loadTransactions(address) : [];
+      }
+      return {
+        walletAddress: address,
+        walletChainId: chainId ?? null,
+        transactions,
+      };
     }),
   setWalletType: (t) => {
     try {
@@ -147,7 +167,7 @@ export const usePilotStore = create<PilotState>((set, get) => ({
       if (!list.length) return;
       set((s) => {
         const merged = mergeTransactions(s.transactions, list);
-        saveTransactions(merged);
+        saveTransactions(merged, wallet);
         return { transactions: merged };
       });
     } catch {
@@ -233,7 +253,11 @@ export const usePilotStore = create<PilotState>((set, get) => ({
     } catch {
       /* ignore */
     }
-    const stored = loadTransactions().filter((t) => t.executionMode !== "demo");
+    // Scope persisted history to the connected wallet (null → none), so a
+    // previous user's transactions never reappear before this session connects.
+    const stored = loadTransactions(get().walletAddress).filter(
+      (t) => t.executionMode !== "demo",
+    );
     let walletType: "evm" | "circle" = "evm";
     try {
       const wt = window.localStorage?.getItem("agfusion_wallet_type_v1");
@@ -250,4 +274,9 @@ export const usePilotStore = create<PilotState>((set, get) => ({
   },
 
   executionMode: () => "live",
+
+  clearTransactions: () => {
+    clearStoredTransactions(get().walletAddress);
+    set({ transactions: [] });
+  },
 }));
