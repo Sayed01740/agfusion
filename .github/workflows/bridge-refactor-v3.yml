@@ -1,0 +1,69 @@
+name: Bridge refactor v3
+
+on:
+  push:
+    branches: [bridge-fix]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(bridge):') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bridge-fix
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply bridge refactor
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('src/blockchain/appkit-service.ts')
+          s=p.read_text()
+          s=s.replace('''  const {\n    ensureKitKey,\n    normalizeKitKey,\n    formatKitError,\n    KIT_KEY_HELP,\n  } = await import("@/lib/kit-key");\n\n  let kitKey = await ensureKitKey();\n  if (kitKey) kitKey = normalizeKitKey(kitKey);\n''','''  const { formatKitError, KIT_KEY_HELP } = await import("@/lib/kit-key");\n  const kitKey: string | undefined = undefined;\n''',1)
+          start=s.index('  let wiredAdapter: any = undefined;')
+          end=s.index('  // Hard preflight: source + dest public RPCs must answer eth_chainId')
+          replacement='''  let wiredAdapter: any = undefined;\n  let bridgeProvider: any = null;\n  const { createAppKitAdapterFromBrowser, switchToChainId, getInjectedProvider: getBridgeProvider, requestAccounts: reqAccounts } = await import("@/sdk/wallet-adapter");\n  bridgeProvider = await getBridgeProvider();\n  await reqAccounts(bridgeProvider);\n  try { await switchToChainId(bridgeProvider, params.fromChain); }\n  catch (e) { throw new Error(e instanceof Error ? e.message : `Could not switch wallet to ${params.fromChain} before bridging.`); }\n  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });\n  if (!wired) throw new Error("Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.");\n  wiredAdapter = wired.adapter;\n  bridgeProvider = wired.provider;\n\n'''
+          s=s[:start]+replacement+s[end:]
+          bstart=s.index('async function tryLiveAppKitBridge')
+          bend=s.index('async function tryLiveAppKitSend')
+          b=s[bstart:bend]
+          b=re.sub(r'''\n  // Ensure kit key — CCTP attestation needs it on many routes.*?\n  \}\n''','\n',b,count=1,flags=re.S)
+          b=b.replace('config: { kitKey },','')
+          b=re.sub(r'''\n    const switchToDestination = \(\) => \{.*?\n    \};\n''','\n',b,count=1,flags=re.S)
+          b=re.sub(r'''\n      // Safety net: physically switch the wallet to the destination chain as.*?\n      \}\n    \};\n''','\n    };\n',b,count=1,flags=re.S)
+          b=re.sub(r'''\n    // Switch wallet to source chain before bridging.*?\n      \}\);\n    \}\n''','\n',b,count=1,flags=re.S)
+          b=b.replace('(bridgeParams.to as any).adapter = wiredDestAdapter ?? wiredAdapter;','(bridgeParams.to as any).adapter = wiredAdapter;')
+          old='''    if (result.state === "error") {\n      console.warn("[AGFusion] Bridge returned error state, attempting recovery via retryBridge...");\n      try {\n        const retryParams: Record<string, any> = {\n          from: wiredAdapter,\n          to: wiredDestAdapter ?? wiredAdapter,\n        };\n        result = (await (kit as any).retryBridge(result, retryParams)) as typeof result;\n        for (const s of result.steps || []) {\n          if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) {\n            stepEvents.push(s);\n          }\n        }\n        deriveBridgeState(txIdForState, stepEvents);\n      } catch (retryErr) {\n        console.warn("[AGFusion] Bridge recovery failed:", retryErr);\n      }\n    }\n'''
+          new='''    if (result.state === "error") {\n      const errorText = (result.steps || []).filter((s) => s.state === "error").map((s) => s.errorMessage || "").join(" ");\n      const hardError = /4001|user rejected|denied|rejected by user|insufficient|invalid|unauthorized|forbidden|validation|unsupported|kit.?key/i.test(errorText);\n      if (!hardError && typeof (kit as any).retryBridge === "function") {\n        try {\n          result = (await (kit as any).retryBridge(result, { from: wiredAdapter, to: wiredAdapter })) as typeof result;\n          for (const s of result.steps || []) if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) stepEvents.push(s);\n          deriveBridgeState(txIdForState, stepEvents);\n        } catch (retryErr) { console.warn("[AGFusion] Bridge recovery failed:", retryErr); }\n      }\n    }\n'''
+          if old not in b: raise SystemExit('retry block not found')
+          b=b.replace(old,new,1)
+          s=s[:bstart]+b+s[bend:]
+          s=s.replace('''      const {\n        createAppKitAdapterFromBrowser: createAdapter,\n        EVM_CHAIN_PARAMS,\n      } = await import("@/sdk/wallet-adapter");\n      const fromChainId = EVM_CHAIN_PARAMS[fromChain]?.chainId;\n      const toChainId = EVM_CHAIN_PARAMS[toChain]?.chainId;\n      const src = await createAdapter({ requireArc: false, targetChainId: fromChainId });\n      const dst = toChainId ? await createAdapter({ requireArc: false, targetChainId: toChainId }) : null;\n      if (!kit || !src) {\n''','''      const { createAppKitAdapterFromBrowser: createAdapter } = await import("@/sdk/wallet-adapter");\n      const src = await createAdapter({ requireArc: false });\n      if (!kit || !src) {\n''',1)
+          s=s.replace('to: (dst?.adapter ?? src.adapter) as any,','to: src.adapter,',2)
+          s=s.replace('const { createAppKitAdapterFromBrowser: createAdapter, EVM_CHAIN_PARAMS } = await import("@/sdk/wallet-adapter");','const { createAppKitAdapterFromBrowser: createAdapter } = await import("@/sdk/wallet-adapter");',1)
+          s=s.replace('''  const fromChainId = EVM_CHAIN_PARAMS[fromChain]?.chainId;\n  const toChainId = EVM_CHAIN_PARAMS[toChain]?.chainId;\n  const src = await createAdapter({ requireArc: false, targetChainId: fromChainId });\n  const dst = toChainId ? await createAdapter({ requireArc: false, targetChainId: toChainId }) : null;\n  if (!src) throw new Error("Could not reconnect the wallet for bridge recovery.");\n''','''  const src = await createAdapter({ requireArc: false });\n  if (!src) throw new Error("Could not reconnect the wallet for bridge recovery.");\n''',1)
+          s=s.replace('destination: { address: (dst?.address ?? src.address), chain: dstDef, recipientAddress: recipient },','destination: { address: src.address, chain: dstDef, recipientAddress: recipient },',1)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          npm ci --legacy-peer-deps
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Commit and force-push verified source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/blockchain/appkit-service.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(bridge): simplify app kit bridge orchestration"
+          git push --force origin bridge-fix
