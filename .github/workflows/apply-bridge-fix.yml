@@ -1,21 +1,26 @@
 name: Apply bridge fix
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master]
   push:
     branches: [bridge-fix]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   bridge-fix:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch
+      - name: Checkout bridge branch
         uses: actions/checkout@v4
         with:
-          ref: bridge-fix
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           fetch-depth: 1
 
       - name: Setup Node
@@ -38,27 +43,14 @@ jobs:
               assert marker in s, 'wallet adapter import marker not found'
               s = s.replace(marker, 'import { isRetryableError } from "@circle-fin/app-kit";\n' + marker, 1)
 
-          # Bridge operations do not require a Circle Kit key. Keep key handling
-          # for swap/send elsewhere in this module, but never gate kit.bridge().
-          bridge_key_block = re.compile(
-              r'\n  const \{\n    ensureKitKey,\n    normalizeKitKey,\n    formatKitError,\n    KIT_KEY_HELP,\n  \} = await import\("@/lib/kit-key"\);\n\n  let kitKey = await ensureKitKey\(\);\n  if \(kitKey\) kitKey = normalizeKitKey\(kitKey\);\n',
-              re.M,
-          )
+          bridge_key_block = re.compile(r'\n  const \{\n    ensureKitKey,\n    normalizeKitKey,\n    formatKitError,\n    KIT_KEY_HELP,\n  \} = await import\("@/lib/kit-key"\);\n\n  let kitKey = await ensureKitKey\(\);\n  if \(kitKey\) kitKey = normalizeKitKey\(kitKey\);\n', re.M)
           s, n = bridge_key_block.subn('\n', s, count=1)
           assert n == 1, 'bridge kit-key bootstrap block not found'
 
-          # Use one adapter/provider for the whole bridge. The SDK switches the
-          # adapter context to the destination chain; AGFusion must not create
-          # a second chain-locked adapter that races the source adapter.
-          adapter_block = re.compile(
-              r'\n  // Always build wired adapters for every wallet type.*?\n  \}\n\n  // Hard preflight:',
-              re.S,
-          )
+          adapter_block = re.compile(r'\n  // Always build wired adapters for every wallet type.*?\n  \}\n\n  // Hard preflight:', re.S)
           replacement = r'''
-  // Build exactly one adapter for the active wallet and source chain.
-  // App Kit's bridge operation owns the source/destination chain contexts.
-  // Creating a second destination-locked adapter here caused provider/chain
-  // races, especially for Circle Email Wallet's custom EIP-1193 provider.
+  // One adapter/provider for the entire bridge. App Kit owns the destination
+  // chain context; a second chain-locked adapter creates provider races.
   {
     const fromChainId = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
     const srcAdapter = await createAppKitAdapterFromBrowser({
@@ -70,7 +62,6 @@ jobs:
         "Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.",
       );
     }
-
     wiredAdapter = srcAdapter.adapter;
     wiredDestAdapter = srcAdapter.adapter;
     if (!bridgeProvider) bridgeProvider = srcAdapter.provider;
@@ -80,60 +71,35 @@ jobs:
           s, n = adapter_block.subn(replacement, s, count=1)
           assert n == 1, 'bridge adapter block not found'
 
-          # Remove the bridge-only Kit Key gate and stop passing a swap-only key
-          # into the CCTP bridge call.
-          key_gate = re.compile(
-              r'\n  // Ensure kit key — CCTP attestation needs it on many routes\n  if \(!kitKey.*?\n  \}\n',
-              re.S,
-          )
+          key_gate = re.compile(r'\n  // Ensure kit key — CCTP attestation needs it on many routes\n  if \(!kitKey.*?\n  \}\n', re.S)
           s, n = key_gate.subn('\n', s, count=1)
           assert n == 1, 'bridge kit-key gate not found'
-
           s = s.replace('      config: { kitKey },\n', '', 1)
 
-          # Make source-chain switching a single authoritative precondition.
-          # The previous implementation allowed failure and then attempted
-          # several additional switches from adapters/events.
-          old_switch_comment = '''    // Switch wallet to source chain before bridging (enforce active network matches the source chain)\n    const fromChainHex = EVM_CHAIN_PARAMS[params.fromChain]?.chainIdHex;\n    if (fromChainHex && bridgeProvider) {\n      console.log(`[AGFusion] Switching wallet to source chain ${params.fromChain} (${fromChainHex}) before bridge starts`);\n      await bridgeProvider.request({\n        method: "wallet_switchEthereumChain",\n        params: [{ chainId: fromChainHex.toLowerCase() }],\n      });\n    }\n\n'''
-          assert old_switch_comment in s, 'duplicate source switch block not found'
-          s = s.replace(old_switch_comment, '', 1)
+          old_switch = '''    // Switch wallet to source chain before bridging (enforce active network matches the source chain)\n    const fromChainHex = EVM_CHAIN_PARAMS[params.fromChain]?.chainIdHex;\n    if (fromChainHex && bridgeProvider) {\n      console.log(`[AGFusion] Switching wallet to source chain ${params.fromChain} (${fromChainHex}) before bridge starts`);\n      await bridgeProvider.request({\n        method: "wallet_switchEthereumChain",\n        params: [{ chainId: fromChainHex.toLowerCase() }],\n      });\n    }\n\n'''
+          assert old_switch in s
+          s = s.replace(old_switch, '', 1)
 
-          # Delete the mid-bridge destination switch safety-net. It was racing
-          # the SDK and chain-locked destination adapter.
-          dest_switch = re.compile(
-              r'\n    const switchToDestination = \(\) => \{.*?\n    \};\n',
-              re.S,
-          )
+          dest_switch = re.compile(r'\n    const switchToDestination = \(\) => \{.*?\n    \};\n', re.S)
           s, n = dest_switch.subn('\n', s, count=1)
           assert n == 1, 'destination switch helper not found'
-
-          dest_event = re.compile(
-              r'\n      // Safety net: physically switch the wallet to the destination chain.*?\n      \}\n    \};',
-              re.S,
-          )
+          dest_event = re.compile(r'\n      // Safety net: physically switch the wallet to the destination chain.*?\n      \}\n    \};', re.S)
           s, n = dest_event.subn('\n    };', s, count=1)
           assert n == 1, 'destination event switch block not found'
 
-          # Retry only a transient SDK error. Hard validation, user rejection,
-          # wrong-chain, auth and config failures must surface immediately.
-          retry_block = re.compile(
-              r'\n    if \(result\.state === "error"\) \{.*?\n    \}\n\n    const steps:',
-              re.S,
-          )
+          retry_block = re.compile(r'\n    if \(result\.state === "error"\) \{.*?\n    \}\n\n    const steps:', re.S)
           retry_replacement = r'''
     if (result.state === "error") {
       const failedStep = (result.steps || []).find(
         (step: any) => step.state === "error" && step.error,
       );
-
       if (failedStep?.error && isRetryableError(failedStep.error)) {
-        console.warn("[AGFusion] Bridge returned a retryable error; resuming via retryBridge.");
+        console.warn("[AGFusion] Bridge error is retryable; resuming with retryBridge.");
         try {
           result = (await (kit as any).retryBridge(result, {
             from: wiredAdapter,
             to: wiredDestAdapter ?? wiredAdapter,
           })) as typeof result;
-
           for (const s of result.steps || []) {
             if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) {
               stepEvents.push(s);
@@ -144,7 +110,7 @@ jobs:
           console.warn("[AGFusion] Retryable bridge recovery failed:", retryErr);
         }
       } else {
-        console.warn("[AGFusion] Bridge error is not retryable; preserving the failed result.");
+        console.warn("[AGFusion] Bridge error is not retryable; preserving failed result.");
       }
     }
 
@@ -152,26 +118,20 @@ jobs:
           s, n = retry_block.subn(retry_replacement, s, count=1)
           assert n == 1, 'bridge retry block not found'
 
-          # Success must be tied to the destination mint receipt, not merely the
-          # last transaction hash (which can otherwise be an approval/burn hash).
           s = s.replace(
               '    const lastHash = [...steps].reverse().find((s) => s.txHash)?.txHash;\n',
               '    const mintStep = [...steps].reverse().find((s) => /mint|receive/i.test(s.name) && s.txHash && s.state === "success");\n    const lastHash = [...steps].reverse().find((s) => s.txHash)?.txHash;\n    const destinationHash = mintStep?.txHash;\n',
               1,
           )
 
-          verify_block = re.compile(
-              r'\n    // On-chain verification \(Phase 5\): the SDK returning without error is not.*?\n    \}\n\n    return \{',
-              re.S,
-          )
+          verify_block = re.compile(r'\n    // On-chain verification \(Phase 5\): the SDK returning without error is not.*?\n    \}\n\n    return \{', re.S)
           verify_replacement = r'''
-    // On-chain verification: a bridge is not complete until the destination
-    // mint is confirmed. Do not use an approval/burn hash as the final proof.
+    // A bridge is complete only after the destination mint is confirmed.
     let finalStatus: TransactionRecord["status"] = ok ? "success" : "error";
     let verifyNote: string | undefined;
     if (ok && !destinationHash) {
       finalStatus = "retryable";
-      verifyNote = "Bridge SDK completed without a destination mint hash. The transfer is not marked complete; verify/recover before retrying.";
+      verifyNote = "Bridge returned without a destination mint hash. The transfer is not marked complete.";
     } else if (ok && destinationHash) {
       try {
         const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
@@ -199,27 +159,16 @@ jobs:
     return {'''
           s, n = verify_block.subn(verify_replacement, s, count=1)
           assert n == 1, 'bridge verification block not found'
-
-          # Use the destination hash as the canonical bridge tx hash when present.
           s = s.replace('      txHash: lastHash,\n', '      txHash: destinationHash || lastHash,\n', 1)
           s = s.replace('        ? explorerTxUrl(lastHash)\n', '        ? explorerTxUrl(destinationHash || lastHash)\n', 1)
 
-          # Recovery must use the same adapter on both sides and must not retry a
-          # non-retryable SDK error.
-          recovery_adapter = re.compile(
-              r'\n      const fromChainId = EVM_CHAIN_PARAMS\[fromChain\]\?\.chainId;\n      const toChainId = EVM_CHAIN_PARAMS\[toChain\]\?\.chainId;\n      const src = await createAdapter\(\{ requireArc: false, targetChainId: fromChainId \}\);\n      const dst = toChainId\n        \? await createAdapter\(\{ requireArc: false, targetChainId: toChainId \}\)\n        : null;\n      if \(!kit \|\| !src\) \{\n',
-              re.S,
-          )
+          recovery_adapter = re.compile(r'\n      const fromChainId = EVM_CHAIN_PARAMS\[fromChain\]\?\.chainId;\n      const toChainId = EVM_CHAIN_PARAMS\[toChain\]\?\.chainId;\n      const src = await createAdapter\(\{ requireArc: false, targetChainId: fromChainId \}\);\n      const dst = toChainId\n        \? await createAdapter\(\{ requireArc: false, targetChainId: toChainId \}\)\n        : null;\n      if \(!kit \|\| !src\) \{\n', re.S)
           recovery_replacement = '''\n      const fromChainId = EVM_CHAIN_PARAMS[fromChain]?.chainId;\n      const src = await createAdapter({ requireArc: false, targetChainId: fromChainId });\n      if (!kit || !src) {\n'''
           s, n = recovery_adapter.subn(recovery_replacement, s, count=1)
           assert n == 1, 'recovery adapter block not found'
           s = s.replace('        from: src.adapter,\n        to: (dst?.adapter ?? src.adapter) as any,\n', '        from: src.adapter,\n        to: src.adapter,\n', 1)
 
-          # Resume-from-burn path: one adapter, same adapter for source/destination.
-          resume_adapter = re.compile(
-              r'\n  const fromChainId = EVM_CHAIN_PARAMS\[fromChain\]\?\.chainId;\n  const toChainId = EVM_CHAIN_PARAMS\[toChain\]\?\.chainId;\n  const src = await createAdapter\(\{ requireArc: false, targetChainId: fromChainId \}\);\n  const dst = toChainId \? await createAdapter\(\{ requireArc: false, targetChainId: toChainId \}\) : null;\n  if \(!src\) throw new Error\("Could not reconnect the wallet for bridge recovery\."\);',
-              re.S,
-          )
+          resume_adapter = re.compile(r'\n  const fromChainId = EVM_CHAIN_PARAMS\[fromChain\]\?\.chainId;\n  const toChainId = EVM_CHAIN_PARAMS\[toChain\]\?\.chainId;\n  const src = await createAdapter\(\{ requireArc: false, targetChainId: fromChainId \}\);\n  const dst = toChainId \? await createAdapter\(\{ requireArc: false, targetChainId: toChainId \}\) : null;\n  if \(!src\) throw new Error\("Could not reconnect the wallet for bridge recovery\."\);', re.S)
           resume_replacement = '''\n  const fromChainId = EVM_CHAIN_PARAMS[fromChain]?.chainId;\n  const src = await createAdapter({ requireArc: false, targetChainId: fromChainId });\n  if (!src) throw new Error("Could not reconnect the wallet for bridge recovery.");'''
           s, n = resume_adapter.subn(resume_replacement, s, count=1)
           assert n == 1, 'resume adapter block not found'
@@ -248,8 +197,6 @@ jobs:
 
       - name: Remove one-shot workflow
         if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           rm -f .github/workflows/apply-bridge-fix.yml
           git add -u .github/workflows/apply-bridge-fix.yml
