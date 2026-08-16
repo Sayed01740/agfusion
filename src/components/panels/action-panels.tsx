@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePilotStore } from "@/store/pilot-store";
 import { CHAIN_LIST, CHAINS } from "@/lib/chains";
+import { cn } from "@/lib/utils";
 import {
   executeBridge,
   executeBridgeRecovery,
@@ -13,7 +14,14 @@ import {
   executeSwap,
   executeUnifiedDeposit,
 } from "@/lib/client-actions";
-import type { ChainId } from "@/types";
+import type { ChainId, TransactionRecord } from "@/types";
+import { EVM_BRIDGE_CHAINS, CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
+import {
+  bridgeStateToSteps,
+  loadBridgeState,
+  saveBridgeState,
+  type BridgeState,
+} from "@/lib/bridge-state";
 import { FeeLineItems } from "@/components/ui/fee-line-items";
 import {
   quoteBridgeFee,
@@ -44,10 +52,8 @@ export function ActionPanels() {
       <RecoveryPanelBody />
     </div>
   );
-}
-
-export function BridgePanelBody() {
-  const { addTransaction, setActiveTx, setThinking, executionMode } =
+}export function BridgePanelBody() {
+  const { addTransaction, setActiveTx, setThinking, executionMode, walletType } =
     usePilotStore();
   const [amount, setAmount] = useState("10");
   const [from, setFrom] = useState<ChainId>("Arc_Testnet");
@@ -55,23 +61,29 @@ export function BridgePanelBody() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [liveBridgeState, setLiveBridgeState] = useState<BridgeState | null>(null);
+  const [lastTxId, setLastTxId] = useState<string | null>(null);
+  const activeTxId = usePilotStore((s) => s.activeTxId);
   const mode = executionMode();
 
-  // Only show chains that have Circle CCTP v2 contracts deployed on testnet.
-  // Chains not in this set (Monad, Cronos, Edge, etc.) have no CCTP support
-  // and would fail at the burn step with "contract not found".
-  const CCTP_BRIDGE_CHAINS: ChainId[] = [
-    "Arc_Testnet",
-    "Ethereum_Sepolia",
-    "Base_Sepolia",
-    "Arbitrum_Sepolia",
-    "Optimism_Sepolia",
-    "Polygon_Amoy_Testnet",
-    "Avalanche_Fuji",
-    "Unichain_Sepolia",
-    "Linea_Sepolia",
-    "Sonic_Testnet",
-  ];
+  // Wallet type determines the available bridge routes (Phase 2/12):
+  // - Circle Email Wallet: only Arc ↔ Base (the chains Circle PW can execute)
+  // - EVM wallets: all verified CCTP v2 testnet routes (Sonic excluded — SDK
+  //   chainId 14601 does not match live Blaze 57054)
+  const CCTP_BRIDGE_CHAINS: ChainId[] =
+    walletType === "circle" ? CIRCLE_BRIDGE_CHAINS : EVM_BRIDGE_CHAINS;
+
+  // Restore progress of the last bridge from persisted state (Phase 10).
+  useEffect(() => {
+    const active = activeTxId;
+    if (!active) return;
+    const st = loadBridgeState(active);
+    if (st && st.fromChain === from && st.toChain === to) {
+      setLiveBridgeState(st);
+      setLastTxId(active);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTxId]);
 
   function flipDirection() {
     setFrom(to);
@@ -93,6 +105,52 @@ export function BridgePanelBody() {
     setBusy(true);
     setThinking(true);
     setConfirm(false);
+
+    const txId = `tx_${Date.now()}`;
+    const initialSteps = [
+      { name: "Approval", state: "pending" as const },
+      { name: "Burn", state: "pending" as const },
+      { name: "Attestation", state: "pending" as const },
+      { name: "Destination Mint", state: "pending" as const },
+    ];
+
+    const walletAddress = usePilotStore.getState().walletAddress;
+    const bState: BridgeState = {
+      txId,
+      walletType: walletType === "circle" ? "circle" : "evm",
+      walletAddress,
+      fromChain: from,
+      toChain: to,
+      token: "USDC",
+      amount,
+      state: "INIT",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    saveBridgeState(bState);
+    setLiveBridgeState(bState);
+    setLastTxId(txId);
+
+    // Create placeholder transaction for live UI stepper
+    const placeholderTx = {
+      id: txId,
+      type: "bridge" as const,
+      status: "pending" as const,
+      amount,
+      token: "USDC",
+      fromChain: from,
+      toChain: to,
+      feeUsd: 0.05,
+      steps: initialSteps,
+      createdAt: new Date().toISOString(),
+      message: `Bridging ${amount} USDC ${from} → ${to}`,
+      executionMode: "live" as const,
+      bridgeState: bState,
+    };
+
+    addTransaction(placeholderTx);
+    setActiveTx(txId);
+
     try {
       const transaction = await executeBridge({
         amount,
@@ -100,15 +158,37 @@ export function BridgePanelBody() {
         toChain: to,
         token: "USDC",
         preferLive: true,
+        txId,
       });
-      addTransaction(transaction);
-      setActiveTx(transaction.id);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Bridge failed — check source USDC and wallet network",
-      );
+
+      const finalState = (transaction as TransactionRecord & { bridgeState?: BridgeState }).bridgeState ?? loadBridgeState(txId);
+      if (finalState) setLiveBridgeState(finalState);
+      usePilotStore.getState().updateTransaction(txId, {
+        status: transaction.status === "success" ? "success" : "error",
+        txHash: transaction.txHash,
+        explorerUrl: transaction.explorerUrl,
+        steps: transaction.steps,
+        message: transaction.message,
+        bridgeResult: (transaction as any).bridgeResult,
+        bridgeState: finalState ?? undefined,
+      });
+    } catch (e: any) {
+      const err = e instanceof Error ? e.message : String(e);
+      setError(err);
+      const partialState = (e as any)?.bridgeState as BridgeState | undefined;
+      if (partialState) setLiveBridgeState(partialState);
+      usePilotStore.getState().updateTransaction(txId, {
+        status: "error",
+        message: err,
+        retryable: true,
+        bridgeResult: (e as any)?.bridgeResult,
+        bridgeState: (partialState ?? (loadBridgeState(txId) as BridgeState | null)) ?? undefined,
+        steps: (loadBridgeState(txId)
+          ? bridgeStateToSteps(loadBridgeState(txId))
+          : initialSteps.map((s) =>
+              s.state === "pending" ? { ...s, state: "error" as const, message: err } : s,
+            )),
+      });
     } finally {
       setBusy(false);
       setThinking(false);
@@ -171,12 +251,19 @@ export function BridgePanelBody() {
             </select>
           </Field>
         </div>
-        <p className="text-[11px] text-slate-500 leading-relaxed">
+
+<p className="text-[11px] text-slate-500 leading-relaxed">
           Funds leave{" "}
           <strong className="text-slate-300">{from.replace(/_/g, " ")}</strong>.
           You need USDC on the <em>from</em> network before bridging.
         </p>
         <FeeLineItems quote={quoteBridgeFee(amount)} compact />
+
+        {/* Real bridge progress (Phase 10) — restored from persisted state after reload */}
+        {lastTxId && liveBridgeState && (
+          <BridgeProgressStepper state={liveBridgeState} txId={lastTxId} />
+        )}
+
         {error && (
           <p className="text-xs text-red-300 whitespace-pre-wrap leading-relaxed">
             {error}
@@ -202,6 +289,76 @@ export function BridgePanelBody() {
         onConfirm={() => void run()}
       />
     </>
+  );
+}
+
+/** Real per-step bridge progress with tx hashes (Phase 10). */
+function BridgeProgressStepper({
+  state,
+  txId,
+}: {
+  state: BridgeState;
+  txId: string;
+}) {
+  const steps = bridgeStateToSteps(state);
+  const statusLabel: Record<string, string> = {
+    INIT: "Waiting to start",
+    APPROVAL_PENDING: "Approving USDC…",
+    APPROVED: "USDC approved",
+    BURN_PENDING: "Burning USDC on source…",
+    BURN_CONFIRMED: "Burn confirmed — waiting for attestation",
+    ATTESTATION_PENDING: "Waiting for Circle attestation…",
+    ATTESTATION_RECEIVED: "Attestation received — minting…",
+    DESTINATION_PENDING: "Minting on destination…",
+    DESTINATION_CONFIRMED: "Mint confirmed",
+    COMPLETED: "Bridge complete",
+    FAILED: "Bridge failed",
+    RECOVERABLE: "Bridge interrupted — recoverable",
+  };
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium text-slate-300">
+          Bridge progress
+        </p>
+        <span className="text-[10px] text-slate-500">{txId}</span>
+      </div>
+      <p className="text-[11px] text-cyan-300">{statusLabel[state.state] ?? state.state}</p>
+      <div className="space-y-1.5">
+        {steps.map((s) => (
+          <div key={s.name} className="flex items-center gap-2 text-[11px]">
+            <span
+              className={cn(
+                "inline-block h-2 w-2 rounded-full shrink-0",
+                s.state === "success" && "bg-emerald-400",
+                s.state === "active" && "bg-cyan-400 animate-pulse",
+                s.state === "error" && "bg-red-400",
+                s.state === "pending" && "bg-slate-600",
+              )}
+            />
+            <span
+              className={cn(
+                "flex-1",
+                s.state === "error" && "text-red-300",
+                s.state === "pending" && "text-slate-500",
+              )}
+            >
+              {s.name}
+            </span>
+            {s.txHash && (
+              <a
+                href={`${CHAINS[state.fromChain]?.explorer ?? ""}/tx/${s.txHash}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-[10px] text-cyan-400/80 hover:text-cyan-300 underline truncate max-w-[120px]"
+              >
+                {s.txHash.slice(0, 10)}…
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -554,32 +711,64 @@ export function SendPanelBody() {
 }
 
 export function RecoveryPanelBody() {
-  const { addTransaction, setActiveTx, setThinking } = usePilotStore();
+  const { addTransaction, setActiveTx, setThinking, transactions, activeTxId } =
+    usePilotStore();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The failed bridge to recover: the active tx if it's a failed bridge,
+  // otherwise the most recent failed/retryable bridge (Phase 11).
+  const failedTx: TransactionRecord | null =
+    (transactions.find(
+      (t) => t.id === activeTxId && t.type === "bridge" && (t.status === "error" || t.status === "retryable"),
+    ) as TransactionRecord | undefined) ??
+    (transactions.find(
+      (t) => t.type === "bridge" && (t.status === "error" || t.status === "retryable"),
+    ) as TransactionRecord | undefined) ??
+    null;
 
   async function run() {
+    if (!failedTx?.fromChain || !failedTx.toChain) {
+      setError("No failed bridge to recover.");
+      return;
+    }
+    setError(null);
     setBusy(true);
     setThinking(true);
     try {
+      // Recover the EXACT failed transaction — never a hardcoded bridge.
       const tx = await executeBridgeRecovery({
-        amount: "50",
-        fromChain: "Base_Sepolia",
-        toChain: "Arc_Testnet",
+        amount: failedTx.amount || "0",
+        fromChain: failedTx.fromChain,
+        toChain: failedTx.toChain,
+        token: failedTx.token || "USDC",
+        recipient: failedTx.recipient,
+        failedTx,
+        txId: failedTx.id,
       });
       addTransaction(tx);
       setActiveTx(tx.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
       setThinking(false);
     }
   }
 
+  if (!failedTx?.fromChain || !failedTx.toChain) return null;
+
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-slate-500 leading-relaxed">
-        Resume a bridge that stalled mid-route. Connect on Arc Testnet, then
-        retry the incomplete step.
+        Resume the failed bridge{" "}
+        <strong className="text-slate-300">
+          {failedTx.amount} USDC {failedTx.fromChain.replace(/_/g, " ")} →{" "}
+          {failedTx.toChain.replace(/_/g, " ")}
+        </strong>
+        . AGFusion resumes from the last confirmed step and will not burn again.
       </p>
+      {error && <p className="text-xs text-red-300">{error}</p>}
       <Button
         size="sm"
         variant="secondary"
@@ -588,7 +777,7 @@ export function RecoveryPanelBody() {
         type="button"
         onClick={() => void run()}
       >
-        {busy ? "Recovering…" : "Retry failed transfer"}
+        {busy ? "Recovering…" : `Resume ${failedTx.amount} USDC bridge`}
       </Button>
     </div>
   );

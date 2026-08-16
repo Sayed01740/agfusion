@@ -28,36 +28,50 @@ const RPC_UPSTREAMS: Record<string, string[]> = {
     "https://sepolia.base.org",
     "https://base-sepolia-rpc.publicnode.com",
     "https://base-sepolia.g.alchemy.com/v2/demo",
+    "https://84532.rpc.thirdweb.com",
   ],
   eth: [
     "https://rpc.sepolia.org",
     "https://ethereum-sepolia-rpc.publicnode.com",
     "https://rpc2.sepolia.org",
+    "https://11155111.rpc.thirdweb.com",
   ],
   arb: [
     "https://sepolia-rollup.arbitrum.io/rpc",
     "https://arbitrum-sepolia-rpc.publicnode.com",
+    "https://421614.rpc.thirdweb.com",
   ],
   op: [
     "https://sepolia.optimism.io",
     "https://optimism-sepolia-rpc.publicnode.com",
+    "https://11155420.rpc.thirdweb.com",
   ],
   polygon: [
     "https://rpc-amoy.polygon.technology",
     "https://polygon-amoy-bor-rpc.publicnode.com",
+    "https://80002.rpc.thirdweb.com",
   ],
-  avax: ["https://api.avax-test.network/ext/bc/C/rpc"],
+  avax: [
+    "https://api.avax-test.network/ext/bc/C/rpc",
+    "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+    "https://43113.rpc.thirdweb.com",
+  ],
   unichain: [
     "https://sepolia.unichain.org",
+    "https://unichain-sepolia-g.alchemy.com/v2/demo",
+    "https://1301.rpc.thirdweb.com",
   ],
   linea: [
     "https://rpc.sepolia.linea.build",
     "https://linea-sepolia-rpc.publicnode.com",
-  ],
-  sonic: [
-    "https://rpc.testnet.soniclabs.com",
+    "https://59141.rpc.thirdweb.com",
   ],
 };
+
+// NOTE: `sonic` is intentionally absent from RPC_UPSTREAMS. The installed
+// Circle SDK defines Sonic_Testnet with chainId 14601 while the live Sonic
+// Blaze testnet uses 57054, so Sonic bridging is disabled until the SDK
+// configuration and the actual network are verified compatible.
 
 function chainKey(raw: string | null): string {
   return (raw || "arc").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -68,7 +82,9 @@ async function forwardJsonRpc(
   body: string,
 ): Promise<{ ok: boolean; status: number; text: string }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 28_000);
+  // 15s per upstream: long enough for slow testnet RPCs (Arc, Base, Fuji) but
+  // leaves headroom under the Vercel 60s maxDuration for the multi-upstream loop.
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const upstreamRes = await fetch(upstream, {
       method: "POST",

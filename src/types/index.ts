@@ -112,6 +112,37 @@ export interface TransactionRecord {
   retryable?: boolean;
   /** Opaque App Kit bridge result for retryBridge */
   bridgeResult?: unknown;
+  /** Persistent bridge state machine (see @/lib/bridge-state) */
+  bridgeState?: {
+    txId: string;
+    walletType: "evm" | "circle" | "agent";
+    walletAddress?: string | null;
+    fromChain: ChainId;
+    toChain: ChainId;
+    token: string;
+    amount: string;
+    recipient?: string;
+    approvalTxHash?: string;
+    burnTxHash?: string;
+    attestationData?: unknown;
+    destinationTxHash?: string;
+    state:
+      | "INIT"
+      | "APPROVAL_PENDING"
+      | "APPROVED"
+      | "BURN_PENDING"
+      | "BURN_CONFIRMED"
+      | "ATTESTATION_PENDING"
+      | "ATTESTATION_RECEIVED"
+      | "DESTINATION_PENDING"
+      | "DESTINATION_CONFIRMED"
+      | "COMPLETED"
+      | "FAILED"
+      | "RECOVERABLE";
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
 }
 
 export interface TxStep {

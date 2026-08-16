@@ -74,10 +74,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const storedName = getStoredWalletName();
     if (storedName) setWalletName(storedName);
 
-    // Rebind sticky provider after refresh so Rabby stays active
-    void getInjectedProvider()
-      .then(async (p) => {
+    // Restore a persisted Circle Email Wallet session (Phase 4) so the mock
+    // provider can be rebuilt after reload instead of living only in the modal.
+    void import("@/sdk/circle-pw")
+      .then(async (mod) => {
+        const restored = await mod.restoreCircleSession();
+        if (restored) {
+          setActiveProvider(restored.provider as never, {
+            uuid: "circle-pw",
+            name: "Circle Email Wallet",
+            address: restored.address.toLowerCase(),
+          });
+          setProvider(restored.provider as never);
+          setWallet(restored.address, ARC_CHAIN_ID);
+          setWalletName("Circle Email Wallet");
+          usePilotStore.getState().setWalletType("circle");
+          usePilotStore.getState().setAuthenticated(true);
+          return;
+        }
+        // No Circle session — rebind sticky EVM provider after refresh
+        const p = await getInjectedProvider();
         setProvider(p);
+        usePilotStore.getState().setWalletType("evm");
         try {
           const accs = (await p.request({ method: "eth_accounts" })) as string[];
           if (accs?.[0]) {
@@ -92,7 +110,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           /* ignore */
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        usePilotStore.getState().setWalletType("evm");
+      });
 
     void fetch("/api/auth/me")
       .then((r) => r.json())
@@ -248,6 +268,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setError("Connect a wallet first before enabling Auto-Agent.");
       return;
     }
+    // Security: Circle Email Wallets cannot securely derive an agent signing
+    // key (the mock provider returns a deterministic signature that anyone
+    // could recompute from the public address). Disable Auto-Agent for them.
+    if (usePilotStore.getState().walletType === "circle") {
+      setError(
+        "Auto-Agent is not available for Circle Email Wallets (an agent key cannot be securely derived for this wallet type). Connect a browser wallet such as Rabby to enable Auto-Agent.",
+      );
+      return;
+    }
     try {
       setConnecting(true);
       const { setupAgentSmartWallet } = await import("@/sdk/wallet-adapter");
@@ -285,6 +314,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setProvider(p);
         setWalletName(wallet.name);
         setWallet(address, chainId || ARC_CHAIN_ID);
+        usePilotStore.getState().setWalletType("evm");
         attachListeners(p, address);
         setModalOpen(false);
 
@@ -350,6 +380,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const disconnect = useCallback(() => {
     void fetch("/api/auth/logout", { method: "POST" });
+    void import("@/sdk/circle-pw").then((mod) => mod.clearCircleSession());
     disconnectActiveWallet();
     setProvider(null);
     setWallet(null, null);
@@ -358,6 +389,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setAuthenticated(false);
     setWalletName(null);
     setError(null);
+    usePilotStore.getState().setWalletType("evm");
   }, [setWallet, setLiveBalance, setAuthenticated]);
 
   const switchToArc = useCallback(async () => {

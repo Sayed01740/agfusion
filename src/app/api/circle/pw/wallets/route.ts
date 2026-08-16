@@ -34,8 +34,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ address: null });
     }
 
-    // Return the first wallet address
-    return NextResponse.json({ address: wallets[0].address });
+    // A Circle user can own a wallet per blockchain. Return the full list so
+    // the browser can use the correct source-chain wallet for a bridge.
+    return NextResponse.json({
+      wallets: wallets.map((wallet: { id?: string; address?: string; blockchain?: string; accountType?: string }) => ({
+        id: wallet.id,
+        address: wallet.address,
+        blockchain: wallet.blockchain,
+        accountType: wallet.accountType,
+      })),
+      address: wallets.find((wallet: { blockchain?: string }) => wallet.blockchain === "ARC-TESTNET")?.address ?? wallets[0].address,
+    });
   } catch (error) {
     console.error("[Circle PW] Fetch Wallets Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

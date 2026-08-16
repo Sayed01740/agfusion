@@ -11,20 +11,35 @@ let installed = false;
 
 /** Map host → /api/rpc?chain=… */
 const RPC_HOST_TO_CHAIN: Record<string, string> = {
+  // Arc Testnet
   "rpc.testnet.arc.io": "arc",
   "rpc.testnet.arc.network": "arc",
+  // Base Sepolia
   "sepolia.base.org": "base",
   "base-sepolia-rpc.publicnode.com": "base",
+  "base-sepolia.g.alchemy.com": "base",
+  // Ethereum Sepolia
   "rpc.sepolia.org": "eth",
   "ethereum-sepolia-rpc.publicnode.com": "eth",
   "rpc2.sepolia.org": "eth",
+  // Arbitrum Sepolia
   "sepolia-rollup.arbitrum.io": "arb",
   "arbitrum-sepolia-rpc.publicnode.com": "arb",
+  // Optimism Sepolia
   "sepolia.optimism.io": "op",
   "optimism-sepolia-rpc.publicnode.com": "op",
+  // Polygon Amoy
   "rpc-amoy.polygon.technology": "polygon",
   "polygon-amoy-bor-rpc.publicnode.com": "polygon",
+  // Avalanche Fuji
   "api.avax-test.network": "avax",
+  "avalanche-fuji-rpc.publicnode.com": "avax",
+  // Unichain Sepolia
+  "sepolia.unichain.org": "unichain",
+  "unichain-sepolia-rpc.publicnode.com": "unichain",
+  // Linea Sepolia
+  "rpc.sepolia.linea.build": "linea",
+  "linea-sepolia-rpc.publicnode.com": "linea",
 };
 
 function resolveRpcProxy(urlStr: string): string | null {
@@ -87,6 +102,14 @@ export function installCircleApiProxy(): void {
             : input.url;
 
       if (typeof raw === "string") {
+        // 0) Circle IRIS attestation API → server proxy (CORS-safe)
+        if (raw.includes("iris-api.circle.com")) {
+          const u = new URL(raw);
+          const path = u.pathname + u.search;
+          const proxyUrl = `/api/circle/iris?path=${encodeURIComponent(path)}`;
+          return originalFetch(proxyUrl, init);
+        }
+
         // 1) Circle Stablecoin Kits API
         if (
           raw.includes("api.circle.com") &&

@@ -312,23 +312,28 @@ import { useState } from "react";
 export function PayButton({ amount, to }: { amount: string; to: string }) {
   const [status, setStatus] = useState<"idle" | "pending" | "done">("idle");
 
+  // On Arc, USDC is the native gas token (18 decimals) — a plain
+  // eth_sendTransaction moves it. Signatures happen in the browser wallet.
   async function pay() {
     setStatus("pending");
-    const res = await fetch("/api/actions/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount,
-        to,
-        token: "USDC",
-        chain: "Arc_Testnet",
-      }),
+    const ethereum = window.ethereum;
+    if (!ethereum) throw new Error("Install a wallet (Rabby / MetaMask)");
+    const [from] = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+    await ethereum.request({
+      method: "eth_sendTransaction",
+      params: [
+        {
+          from,
+          to,
+          value: (BigInt(amount) * 10n ** 18n).toString(16), // USDC wei
+        },
+      ],
     });
-    if (res.ok) setStatus("done");
+    setStatus("done");
   }
 
   return (
-    <button onClick={pay} disabled={status === "pending"}>
+    <button onClick={() => void pay()} disabled={status === "pending"}>
       {status === "done" ? "Paid" : \`Pay $\${amount} USDC\`}
     </button>
   );

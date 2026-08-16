@@ -26,6 +26,7 @@ import {
 import { runAgentStream } from "@/lib/agent-client";
 import { runUnifiedRouteFlow } from "@/blockchain/appkit-service";
 import { requireSafeRecipient } from "@/lib/balances-empty";
+import { sanitizeAgentText } from "@/lib/sanitize";
 
 const SUGGESTIONS = [
   "What can you do?",
@@ -37,7 +38,10 @@ const SUGGESTIONS = [
 ];
 
 function renderMarkdownish(text: string) {
-  return text.split("\n").map((line, i) => {
+  // Defense in depth: this output is injected via dangerouslySetInnerHTML, so
+  // strip scripts / event handlers / javascript: URLs before rendering.
+  const safeText = sanitizeAgentText(text);
+  return safeText.split("\n").map((line, i) => {
     let html = line
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(
@@ -283,21 +287,28 @@ export function ChatPanel() {
           recipientLabel: preview.recipientLabel,
         });
       } else if (preview.type === "deploy") {
-        // Mock successful deployment transaction for agent registration
+        // Real ERC-8004 registration on Arc Testnet — never fabricate a hash.
+        const { registerErc8004Agent } = await import("@/lib/erc8004");
+        const result = await registerErc8004Agent();
         tx = {
-          id: `tx_${Math.random().toString(36).substr(2, 9)}`,
+          id: `tx_${Math.random().toString(36).slice(2, 11)}`,
           type: "deploy",
           status: "success",
           amount: "0",
           token: "USDC",
-          fromChain: preview.fromChain || "Arc_Testnet",
-          toChain: preview.toChain || "Arc_Testnet",
+          fromChain: "Arc_Testnet",
+          toChain: "Arc_Testnet",
           feeUsd: 0.05,
           steps: [
             { name: "Prepare Payload", state: "success" },
-            { name: "Sign & Execute", state: "success" },
+            {
+              name: "Sign & Execute",
+              state: "success",
+              txHash: result.txHash,
+            },
           ],
-          txHash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          txHash: result.txHash,
+          explorerUrl: result.explorerUrl,
           createdAt: new Date().toISOString(),
           message: preview.summary || `Agent registered successfully`,
           executionMode: "live",

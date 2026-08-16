@@ -25,6 +25,8 @@ interface PilotState {
   forceDemo: boolean;
   walletAddress: string | null;
   walletChainId: number | null;
+  /** Which wallet family is active: "evm" | "circle" (drives bridge chain gating) */
+  walletType: "evm" | "circle";
   liveBalanceUsdc: string | null;
   hydrated: boolean;
   authenticated: boolean;
@@ -36,6 +38,7 @@ interface PilotState {
   setActiveTx: (id: string | null) => void;
   setThinking: (v: boolean) => void;
   setWallet: (address: string | null, chainId?: number | null) => void;
+  setWalletType: (t: "evm" | "circle") => void;
   setLiveBalance: (v: string | null) => void;
   setForceDemo: (v: boolean) => void;
   setAuthenticated: (v: boolean) => void;
@@ -57,6 +60,7 @@ export const usePilotStore = create<PilotState>((set, get) => ({
   forceDemo: false,
   walletAddress: null,
   walletChainId: null,
+  walletType: "evm",
   liveBalanceUsdc: null,
   hydrated: false,
   authenticated: false,
@@ -121,6 +125,14 @@ export const usePilotStore = create<PilotState>((set, get) => ({
       walletAddress: address,
       walletChainId: chainId ?? null,
     }),
+  setWalletType: (t) => {
+    try {
+      window.localStorage?.setItem("agfusion_wallet_type_v1", t);
+    } catch {
+      /* ignore */
+    }
+    set({ walletType: t });
+  },
   setLiveBalance: (v) => set({ liveBalanceUsdc: v }),
   setForceDemo: () => set({ forceDemo: false }),
   setAuthenticated: (v) => set({ authenticated: v }),
@@ -222,10 +234,18 @@ export const usePilotStore = create<PilotState>((set, get) => ({
       /* ignore */
     }
     const stored = loadTransactions().filter((t) => t.executionMode !== "demo");
+    let walletType: "evm" | "circle" = "evm";
+    try {
+      const wt = window.localStorage?.getItem("agfusion_wallet_type_v1");
+      if (wt === "circle" || wt === "evm") walletType = wt;
+    } catch {
+      /* ignore */
+    }
     set({
       transactions: stored,
       hydrated: true,
       forceDemo: false,
+      walletType,
     });
   },
 

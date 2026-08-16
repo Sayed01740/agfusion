@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {
   try {
-    const { userToken } = await req.json();
+    const { userToken, blockchains } = await req.json();
     if (!userToken) {
       return NextResponse.json({ error: "User Token is required" }, { status: 400 });
     }
@@ -27,7 +27,13 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify({
         idempotencyKey,
-        blockchains: ["ETH-SEPOLIA"], // You can change this to ARC-TESTNET if/when supported
+        // Both networks are required for the app's Arc ↔ Base testnet bridge.
+        // Circle uses the correct wallet instance when a transaction is made
+        // on either source chain.
+        blockchains:
+          Array.isArray(blockchains) && blockchains.length
+            ? blockchains
+            : ["ARC-TESTNET", "BASE-SEPOLIA"],
         accountType: "SCA",
       }),
     });

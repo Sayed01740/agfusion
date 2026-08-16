@@ -122,9 +122,12 @@ export function createEIP1193ProviderProxy(
                 11155420: "op",
                 80002: "polygon",
                 43113: "avax",
+                // Sonic Blaze testnet is 57054 (not 64165); matches
+                // EVM_CHAIN_PARAMS. Sonic bridging is disabled in cctp-chains
+                // until the SDK chain def aligns, but keep the ID correct.
                 1301: "unichain",
                 59141: "linea",
-                64165: "sonic",
+                57054: "sonic",
               };
               const short = proxyMap[chainId];
               if (short && typeof window !== "undefined") {

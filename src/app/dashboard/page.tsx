@@ -68,12 +68,17 @@ export default function DashboardPage() {
   }, [addMessage]);
 
   async function retryActive() {
+    if (!active?.fromChain || !active.toChain) return;
     setThinking(true);
     try {
       const tx = await executeBridgeRecovery({
-        amount: active?.amount || "50",
-        fromChain: active?.fromChain || "Base_Sepolia",
-        toChain: active?.toChain || "Arc_Testnet",
+        amount: active.amount || "0",
+        fromChain: active.fromChain,
+        toChain: active.toChain,
+        token: active.token || "USDC",
+        recipient: active.recipient,
+        failedTx: active,
+        txId: active.id,
       });
       addTransaction(tx);
       setActiveTx(tx.id);

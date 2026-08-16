@@ -1,1 +1,0 @@
-{"message":{"id":"msg_kepz2bok","role":"assistant","content":"I'm doing great—thanks for asking! How can I help you with stablecoin finance on Arc today?","createdAt":"2026-07-23T18:06:09.841Z"}}

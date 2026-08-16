@@ -463,7 +463,10 @@ export const EVM_CHAIN_PARAMS: Record<
     chainId: 43113,
     chainIdHex: "0xa869",
     chainName: "Avalanche Fuji",
-    rpcUrls: ["https://api.avax-test.network/ext/bc/C/rpc"],
+    rpcUrls: [
+      "https://api.avax-test.network/ext/bc/C/rpc",
+      "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+    ],
     explorers: ["https://testnet.snowtrace.io"],
     nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
   },
@@ -485,10 +488,10 @@ export const EVM_CHAIN_PARAMS: Record<
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   },
   Sonic_Testnet: {
-    chainId: 64165,
-    chainIdHex: "0xfaa5",
-    chainName: "Sonic Testnet",
-    rpcUrls: ["https://rpc.testnet.soniclabs.com"],
+    chainId: 57054,
+    chainIdHex: "0xdede",
+    chainName: "Sonic Blaze Testnet",
+    rpcUrls: ["https://rpc.blaze.soniclabs.com", "https://rpc.testnet.soniclabs.com"],
     explorers: ["https://testnet.sonicscan.org"],
     nativeCurrency: { name: "Sonic", symbol: "S", decimals: 18 },
   },
@@ -752,6 +755,20 @@ export async function createAppKitAdapterFromBrowser(opts?: {
     const origin =
       typeof window !== "undefined" ? window.location.origin : "";
 
+    const chainIdByAppKitName: Record<string, number> = {
+      Arc_Testnet: ARC_CHAIN_ID,
+      Base_Sepolia: 84532,
+      Ethereum_Sepolia: 11155111,
+      Arbitrum_Sepolia: 421614,
+      Optimism_Sepolia: 11155420,
+      Polygon_Amoy: 80002,
+      Polygon_Amoy_Testnet: 80002,
+      Avalanche_Fuji: 43113,
+      Unichain_Sepolia: 1301,
+      Linea_Sepolia: 59141,
+      Sonic_Testnet: 57054,
+    };
+
     const proxyUrlForChainId = (id: number): string | null => {
       if (!origin) return null;
       const map: Record<number, string> = {
@@ -764,7 +781,7 @@ export async function createAppKitAdapterFromBrowser(opts?: {
         43113:    `${origin}/api/rpc?chain=avax`,
         1301:     `${origin}/api/rpc?chain=unichain`,
         59141:    `${origin}/api/rpc?chain=linea`,
-        64165:    `${origin}/api/rpc?chain=sonic`,
+        57054:    `${origin}/api/rpc?chain=sonic`,
       };
       return map[id] ?? null;
     };
@@ -788,10 +805,25 @@ export async function createAppKitAdapterFromBrowser(opts?: {
             (chainIn as any)?.chainId ??
             ARC_CHAIN_ID,
         );
+
+        // Per-chain direct RPC fallbacks (used when proxy is unavailable)
+        const directRpcByChainId: Record<number, string> = {
+          [ARC_CHAIN_ID]: ARC_TESTNET_RPC,
+          84532: "https://sepolia.base.org",
+          11155111: "https://ethereum-sepolia-rpc.publicnode.com",
+          421614: "https://sepolia-rollup.arbitrum.io/rpc",
+          11155420: "https://sepolia.optimism.io",
+          80002: "https://rpc-amoy.polygon.technology",
+          43113: "https://api.avax-test.network/ext/bc/C/rpc",
+          1301: "https://sepolia.unichain.org",
+          59141: "https://rpc.sepolia.linea.build",
+          57054: "https://rpc.blaze.soniclabs.com",
+        };
+
         const proxy = proxyUrlForChainId(id);
         const direct =
           chainIn?.rpcUrls?.default?.http?.[0] ||
-          (id === ARC_CHAIN_ID ? ARC_TESTNET_RPC : undefined);
+          directRpcByChainId[id];
 
         // Prefer proxy only in browser; fall back to direct if no origin
         const urls = (proxy ? [proxy] : []).concat(
@@ -812,8 +844,8 @@ export async function createAppKitAdapterFromBrowser(opts?: {
         };
 
         const transports = urls.map((u) =>
-          // retryCount 0 — Circle middleware already retries; avoid storming rate limits
-          http(u, { timeout: 45_000, retryCount: 0 }),
+          // retryCount 3 — handles transient network errors and rate limits with exponential backoff
+          http(u, { timeout: 45_000, retryCount: 3 }),
         );
 
         return createPublicClient({
@@ -863,6 +895,16 @@ export { ARC_CHAIN_ID, ARC_TESTNET_RPC, ARC_EXPLORER };
  */
 export async function setupAgentSmartWallet(baseProvider: InjectedProvider, eoaAddress: string) {
   try {
+    // Security guard: the Circle Email Wallet mock provider returns a
+    // deterministic personal_sign response, so an agent key derived from it
+    // would be publicly computable from the wallet address. Refuse to build
+    // an Auto-Agent on Circle wallets.
+    const meta = getActiveWalletMeta();
+    if (meta?.uuid === "circle-pw") {
+      throw new Error(
+        "Auto-Agent is not available for Circle Email Wallets. Connect a browser wallet (Rabby / MetaMask) to enable Auto-Agent.",
+      );
+    }
     const { createSmartAccountClient, createEIP1193ProviderProxy } = await import("./zerodev-adapter");
     
     // Create Kernel Client

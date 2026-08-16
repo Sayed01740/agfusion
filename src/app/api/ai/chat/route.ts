@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { orchestrateUserMessage } from "@/ai/orchestrator";
 import { resolveLlmConfig } from "@/lib/llm-config";
+import { sanitizeAgentText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
 
@@ -30,9 +31,14 @@ export async function POST(req: Request) {
           llm,
         );
         if (enriched) {
+          // LLM text is rendered client-side via dangerouslySetInnerHTML —
+          // always sanitize before returning it.
           result = {
             ...result,
-            message: { ...result.message, content: enriched },
+            message: {
+              ...result.message,
+              content: sanitizeAgentText(enriched),
+            },
           };
         }
       } catch {

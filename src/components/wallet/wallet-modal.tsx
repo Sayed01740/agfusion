@@ -96,61 +96,35 @@ export function WalletModal({
               if (!email) return;
               setEmailConnecting(true);
               try {
-                const { authenticateWithCircleEmail } = await import("@/sdk/circle-pw");
+                const { authenticateWithCircleEmail, createCircleMockProvider } = await import("@/sdk/circle-pw");
                 const { setActiveProvider } = await import("@/sdk/active-wallet");
                 const { usePilotStore } = await import("@/store/pilot-store");
-                const address = await authenticateWithCircleEmail(email);
-                
+                const { address } = await authenticateWithCircleEmail(email);
+
                 // For a User-Controlled Wallet, we don't have a standard window.ethereum.
-                // We create a minimal mock provider so the app recognizes a wallet is connected.
-                    // Simple mock provider for Circle Email wallet. It tracks a mutable chainId so that bridge steps can switch chains during the flow.
-                    let mockChainId = "0x4cef52"; // Arc Testnet = 5042002
-                    const mockProvider = {
-                      request: async (args: any) => {
-                        switch (args.method) {
-                          case "eth_accounts":
-                          case "eth_requestAccounts":
-                            return [address];
-                          case "eth_chainId":
-                            return mockChainId;
-                          case "wallet_switchEthereumChain":
-                            // args.params[0].chainId is a hex string, e.g., "0x84532" for Base Sepolia
-                            if (args.params && args.params[0] && args.params[0].chainId) {
-                              mockChainId = args.params[0].chainId;
-                            }
-                            return null;
-                          case "wallet_addEthereumChain":
-                            return null;
-                          case "personal_sign":
-                            // Deterministic signature for ZeroDev Agent wallet derivation
-                            return `0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000${address.slice(2)}`;
-                          default:
-                            // Silently ignore unsupported methods instead of throwing —
-                            // App Kit may call methods the mock doesn't need to handle
-                            console.warn(`[Circle Mock] Unhandled method: ${args.method}`);
-                            return null;
-                        }
-                      },
-                      on: () => {},
-                      removeListener: () => {},
-                    };
-                
+                // Build the shared mock provider so the app recognizes a wallet is
+                // connected AND so it can be reconstructed after a page reload.
+                const chainIdRef = { value: "0x4cef52" }; // Arc Testnet = 5042002
+                const { provider: mockProvider } = createCircleMockProvider({
+                  address,
+                  chainIdRef,
+                });
+
                 setActiveProvider(mockProvider as any, {
                   uuid: "circle-pw",
                   name: "Circle Email Wallet",
                   address: address.toLowerCase(),
                 });
+                usePilotStore.getState().setWalletType("circle");
 
-                const { setupAgentSmartWallet } = await import("@/sdk/wallet-adapter");
-                const agentProvider = await setupAgentSmartWallet(mockProvider as any, address);
-                
-                const agentAccounts = (await agentProvider.request({ method: "eth_accounts" })) as string[];
-                const finalAddress = agentAccounts?.[0] || address;
-
-                usePilotStore.getState().setWallet(finalAddress, 5042002);
+                // A Circle user-controlled wallet is already the user's funded wallet.
+                // Do not wrap it in a ZeroDev account here: that creates a second address,
+                // so the UI would check the smart account while the faucet funds remain in
+                // the Circle wallet.
+                usePilotStore.getState().setWallet(address, 5042002);
                 usePilotStore.getState().setAuthenticated(true);
                 
-                alert(`Connected Circle Email Wallet!\nYour Auto-Agent is ready at: ${finalAddress}\n\nPlease fund this address with USDC on Arc Testnet to use the AI workspace seamlessly.`);
+                alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on Arc Testnet. Auto-Agent is optional and creates a separate smart-account address when enabled.`);
                 onClose();
               } catch (err: any) {
                 alert(err.message || "Failed to create Circle Wallet");

@@ -233,15 +233,16 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "retry_bridge",
-      description: "Retry / recover a failed cross-chain transfer step.",
+      description: "Recover a failed cross-chain transfer step, resuming from the last confirmed step. Never re-burns confirmed funds.",
       parameters: {
         type: "object",
         properties: {
-          amount: { type: "string" },
-          fromChain: { type: "string" },
-          toChain: { type: "string" },
+          txId: {
+            type: "string",
+            description: "Optional id of the failed bridge transaction to recover (defaults to the most recent failed bridge).",
+          },
         },
-        required: ["amount"],
+        required: [],
       },
     },
   },
@@ -514,6 +515,25 @@ export async function executeTool(
         const amount = String(args.amount || "50");
         const fromChain = asChain(args.fromChain, "Base_Sepolia");
         const toChain = asChain(args.toChain, "Arc_Testnet");
+
+        // Wallet-type routing guard: Circle Email Wallets can only execute Arc ↔ Base.
+        try {
+          const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
+          if (getActiveWalletMeta()?.uuid === "circle-pw") {
+            const { CIRCLE_BRIDGE_CHAINS } = await import("@/lib/cctp-chains");
+            if (
+              !CIRCLE_BRIDGE_CHAINS.includes(fromChain) ||
+              !CIRCLE_BRIDGE_CHAINS.includes(toChain)
+            ) {
+              return {
+                ok: false,
+                summary: `Circle Email Wallet supports only Arc Testnet ↔ Base Sepolia. Use a browser wallet for ${fromChain} → ${toChain}.`,
+              };
+            }
+          }
+        } catch {
+          /* gate is best-effort; the service layer enforces it too */
+        }
         try {
           const transaction = await runBridgeFlow({
             amount,
@@ -521,6 +541,7 @@ export async function executeTool(
             fromChain,
             toChain,
             preferLive,
+            recipient: args.recipient ? String(args.recipient) : undefined,
           });
           return {
             ok: transaction.status === "success",
@@ -622,14 +643,38 @@ export async function executeTool(
       }
 
       case "retry_bridge": {
+        // Recover the REAL failed bridge — never a hardcoded 50 USDC Base→Arc.
+        let failedTx: (TransactionRecord & { bridgeResult?: unknown }) | undefined;
+        try {
+          const { usePilotStore } = await import("@/store/pilot-store");
+          const txs = usePilotStore.getState().transactions;
+          const txId = String(args.txId || "");
+          failedTx = txId
+            ? (txs.find((t) => t.id === txId && t.type === "bridge") as typeof failedTx)
+            : (txs.find(
+                (t) => t.type === "bridge" && (t.status === "error" || t.status === "retryable"),
+              ) as typeof failedTx);
+        } catch {
+          /* store unavailable */
+        }
+        if (!failedTx?.fromChain || !failedTx.toChain) {
+          return {
+            ok: false,
+            summary: "No failed bridge transaction found to recover. Run a bridge first, or provide txId.",
+          };
+        }
         const transaction = await runBridgeWithRecovery({
-          amount: String(args.amount || "50"),
-          fromChain: asChain(args.fromChain, "Base_Sepolia"),
-          toChain: asChain(args.toChain, "Arc_Testnet"),
+          amount: failedTx.amount || "0",
+          fromChain: failedTx.fromChain,
+          toChain: failedTx.toChain,
+          token: failedTx.token || "USDC",
+          recipient: failedTx.recipient,
+          failedTx,
+          txId: failedTx.id,
         });
         return {
-          ok: true,
-          summary: "Bridge recovery completed (retry pattern)",
+          ok: transaction.status === "success",
+          summary: `Bridge recovery ${transaction.status} · ${transaction.fromChain} → ${transaction.toChain} · ${transaction.amount} USDC`,
           transaction,
         };
       }
@@ -707,20 +752,44 @@ export async function executeTool(
       }
 
       case "get_transaction_status": {
+        // Real verification only (Phase 13) — never fabricate success.
         const txHash = String(args.txHash || "");
         if (!txHash.startsWith("0x") || txHash.length !== 66) {
           return { ok: false, summary: "Invalid transaction hash provided. Must be a 66-character hex string starting with 0x." };
         }
-        return {
-          ok: true,
-          summary: `Transaction ${txHash.slice(0, 10)}... check initiated on ArcScan.`,
-          data: {
-            txHash,
-            status: "success",
-            confirmations: 12,
-            explorerUrl: `https://testnet.arcscan.io/tx/${txHash}`,
-          },
-        };
+        try {
+          const res = await fetch(`/api/rpc?chain=arc`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              method: "eth_getTransactionReceipt",
+              params: [txHash],
+            }),
+            cache: "no-store",
+          });
+          const data = await res.json();
+          const receipt = data?.result;
+          let status: "success" | "reverted" | "pending" | "not_found";
+          if (!receipt) status = "pending";
+          else status = receipt.status === "0x1" ? "success" : "reverted";
+          return {
+            ok: true,
+            summary: `Transaction ${txHash.slice(0, 10)}… status: ${status}`,
+            data: {
+              txHash,
+              status,
+              explorerUrl: `${CHAINS.Arc_Testnet.explorer}/tx/${txHash}`,
+              receipt: receipt ?? null,
+            },
+          };
+        } catch (e) {
+          return {
+            ok: false,
+            summary: `Could not verify transaction ${txHash.slice(0, 10)}…: ${e instanceof Error ? e.message : "RPC error"}`,
+          };
+        }
       }
 
       case "register_erc8004_agent": {
@@ -729,12 +798,21 @@ export async function executeTool(
         }
         const name = String(args.name || "MyAgent");
         const description = String(args.description || "An automated AI agent on Arc");
-        
-        return {
-          ok: true,
-          summary: `ERC-8004 Agent '${name}' registered successfully on Arc Testnet.`,
-          transaction: {
-            id: `tx_${Math.random().toString(36).substr(2, 9)}`,
+
+        // Real on-chain ERC-8004 IdentityRegistry.register(metadataURI) on Arc
+        // Testnet — never fabricate a tx hash or success status.
+        if (typeof window === "undefined") {
+          return {
+            ok: false,
+            summary:
+              "ERC-8004 registration must run in the browser with your connected wallet. Press Confirm on the plan card to open your wallet and sign.",
+          };
+        }
+        try {
+          const { registerErc8004Agent } = await import("@/lib/erc8004");
+          const result = await registerErc8004Agent();
+          const transaction: TransactionRecord = {
+            id: `tx_${Math.random().toString(36).slice(2, 11)}`,
             type: "deploy",
             status: "success",
             amount: "0",
@@ -744,14 +822,33 @@ export async function executeTool(
             feeUsd: 0.05,
             steps: [
               { name: "Prepare Payload", state: "success" },
-              { name: "Sign & Execute", state: "success" },
+              {
+                name: "Sign & Execute",
+                state: "success",
+                txHash: result.txHash,
+              },
             ],
-            txHash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            txHash: result.txHash,
+            explorerUrl: result.explorerUrl,
             createdAt: new Date().toISOString(),
-            message: `Registered Agent: ${name}`,
+            message: `Registered Agent: ${name} (${description})`,
             executionMode: "live",
-          } as TransactionRecord,
-        };
+          };
+          return {
+            ok: true,
+            summary: `ERC-8004 Agent '${name}' registered on Arc Testnet · tx ${result.txHash.slice(0, 10)}…`,
+            transaction,
+            data: result,
+          };
+        } catch (e) {
+          return {
+            ok: false,
+            summary:
+              e instanceof Error
+                ? e.message
+                : "ERC-8004 registration failed — connect a wallet on Arc Testnet and try again.",
+          };
+        }
       }
 
       default:

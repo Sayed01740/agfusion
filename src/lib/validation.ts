@@ -2,6 +2,8 @@ import { z } from "zod";
 import { maxTransferAmount } from "@/lib/config";
 import { isAddress } from "viem";
 
+// Every CCTP v2 testnet chain the app can bridge (see @/lib/cctp-chains).
+// Polygon_Amoy is accepted as an alias for Polygon_Amoy_Testnet.
 const chainIdSchema = z.enum([
   "Arc_Testnet",
   "Ethereum_Sepolia",
@@ -9,7 +11,10 @@ const chainIdSchema = z.enum([
   "Arbitrum_Sepolia",
   "Optimism_Sepolia",
   "Polygon_Amoy",
+  "Polygon_Amoy_Testnet",
   "Avalanche_Fuji",
+  "Unichain_Sepolia",
+  "Linea_Sepolia",
   "Solana_Devnet",
 ]);
 

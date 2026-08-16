@@ -84,6 +84,10 @@ export async function executeBridge(params: {
   toChain: ChainId;
   token?: string;
   preferLive?: boolean;
+  /** Original tx id so the returned record keeps the placeholder id */
+  txId?: string;
+  /** Mint recipient (defaults to the connected wallet address) */
+  recipient?: string;
 }): Promise<TransactionRecord> {
   // Always browser-local — wallet signature required
   return runBridgeFlow({
@@ -92,6 +96,8 @@ export async function executeBridge(params: {
     fromChain: params.fromChain,
     toChain: params.toChain,
     preferLive: params.preferLive ?? true,
+    txId: params.txId,
+    recipient: params.recipient,
   });
 }
 
@@ -148,8 +154,22 @@ export async function executeBridgeRecovery(params: {
   amount: string;
   fromChain: ChainId;
   toChain: ChainId;
+  token?: string;
+  recipient?: string;
+  /** The failed bridge transaction being recovered (must match params) */
+  failedTx?: TransactionRecord | null;
+  /** Original tx id so the recovered record replaces the failed one */
+  txId?: string;
 }): Promise<TransactionRecord> {
-  return runBridgeWithRecovery(params);
+  return runBridgeWithRecovery({
+    amount: params.amount,
+    fromChain: params.fromChain,
+    toChain: params.toChain,
+    token: params.token,
+    recipient: params.recipient,
+    failedTx: params.failedTx,
+    txId: params.txId,
+  });
 }
 
 export function commandFromPreview(preview: ActionPreview): string {
