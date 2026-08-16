@@ -1,0 +1,119 @@
+name: AGFusion bridge fix final
+
+on:
+  push:
+    branches: [bridge-fix-final]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Patch bridge orchestration
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/blockchain/appkit-service.ts')
+          s = p.read_text()
+          original = s
+
+          # 1. KIT_KEY must not gate bridge execution.
+          s = re.sub(
+              r'\n  const \{\s*ensureKitKey,\s*normalizeKitKey,\s*formatKitError,\s*KIT_KEY_HELP,\s*\} = await import\("@/lib/kit-key"\);\s*\n\s*let kitKey = await ensureKitKey\(\);\s*\n\s*if \(kitKey\) kitKey = normalizeKitKey\(kitKey\);\s*\n',
+              '\n', s, count=1, flags=re.S)
+
+          # 2. Remove explicit kit-key gate/config from the bridge call if present.
+          s = re.sub(r'\n\s*if \(!kitKey\)[\s\S]*?\n\s*}\n', '\n', s, count=1) if 'if (!kitKey)' in s else s
+          s = s.replace('      config: { kitKey },\n', '')
+
+          # 3. Use one adapter for the complete bridge, not source+destination adapters.
+          two_adapter = re.compile(
+              r'\n\s*// Always build wired adapters for every wallet type[\s\S]*?\n\s*// Hard preflight:', re.M)
+          if two_adapter.search(s):
+              replacement = '''\n  // One adapter/provider owns the entire bridge. App Kit manages the chain\n  // context internally; creating a second destination-locked adapter can race\n  // the active EIP-1193 provider during approve/burn/mint.\n  {\n    const fromChainId = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;\n    const srcAdapter = await createAppKitAdapterFromBrowser({\n      requireArc: false,\n      targetChainId: fromChainId,\n    });\n    if (!srcAdapter) {\n      throw new Error(\n        "Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.",\n      );\n    }\n    wiredAdapter = srcAdapter.adapter;\n    if (!bridgeProvider) bridgeProvider = srcAdapter.provider;\n  }\n\n  // Hard preflight:'''
+              s, n = two_adapter.subn(replacement, s, count=1)
+              assert n == 1
+          else:
+              # If already partly refactored, normalize any destination adapter variable.
+              s = s.replace('let wiredDestAdapter: any = undefined;\n', '')
+              s = s.replace('wiredDestAdapter = srcAdapter.adapter;\n', '')
+
+          # 4. Remove explicit source-chain switch immediately before bridge; the adapter owns it.
+          s = re.sub(
+              r'\n\s*// Switch wallet to source chain before bridging[\s\S]*?\n\s*}\n\s*\n',
+              '\n', s, count=1)
+
+          # 5. Remove destination lifecycle/manual wallet switching helpers.
+          s = re.sub(
+              r'\n\s*const switchToDestination = \(\) => \{[\s\S]*?\n\s*};\n',
+              '\n', s, count=1)
+          s = re.sub(
+              r'\n\s*// Safety net: physically switch the wallet to the destination chain[\s\S]*?\n\s*}\n',
+              '\n', s, count=1)
+
+          # 6. retryBridge only for retryable SDK errors.
+          if 'isRetryableError' not in s:
+              marker = 'import { createAppKitAdapterFromBrowser } from "@/sdk/wallet-adapter";\n'
+              assert marker in s, 'wallet adapter import not found'
+              s = s.replace(marker, 'import { isRetryableError } from "@circle-fin/app-kit";\n' + marker, 1)
+          retry = re.compile(r'\n\s*if \(result\.state === "error"\) \{[\s\S]*?\n\s*}\n\s*\n\s*const steps:', re.M)
+          if retry.search(s):
+              repl = '''\n    if (result.state === "error") {\n      const failedStep = (result.steps || []).find((step: any) => step.state === "error" && step.error);\n      if (failedStep?.error && isRetryableError(failedStep.error) && typeof (kit as any).retryBridge === "function") {\n        try {\n          result = (await (kit as any).retryBridge(result, {\n            from: wiredAdapter,\n            to: wiredAdapter,\n          })) as typeof result;\n          for (const s of result.steps || []) {\n            if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) stepEvents.push(s);\n          }\n          deriveBridgeState(txIdForState, stepEvents);\n        } catch (retryErr) {\n          console.warn("[AGFusion] Retryable bridge recovery failed:", retryErr);\n        }\n      }\n    }\n\n    const steps:'''
+              s, n = retry.subn(repl, s, count=1)
+              assert n == 1
+
+          # Ensure retry/recovery paths use the same adapter when these forms exist.
+          s = s.replace('to: wiredDestAdapter ?? wiredAdapter,', 'to: wiredAdapter,')
+          s = s.replace('to: (dst?.adapter ?? src.adapter) as any,', 'to: src.adapter,')
+
+          # 7. Final success requires a successful destination mint/receive tx hash.
+          if 'const mintStep =' not in s:
+              needle = '    const lastHash = [...steps].reverse().find((s) => s.txHash)?.txHash;\n'
+              assert needle in s, 'lastHash marker not found'
+              s = s.replace(needle, '    const mintStep = [...steps].reverse().find((s) => /mint|receive/i.test(s.name) && s.txHash && s.state === "success");\n    const lastHash = [...steps].reverse().find((s) => s.txHash)?.txHash;\n    const destinationHash = mintStep?.txHash;\n', 1)
+
+          # Never claim success when no destination mint hash exists.
+          if 'A bridge is complete only after the destination mint is confirmed.' not in s:
+              old = re.compile(r'\n\s*// On-chain verification \(Phase 5\):[\s\S]*?\n\s*}\n\s*\n\s*return \{', re.M)
+              if old.search(s):
+                  repl = '''\n    // A bridge is complete only after the destination mint is confirmed.\n    let finalStatus: TransactionRecord["status"] = ok ? "success" : "error";\n    let verifyNote: string | undefined;\n    if (ok && !destinationHash) {\n      finalStatus = "retryable";\n      verifyNote = "Bridge returned without a destination mint hash. The transfer is not marked complete.";\n    } else if (ok && destinationHash) {\n      try {\n        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");\n        const destKey = chainQuery(params.toChain);\n        const v = await verifyReceiptOnChain({ chainKey: destKey, txHash: destinationHash, attempts: 6, delayMs: 2000 });\n        if (v.status === "reverted") {\n          finalStatus = "error";\n          verifyNote = `Destination mint reverted on-chain (${destKey}).`;\n        } else if (v.status === "not_found") {\n          finalStatus = "retryable";\n          verifyNote = "Destination mint is not confirmed yet. AGFusion will not re-burn.";\n        }\n      } catch (e) {\n        finalStatus = "retryable";\n        verifyNote = "Destination receipt verification is temporarily unavailable. The bridge is not marked complete.";\n        console.warn("[AGFusion] bridge receipt verification failed", e);\n      }\n    }\n\n    return {'''
+                  s, n = old.subn(repl, s, count=1)
+                  assert n == 1
+
+          # Point explorer/record txHash at destination mint when available.
+          s = s.replace('      txHash: lastHash,\n', '      txHash: destinationHash || lastHash,\n', 1)
+
+          if s == original:
+              raise SystemExit('No bridge change was applied; refusing to commit.')
+
+          p.write_text(s)
+          print('Bridge patch applied. Size:', len(s))
+
+      - name: Validate
+        run: |
+          npm ci --legacy-peer-deps
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Commit validated patch and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/blockchain/appkit-service.ts
+          git commit -m "fix: stabilize App Kit bridge orchestration"
+          rm .github/workflows/bridge-fix-final.yml
+          git add -u .github/workflows/bridge-fix-final.yml
+          git commit -m "chore: remove temporary bridge fixer"
+          git push origin HEAD:bridge-fix-final
