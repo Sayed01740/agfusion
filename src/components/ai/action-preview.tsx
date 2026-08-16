@@ -104,7 +104,7 @@ export function ActionPreviewCard({
         {typeof preview.estimatedFeeUsd === "number" && (
           <span className="inline-flex items-center gap-1">
             <Fuel className="h-3 w-3 text-amber-300" />
-            {formatUsdc(preview.estimatedFeeUsd)} gas
+            ~{formatUsdc(preview.estimatedFeeUsd)} est. gas (indicative)
           </span>
         )}
         {preview.estimatedTime && (

@@ -226,6 +226,9 @@ export interface BridgeEstimate {
   eta: string;
   route: string;
   speed: "fast" | "standard";
+  /** True when this is a simulation estimate, not a live quote. */
+  estimated?: boolean;
+  note?: string;
 }
 
 export interface SwapEstimate {
@@ -236,6 +239,9 @@ export interface SwapEstimate {
   feeUsd: number;
   slippageBps: number;
   route: string;
+  /** True when this is a simulation estimate, not a live quote. */
+  estimated?: boolean;
+  note?: string;
 }
 
 export interface AgentProfile {

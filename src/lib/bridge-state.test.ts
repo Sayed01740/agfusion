@@ -8,6 +8,7 @@ import {
   loadBridgeState,
   removeBridgeState,
   saveBridgeState,
+  updateBridgeState,
   type BridgeState,
 } from "./bridge-state";
 
@@ -114,5 +115,109 @@ describe("bridge-state", () => {
     seed("tx-rec");
     const record = { id: "tx-rec", type: "bridge" } as any;
     expect(bridgeStateFromRecord(record)?.txId).toBe("tx-rec");
+  });
+});
+
+describe("bridge-state invariants (Phase 6)", () => {
+  it("persisted state survives reload after burn (reload-after-burn)", () => {
+    const s = seed("tx-reload-burn");
+    const burned = deriveBridgeState("tx-reload-burn", [
+      { name: "approve", state: "success", txHash: "0xapprove" },
+      { name: "burn", state: "success", txHash: "0xburn" },
+    ]);
+    // Simulate a page reload: module-level cache is gone, storage is the only source.
+    const reloaded = loadBridgeState("tx-reload-burn");
+    expect(reloaded?.burnTxHash).toBe("0xburn");
+    expect(isBurnConfirmed(reloaded)).toBe(true);
+    expect(burned.burnTxHash).toBe("0xburn");
+  });
+
+  it("recovery after destination failure keeps the burn confirmed (no re-burn)", () => {
+    seed("tx-dst-fail");
+    deriveBridgeState("tx-dst-fail", [
+      { name: "approve", state: "success", txHash: "0xapprove" },
+      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "fetchAttestation", state: "success" },
+      { name: "mint", state: "error", message: "destination reverted" },
+    ]);
+    const retried = deriveBridgeState("tx-dst-fail", [
+      { name: "approve", state: "success", txHash: "0xapprove" },
+      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "fetchAttestation", state: "success" },
+      { name: "mint", state: "error", message: "destination reverted" },
+    ]);
+    // A duplicate retry must never clear the burn evidence.
+    expect(retried.burnTxHash).toBe("0xburn");
+    expect(isBurnConfirmed(retried)).toBe(true);
+    expect(retried.state).toBe("FAILED");
+  });
+
+  it("rejects corrupted localStorage entries (INVARIANT 10)", () => {
+    store.set(
+      "agfusion_bridge_states_v1",
+      JSON.stringify({ "tx-bad": { txId: "tx-bad", junk: true } }),
+    );
+    expect(loadBridgeState("tx-bad")).toBeNull();
+    // The corrupt entry was removed, not silently trusted.
+    expect(JSON.parse(store.get("agfusion_bridge_states_v1") || "{}")).toEqual({});
+  });
+
+  it("rejects truncated JSON storage", () => {
+    store.set("agfusion_bridge_states_v1", "{not valid json");
+    expect(loadBridgeState("tx-x")).toBeNull();
+  });
+
+  it("rejects entries with unknown chains / bad amounts", () => {
+    const base = seed("tx-valid");
+    store.set(
+      "agfusion_bridge_states_v1",
+      JSON.stringify({
+        "tx-valid": { ...base, txId: "tx-valid" },
+        "tx-unknown-chain": { ...base, txId: "tx-unknown-chain", fromChain: "Sonic_Testnet" },
+        "tx-bad-amount": { ...base, txId: "tx-bad-amount", amount: "abc" },
+        "tx-zero-amount": { ...base, txId: "tx-zero-amount", amount: "0" },
+        "tx-bad-state": { ...base, txId: "tx-bad-state", state: "MADE_UP" },
+      }),
+    );
+    expect(loadBridgeState("tx-unknown-chain")).toBeNull();
+    expect(loadBridgeState("tx-bad-amount")).toBeNull();
+    expect(loadBridgeState("tx-zero-amount")).toBeNull();
+    expect(loadBridgeState("tx-bad-state")).toBeNull();
+    // Valid entry still loads.
+    expect(loadBridgeState("tx-valid")?.txId).toBe("tx-valid");
+  });
+
+  it("never lets recovery change amount / chains / recipient (INVARIANTS 4–7)", () => {
+    seed("tx-frozen");
+    const updated = updateBridgeState("tx-frozen", {
+      amount: "999",
+      fromChain: "Base_Sepolia",
+      toChain: "Arc_Testnet",
+      token: "EURC",
+      recipient: "0x000000000000000000000000000000000000dEaD",
+      walletType: "circle",
+    });
+    expect(updated?.amount).toBe("5");
+    expect(updated?.fromChain).toBe("Arc_Testnet");
+    expect(updated?.toChain).toBe("Base_Sepolia");
+    expect(updated?.token).toBe("USDC");
+    expect(updated?.recipient).toBeUndefined();
+    expect(updated?.walletType).toBe("evm");
+  });
+
+  it("a completed bridge can never return to pending (INVARIANT 8)", () => {
+    seed("tx-done");
+    deriveBridgeState("tx-done", [
+      { name: "approve", state: "success", txHash: "0xapprove" },
+      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "fetchAttestation", state: "success" },
+      { name: "mint", state: "success", txHash: "0xmint" },
+    ]);
+    // A later error event on an already-completed bridge must not regress it.
+    const after = deriveBridgeState("tx-done", [
+      { name: "mint", state: "error", message: "late error" },
+    ]);
+    expect(after.state).toBe("COMPLETED");
+    expect(after.destinationTxHash).toBe("0xmint");
   });
 });

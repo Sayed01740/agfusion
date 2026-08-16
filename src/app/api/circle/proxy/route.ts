@@ -5,11 +5,23 @@
 
 import { NextResponse } from "next/server";
 import { getServerKitKey } from "@/lib/circle-kit-server";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_PREFIX = "/v1/stablecoinKits/";
+
+function assertRateLimit(req: Request): Response | null {
+  const rl = rateLimit(`circle-proxy:${clientIp(req)}`, {
+    windowMs: 60_000,
+    max: 300,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+  return null;
+}
 
 function resolvePath(req: Request): string | null {
   const url = new URL(req.url);
@@ -20,6 +32,8 @@ function resolvePath(req: Request): string | null {
 }
 
 async function proxy(req: Request): Promise<Response> {
+  const limited = assertRateLimit(req);
+  if (limited) return limited;
   const path = resolvePath(req);
   if (!path) {
     return NextResponse.json(

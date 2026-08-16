@@ -163,16 +163,16 @@ export const AGENT_TOOL_DEFINITIONS = [
     function: {
       name: "execute_bridge",
       description:
-        "Execute cross-chain transfer. Set confirmed: true automatically if the user explicitly requested to bridge/transfer in their prompt. Moves USDC to the destination network.",
+        "Execute a cross-chain transfer after the user has confirmed it in the app UI. The `confirmed` field is set by the application, never by you — calling this tool does not move funds unless the app-level confirm gate has been satisfied.",
       parameters: {
         type: "object",
         properties: {
           amount: { type: "string" },
           fromChain: { type: "string" },
           toChain: { type: "string" },
-          confirmed: { type: "boolean" },
+          confirmed: { type: "boolean", description: "Managed by the application. Ignore this field; you cannot set it." },
         },
-        required: ["amount", "fromChain", "toChain", "confirmed"],
+        required: ["amount", "fromChain", "toChain"],
       },
     },
   },
@@ -180,16 +180,16 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "execute_swap",
-      description: "Execute swap. Set confirmed: true automatically if the user explicitly requested to swap in their prompt.",
+      description: "Execute a swap after the user has confirmed it in the app UI. The `confirmed` field is set by the application, never by you.",
       parameters: {
         type: "object",
         properties: {
           amount: { type: "string" },
           tokenIn: { type: "string" },
           tokenOut: { type: "string" },
-          confirmed: { type: "boolean" },
+          confirmed: { type: "boolean", description: "Managed by the application. Ignore this field; you cannot set it." },
         },
-        required: ["amount", "tokenIn", "tokenOut", "confirmed"],
+        required: ["amount", "tokenIn", "tokenOut"],
       },
     },
   },
@@ -197,16 +197,16 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "execute_send",
-      description: "Execute USDC send on Arc. Set confirmed: true automatically if the user explicitly requested to send/pay in their prompt.",
+      description: "Execute a USDC send on Arc after the user has confirmed it in the app UI. The `confirmed` field is set by the application, never by you.",
       parameters: {
         type: "object",
         properties: {
           amount: { type: "string" },
           recipient: { type: "string" },
           recipientLabel: { type: "string" },
-          confirmed: { type: "boolean" },
+          confirmed: { type: "boolean", description: "Managed by the application. Ignore this field; you cannot set it." },
         },
-        required: ["amount", "recipient", "confirmed"],
+        required: ["amount", "recipient"],
       },
     },
   },
@@ -215,7 +215,7 @@ export const AGENT_TOOL_DEFINITIONS = [
     function: {
       name: "execute_route",
       description:
-        "Bridge then pay orchestration. Set confirmed: true automatically if the user explicitly requested this routing in their prompt.",
+        "Bridge then pay orchestration after the user has confirmed it in the app UI. The `confirmed` field is set by the application, never by you.",
       parameters: {
         type: "object",
         properties: {
@@ -223,9 +223,9 @@ export const AGENT_TOOL_DEFINITIONS = [
           fromChain: { type: "string" },
           recipient: { type: "string" },
           recipientLabel: { type: "string" },
-          confirmed: { type: "boolean" },
+          confirmed: { type: "boolean", description: "Managed by the application. Ignore this field; you cannot set it." },
         },
-        required: ["amount", "recipient", "confirmed"],
+        required: ["amount", "recipient"],
       },
     },
   },
@@ -324,15 +324,15 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "register_erc8004_agent",
-      description: "Prepare an ERC-8004 transaction to register an agent identity on Arc. ONLY AFTER user confirmed.",
+      description: "Register an agent identity on Arc after the user has confirmed it in the app UI. The `confirmed` field is set by the application, never by you.",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string" },
           description: { type: "string" },
-          confirmed: { type: "boolean" },
+          confirmed: { type: "boolean", description: "Managed by the application. Ignore this field; you cannot set it." },
         },
-        required: ["name", "description", "confirmed"],
+        required: ["name", "description"],
       },
     },
   },
@@ -434,7 +434,7 @@ export async function executeTool(
         );
         return {
           ok: true,
-          summary: `Bridge est. ${formatUsd(est.feeUsd + est.gasUsd)} · ${est.eta} · ${est.route}`,
+          summary: `Bridge indicative est. ${formatUsd(est.feeUsd + est.gasUsd)} · ${est.eta} · ${est.route} — actual fees settle on-chain`,
           data: est,
         };
       }
@@ -446,7 +446,7 @@ export async function executeTool(
         const est: SwapEstimate = estimateSwapDemo(amount, tokenIn, tokenOut);
         return {
           ok: true,
-          summary: `Swap est. ~${est.amountOut} ${tokenOut} · fee ${formatUsd(est.feeUsd)}`,
+          summary: `Swap indicative est. ~${est.amountOut} ${tokenOut} · fee ${formatUsd(est.feeUsd)} — actual rate quoted on-chain`,
           data: est,
         };
       }
@@ -455,8 +455,15 @@ export async function executeTool(
         const amount = String(args.amount || "25");
         return {
           ok: true,
-          summary: `Send ${amount} USDC on Arc · est. fee ~$0.02 (USDC gas)`,
-          data: { amount, feeUsd: 0.02, eta: "<1s", chain: "Arc_Testnet" },
+          summary: `Send ${amount} USDC on Arc · indicative est. fee ~$0.02 (USDC gas) — actual gas settles on-chain`,
+          data: {
+            amount,
+            feeUsd: 0.02,
+            eta: "~1s",
+            chain: "Arc_Testnet",
+            estimated: true,
+            note: "Indicative estimate — actual gas settles on-chain at execution.",
+          },
         };
       }
 
@@ -862,12 +869,17 @@ export async function executeTool(
   }
 }
 
-function gateMoney(
+/** @internal exported for authorization tests. */
+export function gateMoney(
   args: Record<string, unknown>,
   userConfirmed?: boolean,
 ): boolean {
-  if (userConfirmed) return true;
-  return args.confirmed === true || args.confirmed === "true";
+  // Only trusted application-level confirmation authorizes money movement.
+  // `args.confirmed` — which could be produced by the LLM itself or a prompt
+  // injection — is deliberately ignored. The LLM may prepare an action, but
+  // it can never authorize execution.
+  void args;
+  return userConfirmed === true;
 }
 
 function blockedMoney(

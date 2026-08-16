@@ -6,6 +6,7 @@
  */
 
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
+import { CCTP_CHAIN_CONFIG } from "@/lib/cctp-chains";
 
 export type BridgeStateName =
   | "INIT"
@@ -44,13 +45,77 @@ export interface BridgeState {
 
 const STORAGE_KEY = "agfusion_bridge_states_v1";
 
+const KNOWN_STATES: BridgeStateName[] = [
+  "INIT",
+  "APPROVAL_PENDING",
+  "APPROVED",
+  "BURN_PENDING",
+  "BURN_CONFIRMED",
+  "ATTESTATION_PENDING",
+  "ATTESTATION_RECEIVED",
+  "DESTINATION_PENDING",
+  "DESTINATION_CONFIRMED",
+  "COMPLETED",
+  "FAILED",
+  "RECOVERABLE",
+];
+
+const KNOWN_WALLET_TYPES: BridgeWalletType[] = ["evm", "circle", "agent"];
+
+/**
+ * INVARIANT 10: persisted state must be validated before use.
+ * Rejects corrupted / tampered / truncated entries (wrong chains, zero or
+ * non-numeric amounts, unknown states, missing ids) so recovery never acts
+ * on garbage.
+ */
+export function validateBridgeState(raw: unknown): raw is BridgeState {
+  if (!raw || typeof raw !== "object") return false;
+  const s = raw as Record<string, unknown>;
+  if (typeof s.txId !== "string" || !s.txId) return false;
+  if (
+    typeof s.walletType !== "string" ||
+    !KNOWN_WALLET_TYPES.includes(s.walletType as BridgeWalletType)
+  ) {
+    return false;
+  }
+  if (
+    typeof s.fromChain !== "string" ||
+    typeof s.toChain !== "string" ||
+    !CCTP_CHAIN_CONFIG[s.fromChain] ||
+    !CCTP_CHAIN_CONFIG[s.toChain]
+  ) {
+    return false;
+  }
+  if (typeof s.token !== "string" || !s.token) return false;
+  if (typeof s.amount !== "string") return false;
+  const amount = Number(s.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (
+    typeof s.state !== "string" ||
+    !KNOWN_STATES.includes(s.state as BridgeStateName)
+  ) {
+    return false;
+  }
+  if (typeof s.createdAt !== "number" || typeof s.updatedAt !== "number") {
+    return false;
+  }
+  return true;
+}
+
 export function loadBridgeState(txId: string): BridgeState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const map = JSON.parse(raw) as Record<string, BridgeState>;
-    return map[txId] ?? null;
+    const entry = map[txId];
+    if (!entry) return null;
+    // INVARIANT 10: corrupted entries are dropped, never trusted.
+    if (!validateBridgeState(entry)) {
+      removeBridgeState(txId);
+      return null;
+    }
+    return entry;
   } catch {
     return null;
   }
@@ -114,7 +179,29 @@ export function updateBridgeState(
 ): BridgeState | null {
   const current = loadBridgeState(txId);
   if (!current) return null;
-  const next = { ...current, ...patch, updatedAt: Date.now() };
+
+  // INVARIANTS 4–7: source/destination chain, amount, recipient and token are
+  // immutable once a bridge exists. A recovery attempt can never rewrite them,
+  // so a "recovered" bridge always moves the same funds to the same place.
+  const frozen: Array<keyof BridgeState> = [
+    "txId",
+    "walletType",
+    "walletAddress",
+    "fromChain",
+    "toChain",
+    "amount",
+    "token",
+    "recipient",
+  ];
+  const safePatch: Partial<BridgeState> = { ...patch };
+  for (const key of frozen) {
+    const v = patch[key];
+    if (v !== undefined && v !== current[key]) {
+      delete safePatch[key];
+    }
+  }
+
+  const next = { ...current, ...safePatch, updatedAt: Date.now() };
   saveBridgeState(next);
   return next;
 }
@@ -132,6 +219,14 @@ export function deriveBridgeState(
 ): BridgeState {
   const existing = loadBridgeState(txId);
   if (!existing) return initBridgeState({ txId, walletType: "evm", walletAddress: null, fromChain: "Arc_Testnet", toChain: "Base_Sepolia", token: "USDC", amount: "0" });
+
+  // INVARIANT 8: a completed bridge is terminal. Late/duplicate step events
+  // (e.g. a delayed error from a previous attempt) must never regress it.
+  if (existing.state === "COMPLETED") {
+    const terminal: BridgeState = { ...existing, updatedAt: Date.now() };
+    saveBridgeState(terminal);
+    return terminal;
+  }
 
   const stepState = (name: string): string | undefined =>
     steps.find((s) => s.name === name)?.state;

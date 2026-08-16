@@ -10,7 +10,7 @@ import type {
   TxStep,
 } from "@/types";
 import { CHAINS } from "@/lib/chains";
-import { sleep, uid } from "@/lib/utils";
+import { uid } from "@/lib/utils";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getAppKit, getAppKitLoadError } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser } from "@/sdk/wallet-adapter";
@@ -47,6 +47,8 @@ export function estimateBridgeDemo(
     eta: from === "Ethereum_Sepolia" ? "~45s" : "~18s",
     route: `${CHAINS[from].short} → ${CHAINS[to].short}`,
     speed: "fast",
+    estimated: true,
+    note: "Indicative estimate — actual fees settle on-chain at execution.",
   };
 }
 
@@ -65,36 +67,9 @@ export function estimateSwapDemo(
     feeUsd: Math.max(0.02, n * 0.001),
     slippageBps: 50,
     route: "Best available liquidity",
+    estimated: true,
+    note: "Indicative estimate — the actual rate is quoted on-chain at swap time.",
   };
-}
-
-async function animateSteps(
-  names: string[],
-  onStep?: (steps: TxStep[]) => void,
-  failAt?: number,
-): Promise<TxStep[]> {
-  const steps: TxStep[] = names.map((name) => ({
-    name,
-    state: "pending",
-  }));
-  onStep?.(steps.map((s) => ({ ...s })));
-
-  for (let i = 0; i < steps.length; i++) {
-    steps[i].state = "active";
-    onStep?.(steps.map((s) => ({ ...s })));
-    await sleep(550 + Math.random() * 400);
-    if (failAt === i) {
-      steps[i].state = "error";
-      steps[i].message = "Transient network error (demo)";
-      onStep?.(steps.map((s) => ({ ...s })));
-      return steps;
-    }
-    steps[i].state = "success";
-    steps[i].txHash =
-      `0x${uid("").slice(0, 16)}${"a".repeat(48)}`.slice(0, 66);
-    onStep?.(steps.map((s) => ({ ...s })));
-  }
-  return steps;
 }
 
 async function tryLiveAppKitBridge(params: {
@@ -501,10 +476,40 @@ async function tryLiveAppKitBridge(params: {
     // Persist final machine state + full SDK result for safe resume (Phase 7).
     const finalState = deriveBridgeState(txIdForState, stepEvents);
 
+    // On-chain verification (Phase 5): the SDK returning without error is not
+    // proof the destination mint confirmed. The blockchain is the source of
+    // truth — poll the destination receipt before reporting success.
+    let finalStatus: TransactionRecord["status"] = ok ? "success" : "error";
+    let verifyNote: string | undefined;
+    if (ok && lastHash) {
+      try {
+        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+        const destKey = chainQuery(params.toChain);
+        const v = await verifyReceiptOnChain({
+          chainKey: destKey,
+          txHash: lastHash,
+          attempts: 4,
+          delayMs: 2_000,
+        });
+        if (v.status === "reverted") {
+          finalStatus = "error";
+          verifyNote = `Destination transaction reverted on-chain (${destKey}).`;
+        } else if (v.status === "not_found") {
+          finalStatus = "retryable";
+          verifyNote = `Bridge submitted but the destination transaction is not confirmed yet (${destKey}). Retry to check — AGFusion will never re-burn.`;
+        }
+      } catch (e) {
+        // Verification infra unavailable — keep the SDK status. The hash is
+        // real and the explorer/recovery path can confirm later.
+        console.warn("[AGFusion] bridge receipt verification skipped", e);
+      }
+    }
+
     return {
       id: txIdForState,
       type: "bridge",
-      status: ok ? "success" : "error",
+      status: finalStatus,
+      retryable: finalStatus === "retryable",
       amount: params.amount,
       token: "USDC",
       fromChain: params.fromChain,
@@ -523,7 +528,12 @@ async function tryLiveAppKitBridge(params: {
         ? explorerTxUrl(lastHash)
         : CHAINS[params.toChain].explorer,
       createdAt: new Date().toISOString(),
-      message: `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}`,
+      message: [
+        `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}`,
+        verifyNote,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       executionMode: "live",
       bridgeResult: result,
       bridgeState: finalState,
@@ -625,10 +635,41 @@ async function tryLiveAppKitSend(params: {
       token: params.token,
     })) as { txHash?: string; explorerUrl?: string };
 
+    // On-chain verification (Phase 5): only report success after the receipt
+    // confirms on the chain the send was submitted to.
+    let status: TransactionRecord["status"] = "success";
+    let note = "Live send on Arc";
+    if (result.txHash) {
+      try {
+        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+        const { getCctpConfig } = await import("@/lib/cctp-chains");
+        const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
+        const v = await verifyReceiptOnChain({
+          chainKey,
+          txHash: result.txHash,
+          attempts: 3,
+          delayMs: 1_500,
+        });
+        if (v.status === "reverted") {
+          status = "error";
+          note = `Send reverted on-chain (${chainKey}).`;
+        } else if (v.status === "not_found") {
+          status = "retryable";
+          note = `Send submitted but not confirmed yet (${chainKey}). Check the explorer before retrying.`;
+        }
+      } catch (e) {
+        console.warn("[AGFusion] send receipt verification skipped", e);
+      }
+    } else {
+      status = "retryable";
+      note = "Send submitted without a returned hash — verify in the explorer before retrying.";
+    }
+
     return {
       id: uid("tx"),
       type: "send",
-      status: "success",
+      status,
+      retryable: status === "retryable",
       amount: params.amount,
       token: params.token,
       fromChain: params.chain,
@@ -637,7 +678,7 @@ async function tryLiveAppKitSend(params: {
       recipientLabel: params.recipientLabel,
       feeUsd: 0.04,
       steps: [
-        { name: "Send", state: "success", txHash: result.txHash },
+        { name: "Send", state: status === "error" ? "error" : "success", txHash: result.txHash },
       ],
       txHash: result.txHash,
       explorerUrl:
@@ -646,7 +687,7 @@ async function tryLiveAppKitSend(params: {
           ? explorerTxUrl(result.txHash)
           : CHAINS[params.chain].explorer),
       createdAt: new Date().toISOString(),
-      message: "Live send on Arc",
+      message: note,
       executionMode: "live",
     };
   } catch (e) {
@@ -1179,10 +1220,40 @@ export async function runSwapFlow(params: {
       throw new Error(result.error || "Swap returned error state");
     }
 
+    // On-chain verification (Phase 5): the swap is only successful once the
+    // receipt confirms on Arc.
+    let swapStatus: TransactionRecord["status"] = "success";
+    let swapNote = result.amountOut
+      ? `Received ~${result.amountOut} ${params.tokenOut}`
+      : "Live stablecoin FX on Arc";
+    if (result.txHash) {
+      try {
+        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+        const { getCctpConfig } = await import("@/lib/cctp-chains");
+        const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
+        const v = await verifyReceiptOnChain({
+          chainKey,
+          txHash: result.txHash,
+          attempts: 3,
+          delayMs: 1_500,
+        });
+        if (v.status === "reverted") {
+          swapStatus = "error";
+          swapNote = `Swap reverted on-chain (${chainKey}).`;
+        } else if (v.status === "not_found") {
+          swapStatus = "retryable";
+          swapNote = `Swap submitted but not confirmed yet (${chainKey}). Check the explorer before retrying.`;
+        }
+      } catch (e) {
+        console.warn("[AGFusion] swap receipt verification skipped", e);
+      }
+    }
+
     return {
       id: uid("tx"),
       type: "swap",
-      status: "success",
+      status: swapStatus,
+      retryable: swapStatus === "retryable",
       amount: params.amount,
       token: params.tokenIn,
       tokenOut: params.tokenOut,
@@ -1197,9 +1268,7 @@ export async function runSwapFlow(params: {
           ? explorerTxUrl(result.txHash)
           : CHAINS[params.chain].explorer),
       createdAt: new Date().toISOString(),
-      message: result.amountOut
-        ? `Received ~${result.amountOut} ${params.tokenOut}`
-        : "Live stablecoin FX on Arc",
+      message: swapNote,
       executionMode: "live",
     };
   } catch (e) {

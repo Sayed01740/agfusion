@@ -198,6 +198,39 @@ function rpcProxyKeyForChainId(chainId: number): string {
   return cctpConfigByChainId(chainId)?.rpcProxyKey ?? "arc";
 }
 
+/** Only chains Circle Programmable Wallets can actually execute on today. */
+const CIRCLE_SUPPORTED_CHAIN_IDS = new Set<number>([5042002, 84532]);
+
+/**
+ * Forward a JSON-RPC call to the server-side /api/rpc proxy (real upstreams
+ * with failover). Never fabricates a blockchain response: on failure this
+ * throws so callers fail safely instead of trusting a made-up value.
+ */
+async function forwardRpcToProxy(
+  chainId: number,
+  method: string,
+  params: unknown[],
+): Promise<unknown> {
+  const chainKey = rpcProxyKeyForChainId(chainId);
+  const res = await fetch(`/api/rpc?chain=${chainKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
+    cache: "no-store",
+  });
+  const data = (await res.json().catch(() => null)) as {
+    result?: unknown;
+    error?: { code?: number; message?: string } | null;
+  } | null;
+  if (!res.ok || !data || data.error) {
+    const msg = data?.error?.message || `HTTP ${res.status}`;
+    throw new Error(
+      `Circle wallet RPC ${method} failed (${chainKey}): ${msg}`,
+    );
+  }
+  return data.result;
+}
+
 /**
  * Build the minimal EIP-1193 provider that stands in for the Circle
  * user-controlled wallet. Created once per session and re-created after reload
@@ -219,18 +252,6 @@ export function createCircleMockProvider(options: {
   const { address, chainIdRef, session } = options;
   const sessionGetter = session ?? (() => getCircleSession());
 
-  const chainIdHexByNum: Record<number, string> = {
-    5042002: "0x4cef52",
-    84532: "0x14a34",
-    11155111: "0xaa36a7",
-    421614: "0x66eee",
-    11155420: "0xaa37dc",
-    80002: "0x13882",
-    43113: "0xa869",
-    1301: "0x515",
-    59141: "0xe705",
-  };
-
   const provider = {
     request: async (args: any) => {
       switch (args.method) {
@@ -240,16 +261,44 @@ export function createCircleMockProvider(options: {
         case "eth_chainId":
           return chainIdRef.value;
         case "wallet_switchEthereumChain": {
-          if (args.params && args.params[0] && args.params[0].chainId) {
-            chainIdRef.value = String(args.params[0].chainId).toLowerCase();
+          const target = args.params?.[0]?.chainId;
+          const chainId = target ? Number.parseInt(String(target), 16) : NaN;
+          // Only Circle-supported chains may be selected — everything else must
+          // fail explicitly so the app never believes the wallet is on a chain
+          // the Circle wallet cannot execute on.
+          if (!Number.isFinite(chainId) || !CIRCLE_SUPPORTED_CHAIN_IDS.has(chainId)) {
+            throw new Error(
+              `Circle Email Wallet cannot switch to chain ${target ?? "unknown"}. ` +
+                "Supported: Arc Testnet (5042002) and Base Sepolia (84532).",
+            );
           }
+          const blockchain = circleBlockchainForChainId(chainId);
+          const session = sessionGetter();
+          const walletExists = session?.wallets?.some(
+            (w) => w.blockchain === blockchain,
+          );
+          if (!walletExists) {
+            throw new Error(
+              `No Circle ${blockchain} wallet found. Reconnect your Circle Email Wallet to create one.`,
+            );
+          }
+          chainIdRef.value = `0x${chainId.toString(16)}`.toLowerCase();
           return null;
         }
         case "wallet_addEthereumChain":
-          return null;
+          // Circle PW is a hosted user-controlled wallet — it cannot store new
+          // networks. Failing explicitly is safer than pretending success.
+          throw new Error(
+            "Circle Email Wallet cannot add networks. Only Arc Testnet and Base Sepolia are supported.",
+          );
         case "personal_sign":
-          // Deterministic signature for ZeroDev Agent wallet derivation
-          return `0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000${address.slice(2)}`;
+        case "eth_sign":
+          // A Circle user-controlled wallet must never hand out a signature
+          // fabricated from public data. The Circle SDK signs server-side via
+          // challenges; arbitrary message signing is not supported by this app.
+          throw new Error(
+            "personal_sign is not supported for Circle Email Wallet. Circle transactions are approved through the Circle PIN/security challenge instead.",
+          );
         case "eth_sendTransaction": {
           const tx = args.params?.[0];
           if (!tx?.to || !tx?.data) {
@@ -266,59 +315,54 @@ export function createCircleMockProvider(options: {
           // EIP-1193 eth_sendTransaction must return the raw tx hash string.
           return result.txHash;
         }
-        // Gas estimation: Circle's backend resolves real fees at execution; a
-        // safe upper bound keeps viem from rejecting the request before the
-        // Circle challenge is presented.
-        case "eth_estimateGas":
-          return "0x55555"; // ~350k gas — safe upper bound for approve + depositForBurn
-        // eth_call simulation: return empty success response to pass viem validation.
-        // Readiness checks (balance, allowance) go through the proxied public
-        // client, so this only affects in-wallet simulation, not bridge preflight.
-        case "eth_call":
-          return "0x0000000000000000000000000000000000000000000000000000000000000001";
+        // Gas / fee / simulation methods must reflect the real chain — Circle's
+        // backend resolves actual fees at execution time. Forward to the RPC
+        // proxy; on failure throw instead of returning fabricated values that
+        // could influence a real transaction.
+        case "eth_estimateGas": {
+          const chainId = Number.parseInt(chainIdRef.value, 16);
+          const tx = args.params?.[0] || {};
+          return forwardRpcToProxy(chainId, "eth_estimateGas", [
+            { ...tx, from: tx.from ?? address },
+            ...(Array.isArray(args.params) ? args.params.slice(1) : []),
+          ]);
+        }
+        case "eth_call": {
+          const chainId = Number.parseInt(chainIdRef.value, 16);
+          const tx = args.params?.[0] || {};
+          return forwardRpcToProxy(chainId, "eth_call", [
+            { ...tx, from: tx.from ?? address },
+            ...(Array.isArray(args.params) ? args.params.slice(1) : []),
+          ]);
+        }
         case "eth_gasPrice":
-          return "0x3B9ACA00"; // 1 gwei
+          return forwardRpcToProxy(
+            Number.parseInt(chainIdRef.value, 16),
+            "eth_gasPrice",
+            [],
+          );
         case "eth_maxPriorityFeePerGas":
-          return "0x3B9ACA00"; // 1 gwei
+          return forwardRpcToProxy(
+            Number.parseInt(chainIdRef.value, 16),
+            "eth_maxPriorityFeePerGas",
+            [],
+          );
         case "eth_blockNumber":
         case "net_version":
-        case "eth_syncing": {
-          const chainKey = rpcProxyKeyForChainId(Number.parseInt(chainIdRef.value, 16));
-          try {
-            const r = await fetch(`/api/rpc?chain=${chainKey}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: args.method, params: args.params || [] }),
-            });
-            const d = await r.json();
-            return d.result ?? null;
-          } catch {
-            return null;
-          }
-        }
+        case "eth_syncing":
+          return forwardRpcToProxy(
+            Number.parseInt(chainIdRef.value, 16),
+            args.method,
+            args.params || [],
+          );
         default: {
-          // Forward all remaining JSON-RPC methods to our server proxy
-          const chainKey = rpcProxyKeyForChainId(Number.parseInt(chainIdRef.value, 16));
-          try {
-            const res = await fetch(`/api/rpc?chain=${chainKey}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: Date.now(),
-                method: args.method,
-                params: args.params || [],
-              }),
-            });
-            const data = await res.json();
-            if (data.error) {
-              throw new Error(data.error.message || "RPC error");
-            }
-            return data.result;
-          } catch (err) {
-            console.error(`[Circle Mock] Proxy forwarding failed for ${args.method}:`, err);
-            return null;
-          }
+          // Forward all remaining JSON-RPC methods to the server proxy. A
+          // failed authoritative read must throw — never silently return null.
+          return forwardRpcToProxy(
+            Number.parseInt(chainIdRef.value, 16),
+            args.method,
+            args.params || [],
+          );
         }
       }
     },
@@ -415,6 +459,9 @@ export async function executeCircleContractTransaction(params: {
       contractAddress: params.to,
       callData: params.data,
       value: params.value,
+      // Server binds the wallet's blockchain to the requested chain and
+      // rejects cross-user walletId + cross-chain calls (Phase 3).
+      chainId: params.chainId,
     }),
   });
   const result = await response.json();

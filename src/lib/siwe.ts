@@ -25,14 +25,25 @@ export type SiweOrigin = {
   uri: string;
 };
 
+const DEV_FALLBACK_SECRET = "agfusion-dev-siwe-secret-change-me";
+
 function authSecret(): string {
+  const explicit =
+    process.env.AUTH_SECRET?.trim() || process.env.SIWE_SECRET?.trim();
+  if (explicit) return explicit;
+
+  // Production must FAIL CLOSED: without a real AUTH_SECRET/SIWE_SECRET the
+  // HMAC nonce would be predictable from weaker fallbacks or a public literal.
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+    throw new Error("AUTH_SECRET is not configured in production");
+  }
+
+  // Development convenience only.
   return (
-    process.env.AUTH_SECRET?.trim() ||
-    process.env.SIWE_SECRET?.trim() ||
     process.env.BAZAARLINK_API_KEY?.trim() ||
     process.env.KIT_KEY?.trim() ||
     process.env.DATABASE_URL?.trim() ||
-    "agfusion-dev-siwe-secret-change-me"
+    DEV_FALLBACK_SECRET
   );
 }
 

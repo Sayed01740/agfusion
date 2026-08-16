@@ -217,12 +217,9 @@ async function runAnthropicAgentLoop(input: {
         const name = call.name;
         const args: Record<string, unknown> = { ...call.input };
 
-        if (isMoneyTool(name) && !execute) {
-          args.confirmed = false;
-        }
-        if (isMoneyTool(name) && execute) {
-          args.confirmed = true;
-        }
+        // Authorization comes ONLY from the trusted application layer
+        // (userConfirmed=execute). The LLM can never set confirmed itself.
+        void isMoneyTool;
 
         onEvent?.({ type: "status", message: `Tool · ${name}…` });
         const result = await executeTool(name, args, {
@@ -423,12 +420,9 @@ async function runOpenAiCompatAgentLoop(input: {
           args = {};
         }
 
-        if (isMoneyTool(name) && !execute) {
-          args.confirmed = false;
-        }
-        if (isMoneyTool(name) && execute) {
-          args.confirmed = true;
-        }
+        // Authorization comes ONLY from the trusted application layer
+        // (userConfirmed=execute). The LLM can never set confirmed itself.
+        void isMoneyTool;
 
         onEvent?.({ type: "status", message: `Tool · ${name}…` });
         const result = await executeTool(name, args, {

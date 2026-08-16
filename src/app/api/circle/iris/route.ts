@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
  * Server-side proxy for Circle's IRIS attestation API
@@ -45,7 +46,20 @@ async function forward(
   }
 }
 
+function assertRateLimit(req: Request): Response | null {
+  const rl = rateLimit(`circle-iris:${clientIp(req)}`, {
+    windowMs: 60_000,
+    max: 120,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+  return null;
+}
+
 export async function GET(req: Request) {
+  const limited = assertRateLimit(req);
+  if (limited) return limited;
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
   if (!path || !path.startsWith("/")) {
@@ -81,6 +95,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const limited = assertRateLimit(req);
+  if (limited) return limited;
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
   if (!path || !path.startsWith("/")) {
