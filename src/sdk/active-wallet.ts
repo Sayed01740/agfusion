@@ -53,15 +53,9 @@ function saveMeta(meta: ActiveWalletMeta | null) {
  * If the wallet has a built-in/free-plan RPC such as sepolia.drpc.org, the
  * transaction can therefore fail even though /api/rpc is healthy.
  *
- * For Rabby specifically, AGFusion now avoids eth_sendTransaction entirely:
- * 1. Build nonce/gas/fee/chainId through the AGFusion server-side RPC proxy.
- * 2. Ask Rabby only to sign the fully populated transaction with
- *    eth_signTransaction.
- * 3. Broadcast the returned raw transaction through /api/rpc.
- *
- * This keeps private-key custody and user approval inside Rabby while removing
- * Rabby's own RPC provider from the transaction broadcast path. No paid RPC
- * account is required.
+ * AGFusion supplies a proxy-sourced nonce before eth_sendTransaction. We never
+ * replace the wallet's signing/broadcast method, so the wallet remains the sole
+ * authority for user approval and custody.
  */
 function wrapWalletRpcGuard(
   provider: InjectedProvider,
@@ -84,32 +78,6 @@ function wrapWalletRpcGuard(
   };
 
   const originalRequest = provider.request.bind(provider);
-  const isRabby =
-    meta.name.toLowerCase().includes("rabby") ||
-    meta.rdns?.toLowerCase() === "io.rabby";
-
-  async function proxyRpc(
-    cfg: WalletRpcConfig,
-    method: string,
-    params: unknown[] = [],
-  ): Promise<unknown> {
-    const response = await fetch(cfg.rpc, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
-      cache: "no-store",
-    });
-    const json = (await response.json()) as {
-      result?: unknown;
-      error?: { message?: string; code?: number };
-    };
-    if (!response.ok || json.error) {
-      throw new Error(
-        `${method} via AGFusion RPC failed: ${json.error?.message || `HTTP ${response.status}`}`,
-      );
-    }
-    return json.result;
-  }
 
   const currentChainConfig = async (): Promise<WalletRpcConfig | null> => {
     try {
@@ -121,92 +89,29 @@ function wrapWalletRpcGuard(
     }
   };
 
-  async function signAndBroadcastViaAgfusion(
+  const proxyNonce = async (
     cfg: WalletRpcConfig,
-    rawTx: Record<string, unknown>,
-  ): Promise<string> {
-    const from = typeof rawTx.from === "string" ? rawTx.from : "";
-    if (!from) throw new Error("Transaction is missing the sender address.");
-
-    const tx: Record<string, unknown> = { ...rawTx };
-
-    // Resolve every network-dependent field before asking Rabby to sign.
-    if (tx.nonce === undefined || tx.nonce === null || tx.nonce === "") {
-      tx.nonce = await proxyRpc(cfg, "eth_getTransactionCount", [from, "pending"]);
-    }
-
-    if (tx.chainId === undefined || tx.chainId === null || tx.chainId === "") {
-      tx.chainId = await proxyRpc(cfg, "eth_chainId");
-    }
-
-    if (tx.gas === undefined || tx.gas === null || tx.gas === "") {
-      tx.gas = await proxyRpc(cfg, "eth_estimateGas", [tx]);
-    }
-
-    const isTyped =
-      tx.type === 2 ||
-      tx.type === "0x2" ||
-      tx.type === "0x02" ||
-      tx.maxFeePerGas !== undefined ||
-      tx.maxPriorityFeePerGas !== undefined;
-
-    if (isTyped) {
-      if (tx.maxFeePerGas === undefined || tx.maxFeePerGas === null || tx.maxFeePerGas === "") {
-        tx.maxFeePerGas = await proxyRpc(cfg, "eth_gasPrice");
-      }
-      if (
-        tx.maxPriorityFeePerGas === undefined ||
-        tx.maxPriorityFeePerGas === null ||
-        tx.maxPriorityFeePerGas === ""
-      ) {
-        try {
-          const priority = await proxyRpc(cfg, "eth_maxPriorityFeePerGas");
-          const maxFee = BigInt(String(tx.maxFeePerGas));
-          tx.maxPriorityFeePerGas =
-            BigInt(String(priority)) <= maxFee ? priority : `0x${maxFee.toString(16)}`;
-        } catch {
-          tx.maxPriorityFeePerGas = "0x0";
-        }
-      }
-      delete tx.gasPrice;
-    } else if (tx.gasPrice === undefined || tx.gasPrice === null || tx.gasPrice === "") {
-      tx.gasPrice = await proxyRpc(cfg, "eth_gasPrice");
-    }
-
-    // Rabby is responsible only for signing. The browser wallet must not be
-    // asked to broadcast, because its own confirmation/RPC layer can use the
-    // unavailable dRPC free-plan endpoint.
-    const signed = await originalRequest({
-      method: "eth_signTransaction",
-      params: [tx],
-    });
-
-    if (typeof signed !== "string" || !signed.startsWith("0x")) {
-      throw new Error("Rabby did not return a signed transaction.");
-    }
-
-    const hash = await proxyRpc(cfg, "eth_sendRawTransaction", [signed]);
-    if (typeof hash !== "string" || !hash.startsWith("0x")) {
-      throw new Error("AGFusion RPC did not return a transaction hash.");
-    }
-
+    address: string,
+  ): Promise<string | null> => {
     try {
-      sessionStorage.setItem(
-        "agfusion_last_wallet_rpc_guard",
-        JSON.stringify({
-          chain: cfg.name,
-          chainKey: cfg.key,
-          method: "eth_sendRawTransaction",
-          signer: "Rabby/eth_signTransaction",
-          at: Date.now(),
+      const response = await fetch(cfg.rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: Date.now(),
+          method: "eth_getTransactionCount",
+          params: [address, "pending"],
         }),
-      );
+        cache: "no-store",
+      });
+      if (!response.ok) return null;
+      const json = (await response.json()) as { result?: unknown; error?: unknown };
+      return typeof json.result === "string" ? json.result : null;
     } catch {
-      /* ignore */
+      return null;
     }
-
-    return hash;
-  }
+  };
 
   return {
     ...provider,
@@ -245,24 +150,30 @@ function wrapWalletRpcGuard(
         const rawTx = args.params[0];
         if (rawTx && typeof rawTx === "object") {
           const tx = { ...(rawTx as Record<string, unknown>) };
-          const from = typeof tx.from === "string" ? tx.from : "";
-          const cfg = await currentChainConfig();
-
-          if (isRabby && from && cfg) {
-            return signAndBroadcastViaAgfusion(cfg, tx);
-          }
-
-          // Non-Rabby wallets keep the original EIP-1193 flow, but still get a
-          // proxy-sourced nonce where possible to avoid unnecessary wallet RPC.
+          const from =
+            typeof tx.from === "string" && tx.from
+              ? tx.from
+              : meta.address || "";
           const hasNonce = tx.nonce !== undefined && tx.nonce !== null && tx.nonce !== "";
-          if (from && !hasNonce && cfg) {
-            try {
-              tx.nonce = await proxyRpc(cfg, "eth_getTransactionCount", [from, "pending"]);
-            } catch {
-              /* Let the wallet resolve nonce if its own provider supports it. */
+          if (from && !hasNonce) {
+            const cfg = await currentChainConfig();
+            if (cfg) {
+              const nonce = await proxyNonce(cfg, from);
+              if (nonce) {
+                tx.nonce = nonce;
+                if (!tx.from) tx.from = from;
+                try {
+                  sessionStorage.setItem(
+                    "agfusion_last_wallet_rpc_guard",
+                    JSON.stringify({ chain: cfg.name, chainKey: cfg.key, method: "eth_getTransactionCount", source: "agfusion-proxy", at: Date.now() }),
+                  );
+                } catch {
+                  /* ignore */
+                }
+              }
             }
-            return originalRequest({ ...args, params: [tx, ...args.params.slice(1)] });
           }
+          return originalRequest({ ...args, params: [tx, ...args.params.slice(1)] });
         }
       }
 
