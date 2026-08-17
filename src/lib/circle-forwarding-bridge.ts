@@ -61,16 +61,6 @@ type FeeQuote = {
   forwardFee?: { med?: number };
 };
 
-function apiUrl(path: string): string {
-  if (typeof window !== "undefined") return path;
-  const base = (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
-  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
 async function getForwardingFeeQuote(sourceDomain: number, destinationDomain: number): Promise<FeeQuote> {
   const url = `${IRIS_API}/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}?forward=true`;
   const response = await fetch(url, {
@@ -103,7 +93,7 @@ function calculateForwardingAmounts(amount: bigint, fee: FeeQuote) {
   const forwardFee = BigInt(fee.forwardFee?.med ?? 0);
   // Circle documents minimumFee in basis points. Convert bps to USDC subunits.
   const protocolFee =
-    (amount * BigInt(Math.round((fee.minimumFee || 0) * 100))) / 1_000_000n;
+    (amount * BigInt(Math.round((fee.minimumFee || 0) * 100))) / BigInt(1_000_000);
   const maxFee = forwardFee + protocolFee;
   const totalAmount = amount + maxFee;
   return { maxFee, totalAmount };
@@ -177,7 +167,7 @@ export async function runCircleEmailWalletForwardingBridge(params: {
   if (!source || !destination) throw new Error("CCTP configuration missing for the selected bridge route.");
 
   const amount = parseUnits(params.amount, 6);
-  if (amount <= 0n) throw new Error("Enter a valid USDC bridge amount.");
+  if (amount <= BigInt(0)) throw new Error("Enter a valid USDC bridge amount.");
 
   const txId = params.txId ?? uid("tx");
   let state = initBridgeState({
