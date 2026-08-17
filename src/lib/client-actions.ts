@@ -11,6 +11,8 @@ import {
   runUnifiedDeposit,
   runUnifiedSpend,
 } from "@/blockchain/appkit-service";
+import { runCircleEmailWalletForwardingBridge } from "@/lib/circle-forwarding-bridge";
+import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import type {
   ActionPreview,
   ChainId,
@@ -89,7 +91,20 @@ export async function executeBridge(params: {
   /** Mint recipient (defaults to the connected wallet address) */
   recipient?: string;
 }): Promise<TransactionRecord> {
-  // Always browser-local — wallet signature required
+  // Circle Email Wallets use the CCTP Forwarding Service directly. This avoids
+  // App Kit's destination-chain EIP-1193 lifecycle, which is not compatible
+  // with Circle's hosted user-controlled wallet provider.
+  if (getActiveWalletMeta()?.uuid === "circle-pw") {
+    return runCircleEmailWalletForwardingBridge({
+      amount: params.amount,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      txId: params.txId,
+      recipient: params.recipient,
+    });
+  }
+
+  // Normal browser wallets stay on the existing App Kit live path.
   return runBridgeFlow({
     amount: params.amount,
     token: params.token || "USDC",
