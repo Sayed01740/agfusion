@@ -1,9 +1,9 @@
 /**
  * Browser fetch patches for Circle App Kit:
- * 1) api.circle.com stablecoinKits → our /api/circle/proxy (auth + CORS)
- * 2) public chain RPCs (Arc, Base Sepolia, …) → our /api/rpc (avoids flaky browser RPC)
+ * 1) Circle APIs → same-origin server proxies (auth + CORS safety)
+ * 2) Public chain RPCs → /api/rpc (avoids flaky browser RPC)
  *
- * Circle often wraps any fetch/RPC failure as:
+ * Circle often wraps browser/network failures as:
  *   "Network connection failed for Arc Testnet" (code 3001)
  */
 
@@ -11,8 +11,6 @@ let installed = false;
 
 /** Map host → /api/rpc?chain=… */
 const RPC_HOST_TO_CHAIN: Record<string, string> = {
-  // Arc Testnet — all endpoints from docs.arc.io/references/rpc-endpoints
-  // plus the viem/SDK .network variants, so no Arc RPC ever bypasses the proxy.
   "rpc.testnet.arc.io": "arc",
   "rpc.testnet.arc.network": "arc",
   "rpc.blockdaemon.testnet.arc.io": "arc",
@@ -20,30 +18,22 @@ const RPC_HOST_TO_CHAIN: Record<string, string> = {
   "rpc.drpc.testnet.arc.io": "arc",
   "rpc.quicknode.testnet.arc.io": "arc",
   "rpc.quicknode.testnet.arc.network": "arc",
-  // Base Sepolia
   "sepolia.base.org": "base",
   "base-sepolia-rpc.publicnode.com": "base",
   "base-sepolia.g.alchemy.com": "base",
-  // Ethereum Sepolia
   "rpc.sepolia.org": "eth",
   "ethereum-sepolia-rpc.publicnode.com": "eth",
   "rpc2.sepolia.org": "eth",
-  // Arbitrum Sepolia
   "sepolia-rollup.arbitrum.io": "arb",
   "arbitrum-sepolia-rpc.publicnode.com": "arb",
-  // Optimism Sepolia
   "sepolia.optimism.io": "op",
   "optimism-sepolia-rpc.publicnode.com": "op",
-  // Polygon Amoy
   "rpc-amoy.polygon.technology": "polygon",
   "polygon-amoy-bor-rpc.publicnode.com": "polygon",
-  // Avalanche Fuji
   "api.avax-test.network": "avax",
   "avalanche-fuji-rpc.publicnode.com": "avax",
-  // Unichain Sepolia
   "sepolia.unichain.org": "unichain",
   "unichain-sepolia-rpc.publicnode.com": "unichain",
-  // Linea Sepolia
   "rpc.sepolia.linea.build": "linea",
   "linea-sepolia-rpc.publicnode.com": "linea",
 };
@@ -51,36 +41,24 @@ const RPC_HOST_TO_CHAIN: Record<string, string> = {
 function resolveRpcProxy(urlStr: string): string | null {
   try {
     const u = new URL(urlStr);
-    // Already our proxy — never re-proxy
     if (u.pathname.startsWith("/api/rpc")) return null;
-    if (u.hostname === window.location.hostname && u.pathname.includes("/api/rpc")) {
-      return null;
-    }
 
     const host = u.hostname.toLowerCase();
     const chain = RPC_HOST_TO_CHAIN[host];
-    if (chain) {
-      return `${window.location.origin}/api/rpc?chain=${chain}`;
-    }
+    if (chain) return `${window.location.origin}/api/rpc?chain=${chain}`;
 
-    // Path-style Avalanche C-Chain
-    if (
-      host === "api.avax-test.network" ||
-      (host.includes("avax") && u.pathname.includes("/ext/bc/C/rpc"))
-    ) {
+    if (host === "api.avax-test.network" || (host.includes("avax") && u.pathname.includes("/ext/bc/C/rpc"))) {
       return `${window.location.origin}/api/rpc?chain=avax`;
     }
 
-    // Arc RPC env override host
     const arcEnv = (process.env.NEXT_PUBLIC_ARC_RPC_URL || "").trim();
     if (arcEnv) {
       try {
-        const envHost = new URL(arcEnv).hostname.toLowerCase();
-        if (host === envHost) {
+        if (host === new URL(arcEnv).hostname.toLowerCase()) {
           return `${window.location.origin}/api/rpc?chain=arc`;
         }
       } catch {
-        /* ignore bad env */
+        /* ignore malformed env */
       }
     }
   } catch {
@@ -100,34 +78,24 @@ export function installCircleApiProxy(): void {
     init?: RequestInit,
   ): Promise<Response> => {
     try {
-      const raw =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
+      const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
       if (typeof raw === "string") {
-        // 0) Circle IRIS attestation API → server proxy (CORS-safe)
-        if (raw.includes("iris-api.circle.com")) {
+        // Testnet + production IRIS are both normalized to our server-side
+        // sandbox proxy. This is intentionally before the generic api.circle
+        // matcher because iris-api-sandbox.circle.com is a different host.
+        if (raw.includes("iris-api-sandbox.circle.com") || raw.includes("iris-api.circle.com")) {
           const u = new URL(raw);
           const path = u.pathname + u.search;
-          const proxyUrl = `/api/circle/iris?path=${encodeURIComponent(path)}`;
-          return originalFetch(proxyUrl, init);
+          return originalFetch(`/api/circle/iris?path=${encodeURIComponent(path)}`, init);
         }
 
-        // 1) Circle Stablecoin Kits API
-        if (
-          raw.includes("api.circle.com") &&
-          raw.includes("/v1/stablecoinKits/")
-        ) {
+        if (raw.includes("api.circle.com") && raw.includes("/v1/stablecoinKits/")) {
           const u = new URL(raw);
           const path = u.pathname + u.search;
-          const proxyUrl = `/api/circle/proxy?path=${encodeURIComponent(path)}`;
-          return originalFetch(proxyUrl, init);
+          return originalFetch(`/api/circle/proxy?path=${encodeURIComponent(path)}`, init);
         }
 
-        // 2) Public EVM RPCs → same-origin JSON-RPC proxy
         const rpcProxy = resolveRpcProxy(raw);
         if (rpcProxy) {
           return originalFetch(rpcProxy, {
@@ -148,7 +116,6 @@ export function installCircleApiProxy(): void {
   };
 }
 
-/** Whether the fetch patch is active (for diagnostics). */
 export function isCircleApiProxyInstalled(): boolean {
   return installed;
 }
