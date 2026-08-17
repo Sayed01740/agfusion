@@ -24,6 +24,42 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * Arc Testnet currently has a node-level eth_estimateGas problem for USDC/CCTP
+ * writes. Circle's own Arc issue tracker documents that these transactions can
+ * fail gas estimation while succeeding with an explicit 600,000 gas limit.
+ *
+ * Keep this workaround narrowly scoped to the contracts used by CCTP/Bridge Kit
+ * on Arc. We do not change estimation for unrelated Arc contracts or any other
+ * chain.
+ */
+const ARC_BRIDGE_WRITE_TARGETS = new Set([
+  "0x3600000000000000000000000000000000000000", // Arc USDC
+  "0x8fe6b999dc680ccfdd5bf7eb0974218be2542daa", // CCTP TokenMessengerV2
+  "0xe737e5cebeeba77efe34d4aa090756590b1ce275", // CCTP MessageTransmitterV2
+  "0xc5567a5e3370d4dbfb0540025078e283e36a363d", // Circle Bridge Kit contract
+]);
+const ARC_BRIDGE_GAS_LIMIT_HEX = "0x927c0"; // 600,000
+
+function shouldUseArcBridgeGasFallback(
+  chain: string,
+  method: string,
+  body: string,
+): boolean {
+  if (chain !== "arc" || method !== "eth_estimateGas") return false;
+  try {
+    const parsed = JSON.parse(body) as {
+      params?: unknown[];
+    };
+    const tx = parsed.params?.[0];
+    if (!tx || typeof tx !== "object") return false;
+    const to = (tx as { to?: unknown }).to;
+    return typeof to === "string" && ARC_BRIDGE_WRITE_TARGETS.has(to.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /** Health / debug: GET /api/rpc?chain=arc — reports chain, chainId, upstream, latency. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -96,10 +132,34 @@ export async function POST(req: Request) {
 
   // Extract the JSON-RPC method for safety classification.
   let method = "";
+  let requestId: unknown = null;
   try {
-    method = String((JSON.parse(body) as { method?: unknown }).method || "");
+    const parsed = JSON.parse(body) as { method?: unknown; id?: unknown };
+    method = String(parsed.method || "");
+    requestId = parsed.id ?? null;
   } catch {
     /* body already validated above */
+  }
+
+  // Arc Testnet CCTP/USDC bridge writes must bypass the unreliable node-side
+  // gas estimator. Returning a fixed estimate here lets App Kit build and show
+  // the normal wallet signature request without changing the actual transaction
+  // flow or taking custody of the wallet.
+  if (shouldUseArcBridgeGasFallback(chain, method, body)) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: requestId,
+        result: ARC_BRIDGE_GAS_LIMIT_HEX,
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store",
+          "X-AGFusion-RPC-Workaround": "arc-cctp-fixed-gas-600000",
+        },
+      },
+    );
   }
 
   const errors: string[] = [];
