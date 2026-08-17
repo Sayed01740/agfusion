@@ -15,7 +15,7 @@ import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-chains";
 import { uid, sleep } from "@/lib/utils";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
-import { executeCircleContractTransaction } from "@/sdk/circle-pw";
+import { getCircleSdk, getCircleSession } from "@/sdk/circle-pw";
 import { initBridgeState, saveBridgeState } from "@/lib/bridge-state";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
@@ -97,6 +97,121 @@ function calculateForwardingAmounts(amount: bigint, fee: FeeQuote) {
   const maxFee = forwardFee + protocolFee;
   const totalAmount = amount + maxFee;
   return { maxFee, totalAmount };
+}
+
+/**
+ * Execute one Circle contract challenge without treating PIN approval as a
+ * transaction submission. Circle documents user-controlled-wallet
+ * transactions as asynchronous: after approval the transaction can remain
+ * INITIATED/QUEUED/CLEARED before a txHash exists. The previous helper stopped
+ * after 30 seconds, which caused the exact UI error shown by the user even
+ * though Circle had accepted the challenge.
+ *
+ * This bridge-specific resolver waits up to 5 minutes and, once Circle exposes
+ * the exact transaction id, polls that transaction directly. It never creates
+ * a second challenge while the first one is still being resolved.
+ */
+async function executeCircleContractTransactionReliable(params: {
+  chainId: number;
+  to: string;
+  data: string;
+  value?: string;
+}): Promise<{ txHash: string; challengeId: string; walletId: string }> {
+  const session = getCircleSession();
+  if (!session) {
+    throw new Error("Circle wallet session expired. Reconnect your Circle Email Wallet.");
+  }
+
+  const blockchain =
+    params.chainId === 5042002
+      ? "ARC-TESTNET"
+      : params.chainId === 84532
+        ? "BASE-SEPOLIA"
+        : null;
+  if (!blockchain) {
+    throw new Error("Circle Email Wallet can only execute on Arc Testnet and Base Sepolia.");
+  }
+
+  const wallet = session.wallets.find((item) => item.blockchain === blockchain);
+  if (!wallet) {
+    throw new Error(`Create or reconnect a Circle ${blockchain} wallet before bridging.`);
+  }
+
+  const preparedAt = Date.now();
+  const response = await fetch("/api/circle/pw/contract-execution", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userToken: session.userToken,
+      walletId: wallet.id,
+      contractAddress: params.to,
+      callData: params.data,
+      value: params.value,
+      chainId: params.chainId,
+    }),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result?.challengeId) {
+    throw new Error(result?.error || "Circle could not prepare this bridge step.");
+  }
+
+  const challengeId = String(result.challengeId);
+  const sdk = await getCircleSdk();
+  await new Promise<void>((resolve, reject) => {
+    sdk.execute(challengeId, (error) => {
+      if (error) reject(new Error(error.message || "Circle approval was cancelled."));
+      else resolve();
+    });
+  });
+
+  let transactionId: string | undefined;
+  const maxAttempts = 200;
+  const pollDelayMs = 1_500;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const lookupResponse = await fetch("/api/circle/pw/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userToken: session.userToken,
+        walletId: wallet.id,
+        challengeId,
+        transactionId,
+        since: preparedAt,
+      }),
+      cache: "no-store",
+    });
+    const lookup = await lookupResponse.json().catch(() => null);
+
+    if (lookupResponse.ok && lookup?.txHash) {
+      return {
+        txHash: String(lookup.txHash),
+        challengeId,
+        walletId: wallet.id,
+      };
+    }
+
+    if (lookup?.transactionId && typeof lookup.transactionId === "string") {
+      transactionId = lookup.transactionId;
+    }
+
+    if (
+      lookupResponse.status === 422 ||
+      lookup?.challengeStatus === "FAILED" ||
+      lookup?.challengeStatus === "EXPIRED"
+    ) {
+      throw new Error(lookup?.message || lookup?.error || "Circle transaction failed.");
+    }
+
+    // Keep polling through INITIATED/QUEUED/CLEARED/SENT. Circle's documented
+    // transaction lifecycle is asynchronous and txHash is assigned at SENT.
+    if (attempt < maxAttempts - 1) await sleep(pollDelayMs);
+  }
+
+  const suffix = transactionId ? ` Transaction id: ${transactionId}.` : "";
+  throw new Error(
+    `Circle approved the transaction, but the blockchain transaction hash is still pending after 5 minutes.${suffix} The transaction was not re-submitted; check Circle wallet activity before retrying.`,
+  );
 }
 
 async function waitForForwardedMint(
@@ -200,7 +315,7 @@ export async function runCircleEmailWalletForwardingBridge(params: {
       args: [source.tokenMessenger, totalAmount],
     });
 
-    const approval = await executeCircleContractTransaction({
+    const approval = await executeCircleContractTransactionReliable({
       chainId: source.chainId,
       to: source.usdc,
       data: approvalData,
@@ -231,7 +346,7 @@ export async function runCircleEmailWalletForwardingBridge(params: {
       ],
     });
 
-    const burn = await executeCircleContractTransaction({
+    const burn = await executeCircleContractTransactionReliable({
       chainId: source.chainId,
       to: source.tokenMessenger,
       data: burnData,
