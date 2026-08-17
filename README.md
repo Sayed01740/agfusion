@@ -3,7 +3,8 @@
 **AGFusion** is a next-generation stablecoin operations workspace built natively on **Arc Network**. It leverages intelligent agents to orchestrate complex natural-language payments, unified cross-chain balances, and treasury management—settling seamlessly with sub-second finality using USDC as gas.
 
 🔗 **Live Demo:** [https://agfusion.vercel.app](https://agfusion.vercel.app)
-🐦 **X / Twitter:** [Follow @AGfusion_](https://x.com/AGfusion_) 
+🐦 **X / Twitter:** [Follow @AGfusion_](https://x.com/AGfusion_)
+
 ---
 
 ## 🏆 Why We Built on Arc
@@ -79,7 +80,7 @@ AGFusion agents follow a strict "Trust but Verify" execution loop:
 
 ## 🤖 AI MCP Server Setup
 
-This repository is configured to use the **Arc Model Context Protocol (MCP) Server** so AI development tools can directly index and read the Arc network documentation. 
+This repository is configured to use the **Arc Model Context Protocol (MCP) Server** so AI development tools can directly index and read the Arc network documentation.
 
 Supported IDE configurations have been automatically added to the project root:
 - `.cursor/mcp.json` (For Cursor)
@@ -89,3 +90,4 @@ Supported IDE configurations have been automatically added to the project root:
 To verify the connection, simply open your AI chat window and ask: *"What smart contract standards does Arc support?"*. The AI should automatically query the `docs.arc.io/mcp` server.
 
 <!-- bridge production sync: Circle Email Wallet forwarding uses sandbox IRIS through the same-origin proxy and never re-burns a confirmed source transaction -->
+<!-- production deploy trigger: Circle Web SDK uses the installed setAppSettings API -->
