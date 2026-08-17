@@ -28,7 +28,7 @@ export async function createSmartAccountClient(provider: InjectedProvider, addre
         params: [message, address],
       });
       
-      const { keccak256, toHex, stringToHex } = await import("viem");
+      const { keccak256, stringToHex } = await import("viem");
       pk = keccak256(stringToHex(signature as string));
       localStorage.setItem(storageKey, pk);
     } catch (e) {
@@ -74,11 +74,24 @@ export function createEIP1193ProviderProxy(
         case "eth_sendTransaction": {
           const tx = args.params?.[0];
           if (!tx) throw new Error("Missing transaction params");
+
+          // Resolve the pending nonce explicitly through the AGFusion same-origin
+          // RPC proxy before signing. This prevents viem from making an implicit
+          // eth_getTransactionCount call against any SDK/provider default RPC.
+          let nonce = tx.nonce;
+          if (nonce === undefined || nonce === null || nonce === "") {
+            nonce = await currentAgentClient.getTransactionCount({
+              address: currentAgentClient.account.address,
+              blockTag: "pending",
+            });
+          }
+
           return await currentAgentClient.sendTransaction({
             account: currentAgentClient.account,
             to: tx.to,
             value: tx.value ? BigInt(tx.value) : 0n,
             data: tx.data,
+            nonce,
             gas: tx.gas ? BigInt(tx.gas) : undefined,
             gasPrice: tx.gasPrice ? BigInt(tx.gasPrice) : undefined,
             maxFeePerGas: tx.maxFeePerGas ? BigInt(tx.maxFeePerGas) : undefined,
@@ -122,9 +135,6 @@ export function createEIP1193ProviderProxy(
                 11155420: "op",
                 80002: "polygon",
                 43113: "avax",
-                // Sonic Blaze testnet is 57054 (not 64165); matches
-                // EVM_CHAIN_PARAMS. Sonic bridging is disabled in cctp-chains
-                // until the SDK chain def aligns, but keep the ID correct.
                 1301: "unichain",
                 59141: "linea",
                 57054: "sonic",
