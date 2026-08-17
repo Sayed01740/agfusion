@@ -2,19 +2,15 @@ import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
- * Server-side proxy for Circle's IRIS attestation API
- * (https://iris-api.circle.com/v2/messages/{domain}?transactionHash=…).
+ * Server-side proxy for Circle's IRIS CCTP API.
  *
- * The Circle App Kit polls this endpoint from the browser during
- * `fetchAttestation`. Proxying it server-side removes the dependency on
- * Circle API CORS behavior and lets the server retry against flaky network
- * paths.
- *
- * Only the production IRIS base URL is allowed — the sandbox endpoint is not
- * used by testnet attestation for the chains AGFusion supports.
+ * AGFusion currently bridges testnet chains, so IRIS sandbox is the correct
+ * upstream for CCTP testnet fee/message lookups. Keeping this server-side
+ * also avoids browser CORS failures that Circle surfaces as generic
+ * "Network connection failed" errors.
  */
 
-const IRIS_BASE = "https://iris-api.circle.com";
+const IRIS_BASE = "https://iris-api-sandbox.circle.com";
 const TIMEOUT_MS = 20_000;
 
 export const runtime = "nodejs";
@@ -51,27 +47,24 @@ function assertRateLimit(req: Request): Response | null {
     windowMs: 60_000,
     max: 120,
   });
-  if (!rl.ok) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
-  }
+  if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   return null;
+}
+
+function getTarget(req: Request): string | Response {
+  const url = new URL(req.url);
+  const path = url.searchParams.get("path");
+  if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return NextResponse.json({ error: "invalid_path" }, { status: 400 });
+  }
+  return `${IRIS_BASE}${path}`;
 }
 
 export async function GET(req: Request) {
   const limited = assertRateLimit(req);
   if (limited) return limited;
-  const url = new URL(req.url);
-  const path = url.searchParams.get("path");
-  if (!path || !path.startsWith("/")) {
-    return NextResponse.json(
-      { error: "missing_path" },
-      { status: 400 },
-    );
-  }
-  const target = `${IRIS_BASE}${path}`;
-  if (!target.startsWith(`${IRIS_BASE}/`)) {
-    return NextResponse.json({ error: "invalid_path" }, { status: 400 });
-  }
+  const target = getTarget(req);
+  if (target instanceof Response) return target;
 
   try {
     const upstream = await forward(target, "GET", req.headers, null);
@@ -97,15 +90,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const limited = assertRateLimit(req);
   if (limited) return limited;
-  const url = new URL(req.url);
-  const path = url.searchParams.get("path");
-  if (!path || !path.startsWith("/")) {
-    return NextResponse.json({ error: "missing_path" }, { status: 400 });
-  }
-  const target = `${IRIS_BASE}${path}`;
-  if (!target.startsWith(`${IRIS_BASE}/`)) {
-    return NextResponse.json({ error: "invalid_path" }, { status: 400 });
-  }
+  const target = getTarget(req);
+  if (target instanceof Response) return target;
 
   try {
     const body = await req.text();
