@@ -11,12 +11,11 @@ export const dynamic = "force-dynamic";
 /**
  * Resolve the transaction created by an exact Circle challenge.
  *
- * Circle's transaction records do not expose the Web SDK challengeId as a
- * transaction field. The authoritative linkage is the challenge resource's
- * correlationIds. For transaction-producing challenges, those IDs identify the
- * related transaction resource. We therefore resolve challenge -> correlation
- * id -> transaction -> txHash before falling back to a tightly scoped recent
- * contract-execution lookup.
+ * Circle processes user-controlled-wallet transactions asynchronously. A
+ * completed PIN challenge does not guarantee that txHash is populated yet.
+ * The challenge correlation id can identify the exact transaction resource,
+ * so once that id is known we poll that transaction directly instead of
+ * repeatedly guessing from a recent transaction window.
  */
 export async function POST(req: Request) {
   const rl = rateLimit(`circle-txs:${clientIp(req)}`, {
@@ -31,6 +30,7 @@ export async function POST(req: Request) {
     userToken?: unknown;
     walletId?: unknown;
     challengeId?: unknown;
+    transactionId?: unknown;
     since?: unknown;
   };
   try {
@@ -52,6 +52,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_challenge_id" }, { status: 400 });
   }
   if (
+    body.transactionId !== undefined &&
+    (typeof body.transactionId !== "string" || body.transactionId.length > 200)
+  ) {
+    return NextResponse.json({ error: "invalid_transaction_id" }, { status: 400 });
+  }
+  if (
     body.since !== undefined &&
     (typeof body.since !== "number" || !Number.isFinite(body.since))
   ) {
@@ -69,6 +75,7 @@ export async function POST(req: Request) {
   const userToken = String(body.userToken);
   const walletId = String(body.walletId);
   const challengeId = body.challengeId as string | undefined;
+  const transactionId = body.transactionId as string | undefined;
   const after = Number(body.since || 0);
   const headers = {
     Authorization: `Bearer ${apiKey}`,
@@ -77,9 +84,52 @@ export async function POST(req: Request) {
   };
 
   try {
+    // Once Circle exposes the exact transaction resource, use that resource
+    // directly. This removes ambiguity and lets the browser keep polling until
+    // Circle assigns the blockchain hash.
+    if (transactionId) {
+      const txResponse = await fetch(
+        `https://api.circle.com/v1/w3s/transactions/${encodeURIComponent(transactionId)}`,
+        { headers, cache: "no-store" },
+      );
+      const txData = await txResponse.json().catch(() => null);
+      if (txResponse.ok) {
+        const transaction = txData?.data?.transaction;
+        if (transaction && (!transaction.walletId || String(transaction.walletId) === walletId)) {
+          if (transaction.txHash) {
+            return NextResponse.json({
+              txHash: transaction.txHash,
+              transactionId: transaction.id || transactionId,
+              challengeId,
+              walletId,
+              state: transaction.state,
+            });
+          }
+          if (["FAILED", "DENIED", "CANCELLED"].includes(String(transaction.state))) {
+            return NextResponse.json(
+              {
+                error: "transaction_failed",
+                message: transaction.errorReason || `Circle transaction ${String(transaction.state).toLowerCase()}.`,
+                challengeId,
+                walletId,
+                transactionId: transaction.id || transactionId,
+                state: transaction.state,
+              },
+              { status: 422 },
+            );
+          }
+          return NextResponse.json({
+            txHash: null,
+            challengeId,
+            walletId,
+            transactionId: transaction.id || transactionId,
+            state: transaction.state || "INITIATED",
+          });
+        }
+      }
+    }
+
     if (challengeId) {
-      // First ask Circle for the challenge itself. This is the authoritative
-      // source for whether the PIN/security challenge actually completed.
       const challengeResponse = await fetch(
         `https://api.circle.com/v1/w3s/user/challenges/${encodeURIComponent(challengeId)}`,
         { headers, cache: "no-store" },
@@ -105,10 +155,9 @@ export async function POST(req: Request) {
           );
         }
 
-        // Circle's challenge correlation IDs are the bridge from the user
-        // approval challenge to the actual transaction resource. Resolve them
-        // directly instead of assuming the transaction itself contains a
-        // challengeId field.
+        // Correlation IDs are the strongest linkage Circle gives us between a
+        // user challenge and the resulting resource. If the resource exists,
+        // return its id even when txHash is not available yet.
         for (const correlationId of correlationIds) {
           const txResponse = await fetch(
             `https://api.circle.com/v1/w3s/transactions/${encodeURIComponent(correlationId)}`,
@@ -124,34 +173,44 @@ export async function POST(req: Request) {
               txHash: transaction.txHash,
               challengeId,
               walletId,
-              transactionId: transaction.id,
+              transactionId: transaction.id || correlationId,
               state: transaction.state,
             });
           }
-          if (transaction.state === "FAILED" || transaction.state === "DENIED" || transaction.state === "CANCELLED") {
+          if (["FAILED", "DENIED", "CANCELLED"].includes(String(transaction.state))) {
             return NextResponse.json(
               {
                 error: "transaction_failed",
-                message: transaction.errorReason || `Circle transaction ${transaction.state.toLowerCase()}.`,
+                message: transaction.errorReason || `Circle transaction ${String(transaction.state).toLowerCase()}.`,
                 challengeId,
                 walletId,
-                transactionId: transaction.id,
+                transactionId: transaction.id || correlationId,
+                state: transaction.state,
               },
               { status: 422 },
             );
           }
+          return NextResponse.json({
+            txHash: null,
+            challengeId,
+            walletId,
+            transactionId: transaction.id || correlationId,
+            state: transaction.state || "INITIATED",
+            challengeStatus: status,
+          });
         }
 
-        // If the challenge is not complete yet, keep polling. Even after the
-        // challenge completes, Circle may need a short period to index the tx.
-        if (status !== "COMPLETE") {
-          return NextResponse.json({ txHash: null, challengeId, walletId, challengeStatus: status });
+        // Circle's challenge state is COMPLETED after the user approval has
+        // completed. The underlying transaction can still be INITIATED/QUEUED,
+        // so continue to the transaction list below rather than failing early.
+        if (status === "PENDING" || status === "IN_PROGRESS" || status === "COMPLETED") {
+          // continue
         }
       }
 
-      // Secondary authoritative lookup: Circle's transaction list supports
-      // wallet, operation, and creation-time filters. Restrict this to contract
-      // executions created after this exact challenge was prepared.
+      // Secondary lookup, still scoped to this wallet and exact operation.
+      // Circle documents from/walletIds/operation as supported transaction
+      // filters, so this is authoritative rather than a local guess.
       const params = new URLSearchParams({
         walletIds: walletId,
         operation: "CONTRACT_EXECUTION",
@@ -169,15 +228,14 @@ export async function POST(req: Request) {
           ? listData.data.transactions
           : [];
         const candidates = transactions.filter(
-          (item: { walletId?: string; txHash?: string; createDate?: string }) =>
+          (item: { walletId?: string; txHash?: string; createDate?: string; id?: string }) =>
             (!item.walletId || String(item.walletId) === walletId) &&
-            item.txHash &&
             new Date(item.createDate || 0).getTime() >= after - 5_000,
         );
         if (candidates.length > 0) {
           const newest = candidates[0];
           return NextResponse.json({
-            txHash: newest.txHash,
+            txHash: newest.txHash || null,
             challengeId,
             walletId,
             transactionId: newest.id,
@@ -194,8 +252,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Fallback for legacy callers without a challenge ID. Still scope the
-    // lookup to this wallet, contract executions, and a narrow creation window.
     const params = new URLSearchParams({
       walletIds: walletId,
       operation: "CONTRACT_EXECUTION",
@@ -219,11 +275,15 @@ export async function POST(req: Request) {
     const candidates = list.filter(
       (item: { walletId?: string; txHash?: string; createDate?: string }) =>
         (!item.walletId || String(item.walletId) === walletId) &&
-        item.txHash &&
         new Date(item.createDate || 0).getTime() >= after - 5_000,
     );
     if (candidates.length === 1) {
-      return NextResponse.json({ txHash: candidates[0].txHash, walletId });
+      return NextResponse.json({
+        txHash: candidates[0].txHash || null,
+        walletId,
+        transactionId: candidates[0].id,
+        state: candidates[0].state,
+      });
     }
     return NextResponse.json({ txHash: null, walletId });
   } catch (error) {
