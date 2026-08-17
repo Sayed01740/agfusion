@@ -88,4 +88,4 @@ Supported IDE configurations have been automatically added to the project root:
 
 To verify the connection, simply open your AI chat window and ask: *"What smart contract standards does Arc support?"*. The AI should automatically query the `docs.arc.io/mcp` server.
 
-<!-- deployment sync: production build includes the current bridge TypeScript target -->
+<!-- bridge production sync: Circle Email Wallet forwarding uses sandbox IRIS through the same-origin proxy and never re-burns a confirmed source transaction -->
