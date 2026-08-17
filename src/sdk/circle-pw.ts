@@ -13,19 +13,12 @@ export type CircleWallet = {
   accountType?: string;
 };
 
-/** Session data persisted to sessionStorage so a reload can restore the wallet.
- * Persisted fields are the user's own session material (userToken + client-side
- * encryption key per Circle's Web SDK model) and wallet metadata — never the
- * server API key. */
 export type CircleSession = {
   userToken: string;
-  /** Client-side encryption key from the Circle Web SDK (non-secret, per the SDK model) */
   encryptionKey?: string;
-  /** Email used to derive the Circle user, so the session can be re-authed on restore */
   email?: string;
   wallets: CircleWallet[];
   preparedAt: number;
-  /** Blockchains this Circle wallet can execute on (currently Arc + Base). */
   supportedBlockchains: string[];
 };
 
@@ -33,10 +26,6 @@ const SESSION_KEY = "agfusion_circle_session_v1";
 const WALLET_META_KEY = "agfusion_circle_wallet_meta_v1";
 
 let circleSession: CircleSession | null = null;
-
-// ---------------------------------------------------------------------------
-// Session persistence (Phase 4)
-// ---------------------------------------------------------------------------
 
 export function saveCircleSession(session: CircleSession): void {
   circleSession = session;
@@ -52,9 +41,7 @@ export function saveCircleSession(session: CircleSession): void {
         supportedBlockchains: session.supportedBlockchains,
       }),
     );
-  } catch {
-    /* storage unavailable */
-  }
+  } catch {}
 }
 
 export function loadCircleSession(): CircleSession | null {
@@ -80,9 +67,7 @@ export function clearCircleSession(): void {
   try {
     window.sessionStorage.removeItem(SESSION_KEY);
     window.sessionStorage.removeItem(WALLET_META_KEY);
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
 export function getCircleSession(): CircleSession | null {
@@ -90,11 +75,8 @@ export function getCircleSession(): CircleSession | null {
 }
 
 /**
- * Create the Circle Web SDK exactly as Circle's current Web SDK contract
- * expects: the application id is required and authentication is installed on
- * the SDK before challenge execution. A previous SDK instance is discarded
- * when a network error occurs so a stale SDK/device state cannot poison the
- * next challenge.
+ * The installed @circle-fin/w3s-pw-web-sdk version exposes app configuration
+ * through setAppSettings(), not the newer constructor `configs` shape.
  */
 export async function getCircleSdk(): Promise<W3SSdk> {
   const appId = process.env.NEXT_PUBLIC_CIRCLE_APP_ID?.trim();
@@ -104,23 +86,11 @@ export async function getCircleSdk(): Promise<W3SSdk> {
     );
   }
 
-  if (circleSdk && circleSdkAppId === appId) {
-    const session = getCircleSession();
-    if (session?.userToken && session.encryptionKey) {
-      circleSdk.setAuthentication({
-        userToken: session.userToken,
-        encryptionKey: session.encryptionKey,
-      });
-    }
-    return circleSdk;
+  if (!circleSdk || circleSdkAppId !== appId) {
+    circleSdk = new W3SSdk();
+    circleSdk.setAppSettings({ appId });
+    circleSdkAppId = appId;
   }
-
-  circleSdk = new W3SSdk({
-    configs: {
-      appSettings: { appId },
-    },
-  });
-  circleSdkAppId = appId;
 
   const session = getCircleSession();
   if (session?.userToken && session.encryptionKey) {
@@ -150,10 +120,7 @@ async function executeChallenge(challengeId: string): Promise<void> {
     const sdk = await getCircleSdk();
     const session = getCircleSession();
     if (session?.userToken && session.encryptionKey) {
-      sdk.setAuthentication({
-        userToken: session.userToken,
-        encryptionKey: session.encryptionKey,
-      });
+      sdk.setAuthentication({ userToken: session.userToken, encryptionKey: session.encryptionKey });
     }
     await new Promise<void>((resolve, reject) => {
       sdk.execute(challengeId, (error) => {
@@ -163,9 +130,7 @@ async function executeChallenge(challengeId: string): Promise<void> {
           const wrapped = new Error(message);
           (wrapped as any).code = code;
           reject(wrapped);
-        } else {
-          resolve();
-        }
+        } else resolve();
       });
     });
   };
@@ -175,9 +140,6 @@ async function executeChallenge(challengeId: string): Promise<void> {
   } catch (error) {
     const code = Number((error as any)?.code ?? -1);
     const message = String((error as any)?.message || error || "");
-    // Circle documents 155706 as the Web SDK network error. Recreate the SDK
-    // once and retry the SAME challenge. We never create another blockchain
-    // transaction challenge, so this cannot duplicate a burn.
     if (code === 155706 || /network connection failed|network error|failed to fetch/i.test(message)) {
       circleSdk = null;
       circleSdkAppId = null;
@@ -186,9 +148,7 @@ async function executeChallenge(challengeId: string): Promise<void> {
         return;
       } catch (retryError) {
         const retryCode = Number((retryError as any)?.code ?? -1);
-        const retryMessage = String(
-          (retryError as any)?.message || retryError || "Circle challenge failed.",
-        );
+        const retryMessage = String((retryError as any)?.message || retryError || "Circle challenge failed.");
         const finalError = new Error(
           `Circle Web SDK challenge failed${retryCode > 0 ? ` (${retryCode})` : ""}: ${retryMessage}`,
         );
@@ -204,22 +164,14 @@ export async function authenticateWithCircleEmail(
   email: string,
 ): Promise<{ address: string; wallets: CircleWallet[] }> {
   const sdk = await getCircleSdk();
-
   const res = await fetch("/api/circle/pw/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
   });
-
   const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || "Failed to authenticate with Circle");
-  }
-
-  sdk.setAuthentication({
-    userToken: data.userToken,
-    encryptionKey: data.encryptionKey,
-  });
+  if (!res.ok) throw new Error(data.error || "Failed to authenticate with Circle");
+  sdk.setAuthentication({ userToken: data.userToken, encryptionKey: data.encryptionKey });
 
   let wallets = await listWallets(data.userToken);
   const wanted = CIRCLE_BRIDGE_CHAINS.map(
@@ -230,10 +182,7 @@ export async function authenticateWithCircleEmail(
     const challengeRes = await fetch("/api/circle/pw/challenge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userToken: data.userToken,
-        blockchains: wanted,
-      }),
+      body: JSON.stringify({ userToken: data.userToken, blockchains: wanted }),
     });
     const challengeData = await challengeRes.json();
     if (!challengeRes.ok) throw new Error(challengeData.error || "Failed to prepare Circle wallet.");
@@ -255,10 +204,6 @@ export async function authenticateWithCircleEmail(
   return { address: arcWallet.address, wallets };
 }
 
-// ---------------------------------------------------------------------------
-// Mock EIP-1193 provider (Phase 4)
-// ---------------------------------------------------------------------------
-
 function circleBlockchainForChainId(chainId: number): string | null {
   if (chainId === 5042002) return "ARC-TESTNET";
   if (chainId === 84532) return "BASE-SEPOLIA";
@@ -271,11 +216,7 @@ function rpcProxyKeyForChainId(chainId: number): string {
 
 const CIRCLE_SUPPORTED_CHAIN_IDS = new Set<number>([5042002, 84532]);
 
-async function forwardRpcToProxy(
-  chainId: number,
-  method: string,
-  params: unknown[],
-): Promise<unknown> {
+async function forwardRpcToProxy(chainId: number, method: string, params: unknown[]): Promise<unknown> {
   const chainKey = rpcProxyKeyForChainId(chainId);
   const res = await fetch(`/api/rpc?chain=${chainKey}`, {
     method: "POST",
@@ -288,8 +229,7 @@ async function forwardRpcToProxy(
     error?: { code?: number; message?: string } | null;
   } | null;
   if (!res.ok || !data || data.error) {
-    const msg = data?.error?.message || `HTTP ${res.status}`;
-    throw new Error(`Circle wallet RPC ${method} failed (${chainKey}): ${msg}`);
+    throw new Error(`Circle wallet RPC ${method} failed (${chainKey}): ${data?.error?.message || `HTTP ${res.status}`}`);
   }
   return data.result;
 }
@@ -299,36 +239,26 @@ export function createCircleMockProvider(options: {
   chainIdRef: { value: string };
   session?: () => CircleSession | null;
 }): {
-  provider: {
-    request: (args: any) => Promise<unknown>;
-    on: () => void;
-    removeListener: () => void;
-  };
+  provider: { request: (args: any) => Promise<unknown>; on: () => void; removeListener: () => void };
   getChainIdHex: () => string;
 } {
   const { address, chainIdRef, session } = options;
   const sessionGetter = session ?? (() => getCircleSession());
-
   const provider = {
     request: async (args: any) => {
       switch (args.method) {
         case "eth_accounts":
-        case "eth_requestAccounts":
-          return [address];
-        case "eth_chainId":
-          return chainIdRef.value;
+        case "eth_requestAccounts": return [address];
+        case "eth_chainId": return chainIdRef.value;
         case "wallet_switchEthereumChain": {
           const target = args.params?.[0]?.chainId;
           const chainId = target ? Number.parseInt(String(target), 16) : NaN;
           if (!Number.isFinite(chainId) || !CIRCLE_SUPPORTED_CHAIN_IDS.has(chainId)) {
-            throw new Error(
-              `Circle Email Wallet cannot switch to chain ${target ?? "unknown"}. Supported: Arc Testnet (5042002) and Base Sepolia (84532).`,
-            );
+            throw new Error(`Circle Email Wallet cannot switch to chain ${target ?? "unknown"}. Supported: Arc Testnet (5042002) and Base Sepolia (84532).`);
           }
           const blockchain = circleBlockchainForChainId(chainId);
           const session = sessionGetter();
-          const walletExists = session?.wallets?.some((w) => w.blockchain === blockchain);
-          if (!walletExists) {
+          if (!session?.wallets?.some((w) => w.blockchain === blockchain)) {
             throw new Error(`No Circle ${blockchain} wallet found. Reconnect your Circle Email Wallet to create one.`);
           }
           chainIdRef.value = `0x${chainId.toString(16)}`.toLowerCase();
@@ -344,34 +274,21 @@ export function createCircleMockProvider(options: {
           if (!tx?.to || !tx?.data) throw new Error("Circle wallet received an incomplete transaction request.");
           const chainId = Number.parseInt(chainIdRef.value, 16);
           const { executeCircleContractTransaction } = await import("@/sdk/circle-pw");
-          const result = await executeCircleContractTransaction({
-            chainId,
-            to: tx.to,
-            data: tx.data,
-            value: tx.value,
-          });
+          const result = await executeCircleContractTransaction({ chainId, to: tx.to, data: tx.data, value: tx.value });
           return result.txHash;
         }
         case "eth_estimateGas": {
           const chainId = Number.parseInt(chainIdRef.value, 16);
           const tx = args.params?.[0] || {};
-          return forwardRpcToProxy(chainId, "eth_estimateGas", [
-            { ...tx, from: tx.from ?? address },
-            ...(Array.isArray(args.params) ? args.params.slice(1) : []),
-          ]);
+          return forwardRpcToProxy(chainId, "eth_estimateGas", [{ ...tx, from: tx.from ?? address }, ...(Array.isArray(args.params) ? args.params.slice(1) : [])]);
         }
         case "eth_call": {
           const chainId = Number.parseInt(chainIdRef.value, 16);
           const tx = args.params?.[0] || {};
-          return forwardRpcToProxy(chainId, "eth_call", [
-            { ...tx, from: tx.from ?? address },
-            ...(Array.isArray(args.params) ? args.params.slice(1) : []),
-          ]);
+          return forwardRpcToProxy(chainId, "eth_call", [{ ...tx, from: tx.from ?? address }, ...(Array.isArray(args.params) ? args.params.slice(1) : [])]);
         }
-        case "eth_gasPrice":
-          return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), "eth_gasPrice", []);
-        case "eth_maxPriorityFeePerGas":
-          return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), "eth_maxPriorityFeePerGas", []);
+        case "eth_gasPrice": return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), "eth_gasPrice", []);
+        case "eth_maxPriorityFeePerGas": return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), "eth_maxPriorityFeePerGas", []);
         case "eth_blockNumber":
         case "net_version":
         case "eth_syncing":
@@ -383,7 +300,6 @@ export function createCircleMockProvider(options: {
     on: () => {},
     removeListener: () => {},
   };
-
   return { provider, getChainIdHex: () => chainIdRef.value };
 }
 
@@ -396,7 +312,6 @@ export async function restoreCircleSession(): Promise<{
   if (!session) return null;
   const arcWallet = session.wallets.find((w) => w.blockchain === "ARC-TESTNET");
   if (!arcWallet) return null;
-
   const sdk = await getCircleSdk();
 
   let userToken = session.userToken;
@@ -414,25 +329,14 @@ export async function restoreCircleSession(): Promise<{
         encryptionKey = data.encryptionKey || encryptionKey;
         saveCircleSession({ ...session, userToken, encryptionKey });
       }
-    } catch {
-      /* keep persisted token */
-    }
+    } catch {}
   }
 
   sdk.setAuthentication({ userToken, encryptionKey });
-
   const chainIdRef = { value: "0x4cef52" };
-  const { provider } = createCircleMockProvider({
-    address: arcWallet.address,
-    chainIdRef,
-  });
-
+  const { provider } = createCircleMockProvider({ address: arcWallet.address, chainIdRef });
   return { address: arcWallet.address, wallets: session.wallets, provider };
 }
-
-// ---------------------------------------------------------------------------
-// Contract execution (Phase 3) — exact challenge/tx matching
-// ---------------------------------------------------------------------------
 
 export async function executeCircleContractTransaction(params: {
   chainId: number;
@@ -442,13 +346,8 @@ export async function executeCircleContractTransaction(params: {
 }): Promise<{ txHash: string; challengeId: string; walletId: string }> {
   const session = getCircleSession();
   if (!session) throw new Error("Circle wallet session expired. Reconnect your Circle Email Wallet.");
-
   const blockchain = circleBlockchainForChainId(params.chainId);
-  if (!blockchain) {
-    throw new Error(
-      `Circle Email Wallet can only execute on ${session.supportedBlockchains.join(", ")}. Chain ${params.chainId} is not supported by the Circle wallet.`,
-    );
-  }
+  if (!blockchain) throw new Error(`Circle Email Wallet can only execute on ${session.supportedBlockchains.join(", ")}. Chain ${params.chainId} is not supported by the Circle wallet.`);
   const wallet = session.wallets.find((item) => item.blockchain === blockchain);
   if (!wallet) throw new Error(`Create or reconnect a Circle ${blockchain} wallet before bridging.`);
 
@@ -456,19 +355,10 @@ export async function executeCircleContractTransaction(params: {
   const response = await fetch("/api/circle/pw/contract-execution", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userToken: session.userToken,
-      walletId: wallet.id,
-      contractAddress: params.to,
-      callData: params.data,
-      value: params.value,
-      chainId: params.chainId,
-    }),
+    body: JSON.stringify({ userToken: session.userToken, walletId: wallet.id, contractAddress: params.to, callData: params.data, value: params.value, chainId: params.chainId }),
   });
   const result = await response.json().catch(() => null);
-  if (!response.ok || !result?.challengeId) {
-    throw new Error(result?.error || "Circle could not prepare this bridge step.");
-  }
+  if (!response.ok || !result?.challengeId) throw new Error(result?.error || "Circle could not prepare this bridge step.");
   const challengeId = String(result.challengeId);
   await executeChallenge(challengeId);
 
@@ -476,24 +366,16 @@ export async function executeCircleContractTransaction(params: {
     const transactions = await fetch("/api/circle/pw/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userToken: session.userToken,
-        walletId: wallet.id,
-        challengeId,
-        since: preparedAt,
-      }),
+      body: JSON.stringify({ userToken: session.userToken, walletId: wallet.id, challengeId, since: preparedAt }),
       cache: "no-store",
     });
     const data = await transactions.json().catch(() => null);
-    if (transactions.ok && data?.txHash) {
-      return { txHash: String(data.txHash), challengeId, walletId: wallet.id };
-    }
+    if (transactions.ok && data?.txHash) return { txHash: String(data.txHash), challengeId, walletId: wallet.id };
     if (transactions.status === 422 || data?.challengeStatus === "FAILED" || data?.challengeStatus === "EXPIRED") {
       throw new Error(data?.message || data?.error || "Circle transaction failed.");
     }
     if (attempt < 199) await new Promise((resolve) => setTimeout(resolve, 1500));
   }
-
   throw new Error("Circle approved the transaction, but the blockchain transaction hash is still pending after 5 minutes. The transaction was not re-submitted; check Circle wallet activity before retrying.");
 }
 
