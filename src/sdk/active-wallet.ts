@@ -7,6 +7,14 @@ import type { DiscoveredWallet, InjectedProvider } from "@/sdk/wallet-adapter";
 
 const STORAGE_KEY = "agfusion_active_wallet_v1";
 
+type WalletRpcConfig = {
+  name: string;
+  rpc: string;
+  explorer: string;
+  currency: { name: string; symbol: string; decimals: number };
+  key: string;
+};
+
 export type ActiveWalletMeta = {
   uuid: string;
   name: string;
@@ -45,9 +53,16 @@ function saveMeta(meta: ActiveWalletMeta | null) {
  * If the wallet has a built-in/free-plan RPC such as sepolia.drpc.org, the
  * transaction can therefore fail even though /api/rpc is healthy.
  *
- * Before a dapp-requested chain switch, ask the wallet to register the same
- * chain with AGFusion's server-side RPC proxy. This is best-effort because
- * wallets are allowed to reject updates to built-in networks.
+ * AGFusion therefore does two things here:
+ * 1. Before a dapp-requested chain switch, it best-effort registers the chain
+ *    with AGFusion's server-side RPC proxy.
+ * 2. Before eth_sendTransaction, it supplies a nonce obtained from the same
+ *    server-side proxy when the caller did not provide one. This prevents the
+ *    wallet from having to resolve eth_getTransactionCount through its own
+ *    potentially unavailable/free-plan RPC during the confirmation flow.
+ *
+ * We never proxy signing, account, or chain-switch methods themselves. The
+ * connected wallet remains the sole authority for user consent and signing.
  */
 function wrapWalletRpcGuard(
   provider: InjectedProvider,
@@ -56,25 +71,64 @@ function wrapWalletRpcGuard(
   if (typeof window === "undefined") return provider;
   if (meta.uuid === "circle-pw" || !!meta.smartAccountAddress) return provider;
 
-  const chainRpc: Record<string, { name: string; rpc: string; explorer: string; currency: { name: string; symbol: string; decimals: number } }> = {
-    "0x4cef52": { name: "Arc Testnet", rpc: `${window.location.origin}/api/rpc?chain=arc`, explorer: "https://testnet.arcscan.app", currency: { name: "USDC", symbol: "USDC", decimals: 18 } },
-    "0x14a34": { name: "Base Sepolia", rpc: `${window.location.origin}/api/rpc?chain=base`, explorer: "https://sepolia.basescan.org", currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
-    "0xaa36a7": { name: "Ethereum Sepolia", rpc: `${window.location.origin}/api/rpc?chain=eth`, explorer: "https://sepolia.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
-    "0x66eee": { name: "Arbitrum Sepolia", rpc: `${window.location.origin}/api/rpc?chain=arb`, explorer: "https://sepolia.arbiscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
-    "0xaa37dc": { name: "OP Sepolia", rpc: `${window.location.origin}/api/rpc?chain=op`, explorer: "https://sepolia-optimism.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
-    "0x13882": { name: "Polygon Amoy", rpc: `${window.location.origin}/api/rpc?chain=polygon`, explorer: "https://amoy.polygonscan.com", currency: { name: "MATIC", symbol: "MATIC", decimals: 18 } },
-    "0xa869": { name: "Avalanche Fuji", rpc: `${window.location.origin}/api/rpc?chain=avax`, explorer: "https://testnet.snowtrace.io", currency: { name: "Avalanche", symbol: "AVAX", decimals: 18 } },
-    "0x515": { name: "Unichain Sepolia", rpc: `${window.location.origin}/api/rpc?chain=unichain`, explorer: "https://sepolia.uniscan.xyz", currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
-    "0xe705": { name: "Linea Sepolia", rpc: `${window.location.origin}/api/rpc?chain=linea`, explorer: "https://sepolia.lineascan.build", currency: { name: "Ether", symbol: "ETH", decimals: 18 } },
+  const origin = window.location.origin;
+  const chainRpc: Record<string, WalletRpcConfig> = {
+    "0x4cef52": { name: "Arc Testnet", rpc: `${origin}/api/rpc?chain=arc`, explorer: "https://testnet.arcscan.app", currency: { name: "USDC", symbol: "USDC", decimals: 18 }, key: "arc" },
+    "0x14a34": { name: "Base Sepolia", rpc: `${origin}/api/rpc?chain=base`, explorer: "https://sepolia.basescan.org", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "base" },
+    "0xaa36a7": { name: "Ethereum Sepolia", rpc: `${origin}/api/rpc?chain=eth`, explorer: "https://sepolia.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "eth" },
+    "0x66eee": { name: "Arbitrum Sepolia", rpc: `${origin}/api/rpc?chain=arb`, explorer: "https://sepolia.arbiscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "arb" },
+    "0xaa37dc": { name: "OP Sepolia", rpc: `${origin}/api/rpc?chain=op`, explorer: "https://sepolia-optimism.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "op" },
+    "0x13882": { name: "Polygon Amoy", rpc: `${origin}/api/rpc?chain=polygon`, explorer: "https://amoy.polygonscan.com", currency: { name: "MATIC", symbol: "MATIC", decimals: 18 }, key: "polygon" },
+    "0xa869": { name: "Avalanche Fuji", rpc: `${origin}/api/rpc?chain=avax`, explorer: "https://testnet.snowtrace.io", currency: { name: "Avalanche", symbol: "AVAX", decimals: 18 }, key: "avax" },
+    "0x515": { name: "Unichain Sepolia", rpc: `${origin}/api/rpc?chain=unichain`, explorer: "https://sepolia.uniscan.xyz", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "unichain" },
+    "0xe705": { name: "Linea Sepolia", rpc: `${origin}/api/rpc?chain=linea`, explorer: "https://sepolia.lineascan.build", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "linea" },
   };
 
   const originalRequest = provider.request.bind(provider);
+
+  const currentChainConfig = async (): Promise<WalletRpcConfig | null> => {
+    try {
+      const raw = await originalRequest({ method: "eth_chainId" });
+      const chainId = String(raw ?? "").toLowerCase();
+      return chainRpc[chainId] ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  const proxyNonce = async (
+    cfg: WalletRpcConfig,
+    address: string,
+  ): Promise<string | null> => {
+    try {
+      const response = await fetch(cfg.rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: Date.now(),
+          method: "eth_getTransactionCount",
+          params: [address, "pending"],
+        }),
+        cache: "no-store",
+      });
+      if (!response.ok) return null;
+      const json = (await response.json()) as { result?: unknown; error?: unknown };
+      return typeof json.result === "string" ? json.result : null;
+    } catch {
+      return null;
+    }
+  };
+
   return {
     ...provider,
     request: async (args: { method: string; params?: unknown[] | Record<string, unknown> }) => {
       if (args.method === "wallet_switchEthereumChain") {
         const first = Array.isArray(args.params) ? args.params[0] : undefined;
-        const chainId = first && typeof first === "object" && "chainId" in first ? String((first as { chainId: string }).chainId).toLowerCase() : "";
+        const chainId =
+          first && typeof first === "object" && "chainId" in first
+            ? String((first as { chainId: string }).chainId).toLowerCase()
+            : "";
         const cfg = chainRpc[chainId];
         if (cfg) {
           try {
@@ -90,8 +144,6 @@ function wrapWalletRpcGuard(
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            // Built-in Rabby chains may reject re-registration. Continue to
-            // switch, but leave a diagnostic marker for the UI/telemetry.
             try {
               sessionStorage.setItem(`agfusion_rpc_guard_${chainId}`, msg.slice(0, 240));
             } catch {
@@ -100,6 +152,34 @@ function wrapWalletRpcGuard(
           }
         }
       }
+
+      if (args.method === "eth_sendTransaction" && Array.isArray(args.params)) {
+        const rawTx = args.params[0];
+        if (rawTx && typeof rawTx === "object") {
+          const tx = { ...(rawTx as Record<string, unknown>) };
+          const from = typeof tx.from === "string" ? tx.from : "";
+          const hasNonce = tx.nonce !== undefined && tx.nonce !== null && tx.nonce !== "";
+          if (from && !hasNonce) {
+            const cfg = await currentChainConfig();
+            if (cfg) {
+              const nonce = await proxyNonce(cfg, from);
+              if (nonce) {
+                tx.nonce = nonce;
+                try {
+                  sessionStorage.setItem(
+                    "agfusion_last_wallet_rpc_guard",
+                    JSON.stringify({ chain: cfg.name, chainKey: cfg.key, method: "eth_getTransactionCount", source: "agfusion-proxy", at: Date.now() }),
+                  );
+                } catch {
+                  /* ignore */
+                }
+                return originalRequest({ ...args, params: [tx, ...args.params.slice(1)] });
+              }
+            }
+          }
+        }
+      }
+
       return originalRequest(args);
     },
   } as InjectedProvider;
