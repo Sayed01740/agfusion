@@ -21,42 +21,45 @@ const RPC_HOST_TO_CHAIN: Record<string, string> = {
   "sepolia.base.org": "base",
   "base-sepolia-rpc.publicnode.com": "base",
   "base-sepolia.g.alchemy.com": "base",
+  "base-sepolia.drpc.org": "base",
   "rpc.sepolia.org": "eth",
   "ethereum-sepolia-rpc.publicnode.com": "eth",
   "rpc2.sepolia.org": "eth",
+  "sepolia.drpc.org": "eth",
   "sepolia-rollup.arbitrum.io": "arb",
   "arbitrum-sepolia-rpc.publicnode.com": "arb",
+  "arbitrum-sepolia.drpc.org": "arb",
   "sepolia.optimism.io": "op",
   "optimism-sepolia-rpc.publicnode.com": "op",
+  "optimism-sepolia.drpc.org": "op",
   "rpc-amoy.polygon.technology": "polygon",
   "polygon-amoy-bor-rpc.publicnode.com": "polygon",
+  "polygon-amoy.drpc.org": "polygon",
   "api.avax-test.network": "avax",
   "avalanche-fuji-rpc.publicnode.com": "avax",
+  "avalanche-fuji.drpc.org": "avax",
   "sepolia.unichain.org": "unichain",
   "unichain-sepolia-rpc.publicnode.com": "unichain",
+  "unichain-sepolia.drpc.org": "unichain",
   "rpc.sepolia.linea.build": "linea",
   "linea-sepolia-rpc.publicnode.com": "linea",
+  "linea-sepolia.drpc.org": "linea",
 };
 
 function resolveRpcProxy(urlStr: string): string | null {
   try {
     const u = new URL(urlStr);
     if (u.pathname.startsWith("/api/rpc")) return null;
-
     const host = u.hostname.toLowerCase();
     const chain = RPC_HOST_TO_CHAIN[host];
     if (chain) return `${window.location.origin}/api/rpc?chain=${chain}`;
-
     if (host === "api.avax-test.network" || (host.includes("avax") && u.pathname.includes("/ext/bc/C/rpc"))) {
       return `${window.location.origin}/api/rpc?chain=avax`;
     }
-
     const arcEnv = (process.env.NEXT_PUBLIC_ARC_RPC_URL || "").trim();
     if (arcEnv) {
       try {
-        if (host === new URL(arcEnv).hostname.toLowerCase()) {
-          return `${window.location.origin}/api/rpc?chain=arc`;
-        }
+        if (host === new URL(arcEnv).hostname.toLowerCase()) return `${window.location.origin}/api/rpc?chain=arc`;
       } catch {
         /* ignore malformed env */
       }
@@ -70,32 +73,21 @@ function resolveRpcProxy(urlStr: string): string | null {
 export function installCircleApiProxy(): void {
   if (typeof window === "undefined" || installed) return;
   installed = true;
-
   const originalFetch = window.fetch.bind(window);
-
-  window.fetch = async (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ): Promise<Response> => {
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     try {
       const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-
       if (typeof raw === "string") {
-        // Testnet + production IRIS are both normalized to our server-side
-        // sandbox proxy. This is intentionally before the generic api.circle
-        // matcher because iris-api-sandbox.circle.com is a different host.
         if (raw.includes("iris-api-sandbox.circle.com") || raw.includes("iris-api.circle.com")) {
           const u = new URL(raw);
           const path = u.pathname + u.search;
           return originalFetch(`/api/circle/iris?path=${encodeURIComponent(path)}`, init);
         }
-
         if (raw.includes("api.circle.com") && raw.includes("/v1/stablecoinKits/")) {
           const u = new URL(raw);
           const path = u.pathname + u.search;
           return originalFetch(`/api/circle/proxy?path=${encodeURIComponent(path)}`, init);
         }
-
         const rpcProxy = resolveRpcProxy(raw);
         if (rpcProxy) {
           return originalFetch(rpcProxy, {
