@@ -16,6 +16,45 @@ import { FeeLineItems } from "@/components/ui/fee-line-items";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CHAINS } from "@/lib/chains";
+
+function isDestinationStep(name: string): boolean {
+  const normalized = name.toLowerCase();
+  return ["mint", "receive", "destination", "deposit"].some((key) =>
+    normalized.includes(key),
+  );
+}
+
+function getStepExplorerUrl(tx: TransactionRecord, stepName: string, txHash: string): string | null {
+  const chain = isDestinationStep(stepName) ? tx.toChain : tx.fromChain;
+  const explorer = chain ? CHAINS[chain]?.explorer : undefined;
+  return explorer ? `${explorer}/tx/${txHash}` : null;
+}
+
+function getTransactionExplorerUrl(tx: TransactionRecord): string | null {
+  if (!tx.txHash) return null;
+
+  // A completed bridge's canonical transaction is the destination mint/receive
+  // transaction. The source burn is a separate transaction on the source chain.
+  if (tx.type === "bridge") {
+    const destinationChain = tx.toChain ?? tx.bridgeState?.toChain;
+    const destinationHash = tx.bridgeState?.destinationTxHash ?? tx.txHash;
+    const explorer = destinationChain ? CHAINS[destinationChain]?.explorer : undefined;
+    if (explorer && destinationHash) {
+      return `${explorer}/tx/${destinationHash}`;
+    }
+  }
+
+  if (tx.explorerUrl) {
+    return tx.explorerUrl.includes("/tx/")
+      ? tx.explorerUrl
+      : `${tx.explorerUrl}/tx/${tx.txHash}`;
+  }
+
+  const chain = tx.toChain ?? tx.fromChain;
+  const explorer = chain ? CHAINS[chain]?.explorer : undefined;
+  return explorer ? `${explorer}/tx/${tx.txHash}` : null;
+}
 
 export function TransactionProgress({
   tx,
@@ -24,6 +63,8 @@ export function TransactionProgress({
   tx: TransactionRecord;
   onRetry?: () => void;
 }) {
+  const transactionExplorerUrl = getTransactionExplorerUrl(tx);
+
   return (
     <Card className="border-cyan-500/20">
       <CardHeader className="pb-2">
@@ -65,38 +106,53 @@ export function TransactionProgress({
       </CardHeader>
       <CardContent className="space-y-3">
         <ol className="space-y-2">
-          {tx.steps.map((step, i) => (
-            <motion.li
-              key={`${step.name}-${i}`}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="flex items-center gap-3 text-sm"
-            >
-              <StepIcon state={step.state} />
-              <span
-                className={cn(
-                  "flex-1",
-                  step.state === "success" && "text-slate-200",
-                  step.state === "active" && "text-cyan-300",
-                  step.state === "pending" && "text-slate-500",
-                  step.state === "error" && "text-red-300",
-                )}
+          {tx.steps.map((step, i) => {
+            const stepExplorerUrl = step.txHash
+              ? getStepExplorerUrl(tx, step.name, step.txHash)
+              : null;
+            return (
+              <motion.li
+                key={`${step.name}-${i}`}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="flex items-center gap-3 text-sm"
               >
-                {step.name}
-                {step.message && (
-                  <span className="block text-[10px] text-slate-500">
-                    {step.message}
-                  </span>
-                )}
-              </span>
-              {step.txHash && (
-                <span className="font-mono text-[10px] text-slate-500">
-                  {shortenAddress(step.txHash, 3)}
+                <StepIcon state={step.state} />
+                <span
+                  className={cn(
+                    "flex-1",
+                    step.state === "success" && "text-slate-200",
+                    step.state === "active" && "text-cyan-300",
+                    step.state === "pending" && "text-slate-500",
+                    step.state === "error" && "text-red-300",
+                  )}
+                >
+                  {step.name}
+                  {step.message && (
+                    <span className="block text-[10px] text-slate-500">
+                      {step.message}
+                    </span>
+                  )}
                 </span>
-              )}
-            </motion.li>
-          ))}
+                {step.txHash && stepExplorerUrl ? (
+                  <a
+                    href={stepExplorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-[10px] text-cyan-400/80 hover:text-cyan-300 underline truncate max-w-[120px]"
+                    title={`${step.name} transaction`}
+                  >
+                    {shortenAddress(step.txHash, 3)}
+                  </a>
+                ) : step.txHash ? (
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {shortenAddress(step.txHash, 3)}
+                  </span>
+                ) : null}
+              </motion.li>
+            );
+          })}
         </ol>
         {typeof tx.feeUsd === "number" && (
           <FeeLineItems quote={feeFromUsd(tx.feeUsd)} compact />
@@ -111,13 +167,9 @@ export function TransactionProgress({
             <span />
           )}
           <div className="flex gap-2">
-            {tx.explorerUrl && tx.txHash && (
+            {transactionExplorerUrl && (
               <a
-                href={
-                  tx.explorerUrl.includes("/tx/")
-                    ? tx.explorerUrl
-                    : `${tx.explorerUrl}/tx/${tx.txHash}`
-                }
+                href={transactionExplorerUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 text-cyan-300 hover:underline"
