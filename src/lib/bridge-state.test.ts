@@ -12,7 +12,6 @@ import {
   type BridgeState,
 } from "./bridge-state";
 
-// Minimal sessionStorage stub so persistence round-trips work in Node.
 const store = new Map<string, string>();
 beforeEach(() => {
   store.clear();
@@ -24,6 +23,10 @@ beforeEach(() => {
     },
   };
 });
+
+const APPROVE = "0x" + "11".repeat(32);
+const BURN = "0x" + "22".repeat(32);
+const MINT = "0x" + "33".repeat(32);
 
 function seed(txId = "tx1"): BridgeState {
   return initBridgeState({
@@ -47,35 +50,34 @@ describe("bridge-state", () => {
   it("derives APPROVED after approve success with hash", () => {
     seed();
     const s = deriveBridgeState("tx1", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
+      { name: "approve", state: "success", txHash: APPROVE },
     ]);
     expect(s.state).toBe("APPROVED");
-    expect(s.approvalTxHash).toBe("0xapprove");
+    expect(s.approvalTxHash).toBe(APPROVE);
   });
 
-  it("derives BURN_CONFIRMED once the burn has a hash", () => {
+  it("derives ATTESTATION_PENDING once the burn has a valid hash", () => {
     seed();
     const s = deriveBridgeState("tx1", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
     ]);
     expect(s.state).toBe("ATTESTATION_PENDING");
-    expect(s.burnTxHash).toBe("0xburn");
+    expect(s.burnTxHash).toBe(BURN);
     expect(isBurnConfirmed(s)).toBe(true);
   });
 
   it("never treats a confirmed burn as re-burnable", () => {
     seed();
     const s = deriveBridgeState("tx1", [
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "burn", state: "success", txHash: BURN },
     ]);
     expect(isBurnConfirmed(s)).toBe(true);
-    // A later failure keeps the burn hash — recovery must not re-burn.
     const failed = deriveBridgeState("tx1", [
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "burn", state: "success", txHash: BURN },
       { name: "fetchAttestation", state: "error", message: "timeout" },
     ]);
-    expect(failed.burnTxHash).toBe("0xburn");
+    expect(failed.burnTxHash).toBe(BURN);
     expect(failed.state).toBe("FAILED");
     expect(isBurnConfirmed(failed)).toBe(true);
   });
@@ -83,13 +85,13 @@ describe("bridge-state", () => {
   it("derives COMPLETED when mint succeeds", () => {
     seed();
     const s = deriveBridgeState("tx1", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
       { name: "fetchAttestation", state: "success" },
-      { name: "mint", state: "success", txHash: "0xmint" },
+      { name: "mint", state: "success", txHash: MINT },
     ]);
     expect(s.state).toBe("COMPLETED");
-    expect(s.destinationTxHash).toBe("0xmint");
+    expect(s.destinationTxHash).toBe(MINT);
     expect(isBurnConfirmed(s)).toBe(true);
   });
 
@@ -105,8 +107,8 @@ describe("bridge-state", () => {
 
   it("saveBridgeState / removeBridgeState round-trip", () => {
     const s = seed("tx9");
-    saveBridgeState({ ...s, burnTxHash: "0xburn" });
-    expect(loadBridgeState("tx9")?.burnTxHash).toBe("0xburn");
+    saveBridgeState({ ...s, burnTxHash: BURN });
+    expect(loadBridgeState("tx9")?.burnTxHash).toBe(BURN);
     removeBridgeState("tx9");
     expect(loadBridgeState("tx9")).toBeNull();
   });
@@ -118,47 +120,43 @@ describe("bridge-state", () => {
   });
 });
 
-describe("bridge-state invariants (Phase 6)", () => {
-  it("persisted state survives reload after burn (reload-after-burn)", () => {
-    const s = seed("tx-reload-burn");
+describe("bridge-state invariants", () => {
+  it("persisted state survives reload after burn", () => {
     const burned = deriveBridgeState("tx-reload-burn", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
     ]);
-    // Simulate a page reload: module-level cache is gone, storage is the only source.
     const reloaded = loadBridgeState("tx-reload-burn");
-    expect(reloaded?.burnTxHash).toBe("0xburn");
+    expect(reloaded?.burnTxHash).toBe(BURN);
     expect(isBurnConfirmed(reloaded)).toBe(true);
-    expect(burned.burnTxHash).toBe("0xburn");
+    expect(burned.burnTxHash).toBe(BURN);
   });
 
-  it("recovery after destination failure keeps the burn confirmed (no re-burn)", () => {
+  it("recovery after destination failure keeps the burn confirmed", () => {
     seed("tx-dst-fail");
     deriveBridgeState("tx-dst-fail", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
       { name: "fetchAttestation", state: "success" },
       { name: "mint", state: "error", message: "destination reverted" },
     ]);
     const retried = deriveBridgeState("tx-dst-fail", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
       { name: "fetchAttestation", state: "success" },
       { name: "mint", state: "error", message: "destination reverted" },
     ]);
-    // A duplicate retry must never clear the burn evidence.
-    expect(retried.burnTxHash).toBe("0xburn");
+    expect(retried.burnTxHash).toBe(BURN);
     expect(isBurnConfirmed(retried)).toBe(true);
     expect(retried.state).toBe("FAILED");
   });
 
-  it("rejects corrupted localStorage entries (INVARIANT 10)", () => {
+  it("rejects corrupted sessionStorage entries", () => {
     store.set(
       "agfusion_bridge_states_v1",
       JSON.stringify({ "tx-bad": { txId: "tx-bad", junk: true } }),
     );
     expect(loadBridgeState("tx-bad")).toBeNull();
-    // The corrupt entry was removed, not silently trusted.
     expect(JSON.parse(store.get("agfusion_bridge_states_v1") || "{}")).toEqual({});
   });
 
@@ -167,7 +165,7 @@ describe("bridge-state invariants (Phase 6)", () => {
     expect(loadBridgeState("tx-x")).toBeNull();
   });
 
-  it("rejects entries with unknown chains / bad amounts", () => {
+  it("rejects unknown chains, bad amounts, states, and malformed hashes", () => {
     const base = seed("tx-valid");
     store.set(
       "agfusion_bridge_states_v1",
@@ -177,17 +175,18 @@ describe("bridge-state invariants (Phase 6)", () => {
         "tx-bad-amount": { ...base, txId: "tx-bad-amount", amount: "abc" },
         "tx-zero-amount": { ...base, txId: "tx-zero-amount", amount: "0" },
         "tx-bad-state": { ...base, txId: "tx-bad-state", state: "MADE_UP" },
+        "tx-bad-hash": { ...base, txId: "tx-bad-hash", burnTxHash: "0xburn" },
       }),
     );
     expect(loadBridgeState("tx-unknown-chain")).toBeNull();
     expect(loadBridgeState("tx-bad-amount")).toBeNull();
     expect(loadBridgeState("tx-zero-amount")).toBeNull();
     expect(loadBridgeState("tx-bad-state")).toBeNull();
-    // Valid entry still loads.
+    expect(loadBridgeState("tx-bad-hash")).toBeNull();
     expect(loadBridgeState("tx-valid")?.txId).toBe("tx-valid");
   });
 
-  it("never lets recovery change amount / chains / recipient (INVARIANTS 4–7)", () => {
+  it("never lets recovery change amount / chains / recipient", () => {
     seed("tx-frozen");
     const updated = updateBridgeState("tx-frozen", {
       amount: "999",
@@ -205,19 +204,31 @@ describe("bridge-state invariants (Phase 6)", () => {
     expect(updated?.walletType).toBe("evm");
   });
 
-  it("a completed bridge can never return to pending (INVARIANT 8)", () => {
+  it("a completed bridge can never return to pending", () => {
     seed("tx-done");
     deriveBridgeState("tx-done", [
-      { name: "approve", state: "success", txHash: "0xapprove" },
-      { name: "burn", state: "success", txHash: "0xburn" },
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
       { name: "fetchAttestation", state: "success" },
-      { name: "mint", state: "success", txHash: "0xmint" },
+      { name: "mint", state: "success", txHash: MINT },
     ]);
-    // A later error event on an already-completed bridge must not regress it.
     const after = deriveBridgeState("tx-done", [
       { name: "mint", state: "error", message: "late error" },
     ]);
     expect(after.state).toBe("COMPLETED");
-    expect(after.destinationTxHash).toBe("0xmint");
+    expect(after.destinationTxHash).toBe(MINT);
+  });
+
+  it("stale lifecycle events cannot regress a confirmed burn", () => {
+    seed("tx-stale");
+    deriveBridgeState("tx-stale", [
+      { name: "approve", state: "success", txHash: APPROVE },
+      { name: "burn", state: "success", txHash: BURN },
+    ]);
+    const stale = deriveBridgeState("tx-stale", [
+      { name: "approve", state: "success", txHash: APPROVE },
+    ]);
+    expect(stale.state).toBe("ATTESTATION_PENDING");
+    expect(stale.burnTxHash).toBe(BURN);
   });
 });
