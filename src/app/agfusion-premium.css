@@ -1,123 +1,111 @@
-/* AGFusion Premium System: Arc Terminal
- * Dark institutional terminal × Arc blue × stablecoin-green status language.
- * Visual-only layer. No transaction, wallet, swap, bridge, or agent logic is changed here.
+/* AGFusion Premium System: Obsidian Finance / Light Institutional
+ * Visual-only theme layer. Transaction, wallet, swap, bridge, and agent logic are untouched.
+ * White canvas + ink typography + Arc blue + restrained financial status colors.
  */
 :root {
-  --ag-bg: #05080d;
-  --ag-bg-deep: #02050a;
-  --ag-surface: #0a1018;
-  --ag-surface-2: #0d1520;
-  --ag-surface-3: #111c29;
-  --ag-border: rgba(148, 163, 184, .12);
-  --ag-border-strong: rgba(37, 99, 235, .42);
-  --ag-text: #f3f7fb;
-  --ag-muted: #8794a5;
+  --ag-bg: #f7f9fc;
+  --ag-bg-deep: #ffffff;
+  --ag-surface: #ffffff;
+  --ag-surface-2: #f8fafc;
+  --ag-surface-3: #f1f5f9;
+  --ag-border: #e2e8f0;
+  --ag-border-strong: #bfdbfe;
+  --ag-text: #0f172a;
+  --ag-muted: #64748b;
   --ag-blue: #2563eb;
-  --ag-blue-bright: #3b82f6;
-  --ag-cyan: #22d3ee;
-  --ag-green: #35d07f;
-  --ag-green-soft: #7ce7aa;
-  --ag-warning: #eabf6b;
-  --ag-danger: #ef6675;
-  --ag-grid: rgba(59, 130, 246, .055);
+  --ag-blue-bright: #1d4ed8;
+  --ag-cyan: #0891b2;
+  --ag-green: #16a34a;
+  --ag-green-soft: #22c55e;
+  --ag-warning: #ca8a04;
+  --ag-danger: #dc2626;
+  --ag-grid: rgba(37, 99, 235, .055);
 }
 
-/* Terminal foundation */
+html:not(.dark) body,
 body {
-  background:
-    radial-gradient(900px 520px at 76% -12%, rgba(37, 99, 235, .13), transparent 62%),
-    radial-gradient(700px 460px at 10% 18%, rgba(34, 211, 238, .055), transparent 64%),
-    linear-gradient(180deg, #05080d 0%, #03060b 55%, #02050a 100%) !important;
-  color: var(--ag-text);
+  background: #f7f9fc !important;
+  color: var(--ag-text) !important;
 }
 
-/* The existing AppShell uses these utility backgrounds. Re-skin them without touching JSX. */
+.mesh-bg,
+.grid-bg {
+  background-color: #f7f9fc !important;
+}
+
 .mesh-bg {
   background:
-    radial-gradient(ellipse 85% 58% at 78% -8%, rgba(37, 99, 235, .12), transparent 58%),
-    radial-gradient(ellipse 65% 48% at 8% 22%, rgba(34, 211, 238, .045), transparent 58%),
-    #03060b !important;
-}
-
-.mesh-bg .bg-cyan-500\/10,
-.mesh-bg .bg-indigo-500\/10 {
-  opacity: .035 !important;
+    radial-gradient(900px 500px at 85% -12%, rgba(37,99,235,.075), transparent 62%),
+    radial-gradient(700px 430px at 8% 8%, rgba(8,145,178,.045), transparent 64%),
+    linear-gradient(180deg, #ffffff 0%, #f7f9fc 62%, #f4f7fb 100%) !important;
 }
 
 .grid-bg {
   background-image:
     linear-gradient(var(--ag-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--ag-grid) 1px, transparent 1px) !important;
-  background-size: 56px 56px !important;
-  mask-image: radial-gradient(ellipse 82% 68% at 55% 18%, black 10%, transparent 74%) !important;
+  background-size: 52px 52px !important;
+  mask-image: radial-gradient(ellipse 82% 65% at 52% 18%, black 8%, transparent 76%) !important;
 }
 
-/* Restrained surfaces: more terminal, less generic glass. */
+/* Premium light surfaces. */
 .glass,
 .glass-strong,
 .glass-soft,
 .liquid-glass,
 .glass-ultra,
 .surface-card {
-  background: linear-gradient(145deg, rgba(12, 19, 29, .97), rgba(5, 9, 15, .97)) !important;
-  backdrop-filter: blur(14px) saturate(125%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(125%) !important;
+  background: rgba(255,255,255,.96) !important;
+  backdrop-filter: blur(16px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(120%) !important;
   border: 1px solid var(--ag-border) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.035),
-    0 16px 48px rgba(0,0,0,.28) !important;
+  box-shadow: 0 10px 30px rgba(15,23,42,.055), 0 1px 2px rgba(15,23,42,.035) !important;
 }
 
 .glass-ultra,
 .liquid-glass {
-  border-color: rgba(37, 99, 235, .18) !important;
+  border-color: #dbeafe !important;
 }
 
 .glass-ultra:hover,
 .surface-card:hover,
 .liquid-glass:hover {
-  border-color: var(--ag-border-strong) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.04),
-    0 0 0 1px rgba(37,99,235,.07),
-    0 22px 62px rgba(0,0,0,.36) !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 14px 38px rgba(15,23,42,.075), 0 0 0 3px rgba(37,99,235,.035) !important;
 }
 
-/* Terminal shell and command-surface language. */
+/* Main premium shell. */
 .ag-premium-shell {
   position: relative;
   isolation: isolate;
+  color: var(--ag-text);
 }
 
 .ag-premium-shell::before {
   content: "";
   position: absolute;
   inset: 0 0 auto;
-  height: 320px;
+  height: 300px;
   pointer-events: none;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(37,99,235,.075), transparent 76%);
-  mask-image: linear-gradient(#000, transparent);
+  background: linear-gradient(180deg, rgba(37,99,235,.045), transparent 78%);
 }
 
 .ag-command-hero {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--ag-border) !important;
+  border: 1px solid #dbe3ee !important;
   border-radius: 18px;
-  background:
-    linear-gradient(145deg, rgba(13,21,32,.99), rgba(4,8,14,.99)) !important;
-  box-shadow:
-    0 26px 82px rgba(0,0,0,.42),
-    inset 0 1px 0 rgba(255,255,255,.04) !important;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%) !important;
+  box-shadow: 0 20px 55px rgba(15,23,42,.07), inset 0 1px 0 #fff !important;
 }
 
 .ag-command-hero::before {
-  content: "ARC / ECONOMIC OS / TERMINAL";
+  content: "ARC / ECONOMIC OS / FINANCIAL WORKSPACE";
   position: absolute;
   right: 24px;
   bottom: 17px;
-  color: rgba(148,163,184,.14);
+  color: rgba(71,85,105,.28);
   font-family: var(--font-mono);
   font-size: 8px;
   letter-spacing: .18em;
@@ -133,26 +121,24 @@ body {
   right: -220px;
   top: -260px;
   border-radius: 999px;
-  border: 1px solid rgba(59,130,246,.08);
-  box-shadow:
-    0 0 0 48px rgba(59,130,246,.018),
-    0 0 0 96px rgba(59,130,246,.012),
-    0 0 0 144px rgba(59,130,246,.008);
+  border: 1px solid rgba(37,99,235,.07);
+  box-shadow: 0 0 0 48px rgba(37,99,235,.018), 0 0 0 96px rgba(37,99,235,.012);
   pointer-events: none;
 }
 
-.ag-eyebrow {
-  color: rgba(59,130,246,.95);
+.ag-eyebrow,
+.section-label {
+  color: #2563eb !important;
   font-family: var(--font-mono);
   font-size: 9px;
   line-height: 1;
   font-weight: 600;
-  letter-spacing: .20em;
+  letter-spacing: .18em;
   text-transform: uppercase;
 }
 
 .ag-hero-title {
-  color: var(--ag-text);
+  color: #0f172a !important;
   font-family: var(--font-display);
   font-size: clamp(28px, 4vw, 46px);
   line-height: .98;
@@ -160,10 +146,7 @@ body {
   font-weight: 600;
 }
 
-.ag-hero-title em {
-  font-style: normal;
-  color: var(--ag-blue-bright);
-}
+.ag-hero-title em { color: var(--ag-blue); }
 
 .ag-network-rail {
   display: flex;
@@ -181,182 +164,109 @@ body {
   gap: 8px;
   min-height: 40px;
   padding: 7px 11px;
-  border: 1px solid rgba(148,163,184,.11);
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
-  background: rgba(255,255,255,.018);
-  color: #cbd5e1;
+  background: #fff;
+  color: #334155;
   transition: border-color .2s ease, background .2s ease, transform .2s ease;
 }
-.ag-network-chip:hover {
-  border-color: rgba(59,130,246,.35);
-  background: rgba(37,99,235,.055);
-  transform: translateY(-1px);
-}
-.ag-network-chip img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-.ag-network-chip small {
-  display:block;
-  color:#68788a;
-  font-family:var(--font-mono);
-  font-size:9px;
-  letter-spacing:.04em;
-  margin-top:1px;
-}
+.ag-network-chip:hover { border-color:#93c5fd; background:#eff6ff; transform:translateY(-1px); }
+.ag-network-chip small { color:#64748b; font-family:var(--font-mono); font-size:9px; margin-top:1px; }
 
-.ag-route-line {
-  position: relative;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(59,130,246,.38), transparent);
-}
-.ag-route-line::after {
-  content:"";
-  position:absolute;
-  left:28%;
-  top:-2px;
-  width:5px;
-  height:5px;
-  border-radius:50%;
-  background:var(--ag-green);
-  box-shadow:0 0 12px rgba(53,208,127,.65);
-}
+.ag-route-line { position:relative; height:1px; background:linear-gradient(90deg,transparent,#93c5fd,transparent); }
+.ag-route-line::after { content:""; position:absolute; left:28%; top:-2px; width:5px; height:5px; border-radius:50%; background:var(--ag-green); }
 
-.ag-metric {
-  border-left: 1px solid rgba(148,163,184,.09);
-  padding-left: 16px;
-}
+.ag-metric { border-left:1px solid #e2e8f0; padding-left:16px; }
 .ag-metric:first-child { border-left:0; padding-left:0; }
-.ag-metric-label {
-  color:#68788a;
-  font-family:var(--font-mono);
-  font-size:9px;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-}
-.ag-metric-value {
-  color:#f3f7fb;
-  font-family:var(--font-mono);
-  font-size:16px;
-  font-weight:600;
-  margin-top:3px;
-  font-variant-numeric:tabular-nums;
-}
+.ag-metric-label { color:#64748b; font-family:var(--font-mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase; }
+.ag-metric-value { color:#0f172a; font-family:var(--font-mono); font-size:16px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums; }
 
-/* Blue terminal buttons and action surfaces. */
+/* Financial action language. */
 .ag-premium-shell .bg-cyan-600,
-.ag-premium-shell .bg-cyan-500 {
-  background-color: var(--ag-blue) !important;
-}
-
+.ag-premium-shell .bg-cyan-500 { background-color:var(--ag-blue) !important; }
 .ag-premium-shell .hover\:bg-cyan-500:hover,
-.ag-premium-shell .hover\:bg-cyan-400:hover {
-  background-color: var(--ag-blue-bright) !important;
-}
-
+.ag-premium-shell .hover\:bg-cyan-400:hover { background-color:var(--ag-blue-bright) !important; }
 .ag-premium-shell .text-cyan-400,
 .ag-premium-shell .text-cyan-300,
-.ag-premium-shell .text-cyan-200 {
-  color: #60a5fa !important;
-}
-
+.ag-premium-shell .text-cyan-200 { color:#2563eb !important; }
 .ag-premium-shell .text-teal-300,
-.ag-premium-shell .text-teal-200 {
-  color: var(--ag-cyan) !important;
-}
-
+.ag-premium-shell .text-teal-200 { color:#0891b2 !important; }
 .ag-premium-shell .text-emerald-400,
-.ag-premium-shell .text-green-400 {
-  color: var(--ag-green) !important;
-}
+.ag-premium-shell .text-green-400 { color:#16a34a !important; }
+.ag-premium-shell .text-red-400,
+.ag-premium-shell .text-red-300 { color:#dc2626 !important; }
+.ag-premium-shell .text-amber-400,
+.ag-premium-shell .text-yellow-400 { color:#ca8a04 !important; }
 
 .ag-premium-shell .border-cyan-400\/20,
 .ag-premium-shell .border-cyan-500\/20,
-.ag-premium-shell .border-cyan-500\/30 {
-  border-color: rgba(59,130,246,.22) !important;
-}
-
+.ag-premium-shell .border-cyan-500\/30 { border-color:rgba(37,99,235,.18) !important; }
 .ag-premium-shell .bg-cyan-500\/10,
 .ag-premium-shell .bg-cyan-500\/\[0\.06\],
-.ag-premium-shell .bg-cyan-500\/\[0\.04\] {
-  background-color: rgba(37,99,235,.055) !important;
+.ag-premium-shell .bg-cyan-500\/\[0\.04\] { background-color:rgba(37,99,235,.055) !important; }
+
+/* Existing dark utility text is intentionally re-mapped for the light canvas. */
+.ag-premium-shell .text-white,
+.ag-premium-shell .text-slate-50,
+.ag-premium-shell .text-slate-100,
+.ag-premium-shell .text-slate-200 { color:#0f172a !important; }
+.ag-premium-shell .text-slate-300 { color:#334155 !important; }
+.ag-premium-shell .text-slate-400 { color:#64748b !important; }
+.ag-premium-shell .text-slate-500,
+.ag-premium-shell .text-slate-600 { color:#64748b !important; }
+.ag-premium-shell .border-slate-700,
+.ag-premium-shell .border-slate-800 { border-color:#e2e8f0 !important; }
+.ag-premium-shell .bg-slate-900,
+.ag-premium-shell .bg-slate-950 { background-color:#ffffff !important; }
+.ag-premium-shell .bg-slate-800 { background-color:#f8fafc !important; }
+
+.ag-premium-shell .text-gradient,
+.ag-premium-shell .text-gradient-subtle,
+.ag-premium-shell .text-arc {
+  background:linear-gradient(90deg,#0f172a 0%,#2563eb 70%,#0891b2 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent !important;
 }
 
-/* Swap / financial controls get a sharper terminal edge. */
+/* Form controls: white, crisp, finance-grade. */
 .ag-premium-shell input,
 .ag-premium-shell textarea,
 .ag-premium-shell select {
-  border-color: rgba(148,163,184,.14);
-  background: rgba(3,8,14,.72);
+  border-color:#dbe3ee !important;
+  background:#ffffff !important;
+  color:#0f172a !important;
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.025);
 }
-
+.ag-premium-shell input::placeholder,
+.ag-premium-shell textarea::placeholder { color:#94a3b8 !important; }
 .ag-premium-shell input:focus,
 .ag-premium-shell textarea:focus,
 .ag-premium-shell select:focus {
-  border-color: rgba(59,130,246,.55);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.10);
+  border-color:#60a5fa !important;
+  box-shadow:0 0 0 3px rgba(37,99,235,.10) !important;
 }
 
-.ag-premium-shell .font-mono,
-.ag-command-hero .font-mono {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1, "zero" 1;
-}
-
-/* Small status lights reinforce the terminal language. */
-.ag-terminal-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: .04em;
-  color: #a9b5c3;
-}
-.ag-terminal-status::before {
-  content:"";
-  width:6px;
-  height:6px;
-  border-radius:50%;
-  background:var(--ag-green);
-  box-shadow:0 0 10px rgba(53,208,127,.6);
-}
+.ag-terminal-status { display:inline-flex; align-items:center; gap:7px; font-family:var(--font-mono); font-size:10px; color:#475569; }
+.ag-terminal-status::before { content:""; width:6px; height:6px; border-radius:50%; background:#16a34a; }
 
 .ag-premium-shell a:focus-visible,
-.ag-premium-shell button:focus-visible {
-  outline: 1px solid rgba(59,130,246,.85);
-  outline-offset: 3px;
-  box-shadow: 0 0 0 4px rgba(37,99,235,.10);
-}
-
+.ag-premium-shell button:focus-visible { outline:2px solid rgba(37,99,235,.65); outline-offset:3px; }
 .ag-premium-shell button,
-.ag-premium-shell a {
-  -webkit-tap-highlight-color: transparent;
-}
+.ag-premium-shell a { -webkit-tap-highlight-color:transparent; }
 
-/* Footer and low-contrast metadata. */
-.ag-premium-shell footer,
-.ag-premium-shell .text-slate-600,
-.ag-premium-shell .text-slate-500 {
-  color: #657487 !important;
-}
+/* Replace dark glassy accents with restrained premium blue. */
+.ag-premium-shell .glow-cyan { box-shadow:0 8px 28px rgba(37,99,235,.08) !important; }
+.ag-premium-shell .glow-border::before { background:linear-gradient(135deg,rgba(37,99,235,.35),rgba(96,165,250,.15),transparent) !important; }
+.ag-premium-shell .arc-underline::after { background:linear-gradient(90deg,transparent,#60a5fa,#2563eb,transparent); opacity:.55; }
 
-/* Presentation layer: keep motion, but make it subtle and terminal-like. */
 @media (prefers-reduced-motion: reduce) {
-  .ag-premium-shell *,
-  .ag-command-hero,
-  .ag-network-chip {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-  }
+  .ag-premium-shell *, .ag-command-hero, .ag-network-chip { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
 
-@media (max-width: 640px) {
-  .ag-command-hero { border-radius: 16px; }
-  .ag-command-hero::before { right: 14px; bottom: 11px; font-size: 6px; }
-  .ag-metric { padding-left: 10px; }
+@media (max-width:640px) {
+  .ag-command-hero { border-radius:16px; }
+  .ag-command-hero::before { right:14px; bottom:11px; font-size:6px; }
+  .ag-metric { padding-left:10px; }
   .ag-metric-value { font-size:14px; }
 }
