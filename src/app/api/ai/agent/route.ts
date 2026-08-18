@@ -5,12 +5,10 @@ import { agentRateLimitConfig } from "@/lib/config";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { sanitizeAgentText } from "@/lib/sanitize";
 import { getSessionUser } from "@/lib/session";
+import { consumeConfirmationToken, issueConfirmationToken } from "@/lib/confirmation-token";
 import { logAgentRun, persistTransaction } from "@/lib/tx-store";
 import { agentRequestSchema } from "@/lib/validation";
-import {
-  redactToolTrace,
-  redactTransactionForClient,
-} from "@/lib/public-api";
+import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,57 +26,91 @@ export async function POST(req: Request) {
 
   const parsed = agentRequestSchema.safeParse(raw);
   if (!parsed.success) {
-    // Do not return zod flatten (can leak schema details)
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
   const body = parsed.data;
-
-  if (body.execute && !body.confirmed) {
-    return NextResponse.json(
-      { error: "confirm_required", message: "Confirmation required." },
-      { status: 403 },
-    );
-  }
-
-  const rlKey = body.execute ? `agent-exec:${ip}` : `agent:${ip}`;
-  const rlMax = body.execute ? limits.maxExecute : limits.maxRequests;
-  const rl = rateLimit(rlKey, {
-    windowMs: limits.windowMs,
-    max: rlMax,
-  });
-  if (!rl.ok) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
-  }
-
   const session = await getSessionUser();
   const wallet = {
     ...body.wallet,
     address: session?.address || body.wallet?.address || null,
   };
 
+  // Phase 3: execution requires a short-lived capability bound to the exact
+  // user message and wallet. The LLM cannot mint or alter this capability.
+  if (body.execute) {
+    if (!body.confirmed || !body.confirmToken) {
+      return NextResponse.json(
+        { error: "confirm_required", message: "A fresh confirmation capability is required." },
+        { status: 403 },
+      );
+    }
+    const valid = consumeConfirmationToken({
+      token: body.confirmToken,
+      wallet: wallet.address,
+      action: { message: body.message.trim() },
+    });
+    if (!valid) {
+      return NextResponse.json(
+        { error: "confirmation_mismatch", message: "Confirmation expired or does not match this action. Re-plan and confirm again." },
+        { status: 403 },
+      );
+    }
+  }
+
+  const rlKey = body.execute ? `agent-exec:${ip}` : `agent:${ip}`;
+  const rlMax = body.execute ? limits.maxExecute : limits.maxRequests;
+  const rl = rateLimit(rlKey, { windowMs: limits.windowMs, max: rlMax });
+  if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+
+  const confirmationToken = body.execute
+    ? body.confirmToken!
+    : issueConfirmationToken({ wallet: wallet.address, action: { message: body.message.trim() } });
+
   const wantStream = body.stream !== false;
 
   const scrubResult = (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
-    if (result.message?.content) {
-      result.message.content = sanitizeAgentText(result.message.content);
-    }
+    if (result.message?.content) result.message.content = sanitizeAgentText(result.message.content);
     if (result.message) {
       result.message.toolTrace = redactToolTrace(result.toolTrace) as
         | typeof result.message.toolTrace
         | undefined;
+      if (result.message.actionPreview) {
+        result.message.actionPreview = {
+          ...result.message.actionPreview,
+          confirmToken: confirmationToken,
+        };
+      }
     }
     if (result.transaction) {
       result.transaction = redactTransactionForClient(
         result.transaction as unknown as Record<string, unknown>,
       ) as typeof result.transaction;
     }
-    // Don't send full toolTrace array with summaries on root
     return {
       message: result.message,
       transaction: result.transaction,
       toolTrace: redactToolTrace(result.toolTrace),
     };
+  };
+
+  const persistAndLog = async (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
+    if (result.transaction) {
+      await persistTransaction(result.transaction, {
+        userId: session?.id !== "ephemeral" ? session?.id : undefined,
+        walletAddress: wallet.address || undefined,
+      });
+    }
+    await logAgentRun({
+      message: body.message.slice(0, 200),
+      execute: body.execute,
+      confirmed: body.confirmed,
+      ip,
+      walletAddress: wallet.address || undefined,
+      userId: session?.id !== "ephemeral" ? session?.id : undefined,
+      toolTrace: result.toolTrace?.map((t) => t.name),
+      resultSummary: undefined,
+    });
   };
 
   if (!wantStream) {
@@ -88,22 +120,7 @@ export async function POST(req: Request) {
         execute: body.execute && body.confirmed,
         wallet,
       });
-      if (result.transaction) {
-        await persistTransaction(result.transaction, {
-          userId: session?.id !== "ephemeral" ? session?.id : undefined,
-          walletAddress: wallet.address || undefined,
-        });
-      }
-      await logAgentRun({
-        message: body.message.slice(0, 200),
-        execute: body.execute,
-        confirmed: body.confirmed,
-        ip,
-        walletAddress: wallet.address || undefined,
-        userId: session?.id !== "ephemeral" ? session?.id : undefined,
-        toolTrace: result.toolTrace?.map((t) => t.name),
-        resultSummary: undefined,
-      });
+      await persistAndLog(result);
       return Response.json(scrubResult(result));
     } catch {
       return NextResponse.json({ error: "agent_failed" }, { status: 500 });
@@ -117,36 +134,30 @@ export async function POST(req: Request) {
         let out: Record<string, unknown> = { ...event };
 
         if (event.type === "status") {
-          // Keep status high-level only
-          out = {
-            type: "status",
-            message: sanitizeAgentText(String(event.message || "")).slice(
-              0,
-              120,
-            ),
-          };
+          out = { type: "status", message: sanitizeAgentText(String(event.message || "")).slice(0, 120) };
         }
         if (event.type === "tool") {
+          out = { type: "tool", name: event.name, ok: event.ok };
+        }
+        if (event.type === "confirm") {
           out = {
-            type: "tool",
-            name: event.name,
-            ok: event.ok,
-            // omit summary (addresses / internal detail)
+            type: "confirm",
+            preview: { ...event.preview, confirmToken: confirmationToken },
           };
         }
         if (event.type === "message") {
           out = {
             type: "message",
             content: sanitizeAgentText(String(event.content || "")),
-            actionPreview: event.actionPreview,
+            actionPreview: event.actionPreview
+              ? { ...event.actionPreview, confirmToken: confirmationToken }
+              : undefined,
           };
         }
         if (event.type === "transaction" && event.transaction) {
           out = {
             type: "transaction",
-            transaction: redactTransactionForClient(
-              event.transaction as unknown as Record<string, unknown>,
-            ),
+            transaction: redactTransactionForClient(event.transaction as unknown as Record<string, unknown>),
           };
         }
         if (event.type === "done") {
@@ -156,6 +167,9 @@ export async function POST(req: Request) {
               ? {
                   ...event.message,
                   content: sanitizeAgentText(event.message.content),
+                  actionPreview: event.message.actionPreview
+                    ? { ...event.message.actionPreview, confirmToken: confirmationToken }
+                    : undefined,
                   toolTrace: redactToolTrace(
                     event.message.toolTrace as
                       | Array<{ name: string; summary: string; ok: boolean }>
@@ -164,19 +178,13 @@ export async function POST(req: Request) {
                 }
               : undefined,
             transaction: event.transaction
-              ? redactTransactionForClient(
-                  event.transaction as unknown as Record<string, unknown>,
-                )
+              ? redactTransactionForClient(event.transaction as unknown as Record<string, unknown>)
               : undefined,
           };
         }
-        if (event.type === "error") {
-          out = { type: "error", message: "Something went wrong. Try again." };
-        }
+        if (event.type === "error") out = { type: "error", message: "Something went wrong. Try again." };
 
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(out)}\n\n`),
-        );
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(out)}\n\n`));
       };
 
       try {
@@ -187,21 +195,7 @@ export async function POST(req: Request) {
           wallet,
           onEvent: (e) => send(e),
         });
-        if (result.transaction) {
-          await persistTransaction(result.transaction, {
-            userId: session?.id !== "ephemeral" ? session?.id : undefined,
-            walletAddress: wallet.address || undefined,
-          });
-        }
-        await logAgentRun({
-          message: body.message.slice(0, 200),
-          execute: body.execute,
-          confirmed: body.confirmed,
-          ip,
-          walletAddress: wallet.address || undefined,
-          userId: session?.id !== "ephemeral" ? session?.id : undefined,
-          toolTrace: result.toolTrace?.map((t) => t.name),
-        });
+        await persistAndLog(result);
       } catch {
         send({ type: "error", message: "Something went wrong." });
       } finally {
