@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   MoreHorizontal,
@@ -12,6 +12,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePilotStore } from "@/store/pilot-store";
 import {
   BridgePanelBody,
   RecoveryPanelBody,
@@ -68,6 +69,52 @@ const TABS: Array<{
 ];
 
 /**
+ * Reset every transaction amount field rendered inside the money-tools workspace
+ * after a newly completed transaction. The transaction components remain the
+ * source of truth for validation and execution; this only clears their local
+ * form values after a confirmed success.
+ */
+function TransactionAmountResetter() {
+  const transactions = usePilotStore((s) => s.transactions);
+  const initialized = useRef(false);
+  const seenSuccessIds = useRef(new Set<string>());
+
+  useEffect(() => {
+    const successfulIds = transactions
+      .filter((tx) => tx.status === "success")
+      .map((tx) => tx.id);
+
+    if (!initialized.current) {
+      successfulIds.forEach((id) => seenSuccessIds.current.add(id));
+      initialized.current = true;
+      return;
+    }
+
+    const newSuccess = successfulIds.filter((id) => !seenSuccessIds.current.has(id));
+    if (!newSuccess.length) return;
+    newSuccess.forEach((id) => seenSuccessIds.current.add(id));
+
+    const root = document.getElementById("tools");
+    if (!root) return;
+
+    const inputs = Array.from(root.querySelectorAll<HTMLInputElement>('input[type="number"]'))
+      .filter((input) => input.getAttribute("aria-label") !== "Custom slippage percentage");
+
+    for (const input of inputs) {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(input, "0");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }, [transactions]);
+
+  return null;
+}
+
+/**
  * Professional tabbed money tools — right column of dashboard.
  * Chat agent is separate (left) and intentionally untouched.
  */
@@ -84,6 +131,7 @@ export function ToolsWorkspace({
       id="tools"
       className="glow-border scroll-mt-24 overflow-hidden rounded-2xl border border-cyan-400/10 bg-gradient-to-b from-[#0c1526]/95 via-[#0a1220]/96 to-[#060d18] shadow-2xl shadow-black/30"
     >
+      <TransactionAmountResetter />
       <div className="border-b border-white/[0.06] px-4 pt-4 pb-3 sm:px-5">
         <div className="flex items-start justify-between gap-3">
           <div>
