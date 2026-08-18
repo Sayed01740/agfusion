@@ -1,8 +1,12 @@
 /**
- * Persistent per-transaction bridge state machine (Phase 5/6/7).
+ * Persistent per-transaction bridge state machine.
  *
- * The invariant this module enforces: a confirmed burn is NEVER re-executed.
- * Recovery resumes from the last confirmed state instead of restarting.
+ * Invariants:
+ * - a confirmed burn is NEVER re-executed during recovery
+ * - source/destination/amount/token/recipient are immutable for a tx
+ * - persisted state is validated before use
+ * - stale lifecycle events cannot move a bridge backwards
+ * - a completed bridge is terminal
  */
 
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
@@ -62,12 +66,25 @@ const KNOWN_STATES: BridgeStateName[] = [
 
 const KNOWN_WALLET_TYPES: BridgeWalletType[] = ["evm", "circle", "agent"];
 
-/**
- * INVARIANT 10: persisted state must be validated before use.
- * Rejects corrupted / tampered / truncated entries (wrong chains, zero or
- * non-numeric amounts, unknown states, missing ids) so recovery never acts
- * on garbage.
- */
+const STATE_RANK: Record<BridgeStateName, number> = {
+  INIT: 0,
+  APPROVAL_PENDING: 1,
+  APPROVED: 2,
+  BURN_PENDING: 3,
+  BURN_CONFIRMED: 4,
+  ATTESTATION_PENDING: 5,
+  ATTESTATION_RECEIVED: 6,
+  DESTINATION_PENDING: 7,
+  DESTINATION_CONFIRMED: 8,
+  COMPLETED: 9,
+  FAILED: -1,
+  RECOVERABLE: -1,
+};
+
+const isValidHash = (value: unknown): value is string =>
+  typeof value === "string" && /^0x[a-fA-F0-9]{64}$/.test(value);
+
+/** Validate persisted state before recovery ever trusts it. */
 export function validateBridgeState(raw: unknown): raw is BridgeState {
   if (!raw || typeof raw !== "object") return false;
   const s = raw as Record<string, unknown>;
@@ -75,17 +92,13 @@ export function validateBridgeState(raw: unknown): raw is BridgeState {
   if (
     typeof s.walletType !== "string" ||
     !KNOWN_WALLET_TYPES.includes(s.walletType as BridgeWalletType)
-  ) {
-    return false;
-  }
+  ) return false;
   if (
     typeof s.fromChain !== "string" ||
     typeof s.toChain !== "string" ||
     !CCTP_CHAIN_CONFIG[s.fromChain] ||
     !CCTP_CHAIN_CONFIG[s.toChain]
-  ) {
-    return false;
-  }
+  ) return false;
   if (typeof s.token !== "string" || !s.token) return false;
   if (typeof s.amount !== "string") return false;
   const amount = Number(s.amount);
@@ -93,11 +106,11 @@ export function validateBridgeState(raw: unknown): raw is BridgeState {
   if (
     typeof s.state !== "string" ||
     !KNOWN_STATES.includes(s.state as BridgeStateName)
-  ) {
-    return false;
-  }
-  if (typeof s.createdAt !== "number" || typeof s.updatedAt !== "number") {
-    return false;
+  ) return false;
+  if (typeof s.createdAt !== "number" || typeof s.updatedAt !== "number") return false;
+
+  for (const key of ["approvalTxHash", "burnTxHash", "destinationTxHash"] as const) {
+    if (s[key] !== undefined && !isValidHash(s[key])) return false;
   }
   return true;
 }
@@ -110,7 +123,6 @@ export function loadBridgeState(txId: string): BridgeState | null {
     const map = JSON.parse(raw) as Record<string, BridgeState>;
     const entry = map[txId];
     if (!entry) return null;
-    // INVARIANT 10: corrupted entries are dropped, never trusted.
     if (!validateBridgeState(entry)) {
       removeBridgeState(txId);
       return null;
@@ -180,9 +192,6 @@ export function updateBridgeState(
   const current = loadBridgeState(txId);
   if (!current) return null;
 
-  // INVARIANTS 4–7: source/destination chain, amount, recipient and token are
-  // immutable once a bridge exists. A recovery attempt can never rewrite them,
-  // so a "recovered" bridge always moves the same funds to the same place.
   const frozen: Array<keyof BridgeState> = [
     "txId",
     "walletType",
@@ -196,9 +205,7 @@ export function updateBridgeState(
   const safePatch: Partial<BridgeState> = { ...patch };
   for (const key of frozen) {
     const v = patch[key];
-    if (v !== undefined && v !== current[key]) {
-      delete safePatch[key];
-    }
+    if (v !== undefined && v !== current[key]) delete safePatch[key];
   }
 
   const next = { ...current, ...safePatch, updatedAt: Date.now() };
@@ -207,10 +214,10 @@ export function updateBridgeState(
 }
 
 /**
- * Derive the state machine from SDK step results. Steps arrive in execution
- * order (approve → burn → fetchAttestation → mint). A step is "confirmed" when
- * the SDK reports success with a tx hash; attestation confirmation does not
- * need a hash.
+ * Derive state from SDK step results. Stale/partial events cannot regress a
+ * bridge that has already reached a later non-terminal state. FAILED and
+ * RECOVERABLE remain resumable and may advance when a subsequent attempt
+ * supplies stronger evidence.
  */
 export function deriveBridgeState(
   txId: string,
@@ -218,12 +225,20 @@ export function deriveBridgeState(
   opts?: { error?: string },
 ): BridgeState {
   const existing = loadBridgeState(txId);
-  if (!existing) return initBridgeState({ txId, walletType: "evm", walletAddress: null, fromChain: "Arc_Testnet", toChain: "Base_Sepolia", token: "USDC", amount: "0" });
+  if (!existing) {
+    return initBridgeState({
+      txId,
+      walletType: "evm",
+      walletAddress: null,
+      fromChain: "Arc_Testnet",
+      toChain: "Base_Sepolia",
+      token: "USDC",
+      amount: "0",
+    });
+  }
 
-  // INVARIANT 8: a completed bridge is terminal. Late/duplicate step events
-  // (e.g. a delayed error from a previous attempt) must never regress it.
   if (existing.state === "COMPLETED") {
-    const terminal: BridgeState = { ...existing, updatedAt: Date.now() };
+    const terminal = { ...existing, updatedAt: Date.now() };
     saveBridgeState(terminal);
     return terminal;
   }
@@ -240,44 +255,45 @@ export function deriveBridgeState(
   const burnTxHash = existing.burnTxHash ?? steps.find((s) => s.name === "burn")?.txHash;
   const destinationTxHash = existing.destinationTxHash ?? steps.find((s) => s.name === "mint")?.txHash;
 
-  let state: BridgeStateName = existing.state;
+  let derived: BridgeStateName = existing.state;
   const anyError = steps.some((s) => s.state === "error");
-  if (mintOk) state = "COMPLETED";
-  else if (anyError) state = "FAILED";
-  else if (burnOk && attestOk) state = "DESTINATION_PENDING";
-  else if (burnOk) state = "ATTESTATION_PENDING";
-  else if (burnTxHash) state = "BURN_CONFIRMED";
-  else if (approveOk) state = "APPROVED";
-  else if (stepState("approve") === "active" || stepState("approve") === "pending") state = "APPROVAL_PENDING";
-  else state = "RECOVERABLE";
+  if (mintOk) derived = "COMPLETED";
+  else if (anyError) derived = "FAILED";
+  else if (burnOk && attestOk) derived = "DESTINATION_PENDING";
+  else if (burnOk) derived = "ATTESTATION_PENDING";
+  else if (burnTxHash) derived = "BURN_CONFIRMED";
+  else if (approveOk) derived = "APPROVED";
+  else if (stepState("approve") === "active" || stepState("approve") === "pending") derived = "APPROVAL_PENDING";
+  else derived = "RECOVERABLE";
+
+  // Never let a stale lifecycle event erase stronger evidence already persisted.
+  if (
+    STATE_RANK[existing.state] >= 0 &&
+    STATE_RANK[derived] >= 0 &&
+    STATE_RANK[derived] < STATE_RANK[existing.state]
+  ) {
+    derived = existing.state;
+  }
 
   const errStep = steps.find((s) => s.state === "error");
   const next: BridgeState = {
     ...existing,
-    state,
+    state: derived,
     approvalTxHash,
     burnTxHash,
     destinationTxHash,
-    error: opts?.error ?? ((errStep as { message?: string } | undefined)?.message as string | undefined),
+    error: opts?.error ?? errStep?.message,
     updatedAt: Date.now(),
   };
   saveBridgeState(next);
   return next;
 }
 
-/**
- * Convert a persisted bridge state into UI steps, preserving hashes so the
- * stepper shows real transaction links after reload.
- */
 export function bridgeStateToSteps(state: BridgeState | null): TxStep[] {
   if (!state) return [];
   const mk = (name: string, s: "pending" | "active" | "success" | "error", txHash?: string): TxStep => ({ name, state: s, txHash });
-
   const inState = (names: BridgeStateName[]) => names.includes(state.state);
-
-const done = state.state === "COMPLETED";
-
-  // In FAILED/RECOVERABLE states, highlight the step where progress stopped.
+  const done = state.state === "COMPLETED";
   const failed = state.state === "FAILED" || state.state === "RECOVERABLE";
   const failApprove = failed && !state.approvalTxHash && !done;
   const failBurn = failed && state.approvalTxHash && !state.burnTxHash && !done;
@@ -304,11 +320,17 @@ const done = state.state === "COMPLETED";
   return [approveStep, burnStep, attestStep, mintStep];
 }
 
-/** True when the persisted state proves the burn already happened. */
 export function isBurnConfirmed(state: BridgeState | null): boolean {
   if (!state) return false;
   if (state.burnTxHash) return true;
-  return ["BURN_CONFIRMED", "ATTESTATION_PENDING", "ATTESTATION_RECEIVED", "DESTINATION_PENDING", "DESTINATION_CONFIRMED", "COMPLETED"].includes(state.state);
+  return [
+    "BURN_CONFIRMED",
+    "ATTESTATION_PENDING",
+    "ATTESTATION_RECEIVED",
+    "DESTINATION_PENDING",
+    "DESTINATION_CONFIRMED",
+    "COMPLETED",
+  ].includes(state.state);
 }
 
 export function bridgeStateFromRecord(tx: TransactionRecord | undefined | null): BridgeState | null {
