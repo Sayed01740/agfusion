@@ -1,9 +1,9 @@
 /**
  * Circle Arc App Kit singleton.
- * Uses a real dynamic import so Next/Webpack can bundle @circle-fin/app-kit.
- * Kit keys are optional per the current Arc swap quickstart. If /api/kit is
- * unavailable or no KIT_KEY is configured, App Kit still initializes and the
- * SDK uses its normal rate-limited path.
+ *
+ * The Circle Kit key is SERVER-ONLY. The browser App Kit client must use the
+ * keyless/permissive path. Circle requests are routed through our same-origin
+ * server proxy, which injects the real KIT_KEY on the server.
  */
 
 export type AppKitLike = {
@@ -25,46 +25,17 @@ export type AppKitLike = {
 
 let kitSingleton: AppKitLike | null = null;
 let loadError: string | null = null;
-let browserKitKey: string | null = null;
-let kitKeyLoaded = false;
 
 export function getAppKitLoadError(): string | null {
   return loadError;
 }
 
 /**
- * KIT_KEY is optional in the current Arc App Kit swap flow. Never make the
- * entire swap UI depend on /api/kit being configured.
+ * Deprecated browser accessor kept only for compatibility with older callers.
+ * NEVER expose the real Circle KIT_KEY to browser JavaScript.
  */
-async function loadBrowserKitKey(): Promise<string | null> {
-  if (kitKeyLoaded) return browserKitKey;
-  kitKeyLoaded = true;
-
-  if (typeof window === "undefined") return null;
-
-  try {
-    const response = await fetch("/api/kit", {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-    const data = (await response.json().catch(() => null)) as
-      | { kitKey?: string | null; configured?: boolean; valid?: boolean | null }
-      | null;
-
-    const key = typeof data?.kitKey === "string" ? data.kitKey.trim() : "";
-    if (!response.ok || !key) return null;
-    if (!/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(key)) return null;
-
-    browserKitKey = key;
-    return key;
-  } catch {
-    return null;
-  }
-}
-
 export async function getBrowserKitKey(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-  return loadBrowserKitKey();
+  return null;
 }
 
 export async function isAppKitInstalled(): Promise<boolean> {
@@ -88,7 +59,6 @@ export async function getAppKit(): Promise<AppKitLike | null> {
     const { installCircleApiProxy } = await import("@/lib/circle-proxy");
     installCircleApiProxy();
 
-    const kitKey = await loadBrowserKitKey();
     const mod = await import("@circle-fin/app-kit");
     const AppKitCtor = mod.AppKit as
       | (new (config?: unknown) => AppKitLike)
@@ -98,13 +68,10 @@ export async function getAppKit(): Promise<AppKitLike | null> {
       return null;
     }
 
-    // Do not send an undefined/empty kitKey. The current SDK accepts an empty
-    // configuration and falls back to its rate-limited mode.
-    kitSingleton = new AppKitCtor(
-      kitKey
-        ? { kitKey, disableErrorReporting: true }
-        : { disableErrorReporting: true },
-    );
+    // IMPORTANT: do not pass kitKey/config.kitKey in the browser. The current
+    // Circle SDK explicitly rejects a kitKey in a browser environment.
+    // Circle API calls are authenticated by /api/circle/proxy on the server.
+    kitSingleton = new AppKitCtor({ disableErrorReporting: true });
     loadError = null;
     return kitSingleton;
   } catch (e) {
@@ -118,10 +85,8 @@ export function isLiveAppKit(): boolean {
   return kitSingleton !== null;
 }
 
-/** Reset singleton (e.g. after env/key change) */
+/** Reset singleton */
 export function resetAppKit(): void {
   kitSingleton = null;
-  browserKitKey = null;
-  kitKeyLoaded = false;
   loadError = null;
 }
