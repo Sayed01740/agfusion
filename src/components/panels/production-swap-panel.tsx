@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
-import { getAppKit } from "@/sdk/appkit-client";
+import { getAppKit, getBrowserKitKey } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
@@ -94,6 +94,13 @@ export function ProductionSwapPanel() {
       const kit = await getAppKit();
       if (!kit) throw new Error("Circle App Kit could not be loaded. Refresh the page and retry.");
 
+      // Circle Stablecoin Service requires the Kit Key on swap quote/execution.
+      // The key is provisioned server-side by /api/kit and is never entered by the user.
+      const kitKey = await getBrowserKitKey();
+      if (!kitKey) {
+        throw new Error("Circle Kit Key is not configured. Set KIT_KEY on Vercel and redeploy.");
+      }
+
       const provider = await getInjectedProvider();
       await requestAccounts(provider);
       await switchToChainId(provider, "Arc_Testnet");
@@ -108,7 +115,11 @@ export function ProductionSwapPanel() {
         tokenIn,
         tokenOut,
         amountIn: String(amount),
-        config: {},
+        config: {
+          kitKey,
+          slippageBps: 100,
+          allowanceStrategy: "approve" as const,
+        },
       });
 
       setQuote(normalizeQuote(raw));
