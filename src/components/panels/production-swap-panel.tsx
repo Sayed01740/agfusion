@@ -7,42 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
-import { getAppKit } from "@/sdk/appkit-client";
-import { createAppKitAdapterFromBrowser, getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
+import { getArcDexSwapQuote } from "@/blockchain/production-swap";
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 const ARC_SWAP_TOKENS: ArcSwapToken[] = ["USDC", "EURC", "cirBTC"];
 
 type Quote = {
   amountOut?: string;
-  fee?: string;
-  feeUsd?: string;
-  priceImpact?: string;
-  slippage?: string;
   route?: string;
-  raw?: unknown;
+  slippage?: string;
 };
-
-function pickString(value: unknown, keys: string[]): string | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  for (const key of keys) {
-    const v = (value as Record<string, unknown>)[key];
-    if (typeof v === "string" || typeof v === "number") return String(v);
-  }
-  return undefined;
-}
-
-function normalizeQuote(raw: unknown): Quote {
-  return {
-    amountOut: pickString(raw, ["amountOut", "amountOutFormatted", "estimatedAmountOut", "outputAmount"]),
-    fee: pickString(raw, ["fee", "feeAmount", "networkFee"]),
-    feeUsd: pickString(raw, ["feeUsd", "feeUSD", "estimatedFeeUsd"]),
-    priceImpact: pickString(raw, ["priceImpact", "priceImpactPct"]),
-    slippage: pickString(raw, ["slippage", "slippageBps"]),
-    route: pickString(raw, ["route", "provider", "source"]),
-    raw,
-  };
-}
 
 function prettyAmount(value?: string) {
   if (!value) return "—";
@@ -91,30 +65,15 @@ export function ProductionSwapPanel() {
     setQuoteBusy(true);
     setError(null);
     try {
-      const kit = await getAppKit();
-      if (!kit) throw new Error("Circle App Kit could not be loaded. Refresh the page and retry.");
-
-      const provider = await getInjectedProvider();
-      await requestAccounts(provider);
-      await switchToChainId(provider, "Arc_Testnet");
-
-      // Browser App Kit must remain keyless. The server-side Circle proxy
-      // injects KIT_KEY when the SDK calls Circle's API.
-      const wired = await createAppKitAdapterFromBrowser({ requireArc: true });
-      if (!wired) throw new Error("Wallet adapter is unavailable. Reconnect your wallet and retry.");
-
-      const raw = await kit.estimateSwap({
-        from: { adapter: wired.adapter, chain: "Arc_Testnet" },
-        tokenIn,
-        tokenOut,
-        amountIn: String(amount),
-        config: {},
+      const raw = await getArcDexSwapQuote({ amount, tokenIn, tokenOut });
+      setQuote({
+        amountOut: raw.amountOut,
+        route: raw.route,
+        slippage: `${raw.slippageBps / 100}%`,
       });
-
-      setQuote(normalizeQuote(raw));
     } catch (e) {
       setQuote(null);
-      setError(e instanceof Error ? e.message : "Unable to obtain a live Circle swap quote.");
+      setError(e instanceof Error ? e.message : "Unable to obtain a live Arc swap quote.");
     } finally {
       setQuoteBusy(false);
     }
@@ -151,7 +110,7 @@ export function ProductionSwapPanel() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">Arc Testnet Swap</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">Live Circle App Kit quote, wallet confirmation, and receipt verification.</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">Live Arc DEX quote, wallet confirmation, and receipt verification.</p>
         </div>
         <Badge variant="cyan" className="shrink-0">USDC · EURC · cirBTC</Badge>
       </div>
@@ -183,10 +142,10 @@ export function ProductionSwapPanel() {
         <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] p-3.5 space-y-2.5">
           <div className="flex items-center justify-between gap-3"><span className="text-[11px] text-slate-400">Estimated receive</span><span className="text-sm font-semibold text-slate-50">{prettyAmount(quote.amountOut)} {tokenOut}</span></div>
           <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><p className="text-slate-500">Fee</p><p className="mt-0.5 text-slate-200">{quote.feeUsd || quote.fee || "Included in quote"}</p></div>
-            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><p className="text-slate-500">Price impact</p><p className="mt-0.5 text-slate-200">{quote.priceImpact || "Quoted by Circle"}</p></div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><p className="text-slate-500">Route</p><p className="mt-0.5 text-slate-200">{quote.route || "Arc DEX"}</p></div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><p className="text-slate-500">Slippage</p><p className="mt-0.5 text-slate-200">{quote.slippage || "1%"}</p></div>
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-slate-500"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Live quote from Circle App Kit · Arc Testnet{quote.route ? ` · ${quote.route}` : ""}</div>
+          <div className="flex items-center gap-2 text-[10px] text-slate-500"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Quote from live Arc Testnet liquidity. Transaction is signed by your connected wallet.</div>
         </div>
       )}
 
