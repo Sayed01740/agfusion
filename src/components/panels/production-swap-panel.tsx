@@ -120,7 +120,12 @@ export function ProductionSwapPanel() {
       const tx = await executeSwap({ amount, tokenIn, tokenOut, chain: "Arc_Testnet", slippageBps });
       addTransaction(tx);
       setActiveTx(tx.id);
-      if (tx.status !== "success") setError(tx.message || "Swap was submitted but is not confirmed yet.");
+      if (tx.status === "success") {
+        setAmount("0");
+        setQuote(null);
+      } else {
+        setError(tx.message || "Swap was submitted but is not confirmed yet.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Swap failed.");
     } finally {
