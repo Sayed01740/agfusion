@@ -1,0 +1,169 @@
+/* AGFusion Premium System: Obsidian × Arc Cyan × Editorial Intelligence */
+:root {
+  --ag-bg: #050709;
+  --ag-surface: #0a0f13;
+  --ag-surface-2: #0e1419;
+  --ag-surface-3: #121a20;
+  --ag-border: rgba(255,255,255,.075);
+  --ag-border-strong: rgba(34,211,238,.20);
+  --ag-text: #f4f7f8;
+  --ag-muted: #8d989f;
+  --ag-cyan: #22d3ee;
+  --ag-mint: #5eead4;
+  --ag-success: #65d6a3;
+  --ag-warning: #e7b86a;
+  --ag-danger: #e36d78;
+}
+
+body {
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(34,211,238,.075), transparent 65%),
+    radial-gradient(700px 420px at 92% 4%, rgba(94,234,212,.045), transparent 62%),
+    var(--ag-bg) !important;
+  color: var(--ag-text);
+}
+
+/* Replace the previous glass-heavy treatment with restrained financial surfaces. */
+.glass, .glass-strong, .glass-soft, .liquid-glass, .glass-ultra, .surface-card {
+  background: linear-gradient(155deg, rgba(14,20,25,.96), rgba(7,11,14,.94)) !important;
+  backdrop-filter: blur(18px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(120%) !important;
+  border-color: var(--ag-border) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.035) inset, 0 18px 55px rgba(0,0,0,.28) !important;
+}
+
+.glass-ultra:hover, .surface-card:hover {
+  border-color: var(--ag-border-strong) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 0 0 1px rgba(34,211,238,.035), 0 22px 60px rgba(0,0,0,.34) !important;
+}
+
+.ag-premium-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.ag-premium-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 360px;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(34,211,238,.055), transparent 72%);
+  mask-image: linear-gradient(#000, transparent);
+}
+
+.ag-command-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--ag-border);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(14,21,26,.98), rgba(6,10,13,.97));
+  box-shadow: 0 24px 80px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.ag-command-hero::after {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  right: -180px;
+  top: -230px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(34,211,238,.10), transparent 68%);
+  pointer-events: none;
+}
+
+.ag-eyebrow {
+  color: rgba(94,234,212,.88);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: .20em;
+  text-transform: uppercase;
+}
+
+.ag-hero-title {
+  color: var(--ag-text);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: .98;
+  letter-spacing: -.045em;
+  font-weight: 600;
+}
+
+.ag-hero-title em {
+  font-style: normal;
+  color: var(--ag-cyan);
+}
+
+.ag-network-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 5px;
+  scrollbar-width: none;
+}
+.ag-network-rail::-webkit-scrollbar { display:none; }
+
+.ag-network-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+  color: #cbd5da;
+  transition: border-color .2s ease, background .2s ease, transform .2s ease;
+}
+.ag-network-chip:hover {
+  border-color: rgba(34,211,238,.22);
+  background: rgba(34,211,238,.045);
+  transform: translateY(-1px);
+}
+.ag-network-chip img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.ag-network-chip small {
+  display:block;
+  color:#65727a;
+  font-size:9px;
+  letter-spacing:.04em;
+  margin-top:1px;
+}
+
+.ag-route-line {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34,211,238,.28), transparent);
+}
+.ag-route-line::after {
+  content:"";
+  position:absolute;
+  left:28%;
+  top:-2px;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:var(--ag-cyan);
+  box-shadow:0 0 14px rgba(34,211,238,.7);
+}
+
+.ag-metric {
+  border-left: 1px solid rgba(255,255,255,.07);
+  padding-left: 16px;
+}
+.ag-metric:first-child { border-left:0; padding-left:0; }
+.ag-metric-label { color:#68747b; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+.ag-metric-value { color:#f3f6f7; font-family:var(--font-mono); font-size:16px; font-weight:600; margin-top:3px; }
+
+@media (max-width: 640px) {
+  .ag-command-hero { border-radius: 18px; }
+  .ag-metric { padding-left: 10px; }
+  .ag-metric-value { font-size:14px; }
+}
