@@ -37,7 +37,8 @@ function apiUrl(path: string): string {
  * - receipt found + status 0x1      → "success"
  * - receipt found + other status    → "reverted"
  * - receipt missing after attempts  → "not_found" (may be pending or unknown)
- * - network/HTTP failure            → throws (caller decides how to degrade)
+ * - network/HTTP failure            → "not_found" so callers can only mark
+ *   the transaction pending/retryable, never falsely successful.
  */
 export async function verifyReceiptOnChain(opts: {
   chainKey: string;
@@ -54,35 +55,40 @@ export async function verifyReceiptOnChain(opts: {
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
 
   let lastReceipt: unknown = null;
-  for (let i = 0; i < attempts; i += 1) {
-    const res = await fetchImpl(apiUrl(`/api/rpc?chain=${encodeURIComponent(opts.chainKey)}`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_getTransactionReceipt",
-        params: [opts.txHash],
-      }),
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      throw new Error(`RPC ${opts.chainKey} failed during verification (HTTP ${res.status}).`);
+  try {
+    for (let i = 0; i < attempts; i += 1) {
+      const res = await fetchImpl(apiUrl(`/api/rpc?chain=${encodeURIComponent(opts.chainKey)}`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "eth_getTransactionReceipt",
+          params: [opts.txHash],
+        }),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        throw new Error(`RPC ${opts.chainKey} failed during verification (HTTP ${res.status}).`);
+      }
+      const data = (await res.json()) as {
+        result?: { status?: string; blockNumber?: string } | null;
+        error?: { message?: string };
+      };
+      if (data.error) {
+        throw new Error(data.error.message || "RPC error during verification.");
+      }
+      const receipt = data.result;
+      lastReceipt = receipt;
+      if (receipt) {
+        if (receipt.status === "0x1") return { status: "success", receipt };
+        return { status: "reverted", receipt };
+      }
+      if (i < attempts - 1) await sleep(delayMs);
     }
-    const data = (await res.json()) as {
-      result?: { status?: string; blockNumber?: string } | null;
-      error?: { message?: string };
-    };
-    if (data.error) {
-      throw new Error(data.error.message || "RPC error during verification.");
-    }
-    const receipt = data.result;
-    lastReceipt = receipt;
-    if (receipt) {
-      if (receipt.status === "0x1") return { status: "success", receipt };
-      return { status: "reverted", receipt };
-    }
-    if (i < attempts - 1) await sleep(delayMs);
+    return { status: "not_found", receipt: lastReceipt };
+  } catch (error) {
+    console.warn("[AGFusion] receipt verification unavailable; refusing success", error);
+    return { status: "not_found", receipt: lastReceipt };
   }
-  return { status: "not_found", receipt: lastReceipt };
 }
