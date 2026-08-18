@@ -17,10 +17,7 @@ const DECIMALS = { USDC: 6, EURC: 6, cirBTC: 8 } as const;
 const SLIPPAGE_BPS = 100n;
 
 type ArcSwapToken = keyof typeof TOKENS;
-
-type Provider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-};
+type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
 
 const ROUTER_ABI = [
   { type: "function", name: "getAmountsOut", stateMutability: "view", inputs: [{ name: "amountIn", type: "uint256" }, { name: "path", type: "address[]" }], outputs: [{ name: "amounts", type: "uint256[]" }] },
@@ -50,13 +47,14 @@ async function ethCall(provider: Provider, to: `0x${string}`, data: `0x${string}
 }
 
 async function blockTimestamp(provider: Provider): Promise<bigint> {
-  const hex = String(await provider.request({ method: "eth_getBlockByNumber", params: ["latest", false] }) as any);
   try {
-    const block = JSON.parse(hex) as { timestamp?: string };
-    return BigInt(block.timestamp || "0x0");
-  } catch {
-    return BigInt(Math.floor(Date.now() / 1000));
-  }
+    const block = await provider.request({ method: "eth_getBlockByNumber", params: ["latest", false] });
+    if (block && typeof block === "object" && "timestamp" in block) {
+      const timestamp = String((block as { timestamp?: unknown }).timestamp || "0x0");
+      return BigInt(timestamp);
+    }
+  } catch {}
+  return BigInt(Math.floor(Date.now() / 1000));
 }
 
 function effectiveAddress(token: ArcSwapToken): `0x${string}` {
@@ -76,11 +74,7 @@ async function quotePath(provider: Provider, amountIn: bigint, path: `0x${string
   return BigInt(`0x${last}`);
 }
 
-export async function getArcDexSwapQuote(params: {
-  amount: string;
-  tokenIn: string;
-  tokenOut: string;
-}): Promise<{ amountOut: string; route: string; slippageBps: number }> {
+export async function getArcDexSwapQuote(params: { amount: string; tokenIn: string; tokenOut: string }): Promise<{ amountOut: string; route: string; slippageBps: number }> {
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
   assertToken(tokenIn);
@@ -92,21 +86,17 @@ export async function getArcDexSwapQuote(params: {
   const amountIn = normalizeAmount(params.amount, tokenIn);
   const a = effectiveAddress(tokenIn);
   const b = effectiveAddress(tokenOut);
+  const paths: `0x${string}`[][] = [];
+  if (a !== b) paths.push([a, b]);
+  if (a !== WUSDC && b !== WUSDC) paths.push([a, WUSDC, b]);
   const candidates: { path: `0x${string}`[]; out: bigint }[] = [];
-  for (const path of [a === b ? [] : [a, b], a !== WUSDC && b !== WUSDC ? [a, WUSDC, b] : []]) {
-    if (!path.length) continue;
-    try {
-      candidates.push({ path, out: await quotePath(provider, amountIn, path) });
-    } catch {}
+  for (const path of paths) {
+    try { candidates.push({ path, out: await quotePath(provider, amountIn, path) }); } catch {}
   }
   if (!candidates.length) throw new Error(`No liquidity route available for ${tokenIn} → ${tokenOut} on Arc Testnet.`);
   candidates.sort((x, y) => (x.out > y.out ? -1 : x.out < y.out ? 1 : 0));
   const best = candidates[0];
-  return {
-    amountOut: formatUnits(best.out, DECIMALS[tokenOut]),
-    route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC",
-    slippageBps: Number(SLIPPAGE_BPS),
-  };
+  return { amountOut: formatUnits(best.out, DECIMALS[tokenOut]), route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC", slippageBps: Number(SLIPPAGE_BPS) };
 }
 
 async function approveIfNeeded(provider: Provider, owner: `0x${string}`, token: ArcSwapToken, amount: bigint): Promise<string | undefined> {
@@ -122,13 +112,7 @@ async function approveIfNeeded(provider: Provider, owner: `0x${string}`, token: 
   return tx;
 }
 
-export async function runProductionSwap(params: {
-  amount: string;
-  tokenIn: string;
-  tokenOut: string;
-  chain: ChainId;
-  onStep?: (steps: TxStep[]) => void;
-}): Promise<TransactionRecord> {
+export async function runProductionSwap(params: { amount: string; tokenIn: string; tokenOut: string; chain: ChainId; onStep?: (steps: TxStep[]) => void }): Promise<TransactionRecord> {
   if (params.chain !== ARC_CHAIN) throw new Error("Arc Testnet is the only supported swap testnet.");
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
@@ -141,12 +125,11 @@ export async function runProductionSwap(params: {
   await switchToChainId(provider, ARC_CHAIN);
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
   const amountIn = normalizeAmount(params.amount, tokenIn);
-
   const quote = await getArcDexSwapQuote(params);
   const quotedOut = parseUnits(quote.amountOut, DECIMALS[tokenOut]);
   const minOut = (quotedOut * (10_000n - SLIPPAGE_BPS)) / 10_000n;
-  const now = await blockTimestamp(provider);
-  const deadline = now + 120n;
+  const deadline = (await blockTimestamp(provider)) + 120n;
+
   const steps: TxStep[] = [
     { name: "Live quote", state: "success", message: `${quote.route} · ${quote.slippageBps / 100}% slippage` },
     { name: "Approve", state: tokenIn === "USDC" ? "success" : "active" },
@@ -155,9 +138,8 @@ export async function runProductionSwap(params: {
   ];
   params.onStep?.(steps.map((s) => ({ ...s })));
 
-  let approvalTx: string | undefined;
   if (tokenIn !== "USDC") {
-    approvalTx = await approveIfNeeded(provider, owner, tokenIn, amountIn);
+    const approvalTx = await approveIfNeeded(provider, owner, tokenIn, amountIn);
     steps[1].state = "success";
     steps[1].txHash = approvalTx;
     params.onStep?.(steps.map((s) => ({ ...s })));
@@ -165,8 +147,7 @@ export async function runProductionSwap(params: {
 
   const inPath = effectiveAddress(tokenIn);
   const outPath = effectiveAddress(tokenOut);
-  const path = inPath === WUSDC || outPath === WUSDC ? [inPath, outPath] : [inPath, outPath];
-  const finalPath = path.length === 2 ? path : [inPath, WUSDC, outPath];
+  const finalPath = inPath !== WUSDC && outPath !== WUSDC ? [inPath, outPath] : [inPath, outPath];
   let data: `0x${string}`;
   let value = "0x0";
 
@@ -199,32 +180,16 @@ export async function runProductionSwap(params: {
     steps[3].state = "error";
     steps[3].message = "Swap transaction reverted on-chain.";
     params.onStep?.(steps.map((s) => ({ ...s })));
-    return {
-      id: uid("tx"), type: "swap", status: "error", retryable: false,
-      amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN,
-      feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(),
-      message: "Swap reverted on-chain. No retry was submitted automatically.", executionMode: "live",
-    };
+    return { id: uid("tx"), type: "swap", status: "error", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: "Swap reverted on-chain. No retry was submitted automatically.", executionMode: "live" };
   }
   if (verification.status !== "success") {
     steps[3].state = "pending";
     steps[3].message = "Receipt not confirmed yet.";
     params.onStep?.(steps.map((s) => ({ ...s })));
-    return {
-      id: uid("tx"), type: "swap", status: "retryable", retryable: true,
-      amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN,
-      feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(),
-      message: "Swap submitted but the receipt is not confirmed yet.", executionMode: "live",
-    };
+    return { id: uid("tx"), type: "swap", status: "retryable", retryable: true, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: "Swap submitted but the receipt is not confirmed yet.", executionMode: "live" };
   }
 
   steps[3].state = "success";
   params.onStep?.(steps.map((s) => ({ ...s })));
-  return {
-    id: uid("tx"), type: "swap", status: "success", retryable: false,
-    amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN,
-    feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(),
-    message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Receipt verified on-chain.`,
-    executionMode: "live",
-  };
+  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Receipt verified on-chain.`, executionMode: "live" };
 }
