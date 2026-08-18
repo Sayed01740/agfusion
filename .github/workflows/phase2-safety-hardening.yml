@@ -1,0 +1,309 @@
+name: Phase 2 safety hardening
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: ${{ !startsWith(github.event.head_commit.message, 'automation: apply phase 2') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Apply unified transaction safety hardening
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/blockchain/appkit-service.ts')
+          s = p.read_text()
+
+          old = '''    const result = (await kit.unifiedBalance.deposit(depositParams)) as {
+      txHash?: string;
+      explorerUrl?: string;
+      amount?: string;
+      chain?: string;
+    };
+
+    return {
+      id: uid("tx"),
+      type: "bridge",
+      status: "success",
+      amount: params.amount,
+      token: "USDC",
+      fromChain: params.fromChain,
+      toChain: "Arc_Testnet",
+      feeUsd: 0.05,
+      steps: [
+        {
+          name: "Unified Balance deposit",
+          state: "success",
+          txHash: result?.txHash,
+        },
+      ],
+      txHash: result?.txHash,
+      explorerUrl: result?.explorerUrl,
+      createdAt: new Date().toISOString(),
+      message: `Unified Balance deposit ${params.amount} USDC from ${params.fromChain}`,
+      executionMode: "live",
+    };'''
+
+          new = '''    const result = (await kit.unifiedBalance.deposit(depositParams)) as {
+      txHash?: string;
+      explorerUrl?: string;
+      amount?: string;
+      chain?: string;
+    };
+
+    // Phase 2: SDK completion is not settlement. A Unified Balance deposit is
+    // successful only after the source-chain transaction receipt confirms.
+    let depositStatus: TransactionRecord["status"] = "retryable";
+    let depositNote = "Deposit submitted but has not been confirmed on-chain yet. Verify the transaction before retrying.";
+    if (result?.txHash) {
+      try {
+        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+        const v = await verifyReceiptOnChain({
+          chainKey: rpcKeyForChain(params.fromChain),
+          txHash: result.txHash,
+          attempts: 4,
+          delayMs: 1_500,
+        });
+        if (v.status === "success") {
+          depositStatus = "success";
+          depositNote = `Unified Balance deposit confirmed on ${params.fromChain}.`;
+        } else if (v.status === "reverted") {
+          depositStatus = "error";
+          depositNote = `Unified Balance deposit reverted on ${params.fromChain}.`;
+        }
+      } catch (e) {
+        console.warn("[AGFusion] unified deposit receipt verification unavailable", e);
+        depositStatus = "retryable";
+        depositNote = "Deposit transaction was submitted, but confirmation could not be verified. Check the explorer before retrying.";
+      }
+    }
+
+    return {
+      id: uid("tx"),
+      type: "bridge",
+      status: depositStatus,
+      retryable: depositStatus === "retryable",
+      amount: params.amount,
+      token: "USDC",
+      fromChain: params.fromChain,
+      toChain: "Arc_Testnet",
+      feeUsd: 0.05,
+      steps: [
+        {
+          name: "Unified Balance deposit",
+          state: depositStatus === "error" ? "error" : depositStatus === "success" ? "success" : "pending",
+          txHash: result?.txHash,
+        },
+      ],
+      txHash: result?.txHash,
+      explorerUrl: result?.explorerUrl || (result?.txHash ? explorerTxUrl(result.txHash) : undefined),
+      createdAt: new Date().toISOString(),
+      message: depositNote,
+      executionMode: "live",
+    };'''
+
+          if old not in s:
+              raise SystemExit('deposit success block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    // Fallback: CCTP bridge toward Arc when Gateway deposit unsupported on chain
+    console.warn("[AGFusion] falling back to bridge Arc path:", msg);
+    try {
+      return await runBridgeFlow({
+        amount: params.amount,
+        token: "USDC",
+        fromChain: params.fromChain,
+        toChain: "Arc_Testnet",
+        preferLive: true,
+      });
+    } catch (bridgeErr) {
+      throw new Error(
+        `Unified Balance deposit failed.\\n${msg}\\n\\nBridge fallback: ${bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)}`,
+      );
+    }'''
+
+          new = '''    // Phase 2: never silently convert a Unified Balance failure into a
+    // different financial operation. The caller must explicitly choose Bridge.
+    throw new Error(`Unified Balance deposit failed.\\n${msg}`);'''
+
+          if old not in s:
+              raise SystemExit('deposit fallback block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''      const result = (await kit.unifiedBalance.spend(spendParams)) as {
+        txHash?: string;
+        explorerUrl?: string;
+      };
+
+      return {
+        id: uid("tx"),
+        type: "unified_spend",
+        status: "success",
+        amount: params.amount,
+        token: "USDC",
+        toChain: "Arc_Testnet",
+        recipient,
+        recipientLabel: params.recipientLabel,
+        feeUsd: 0.08,
+        steps: [
+          {
+            name: "Unified Balance spend → Arc",
+            state: "success",
+            txHash: result?.txHash,
+          },
+        ],
+        txHash: result?.txHash,
+        explorerUrl:
+          result?.explorerUrl ||
+          (result?.txHash ? explorerTxUrl(result.txHash) : undefined),
+        createdAt: new Date().toISOString(),
+        message: `Unified Balance spend ${params.amount} USDC on Arc`,
+        executionMode: "live",
+      };'''
+
+          new = '''      const result = (await kit.unifiedBalance.spend(spendParams)) as {
+        txHash?: string;
+        explorerUrl?: string;
+      };
+
+      // Phase 2: Unified Balance spend is successful only after the Arc
+      // transaction receipt confirms. Missing/unverifiable receipts are never
+      // reported as success and must not trigger a second payment.
+      let spendStatus: TransactionRecord["status"] = "retryable";
+      let spendNote = "Spend submitted but has not been confirmed on-chain yet. Verify the transaction before retrying.";
+      if (result?.txHash) {
+        try {
+          const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+          const v = await verifyReceiptOnChain({
+            chainKey: rpcKeyForChain("Arc_Testnet"),
+            txHash: result.txHash,
+            attempts: 4,
+            delayMs: 1_500,
+          });
+          if (v.status === "success") {
+            spendStatus = "success";
+            spendNote = "Unified Balance spend confirmed on Arc Testnet.";
+          } else if (v.status === "reverted") {
+            spendStatus = "error";
+            spendNote = "Unified Balance spend reverted on Arc Testnet.";
+          }
+        } catch (e) {
+          console.warn("[AGFusion] unified spend receipt verification unavailable", e);
+          spendStatus = "retryable";
+          spendNote = "Spend transaction was submitted, but confirmation could not be verified. Check the explorer before retrying.";
+        }
+      }
+
+      return {
+        id: uid("tx"),
+        type: "unified_spend",
+        status: spendStatus,
+        retryable: spendStatus === "retryable",
+        amount: params.amount,
+        token: "USDC",
+        toChain: "Arc_Testnet",
+        recipient,
+        recipientLabel: params.recipientLabel,
+        feeUsd: 0.08,
+        steps: [
+          {
+            name: "Unified Balance spend → Arc",
+            state: spendStatus === "error" ? "error" : spendStatus === "success" ? "success" : "pending",
+            txHash: result?.txHash,
+          },
+        ],
+        txHash: result?.txHash,
+        explorerUrl:
+          result?.explorerUrl ||
+          (result?.txHash ? explorerTxUrl(result.txHash) : undefined),
+        createdAt: new Date().toISOString(),
+        message: spendNote,
+        executionMode: "live",
+      };'''
+
+          if old not in s:
+              raise SystemExit('spend success block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''      // Fallback: native Arc send if user already holds USDC on Arc
+      return liveSendUsdcOnArc({
+        amount: params.amount,
+        recipient,
+        recipientLabel: params.recipientLabel || "Unified spend fallback",
+      });'''
+          new = '''      // Phase 2: a failed Unified Balance spend must not become a different
+      // payment operation. Explicitly retry the Unified Balance operation.
+      throw new Error(`Unified Balance spend failed.\\n${msg}`);'''
+          if old not in s:
+              raise SystemExit('spend fallback block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''  // No kit — direct Arc send
+  return liveSendUsdcOnArc({
+    amount: params.amount,
+    recipient,
+    recipientLabel: params.recipientLabel,
+  });'''
+          new = '''  // Phase 2: do not silently substitute a native Arc send when Unified
+  // Balance is unavailable. That would change the financial operation.
+  throw new Error("Unified Balance is unavailable. Connect a supported wallet and retry the Unified Balance spend.");'''
+          if old not in s:
+              raise SystemExit('no-kit spend fallback block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    return runSendFlow({
+      amount: params.amount,
+      token: params.token,
+      chain: "Arc_Testnet",
+      recipient: params.recipient,
+      recipientLabel: params.recipientLabel,
+      preferLive: true,
+    });'''
+          new = '''    throw new Error(
+      `Unified route stopped because the bridge did not complete.\\n${error instanceof Error ? error.message : String(error)}`,
+    );'''
+          # The exact catch currently uses a bare catch. Replace that entire tail separately below.
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # Harden the unified route catch if it still exists in its original form.
+          s = s.replace('''  } catch {
+    return runSendFlow({
+      amount: params.amount,
+      token: params.token,
+      chain: "Arc_Testnet",
+      recipient: params.recipient,
+      recipientLabel: params.recipientLabel,
+      preferLive: true,
+    });
+  }
+}''', '''  } catch (error) {
+    throw new Error(
+      `Unified route stopped because the bridge did not complete.\\n${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}''', 1)
+
+          p.write_text(s)
+          print('Phase 2 safety hardening applied')
+PY
+
+      - name: Commit hardening changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/blockchain/appkit-service.ts .github/workflows/phase2-safety-hardening.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "automation: apply phase 2 unified transaction safety"
+          git push
