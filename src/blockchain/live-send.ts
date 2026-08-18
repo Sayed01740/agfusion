@@ -1,15 +1,20 @@
 /**
- * Live USDC send on Arc Testnet via the active injected wallet + viem.
+ * Live USDC send on Arc Testnet via the active injected wallet.
  * Uses the wallet the user selected (Rabby / MetaMask / …) — never random window.ethereum.
+ *
+ * Arc-specific note:
+ * USDC is the native gas asset on Arc, but user transfers should use the
+ * canonical ERC-20 USDC interface. Arc's RPC has known gas-estimation/simulation
+ * limitations for USDC write transactions, so this path supplies an explicit
+ * gas limit instead of relying on eth_estimateGas inside the wallet.
  */
 
 import {
   createPublicClient,
-  createWalletClient,
-  custom,
   formatEther,
   http,
-  parseEther,
+  encodeFunctionData,
+  parseUnits,
   type Address,
 } from "viem";
 import { arcTestnet, explorerTxUrl } from "@/lib/arc-chain";
@@ -21,6 +26,26 @@ import {
 } from "@/sdk/wallet-adapter";
 import type { TransactionRecord, TxStep } from "@/types";
 import { uid } from "@/lib/utils";
+
+const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
+const USDC_DECIMALS = 6;
+// Arc Testnet's RPC has documented eth_estimateGas/simulation issues for USDC
+// writes. 100k is deliberately conservative for a plain ERC-20 transfer while
+// remaining far below the network RPC gas cap.
+const ARC_USDC_TRANSFER_GAS = 100_000n;
+
+const ERC20_TRANSFER_ABI = [
+  {
+    type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 export async function getLiveWalletContext(): Promise<{
   address: Address;
@@ -94,27 +119,54 @@ export async function liveSendUsdcOnArc(params: {
   steps[2].state = "active";
   emit();
 
-  const walletClient = createWalletClient({
-    account: from,
-    chain: arcTestnet,
-    transport: custom(provider as never),
-  });
-
   const to = params.recipient as Address;
   if (!/^0x[a-fA-F0-9]{40}$/.test(to)) {
     throw new Error("Invalid recipient address");
   }
 
-  // Arc's native USDC representation uses 18 decimals for native transfers.
-  // The underlying balance is the same USDC balance exposed by the ERC-20
-  // interface (6 decimals). This path intentionally uses a native USDC send.
-  const value = parseEther(params.amount);
-  const hash = await walletClient.sendTransaction({
-    account: from,
-    chain: arcTestnet,
-    to,
-    value,
+  const numericAmount = Number(params.amount);
+  if (!params.amount || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    throw new Error("Enter a valid USDC amount");
+  }
+
+  // Arc exposes USDC through two linked interfaces:
+  // - native gas view: 18 decimals
+  // - ERC-20 USDC view: 6 decimals
+  // User transfers must use the ERC-20 USDC interface. The previous
+  // implementation used a native `value` transfer, which is what triggered
+  // wallet simulation/preview incompatibilities on Arc.
+  const amountBaseUnits = parseUnits(params.amount, USDC_DECIMALS);
+  const data = encodeFunctionData({
+    abi: ERC20_TRANSFER_ABI,
+    functionName: "transfer",
+    args: [to, amountBaseUnits],
   });
+
+  let hash: `0x${string}`;
+  try {
+    hash = String(
+      await provider.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from,
+            to: ARC_USDC,
+            data,
+            // Explicit gas avoids Arc's unreliable eth_estimateGas path for
+            // USDC writes and gives the wallet a deterministic transaction.
+            gas: `0x${ARC_USDC_TRANSFER_GAS.toString(16)}`,
+            value: "0x0",
+          },
+        ],
+      }),
+    ) as `0x${string}`;
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (/4001|reject|denied|cancel/i.test(message)) {
+      throw new Error("USDC transfer cancelled in wallet.");
+    }
+    throw new Error(message || "Arc USDC transfer failed.");
+  }
 
   steps[2].state = "success";
   steps[2].txHash = hash;
