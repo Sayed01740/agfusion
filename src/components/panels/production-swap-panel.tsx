@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
-import { getAppKit, getBrowserKitKey } from "@/sdk/appkit-client";
+import { getAppKit } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
@@ -94,15 +94,13 @@ export function ProductionSwapPanel() {
       const kit = await getAppKit();
       if (!kit) throw new Error("Circle App Kit could not be loaded. Refresh the page and retry.");
 
-      // Circle validates kitKey on every estimateSwap call. Use the exact
-      // server-owned key that initialized this App Kit instance.
-      const kitKey = await getBrowserKitKey();
-
       const provider = await getInjectedProvider();
       await requestAccounts(provider);
       await switchToChainId(provider, "Arc_Testnet");
 
-      const wired = await createAppKitAdapterFromBrowser({ targetChainId: 5042002 });
+      // Use the connected user's wallet directly. Avoid the old chain-locked
+      // proxy mode so App Kit sees the actual wallet chain consistently.
+      const wired = await createAppKitAdapterFromBrowser({ requireArc: true });
       if (!wired) throw new Error("Wallet adapter is unavailable. Reconnect your wallet and retry.");
 
       const raw = await kit.estimateSwap({
@@ -110,11 +108,7 @@ export function ProductionSwapPanel() {
         tokenIn,
         tokenOut,
         amountIn: String(amount),
-        config: {
-          kitKey,
-          slippageBps: 100,
-          allowanceStrategy: "approve" as const,
-        },
+        config: {},
       });
 
       setQuote(normalizeQuote(raw));
