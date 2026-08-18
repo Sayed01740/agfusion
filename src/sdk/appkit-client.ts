@@ -1,7 +1,8 @@
 /**
  * Circle Arc App Kit singleton.
  * Uses real dynamic import() so Next/Webpack can bundle @circle-fin/app-kit for the browser.
- * (new Function("import") was blocking the package — that caused "App Kit package not loaded".)
+ * The Kit key is bootstrapped from the server-owned Vercel secret via /api/kit,
+ * then passed explicitly to App Kit and swap calls as required by Circle.
  */
 
 export type AppKitLike = {
@@ -23,9 +24,42 @@ export type AppKitLike = {
 
 let kitSingleton: AppKitLike | null = null;
 let loadError: string | null = null;
+let browserKitKey: string | null = null;
 
 export function getAppKitLoadError(): string | null {
   return loadError;
+}
+
+async function loadBrowserKitKey(): Promise<string> {
+  if (browserKitKey) return browserKitKey;
+
+  const response = await fetch("/api/kit", {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  const data = (await response.json().catch(() => null)) as
+    | { kitKey?: string | null; configured?: boolean; valid?: boolean | null; message?: string }
+    | null;
+
+  const key = typeof data?.kitKey === "string" ? data.kitKey.trim() : "";
+  if (!response.ok || !key) {
+    throw new Error(
+      data?.message ||
+        "Circle Kit key is not configured. Add KIT_KEY to Vercel Production and redeploy.",
+    );
+  }
+
+  if (!/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(key)) {
+    throw new Error("Circle Kit key has an invalid format. Expected KIT_KEY:id:secret.");
+  }
+
+  browserKitKey = key;
+  return key;
+}
+
+export async function getBrowserKitKey(): Promise<string> {
+  if (typeof window === "undefined") throw new Error("Kit key is browser-only.");
+  return loadBrowserKitKey();
 }
 
 export async function isAppKitInstalled(): Promise<boolean> {
@@ -46,10 +80,10 @@ export async function getAppKit(): Promise<AppKitLike | null> {
   if (kitSingleton) return kitSingleton;
 
   try {
-    // Ensure Circle Stablecoin Service calls go through our proxy (avoids 8002 Failed to fetch)
     const { installCircleApiProxy } = await import("@/lib/circle-proxy");
     installCircleApiProxy();
 
+    const kitKey = await loadBrowserKitKey();
     const mod = await import("@circle-fin/app-kit");
     const AppKitCtor = mod.AppKit as
       | (new (config?: unknown) => AppKitLike)
@@ -58,7 +92,11 @@ export async function getAppKit(): Promise<AppKitLike | null> {
       loadError = "AppKit export missing from @circle-fin/app-kit";
       return null;
     }
-    kitSingleton = new AppKitCtor({ disableErrorReporting: true });
+
+    kitSingleton = new AppKitCtor({
+      kitKey,
+      disableErrorReporting: true,
+    });
     loadError = null;
     return kitSingleton;
   } catch (e) {
@@ -75,5 +113,6 @@ export function isLiveAppKit(): boolean {
 /** Reset singleton (e.g. after env/key change) */
 export function resetAppKit(): void {
   kitSingleton = null;
+  browserKitKey = null;
   loadError = null;
 }
