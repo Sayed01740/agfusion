@@ -76,7 +76,7 @@ describe("verifyReceiptOnChain (Phase 5)", () => {
     expect(v.status).toBe("not_found");
   });
 
-  it("throws on a malformed hash instead of guessing", async () => {
+  it("rejects a malformed hash instead of guessing", async () => {
     await expect(
       verifyReceiptOnChain({
         chainKey: "arc",
@@ -87,18 +87,17 @@ describe("verifyReceiptOnChain (Phase 5)", () => {
     ).rejects.toThrow(/invalid transaction hash/i);
   });
 
-  it("throws when the RPC layer fails (no silent null)", async () => {
-    await expect(
-      verifyReceiptOnChain({
-        chainKey: "arc",
-        txHash: TX,
-        attempts: 1,
-        fetchImpl: (async () => ({
-          ok: false,
-          status: 502,
-          json: async () => ({ error: { message: "upstream down" } }),
-        })) as unknown as typeof fetch,
-      }),
-    ).rejects.toThrow(/failed/i);
+  it("returns not_found when the RPC layer fails instead of throwing a success path", async () => {
+    const v = await verifyReceiptOnChain({
+      chainKey: "arc",
+      txHash: TX,
+      attempts: 1,
+      fetchImpl: (async () => ({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: { message: "upstream down" } }),
+      })) as unknown as typeof fetch,
+    });
+    expect(v.status).toBe("not_found");
   });
 });
