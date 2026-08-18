@@ -11,10 +11,18 @@ describe("parseIntent", () => {
     expect(p.toChain).toBe("Base_Sepolia");
   });
 
-  it("defaults to Base → Arc when no chains are named", () => {
+  it("does not invent a source or destination when a bridge is ambiguous", () => {
     const p = parseIntent("Bridge 10 USDC");
-    expect(p.fromChain).toBe("Base_Sepolia");
-    expect(p.toChain).toBe("Arc_Testnet");
+    expect(p.amount).toBe("10");
+    expect(p.fromChain).toBeUndefined();
+    expect(p.toChain).toBeUndefined();
+  });
+
+  it("does not invent an amount or route when a bridge omits them", () => {
+    const p = parseIntent("Bridge USDC");
+    expect(p.amount).toBeUndefined();
+    expect(p.fromChain).toBeUndefined();
+    expect(p.toChain).toBeUndefined();
   });
 
   it("honors Arc → Base direction (never flips to Base → Arc)", () => {
@@ -23,13 +31,13 @@ describe("parseIntent", () => {
     expect(p.toChain).toBe("Base_Sepolia");
   });
 
-  it("parses swaps with token pairs", () => {
+  it("parses swaps with token pairs without inventing a chain", () => {
     const p = parseIntent("Swap 1 USDC to EURC");
     expect(p.type).toBe("swap");
     expect(p.amount).toBe("1");
     expect(p.token).toBe("USDC");
     expect(p.tokenOut).toBe("EURC");
-    expect(p.toChain).toBe("Arc_Testnet");
+    expect(p.toChain).toBeUndefined();
   });
 
   it("never invents a recipient address from a name", () => {
@@ -43,6 +51,11 @@ describe("parseIntent", () => {
     const addr = "0x1234567890abcdef1234567890abcdef12345678";
     const p = parseIntent(`Send 2 USDC to ${addr}`);
     expect(p.recipient).toBe(addr);
+  });
+
+  it("does not invent a send network", () => {
+    const p = parseIntent("Send 2 USDC to 0x1234567890abcdef1234567890abcdef12345678");
+    expect(p.toChain).toBeUndefined();
   });
 
   it("classifies balance questions", () => {
