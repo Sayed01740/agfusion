@@ -30,7 +30,7 @@ export const metadata: Metadata = {
       { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/icon-180.png", sizes: "180x180", type: "image/png" },
     ],
-    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180" }],
     shortcut: ["/favicon.ico"],
   },
   openGraph: {
@@ -39,14 +39,7 @@ export const metadata: Metadata = {
     siteName: "AGFusion",
     title: siteTitle,
     description: siteDescription,
-    images: [
-      {
-        url: "/og.png",
-        width: 1200,
-        height: 630,
-        alt: "AGFusion — AI-native stablecoin OS on Arc",
-      },
-    ],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "AGFusion — AI-native stablecoin OS on Arc" }],
   },
   twitter: {
     card: "summary_large_image",
@@ -63,29 +56,21 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#050709",
+  themeColor: "#ffffff",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased selection:bg-cyan-400/30">
+      <body className="antialiased selection:bg-blue-500/15">
         <AppShell>{children}</AppShell>
       </body>
     </html>
