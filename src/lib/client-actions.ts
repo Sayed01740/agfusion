@@ -96,6 +96,7 @@ export async function executeSwap(params: {
   tokenIn?: string;
   tokenOut?: string;
   chain?: ChainId;
+  slippageBps?: number;
 }): Promise<TransactionRecord> {
   const chain = params.chain || "Arc_Testnet";
   const result = await runProductionSwap({
@@ -103,6 +104,7 @@ export async function executeSwap(params: {
     tokenIn: params.tokenIn || "USDC",
     tokenOut: params.tokenOut || "EURC",
     chain,
+    slippageBps: params.slippageBps,
   });
   return finalizeVerifiedTransaction(result, chain);
 }
