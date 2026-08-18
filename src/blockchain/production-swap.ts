@@ -14,6 +14,7 @@ const TOKENS = {
   cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF" as `0x${string}`,
 } as const;
 const DECIMALS = { USDC: 6, EURC: 6, cirBTC: 8 } as const;
+const ROUTER_DECIMALS = { USDC: 18, EURC: 6, cirBTC: 8 } as const;
 const DEFAULT_SLIPPAGE_BPS = 100;
 const MIN_SLIPPAGE_BPS = 10;
 const MAX_SLIPPAGE_BPS = 500;
@@ -50,7 +51,10 @@ export function normalizeSlippageBps(value: number): number {
 function normalizeAmount(amount: string, token: ArcSwapToken): bigint {
   const n = Number(amount);
   if (!amount || !Number.isFinite(n) || n <= 0) throw new Error("Enter a valid swap amount.");
-  return parseUnits(amount, DECIMALS[token]);
+  // The Arc router uses WUSDC as the USDC-side asset and WUSDC is 18 decimals.
+  // User-facing USDC remains a 6-decimal token, but router quotes/amounts must
+  // be encoded with the effective asset decimals.
+  return parseUnits(amount, ROUTER_DECIMALS[token]);
 }
 
 async function ethCall(provider: Provider, to: `0x${string}`, data: `0x${string}`): Promise<`0x${string}`> {
@@ -70,6 +74,10 @@ async function blockTimestamp(provider: Provider): Promise<bigint> {
 
 function effectiveAddress(token: ArcSwapToken): `0x${string}` {
   return token === "USDC" ? WUSDC : TOKENS[token];
+}
+
+function effectiveDecimals(token: ArcSwapToken): number {
+  return ROUTER_DECIMALS[token];
 }
 
 async function quotePath(provider: Provider, amountIn: bigint, path: `0x${string}`[]): Promise<bigint> {
@@ -108,7 +116,9 @@ export async function getArcDexSwapQuote(params: { amount: string; tokenIn: stri
   candidates.sort((x, y) => (x.out > y.out ? -1 : x.out < y.out ? 1 : 0));
   const best = candidates[0];
   return {
-    amountOut: formatUnits(best.out, DECIMALS[tokenOut]),
+    // Convert router-native output units to the user-facing token amount.
+    // In particular, WUSDC is 18 decimals even though displayed USDC is 6.
+    amountOut: formatUnits(best.out, effectiveDecimals(tokenOut)),
     route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC",
     slippageBps: DEFAULT_SLIPPAGE_BPS,
     path: best.path,
@@ -143,7 +153,7 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
   const amountIn = normalizeAmount(params.amount, tokenIn);
   const quote = await getArcDexSwapQuote(params);
-  const quotedOut = parseUnits(quote.amountOut, DECIMALS[tokenOut]);
+  const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut));
   const minOut = (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = (await blockTimestamp(provider)) + 120n;
 
@@ -163,7 +173,7 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   }
 
   let data: `0x${string}`;
-  const value = tokenIn === "USDC" ? `0x${parseUnits(params.amount, 18).toString(16)}` : "0x0";
+  const value = tokenIn === "USDC" ? `0x${amountIn.toString(16)}` : "0x0";
   if (tokenIn === "USDC") {
     data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens", args: [minOut, quote.path, owner, deadline] });
   } else if (tokenOut === "USDC") {
@@ -203,5 +213,5 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
 
   steps[3].state = "success";
   params.onStep?.(steps.map((s) => ({ ...s })));
-  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Minimum received protected at ${formatUnits(minOut, DECIMALS[tokenOut])} ${tokenOut} (${slippageBps / 100}% slippage). Receipt verified on-chain.`, executionMode: "live" };
+  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Minimum received protected at ${formatUnits(minOut, effectiveDecimals(tokenOut))} ${tokenOut} (${slippageBps / 100}% slippage). Receipt verified on-chain.`, executionMode: "live" };
 }
