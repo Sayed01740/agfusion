@@ -18,10 +18,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/**
- * Absolute same-origin API URL — works in the browser and in Node (relative
- * fetch URLs throw server-side).
- */
+/** Absolute same-origin API URL for browser and server verification. */
 function apiUrl(path: string): string {
   if (typeof window !== "undefined") return path;
   const base = (
@@ -33,12 +30,12 @@ function apiUrl(path: string): string {
 }
 
 /**
- * Poll eth_getTransactionReceipt for a hash through the /api/rpc proxy.
- * - receipt found + status 0x1      → "success"
- * - receipt found + other status    → "reverted"
- * - receipt missing after attempts  → "not_found" (may be pending or unknown)
- * - network/HTTP failure            → "not_found" so callers can only mark
- *   the transaction pending/retryable, never falsely successful.
+ * Verify a transaction receipt through the AGFusion RPC proxy.
+ *
+ * Fail-closed invariant: malformed hashes and verification infrastructure
+ * failures return `not_found`, never `success`. A caller may therefore expose
+ * a transaction as pending/retryable, but can never turn an RPC failure into a
+ * false successful financial operation.
  */
 export async function verifyReceiptOnChain(opts: {
   chainKey: string;
@@ -48,26 +45,31 @@ export async function verifyReceiptOnChain(opts: {
   fetchImpl?: typeof fetch;
 }): Promise<{ status: ReceiptStatus; receipt: unknown }> {
   if (!isValidTxHash(opts.txHash)) {
-    throw new Error("Invalid transaction hash — cannot verify on-chain.");
+    return { status: "not_found", receipt: null };
   }
+
   const attempts = opts.attempts ?? 3;
   const delayMs = opts.delayMs ?? 1_500;
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
+  if (!fetchImpl) return { status: "not_found", receipt: null };
 
   let lastReceipt: unknown = null;
   try {
     for (let i = 0; i < attempts; i += 1) {
-      const res = await fetchImpl(apiUrl(`/api/rpc?chain=${encodeURIComponent(opts.chainKey)}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "eth_getTransactionReceipt",
-          params: [opts.txHash],
-        }),
-        cache: "no-store",
-      });
+      const res = await fetchImpl(
+        apiUrl(`/api/rpc?chain=${encodeURIComponent(opts.chainKey)}`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_getTransactionReceipt",
+            params: [opts.txHash],
+          }),
+          cache: "no-store",
+        },
+      );
       if (!res.ok) {
         throw new Error(`RPC ${opts.chainKey} failed during verification (HTTP ${res.status}).`);
       }
@@ -78,6 +80,7 @@ export async function verifyReceiptOnChain(opts: {
       if (data.error) {
         throw new Error(data.error.message || "RPC error during verification.");
       }
+
       const receipt = data.result;
       lastReceipt = receipt;
       if (receipt) {
