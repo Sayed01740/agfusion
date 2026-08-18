@@ -10,8 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { cn, shortenAddress } from "@/lib/utils";
 import { formatUsdc } from "@/lib/fees";
-import { SupportedNetworks } from "@/components/brand/supported-networks";
-import { BrandLogo } from "@/components/brand/logo";
 import { Activity, ArrowRight, MessageSquare, Wrench } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
@@ -121,15 +119,12 @@ export default function DashboardPage() {
         <div className="ag-command-hero px-5 py-6 sm:px-7 sm:py-8">
           <div className="relative z-10 flex flex-col gap-7">
             <div className="flex items-start justify-between gap-5">
-              <div className="flex items-start gap-4">
-                <BrandLogo variant="icon" height={44} priority />
-                <div>
-                  <p className="ag-eyebrow">AGFusion command center</p>
-                  <h1 className="ag-hero-title mt-2">Move money <em>intelligently.</em></h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-[15px]">
-                    One workspace for AI-assisted stablecoin operations across Arc and supported EVM networks.
-                  </p>
-                </div>
+              <div className="min-w-0">
+                <p className="ag-eyebrow">Command center</p>
+                <h1 className="ag-hero-title mt-2">Move money <em>intelligently.</em></h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-[15px]">
+                  One workspace for AI-assisted stablecoin operations across Arc and supported EVM networks.
+                </p>
               </div>
               <div className="hidden shrink-0 items-center gap-2 sm:flex">
                 <Badge variant="cyan" className="gap-1.5 border-cyan-400/15 bg-cyan-400/[0.06]">
@@ -155,7 +150,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="ag-route-line" aria-hidden="true" />
-            <SupportedNetworks />
           </div>
         </div>
 
