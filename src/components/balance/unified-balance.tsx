@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Layers, TrendingUp } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Layers, RefreshCw, TrendingUp } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,23 +30,29 @@ export function UnifiedBalanceCard({
     executionMode,
     refreshBalances,
   } = usePilotStore();
+
   const liveN = Number(String(liveBalanceUsdc || "").replace(/,/g, ""));
-  // Prefer live wallet balance; never fall back to fake demo portfolio totals
-  const total =
-    walletAddress && Number.isFinite(liveN)
-      ? liveN
-      : walletAddress
-        ? balances.totalUsd
-        : 0;
-  const [amount, setAmount] = useState("1");
-  const [depositFrom, setDepositFrom] = useState<"Base_Sepolia" | "Ethereum_Sepolia">(
-    "Base_Sepolia",
+  const hasVerifiedLiveBalance = Boolean(
+    walletAddress && Number.isFinite(liveN) && liveN >= 0,
   );
+
+  // Never present the demo portfolio total as the user's real spendable balance.
+  // A connected wallet without a verified live balance is shown as unavailable,
+  // not as a fabricated/estimated amount.
+  const total = hasVerifiedLiveBalance ? liveN : 0;
+  const [amount, setAmount] = useState("1");
+  const [depositFrom, setDepositFrom] = useState<
+    "Base_Sepolia" | "Ethereum_Sepolia"
+  >("Base_Sepolia");
   const [spendTo, setSpendTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"deposit" | "spend" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [lastNote, setLastNote] = useState<string | null>(null);
+
+  const amountN = Number(amount);
+  const validAmount = Number.isFinite(amountN) && amountN > 0;
+  const canSpend = hasVerifiedLiveBalance && validAmount && amountN <= liveN;
 
   const byChain = balances.balances.reduce<
     Record<string, { label: string; value: number; color: string }>
@@ -62,6 +68,12 @@ export function UnifiedBalanceCard({
   const mode = executionMode();
 
   async function runDeposit() {
+    if (!validAmount) {
+      setErr("Enter a valid deposit amount (USDC).");
+      setConfirm(null);
+      return;
+    }
+
     setBusy(true);
     setThinking(true);
     setConfirm(null);
@@ -78,7 +90,7 @@ export function UnifiedBalanceCard({
         tx.message ||
           `Deposited ${amount} USDC from ${depositFrom.replace(/_/g, " ")}`,
       );
-      refreshBalances();
+      await Promise.resolve(refreshBalances());
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Deposit failed");
     } finally {
@@ -94,6 +106,19 @@ export function UnifiedBalanceCard({
       setConfirm(null);
       return;
     }
+    if (!hasVerifiedLiveBalance) {
+      setErr("Live Arc USDC balance is not verified yet. Refresh your balance before spending.");
+      setConfirm(null);
+      return;
+    }
+    if (!validAmount || amountN > liveN) {
+      setErr(
+        `Insufficient verified Arc USDC balance. Available: ${liveN.toFixed(6)} USDC.`,
+      );
+      setConfirm(null);
+      return;
+    }
+
     setErr(null);
     setLastNote(null);
     setBusy(true);
@@ -108,7 +133,7 @@ export function UnifiedBalanceCard({
       addTransaction(tx);
       setActiveTx(tx.id);
       setLastNote(tx.message || `Spent ${amount} USDC on Arc`);
-      refreshBalances();
+      await Promise.resolve(refreshBalances());
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Spend failed");
     } finally {
@@ -118,167 +143,182 @@ export function UnifiedBalanceCard({
   }
 
   const header = (
-          <div className="flex items-start justify-between gap-2">
-          <div>
-            {!embedded && (
-            <div className="flex items-center gap-2 text-xs text-cyan-300/80 mb-1">
-              <Layers className="h-3.5 w-3.5" />
-              Unified Balance
-            </div>
-            )}
-            <p className={embedded ? "text-2xl font-semibold tracking-tight text-slate-50" : "text-3xl font-semibold tracking-tight text-slate-50"}>
-              <motion.span
-                key={total}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                {formatUsd(total)}
-              </motion.span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {walletAddress
-                ? `Live Arc USDC${liveBalanceUsdc ? ` · ${liveBalanceUsdc}` : ""}`
-                : "Connect wallet for live Arc USDC"}
-            </p>
-            {walletAddress && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-1 h-7 px-2 text-[11px]"
-                type="button"
-                onClick={() => refreshBalances()}
-              >
-                Refresh balance
-              </Button>
-            )}
-            {walletAddress && liveBalanceUsdc && (
-              <p className="text-[11px] text-emerald-400/90 mt-1">
-                Wallet on Arc: {Number(liveBalanceUsdc).toFixed(4)} USDC
-              </p>
-            )}
+    <div className="flex items-start justify-between gap-2">
+      <div>
+        {!embedded && (
+          <div className="mb-1 flex items-center gap-2 text-xs text-cyan-300/80">
+            <Layers className="h-3.5 w-3.5" />
+            Unified Balance
           </div>
-          <Badge variant="cyan" className="gap-1">
-            <TrendingUp className="h-3 w-3" />
-            Live
-          </Badge>
-          </div>
+        )}
+        <p
+          className={
+            embedded
+              ? "text-2xl font-semibold tracking-tight text-slate-50"
+              : "text-3xl font-semibold tracking-tight text-slate-50"
+          }
+        >
+          <motion.span
+            key={hasVerifiedLiveBalance ? total : "unavailable"}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {hasVerifiedLiveBalance ? formatUsd(total) : "—"}
+          </motion.span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {walletAddress
+            ? hasVerifiedLiveBalance
+              ? `Verified live Arc USDC · ${liveN.toFixed(6)}`
+              : "Live Arc balance unavailable · refresh to verify"
+            : "Connect wallet for verified live Arc USDC"}
+        </p>
+        {walletAddress && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="mt-1 h-7 px-2 text-[11px]"
+            type="button"
+            disabled={busy}
+            onClick={() => refreshBalances()}
+          >
+            <RefreshCw className="mr-1 h-3 w-3" />
+            Refresh balance
+          </Button>
+        )}
+        {hasVerifiedLiveBalance && (
+          <p className="mt-1 text-[11px] text-emerald-400/90">
+            Available to spend: {liveN.toFixed(6)} USDC
+          </p>
+        )}
+      </div>
+      <Badge variant="cyan" className="gap-1">
+        <TrendingUp className="h-3 w-3" />
+        {hasVerifiedLiveBalance ? "Verified live" : "Needs refresh"}
+      </Badge>
+    </div>
   );
 
   const body = (
-        <div className="space-y-4">
-        {header}
-          <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-900">
-            {segments.map((s) => (
-              <motion.div
-                key={s.label}
-                initial={{ width: 0 }}
-                animate={{ width: `${(s.value / total) * 100}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                style={{ background: s.color }}
-                className="h-full"
-                title={`${s.label}: ${formatUsd(s.value)}`}
-              />
-            ))}
-          </div>
-          <div className="space-y-2">
-            {segments.map((s) => (
-              <div
-                key={s.label}
-                className="flex items-center justify-between text-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: s.color }}
-                  />
-                  <span className="text-slate-300">{s.label}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="hidden sm:block h-1.5 w-16 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${(s.value / max) * 100}%`,
-                        background: s.color,
-                      }}
-                    />
-                  </div>
-                  <span className="font-medium tabular-nums text-slate-100">
-                    {formatUsd(s.value)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="space-y-4">
+      {header}
 
-          <div className="border-t border-white/5 pt-3 space-y-2">
-            <label className="text-[11px] uppercase tracking-wider text-slate-500">
-              Amount (USDC)
-            </label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              disabled={busy}
-            />
-            <label className="text-[11px] uppercase tracking-wider text-slate-500">
-              Deposit from chain
-            </label>
-            <select
-              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
-              value={depositFrom}
-              disabled={busy}
-              onChange={(e) =>
-                setDepositFrom(
-                  e.target.value as "Base_Sepolia" | "Ethereum_Sepolia",
-                )
-              }
-            >
-              <option value="Base_Sepolia">Base Sepolia</option>
-              <option value="Ethereum_Sepolia">Ethereum Sepolia</option>
-            </select>
-            <label className="text-[11px] uppercase tracking-wider text-slate-500">
-              Spend recipient on Arc (0x)
-            </label>
-            <Input
-              value={spendTo}
-              onChange={(e) => setSpendTo(e.target.value)}
-              disabled={busy}
-              placeholder="0x… wallet you control"
-              spellCheck={false}
-            />
-            {err && (
-              <p className="text-xs text-red-400 whitespace-pre-wrap">{err}</p>
-            )}
-            {lastNote && (
-              <p className="text-xs text-emerald-400/90">{lastNote}</p>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={busy || !walletAddress}
-                type="button"
-                onClick={() => setConfirm("deposit")}
-              >
-                {busy && confirm === "deposit" ? "…" : "Deposit (Gateway)"}
-              </Button>
-              <Button
-                size="sm"
-                disabled={busy || !walletAddress}
-                type="button"
-                onClick={() => setConfirm("spend")}
-              >
-                {busy && confirm === "spend" ? "…" : "Spend on Arc"}
-              </Button>
-            </div>
-            <p className="text-[10px] text-slate-500 leading-relaxed">
-              Deposit USDC from another chain into Gateway, then spend on Arc.
+      <div className="rounded-xl border border-white/5 bg-slate-950/30 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-slate-500">
+              Network allocation
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Informational portfolio data. Spendable balance above is always sourced from the live wallet.
             </p>
           </div>
+          <span className="text-xs text-slate-400">
+            {segments.length} network{segments.length === 1 ? "" : "s"}
+          </span>
         </div>
+        <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-900">
+          {segments.map((s) => (
+            <motion.div
+              key={s.label}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min((s.value / Math.max(max, 1)) * 100, 100)}%` }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              style={{ background: s.color }}
+              className="h-full"
+              title={`${s.label}: ${formatUsd(s.value)}`}
+            />
+          ))}
+        </div>
+        <div className="mt-2 space-y-2">
+          {segments.map((s) => (
+            <div
+              key={s.label}
+              className="flex items-center justify-between text-sm"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: s.color }}
+                />
+                <span className="text-slate-300">{s.label}</span>
+              </div>
+              <span className="font-medium tabular-nums text-slate-100">
+                {formatUsd(s.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2 border-t border-white/5 pt-3">
+        <label className="text-[11px] uppercase tracking-wider text-slate-500">
+          Amount (USDC)
+        </label>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          disabled={busy}
+        />
+        <label className="text-[11px] uppercase tracking-wider text-slate-500">
+          Deposit from chain
+        </label>
+        <select
+          className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+          value={depositFrom}
+          disabled={busy}
+          onChange={(e) =>
+            setDepositFrom(
+              e.target.value as "Base_Sepolia" | "Ethereum_Sepolia",
+            )
+          }
+        >
+          <option value="Base_Sepolia">Base Sepolia</option>
+          <option value="Ethereum_Sepolia">Ethereum Sepolia</option>
+        </select>
+        <label className="text-[11px] uppercase tracking-wider text-slate-500">
+          Spend recipient on Arc (0x)
+        </label>
+        <Input
+          value={spendTo}
+          onChange={(e) => setSpendTo(e.target.value)}
+          disabled={busy}
+          placeholder="0x… wallet you control"
+          spellCheck={false}
+        />
+        {err && (
+          <p className="whitespace-pre-wrap text-xs text-red-400">{err}</p>
+        )}
+        {lastNote && (
+          <p className="text-xs text-emerald-400/90">{lastNote}</p>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy || !walletAddress || !validAmount}
+            type="button"
+            onClick={() => setConfirm("deposit")}
+          >
+            {busy && confirm === "deposit" ? "…" : "Deposit (Gateway)"}
+          </Button>
+          <Button
+            size="sm"
+            disabled={busy || !canSpend}
+            type="button"
+            onClick={() => setConfirm("spend")}
+          >
+            {busy && confirm === "spend" ? "…" : "Spend on Arc"}
+          </Button>
+        </div>
+        <p className="text-[10px] leading-relaxed text-slate-500">
+          Deposits and spends update the verified live balance after execution. A spend is blocked until the live Arc USDC balance is verified and sufficient.
+        </p>
+      </div>
+    </div>
   );
 
   return (
@@ -304,7 +344,7 @@ export function UnifiedBalanceCard({
       <ConfirmDialog
         open={confirm === "spend"}
         title="Spend Unified Balance on Arc"
-        summary={`Spend ${amount} USDC on Arc Testnet to ${spendTo.trim() || "recipient"} via Gateway / App Kit.`}
+        summary={`Spend ${amount} USDC on Arc Testnet to ${spendTo.trim() || "recipient"} via Gateway / App Kit. Current verified balance: ${hasVerifiedLiveBalance ? `${liveN.toFixed(6)} USDC` : "unavailable"}.`}
         feeUsd={0.08}
         mode={mode}
         busy={busy}
