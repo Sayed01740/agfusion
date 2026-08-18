@@ -13,6 +13,13 @@ import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function previewAction(preview: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!preview) return {};
+  const copy = { ...preview };
+  delete copy.confirmToken;
+  return copy;
+}
+
 export async function POST(req: Request) {
   const ip = clientIp(req);
   const limits = agentRateLimitConfig();
@@ -25,9 +32,7 @@ export async function POST(req: Request) {
   }
 
   const parsed = agentRequestSchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  }
+  if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
 
   const body = parsed.data;
   const session = await getSessionUser();
@@ -36,23 +41,24 @@ export async function POST(req: Request) {
     address: session?.address || body.wallet?.address || null,
   };
 
-  // Phase 3: execution requires a short-lived capability bound to the exact
-  // user message and wallet. The LLM cannot mint or alter this capability.
   if (body.execute) {
-    if (!body.confirmed || !body.confirmToken) {
+    if (!body.confirmed || !body.confirmToken || !body.confirmationPreview) {
       return NextResponse.json(
-        { error: "confirm_required", message: "A fresh confirmation capability is required." },
+        { error: "confirm_required", message: "A fresh confirmation capability and action preview are required." },
         { status: 403 },
       );
     }
     const valid = consumeConfirmationToken({
       token: body.confirmToken,
       wallet: wallet.address,
-      action: { message: body.message.trim() },
+      action: {
+        message: body.message.trim(),
+        preview: previewAction(body.confirmationPreview),
+      },
     });
     if (!valid) {
       return NextResponse.json(
-        { error: "confirmation_mismatch", message: "Confirmation expired or does not match this action. Re-plan and confirm again." },
+        { error: "confirmation_mismatch", message: "Confirmation expired or does not match the reviewed action. Re-plan and confirm again." },
         { status: 403 },
       );
     }
@@ -63,10 +69,7 @@ export async function POST(req: Request) {
   const rl = rateLimit(rlKey, { windowMs: limits.windowMs, max: rlMax });
   if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
-  const confirmationToken = body.execute
-    ? body.confirmToken!
-    : issueConfirmationToken({ wallet: wallet.address, action: { message: body.message.trim() } });
-
+  let confirmationToken = body.execute ? body.confirmToken! : "";
   const wantStream = body.stream !== false;
 
   const scrubResult = (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
@@ -75,7 +78,16 @@ export async function POST(req: Request) {
       result.message.toolTrace = redactToolTrace(result.toolTrace) as
         | typeof result.message.toolTrace
         | undefined;
-      if (result.message.actionPreview) {
+      if (result.message.actionPreview && !confirmationToken) {
+        confirmationToken = issueConfirmationToken({
+          wallet: wallet.address,
+          action: {
+            message: body.message.trim(),
+            preview: previewAction(result.message.actionPreview as unknown as Record<string, unknown>),
+          },
+        });
+      }
+      if (result.message.actionPreview && confirmationToken) {
         result.message.actionPreview = {
           ...result.message.actionPreview,
           confirmToken: confirmationToken,
@@ -136,21 +148,23 @@ export async function POST(req: Request) {
         if (event.type === "status") {
           out = { type: "status", message: sanitizeAgentText(String(event.message || "")).slice(0, 120) };
         }
-        if (event.type === "tool") {
-          out = { type: "tool", name: event.name, ok: event.ok };
-        }
+        if (event.type === "tool") out = { type: "tool", name: event.name, ok: event.ok };
         if (event.type === "confirm") {
-          out = {
-            type: "confirm",
-            preview: { ...event.preview, confirmToken: confirmationToken },
-          };
+          confirmationToken = issueConfirmationToken({
+            wallet: wallet.address,
+            action: {
+              message: body.message.trim(),
+              preview: previewAction(event.preview as unknown as Record<string, unknown>),
+            },
+          });
+          out = { type: "confirm", preview: { ...event.preview, confirmToken: confirmationToken } };
         }
         if (event.type === "message") {
           out = {
             type: "message",
             content: sanitizeAgentText(String(event.content || "")),
             actionPreview: event.actionPreview
-              ? { ...event.actionPreview, confirmToken: confirmationToken }
+              ? { ...event.actionPreview, ...(confirmationToken ? { confirmToken: confirmationToken } : {}) }
               : undefined,
           };
         }
@@ -168,7 +182,7 @@ export async function POST(req: Request) {
                   ...event.message,
                   content: sanitizeAgentText(event.message.content),
                   actionPreview: event.message.actionPreview
-                    ? { ...event.message.actionPreview, confirmToken: confirmationToken }
+                    ? { ...event.message.actionPreview, ...(confirmationToken ? { confirmToken: confirmationToken } : {}) }
                     : undefined,
                   toolTrace: redactToolTrace(
                     event.message.toolTrace as
