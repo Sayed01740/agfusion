@@ -84,6 +84,11 @@ export function QrPayCard({ embedded = false }: { embedded?: boolean }) {
       });
       addTransaction(tx);
       setActiveTx(tx.id);
+      if (tx.status === "success") {
+        setAmount("0");
+      } else {
+        setError(tx.message || "Payment was submitted but is not confirmed yet.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Payment failed");
     } finally {
