@@ -28,9 +28,7 @@ describe("verifyReceiptOnChain (Phase 5)", () => {
     expect(isValidTxHash(TX)).toBe(true);
     expect(isValidTxHash("0x123")).toBe(false);
     expect(isValidTxHash("123")).toBe(false);
-    // Mixed-case hex digits with the canonical lowercase 0x prefix are fine.
     expect(isValidTxHash("0x" + "Ab".repeat(32))).toBe(true);
-    // Uppercased 0X prefix is not a canonical hash.
     expect(isValidTxHash(TX.toUpperCase())).toBe(false);
   });
 
@@ -76,15 +74,14 @@ describe("verifyReceiptOnChain (Phase 5)", () => {
     expect(v.status).toBe("not_found");
   });
 
-  it("rejects a malformed hash instead of guessing", async () => {
-    await expect(
-      verifyReceiptOnChain({
-        chainKey: "arc",
-        txHash: "0xnotahash",
-        attempts: 1,
-        fetchImpl: receiptResponse("0x1") as unknown as typeof fetch,
-      }),
-    ).rejects.toThrow(/invalid transaction hash/i);
+  it("fails closed for a malformed hash instead of throwing into a success fallback", async () => {
+    const v = await verifyReceiptOnChain({
+      chainKey: "arc",
+      txHash: "0xnotahash",
+      attempts: 1,
+      fetchImpl: receiptResponse("0x1") as unknown as typeof fetch,
+    });
+    expect(v.status).toBe("not_found");
   });
 
   it("returns not_found when the RPC layer fails instead of throwing a success path", async () => {
