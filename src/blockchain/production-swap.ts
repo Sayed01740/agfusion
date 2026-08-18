@@ -1,5 +1,5 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getAppKit, getBrowserKitKey } from "@/sdk/appkit-client";
+import { getAppKit } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
@@ -50,21 +50,21 @@ export async function runProductionSwap(params: {
   await switchToChainId(provider, params.chain);
 
   // Keep the adapter bound to the connected user wallet and let the wallet
-  // adapter handle the Arc chain. Do not use the old targetChainId proxy mode,
-  // which could report a synthetic chain id while the wallet was still settling.
+  // adapter handle the Arc chain. Do not use the old targetChainId proxy mode.
   const wired = await createAppKitAdapterFromBrowser({ requireArc: true });
   if (!wired) throw new Error("Wallet adapter unavailable. Reconnect your wallet and retry.");
 
   const tokenIn = params.tokenIn.toUpperCase();
   const tokenOut = params.tokenOut.toUpperCase();
-  const kitKey = await getBrowserKitKey();
-  const config = kitKey ? { kitKey } : {};
+
+  // Never send kitKey from browser JavaScript. Circle's server proxy injects
+  // the server-only KIT_KEY when forwarding Stablecoin Kit API requests.
   const swapParams = {
     from: { adapter: wired.adapter, chain: params.chain },
     tokenIn,
     tokenOut,
     amountIn: String(params.amount),
-    config,
+    config: {},
   };
 
   const steps: TxStep[] = [
@@ -84,8 +84,8 @@ export async function runProductionSwap(params: {
   };
 
   try {
-    // Match the current Arc quickstart: estimate first, then execute the exact
-    // same swap parameters. Kit key is optional and is only included when set.
+    // Keyless browser App Kit path. The proxied Circle API request is
+    // authenticated server-side by /api/circle/proxy.
     if (typeof kit.estimateSwap === "function") {
       await kit.estimateSwap(swapParams);
     }
