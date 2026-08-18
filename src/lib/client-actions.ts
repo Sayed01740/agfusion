@@ -176,6 +176,21 @@ export async function executeBridgeRecovery(params: {
   /** Original tx id so the recovered record replaces the failed one */
   txId?: string;
 }): Promise<TransactionRecord> {
+  // Recovery must stay on the same bridge implementation that created the
+  // transaction. Circle Email Wallet bridges persist their source burn and
+  // destination-forwarding state in circle-forwarding-bridge.ts; sending a
+  // Circle recovery through App Kit would try to use the incompatible
+  // destination-chain EIP-1193 lifecycle and can duplicate the wrong path.
+  if (getActiveWalletMeta()?.uuid === "circle-pw") {
+    return runCircleEmailWalletForwardingBridge({
+      amount: params.amount,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      recipient: params.recipient,
+      txId: params.txId,
+    });
+  }
+
   return runBridgeWithRecovery({
     amount: params.amount,
     fromChain: params.fromChain,
