@@ -45,19 +45,28 @@ export async function runProductionSwap(params: {
   const kit = await getAppKit();
   if (!kit) throw new Error("Circle App Kit could not be loaded. Refresh and retry.");
 
-  // Circle validates kitKey on each Swap/Estimate call. Bootstrap the same
-  // server-owned key that initialized App Kit so quote and execution cannot diverge.
-  const kitKey = await getBrowserKitKey();
-
   const provider = await getInjectedProvider();
   await requestAccounts(provider);
   await switchToChainId(provider, params.chain);
 
-  const wired = await createAppKitAdapterFromBrowser({ targetChainId: 5042002 });
+  // Keep the adapter bound to the connected user wallet and let the wallet
+  // adapter handle the Arc chain. Do not use the old targetChainId proxy mode,
+  // which could report a synthetic chain id while the wallet was still settling.
+  const wired = await createAppKitAdapterFromBrowser({ requireArc: true });
   if (!wired) throw new Error("Wallet adapter unavailable. Reconnect your wallet and retry.");
 
   const tokenIn = params.tokenIn.toUpperCase();
   const tokenOut = params.tokenOut.toUpperCase();
+  const kitKey = await getBrowserKitKey();
+  const config = kitKey ? { kitKey } : {};
+  const swapParams = {
+    from: { adapter: wired.adapter, chain: params.chain },
+    tokenIn,
+    tokenOut,
+    amountIn: String(params.amount),
+    config,
+  };
+
   const steps: TxStep[] = [
     { name: "Live quote", state: "active" },
     { name: "Approve", state: "pending" },
@@ -65,18 +74,6 @@ export async function runProductionSwap(params: {
     { name: "Receipt", state: "pending" },
   ];
   params.onStep?.(steps.map((step) => ({ ...step })));
-
-  const swapParams = {
-    from: { adapter: wired.adapter, chain: params.chain },
-    tokenIn,
-    tokenOut,
-    amountIn: String(params.amount),
-    config: {
-      kitKey,
-      slippageBps: 100,
-      allowanceStrategy: "approve" as const,
-    },
-  };
 
   let result: {
     txHash?: string;
@@ -87,6 +84,8 @@ export async function runProductionSwap(params: {
   };
 
   try {
+    // Match the current Arc quickstart: estimate first, then execute the exact
+    // same swap parameters. Kit key is optional and is only included when set.
     if (typeof kit.estimateSwap === "function") {
       await kit.estimateSwap(swapParams);
     }
