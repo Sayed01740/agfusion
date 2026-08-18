@@ -1,8 +1,9 @@
 /**
  * Circle Arc App Kit singleton.
- * Uses real dynamic import() so Next/Webpack can bundle @circle-fin/app-kit for the browser.
- * The Kit key is bootstrapped from the server-owned Vercel secret via /api/kit,
- * then passed explicitly to App Kit and swap calls as required by Circle.
+ * Uses a real dynamic import so Next/Webpack can bundle @circle-fin/app-kit.
+ * Kit keys are optional per the current Arc swap quickstart. If /api/kit is
+ * unavailable or no KIT_KEY is configured, App Kit still initializes and the
+ * SDK uses its normal rate-limited path.
  */
 
 export type AppKitLike = {
@@ -25,40 +26,44 @@ export type AppKitLike = {
 let kitSingleton: AppKitLike | null = null;
 let loadError: string | null = null;
 let browserKitKey: string | null = null;
+let kitKeyLoaded = false;
 
 export function getAppKitLoadError(): string | null {
   return loadError;
 }
 
-async function loadBrowserKitKey(): Promise<string> {
-  if (browserKitKey) return browserKitKey;
+/**
+ * KIT_KEY is optional in the current Arc App Kit swap flow. Never make the
+ * entire swap UI depend on /api/kit being configured.
+ */
+async function loadBrowserKitKey(): Promise<string | null> {
+  if (kitKeyLoaded) return browserKitKey;
+  kitKeyLoaded = true;
 
-  const response = await fetch("/api/kit", {
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-  const data = (await response.json().catch(() => null)) as
-    | { kitKey?: string | null; configured?: boolean; valid?: boolean | null; message?: string }
-    | null;
+  if (typeof window === "undefined") return null;
 
-  const key = typeof data?.kitKey === "string" ? data.kitKey.trim() : "";
-  if (!response.ok || !key) {
-    throw new Error(
-      data?.message ||
-        "Circle Kit key is not configured. Add KIT_KEY to Vercel Production and redeploy.",
-    );
+  try {
+    const response = await fetch("/api/kit", {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    const data = (await response.json().catch(() => null)) as
+      | { kitKey?: string | null; configured?: boolean; valid?: boolean | null }
+      | null;
+
+    const key = typeof data?.kitKey === "string" ? data.kitKey.trim() : "";
+    if (!response.ok || !key) return null;
+    if (!/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(key)) return null;
+
+    browserKitKey = key;
+    return key;
+  } catch {
+    return null;
   }
-
-  if (!/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(key)) {
-    throw new Error("Circle Kit key has an invalid format. Expected KIT_KEY:id:secret.");
-  }
-
-  browserKitKey = key;
-  return key;
 }
 
-export async function getBrowserKitKey(): Promise<string> {
-  if (typeof window === "undefined") throw new Error("Kit key is browser-only.");
+export async function getBrowserKitKey(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
   return loadBrowserKitKey();
 }
 
@@ -93,10 +98,13 @@ export async function getAppKit(): Promise<AppKitLike | null> {
       return null;
     }
 
-    kitSingleton = new AppKitCtor({
-      kitKey,
-      disableErrorReporting: true,
-    });
+    // Do not send an undefined/empty kitKey. The current SDK accepts an empty
+    // configuration and falls back to its rate-limited mode.
+    kitSingleton = new AppKitCtor(
+      kitKey
+        ? { kitKey, disableErrorReporting: true }
+        : { disableErrorReporting: true },
+    );
     loadError = null;
     return kitSingleton;
   } catch (e) {
@@ -114,5 +122,6 @@ export function isLiveAppKit(): boolean {
 export function resetAppKit(): void {
   kitSingleton = null;
   browserKitKey = null;
+  kitKeyLoaded = false;
   loadError = null;
 }
