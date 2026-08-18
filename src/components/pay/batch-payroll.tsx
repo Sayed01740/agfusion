@@ -100,6 +100,7 @@ export function BatchPayrollCard({ embedded = false }: { embedded?: boolean }) {
           `✓ ${row.label} · ${tx.status}${tx.txHash ? ` · ${tx.txHash.slice(0, 12)}…` : ""}`,
         ]);
       }
+      setRows((current) => current.map((row) => ({ ...row, amountUsdc: "0" })));
       setLog((l) => [...l, "✓ Batch complete"]);
     } catch (e) {
       setLog((l) => [
