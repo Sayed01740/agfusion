@@ -25,39 +25,44 @@ export interface OrchestratorResult {
 }
 
 function codeForTopic(topic?: string): CodeBlock[] {
-  const tpl =
-    CODE_TEMPLATES.find((t) => t.category === topic) || CODE_TEMPLATES[0];
-  return [
-    {
-      language: tpl.language,
-      filename: `${tpl.id}.${tpl.language === "solidity" ? "sol" : tpl.language === "tsx" ? "tsx" : "ts"}`,
-      code: tpl.code,
-    },
-  ];
+  const tpl = CODE_TEMPLATES.find((t) => t.category === topic) || CODE_TEMPLATES[0];
+  return [{ language: tpl.language, filename: `${tpl.id}.${tpl.language === "solidity" ? "sol" : tpl.language === "tsx" ? "tsx" : "ts"}`, code: tpl.code }];
 }
 
 function buildPreview(intent: ParsedIntent): ActionPreview | undefined {
   const from = intent.fromChain ? CHAINS[intent.fromChain] : undefined;
   const to = intent.toChain ? CHAINS[intent.toChain] : undefined;
+  const hasAmount = Boolean(intent.amount && Number(intent.amount) > 0);
 
   switch (intent.type) {
     case "bridge": {
-      const est = estimateBridgeDemo(
-        intent.amount || "50",
-        intent.fromChain || "Base_Sepolia",
-        intent.toChain || "Arc_Testnet",
-      );
+      const complete = hasAmount && Boolean(intent.fromChain && intent.toChain && intent.fromChain !== intent.toChain);
+      if (!complete) {
+        return {
+          type: "bridge",
+          title: "Bridge USDC",
+          summary: "I need the amount and both source and destination networks before I can prepare a bridge.",
+          amount: intent.amount,
+          token: intent.token,
+          fromChain: intent.fromChain,
+          toChain: intent.toChain,
+          plan: [{ id: "details", label: "Specify amount + source + destination" }],
+          canExecute: false,
+          requiresWallet: true,
+        };
+      }
+      const est = estimateBridgeDemo(intent.amount!, intent.fromChain!, intent.toChain!);
       return {
         type: "bridge",
         title: "Transfer USDC",
-        summary: `Move ${intent.amount} ${intent.token} from ${from?.label ?? "source"} → ${to?.label ?? "Arc"}`,
+        summary: `Move ${intent.amount} ${intent.token} from ${from?.label ?? "source"} → ${to?.label ?? "destination"}`,
         amount: intent.amount,
         token: intent.token,
-        fromChain: intent.fromChain || "Base_Sepolia",
-        toChain: intent.toChain || "Arc_Testnet",
+        fromChain: intent.fromChain,
+        toChain: intent.toChain,
         estimatedFeeUsd: est.feeUsd + est.gasUsd,
         estimatedTime: est.eta,
-        route: [from?.short ?? "?", "→", to?.short ?? "Arc"],
+        route: [from?.short ?? "?", "→", to?.short ?? "?"],
         plan: [
           { id: "est", label: "Estimate fees", detail: formatUsd(est.feeUsd + est.gasUsd) },
           { id: "approve", label: "Approve USDC" },
@@ -70,84 +75,97 @@ function buildPreview(intent: ParsedIntent): ActionPreview | undefined {
       };
     }
     case "swap": {
-      const est = estimateSwapDemo(
-        intent.amount || "50",
-        intent.token || "USDC",
-        intent.tokenOut || "EURC",
-      );
+      const complete = hasAmount && Boolean(intent.token && intent.tokenOut && intent.toChain);
+      if (!complete) {
+        return {
+          type: "swap",
+          title: "Swap tokens",
+          summary: "I need the amount, input/output tokens, and network before I can prepare a swap.",
+          amount: intent.amount,
+          token: intent.token,
+          tokenOut: intent.tokenOut,
+          toChain: intent.toChain,
+          plan: [{ id: "details", label: "Specify amount + token pair + network" }],
+          canExecute: false,
+          requiresWallet: true,
+        };
+      }
+      const est = estimateSwapDemo(intent.amount!, intent.token!, intent.tokenOut!);
       return {
         type: "swap",
         title: `Swap ${intent.token} → ${intent.tokenOut}`,
-        summary: `Exchange ${intent.amount} ${intent.token} for ~${est.amountOut} ${intent.tokenOut} on ${to?.label ?? "Arc"}`,
+        summary: `Exchange ${intent.amount} ${intent.token} for ~${est.amountOut} ${intent.tokenOut} on ${to?.label ?? "the selected network"}`,
         amount: intent.amount,
         token: intent.token,
-        tokenOut: intent.tokenOut || "EURC",
-        toChain: intent.toChain || "Arc_Testnet",
+        tokenOut: intent.tokenOut,
+        toChain: intent.toChain,
         estimatedFeeUsd: est.feeUsd,
         estimatedTime: "~2s",
-        route: [intent.token || "USDC", "FX", intent.tokenOut || "EURC"],
+        route: [intent.token!, "FX", intent.tokenOut!],
         plan: [
           { id: "quote", label: "Get FX quote", detail: `~${est.amountOut} ${intent.tokenOut}` },
           { id: "approve", label: "Approve / permit" },
-          { id: "swap", label: "Execute swap on Arc" },
+          { id: "swap", label: "Execute swap" },
         ],
         canExecute: true,
         requiresWallet: true,
       };
     }
-    case "send":
+    case "send": {
+      const complete = hasAmount && Boolean(intent.recipient && intent.toChain);
       return {
         type: "send",
-        title: intent.recipientLabel
-          ? `Pay ${intent.recipientLabel}`
-          : "Send payment",
-        summary: `Send ${intent.amount} ${intent.token} to ${intent.recipientLabel || intent.recipient || "recipient"} on ${to?.label ?? "Arc"}`,
+        title: intent.recipientLabel ? `Pay ${intent.recipientLabel}` : "Send payment",
+        summary: complete
+          ? `Send ${intent.amount} ${intent.token} to ${intent.recipient} on ${to?.label ?? "the selected network"}`
+          : "I need a valid 0x recipient, amount, and network before I can prepare the payment.",
         amount: intent.amount,
         token: intent.token,
-        toChain: intent.toChain || "Arc_Testnet",
+        toChain: intent.toChain,
         recipient: intent.recipient,
         recipientLabel: intent.recipientLabel,
-        estimatedFeeUsd: 0.02,
-        estimatedTime: "<1s",
-        plan: [
-          { id: "resolve", label: "Resolve recipient" },
-          { id: "estimate", label: "Estimate gas (USDC)" },
-          { id: "sign", label: "Sign & send on Arc" },
-        ],
-        canExecute: Boolean(intent.recipient),
+        estimatedFeeUsd: complete ? 0.02 : undefined,
+        estimatedTime: complete ? "<1s" : undefined,
+        plan: complete
+          ? [
+              { id: "resolve", label: "Resolve recipient" },
+              { id: "estimate", label: "Estimate gas" },
+              { id: "sign", label: "Sign & send" },
+            ]
+          : [{ id: "details", label: "Specify amount + valid recipient + network" }],
+        canExecute: complete,
         requiresWallet: true,
       };
-    case "route":
+    }
+    case "route": {
+      const complete = hasAmount && Boolean(intent.fromChain && intent.toChain && intent.recipient && intent.fromChain !== intent.toChain);
       return {
         type: "route",
         title: "Transfer + pay",
-        summary: `Move ${intent.amount} ${intent.token} to Arc and pay ${intent.recipientLabel || "recipient"}`,
+        summary: complete
+          ? `Move ${intent.amount} ${intent.token} from ${from?.label} to ${to?.label}, then pay ${intent.recipient}`
+          : "I need an explicit amount, source, destination, and recipient before preparing a route.",
         amount: intent.amount,
         token: intent.token,
-        fromChain: intent.fromChain || "Base_Sepolia",
-        toChain: "Arc_Testnet",
+        fromChain: intent.fromChain,
+        toChain: intent.toChain,
         recipient: intent.recipient,
         recipientLabel: intent.recipientLabel,
-        estimatedFeeUsd: 0.18,
-        estimatedTime: "~18s",
-        route: [
-          from?.short || "Base",
-          "→",
-          "Arc",
-          intent.recipientLabel || "Pay",
-        ],
-        plan: [
-          { id: "analyze", label: "Select lowest-cost route" },
-          { id: "bridge", label: "Transfer USDC to Arc" },
-          { id: "settle", label: "Settle on Arc (sub-second finality)" },
-          {
-            id: "pay",
-            label: `Pay ${intent.recipientLabel || "recipient"}`,
-          },
-        ],
-        canExecute: Boolean(intent.recipient),
+        estimatedFeeUsd: complete ? 0.18 : undefined,
+        estimatedTime: complete ? "~18s" : undefined,
+        route: complete ? [from?.short || "Source", "→", to?.short || "Destination", intent.recipientLabel || "Pay"] : undefined,
+        plan: complete
+          ? [
+              { id: "analyze", label: "Validate route" },
+              { id: "bridge", label: "Transfer USDC" },
+              { id: "settle", label: "Verify destination settlement" },
+              { id: "pay", label: `Pay ${intent.recipientLabel || "recipient"}` },
+            ]
+          : [{ id: "details", label: "Specify all route details" }],
+        canExecute: complete,
         requiresWallet: true,
       };
+    }
     default:
       return undefined;
   }
@@ -156,160 +174,57 @@ function buildPreview(intent: ParsedIntent): ActionPreview | undefined {
 function narrative(intent: ParsedIntent, preview?: ActionPreview): string {
   switch (intent.type) {
     case "balance":
-      return [
-        "**Balances**",
-        "",
-        "Connect your wallet to load **live Arc USDC** from RPC.",
-        "We never invent multi-chain demo balances.",
-        "",
-        "Try: `Show my balances` after connecting on Arc Testnet.",
-      ].join("\n");
-
+      return ["**Balances**", "", "Connect your wallet to load **live Arc USDC** from RPC.", "We never invent multi-chain demo balances.", "", "Try: `Show my balances` after connecting on Arc Testnet."].join("\n");
     case "bridge":
       return [
-        `Preparing to move **${intent.amount} ${intent.token}** to Arc.`,
+        preview?.canExecute ? `Preparing to move **${intent.amount} ${intent.token}**.` : "I can prepare the bridge, but I need the missing amount and/or source/destination networks first.",
         "",
-        `**Route:** ${preview?.route?.join(" → ")}`,
-        `**Est. fees:** ${formatUsd(preview?.estimatedFeeUsd ?? 0)}`,
-        `**ETA:** ${preview?.estimatedTime}`,
+        preview?.route ? `**Route:** ${preview.route.join(" → ")}` : "**Route:** source → destination",
+        preview?.estimatedFeeUsd !== undefined ? `**Est. fees:** ${formatUsd(preview.estimatedFeeUsd)}` : "**Fees:** calculated after the route is specified",
+        preview?.estimatedTime ? `**ETA:** ${preview.estimatedTime}` : "",
         "",
-        "Steps: approve → lock/burn on source → attestation → credit on Arc. Progress is tracked for recovery if needed.",
-      ].join("\n");
-
+        "Steps: approve → burn on source → attestation → mint on destination. Final success requires an on-chain receipt.",
+      ].filter(Boolean).join("\n");
     case "swap":
-      return [
-        `Swapping **${intent.amount} ${intent.token} → ${intent.tokenOut}** on ${intent.toChain ? CHAINS[intent.toChain].label : "Arc"}.`,
-        "",
-        "Stablecoin FX with transparent fees and sub-second settlement on Arc. Confirm to execute.",
-      ].join("\n");
-
+      return preview?.canExecute
+        ? [`Swapping **${intent.amount} ${intent.token} → ${intent.tokenOut}** on ${intent.toChain ? CHAINS[intent.toChain].label : "the selected network"}.`, "", "Confirm the exact quote and approve in your wallet before execution."].join("\n")
+        : "I can prepare the swap once you provide the amount, token pair, and supported network.";
     case "send":
-      return [
-        `Payment ready: **${intent.amount} ${intent.token}** → **${intent.recipientLabel || intent.recipient}**.`,
-        "",
-        intent.recipient
-          ? `Recipient resolved to \`${intent.recipient}\` on ${intent.toChain ? CHAINS[intent.toChain].label : "Arc"}.`
-          : "I need a username or address to complete this send.",
-        "",
-        "On Arc, gas is paid in USDC — predictable, dollar-based fees.",
-      ].join("\n");
-
+      return [`Payment ${preview?.canExecute ? "ready" : "needs details"}: **${intent.amount ?? "amount"} ${intent.token}** → **${intent.recipientLabel || intent.recipient || "recipient"}**.`, "", intent.recipient ? `Recipient: \`${intent.recipient}\` on ${intent.toChain ? CHAINS[intent.toChain].label : "the selected network"}.` : "I need a valid 0x recipient before any payment can be executed.", "", "The transaction will only be sent after explicit confirmation and wallet signing."].join("\n");
     case "route":
-      return [
-        `**Payment plan**`,
-        "",
-        `1. Select lowest-cost path for **${intent.amount} ${intent.token}**`,
-        `2. Move funds ${intent.fromChain ? CHAINS[intent.fromChain].short : "Base"} → Arc`,
-        `3. Settle on Arc (sub-second finality)`,
-        `4. Pay **${intent.recipientLabel || "recipient"}**`,
-        "",
-        `Est. total cost: **${formatUsd(preview?.estimatedFeeUsd ?? 0.18)}** · ETA **${preview?.estimatedTime}**`,
-        "",
-        "Confirm to run the full flow.",
-      ].join("\n");
-
+      return preview?.canExecute
+        ? [`**Payment plan**`, "", `1. Validate ${intent.fromChain ? CHAINS[intent.fromChain].short : "source"} → ${intent.toChain ? CHAINS[intent.toChain].short : "destination"}`, `2. Move **${intent.amount} ${intent.token}**`, `3. Verify destination settlement`, `4. Pay **${intent.recipientLabel || intent.recipient}**`, "", "Confirm to run the complete flow."].join("\n")
+        : "I can build the transfer-and-pay plan once the amount, source, destination, and recipient are explicit.";
     case "code":
-      return [
-        `Here's Arc-ready code for **${intent.codeTopic || "send"}** — aligned with Arc Build docs.`,
-        "",
-        "Use Viem/Foundry on Arc Testnet (chain `5042002`, RPC `https://rpc.testnet.arc.network`).",
-        "I can also scaffold a Next.js payment component or deploy script — just ask.",
-      ].join("\n");
-
+      return [`Here's Arc-ready code for **${intent.codeTopic || "send"}** — aligned with Arc Build docs.`, "", "Use Viem/Foundry on Arc Testnet (chain `5042002`).", "I can also scaffold a Next.js payment component or deploy script."].join("\n");
     case "deploy":
-      return [
-        `Deployment assistant ready for **${intent.codeTopic === "contract" ? "ERC-20" : "contract"}** on Arc Testnet.`,
-        "",
-        "Arc is EVM-compatible with **USDC as gas**. Use Foundry, Hardhat, or Viem.",
-        "Chain ID: `5042002` · RPC: `https://rpc.testnet.arc.network`",
-        "",
-        "Here's a starter contract. Say **deploy this** when your wallet is connected.",
-      ].join("\n");
-
+      return [`Deployment assistant ready for **${intent.codeTopic === "contract" ? "ERC-20" : "contract"}** on Arc Testnet.`, "", "Arc is EVM-compatible with **USDC as gas**.", "Chain ID: `5042002`", "", "I'll keep deployment user-authorized and wallet-signed."].join("\n");
     case "agent":
-      return [
-        "**Agents (Arc agentic economy)**",
-        "",
-        "• Onchain identity and reputation (ERC-8004 patterns)",
-        "• Policy-bound, payment-capable workflows",
-        "• Payroll, treasury routing, and FX copilots",
-        "",
-        "Open the Agents page to view policies and run a job under your limits.",
-      ].join("\n");
-
+      return ["**AGFusion Operator**", "", "• Interpret financial intent", "• Prepare policy-bound actions", "• Request explicit user confirmation", "• Execute through the connected wallet", "• Verify the resulting on-chain state", "", "The agent never treats its own plan as authorization."].join("\n");
     case "explain":
-      return [
-        "I can diagnose failed transfers (approve / burn / attestation / mint), recover incomplete routes, and explain fees in USDC terms.",
-        "",
-        "Paste a transaction hash or describe the failure and I'll help.",
-      ].join("\n");
-
+      return ["I can diagnose failed transfers (approve / burn / attestation / mint), recover incomplete routes, and explain fees in USDC terms.", "", "Paste a transaction hash or describe the failure and I'll help."].join("\n");
     default:
-      return [
-        "I'm **AGFusion** — your workspace for stablecoin payments, treasury, and builders on Arc.",
-        "",
-        "Try things like:",
-        '• "Show my balances"',
-        '• "Swap 1 USDC to EURC"',
-        '• "Bridge 5 USDC from Arc to Base"',
-        '• "Bridge 5 USDC from Base to Arc"',
-        '• "Generate send USDC code for Arc"',
-      ].join("\n");
+      return ["I'm **AGFusion** — an AI-native workspace for stablecoin operations on Arc and supported EVM networks.", "", "Try:", '• "Show my balances"', '• "Swap 1 USDC to EURC on Arc"', '• "Bridge 5 USDC from Arc to Base"', '• "Bridge 5 USDC from Base to Arc"', '• "Send 2 USDC to 0x... on Arc"'].join("\n");
   }
 }
 
-export async function orchestrateUserMessage(
-  content: string,
-  options?: { execute?: boolean },
-): Promise<OrchestratorResult> {
+export async function orchestrateUserMessage(content: string, options?: { execute?: boolean }): Promise<OrchestratorResult> {
   const intent = parseIntent(content);
   const preview = buildPreview(intent);
-  const codeBlocks =
-    intent.type === "code" || intent.type === "deploy"
-      ? codeForTopic(intent.codeTopic)
-      : undefined;
-
+  const codeBlocks = intent.type === "code" || intent.type === "deploy" ? codeForTopic(intent.codeTopic) : undefined;
   let transaction: TransactionRecord | undefined;
 
+  // A financial action may execute only when the parsed intent is complete.
+  // Never fill missing amount/chain/recipient values with silent defaults.
   if (options?.execute && preview?.canExecute) {
-    if (intent.type === "bridge") {
-      transaction = await runBridgeFlow({
-        amount: intent.amount || "50",
-        token: intent.token || "USDC",
-        fromChain: intent.fromChain || "Base_Sepolia",
-        toChain: intent.toChain || "Arc_Testnet",
-      });
-    } else if (intent.type === "swap") {
-      transaction = await runSwapFlow({
-        amount: intent.amount || "50",
-        tokenIn: intent.token || "USDC",
-        tokenOut: intent.tokenOut || "EURC",
-        chain: intent.toChain || "Arc_Testnet",
-      });
-    } else if (intent.type === "send") {
-      if (!intent.recipient || !/^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
-        /* plan only — no live send without real 0x */
-      } else {
-        transaction = await runSendFlow({
-          amount: intent.amount || "50",
-          token: intent.token || "USDC",
-          chain: intent.toChain || "Arc_Testnet",
-          recipient: intent.recipient,
-          recipientLabel: intent.recipientLabel,
-        });
-      }
-    } else if (intent.type === "route") {
-      if (!intent.recipient || !/^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
-        /* plan only */
-      } else {
-        transaction = await runUnifiedRouteFlow({
-          amount: intent.amount || "100",
-          token: intent.token || "USDC",
-          fromChain: intent.fromChain || "Base_Sepolia",
-          recipient: intent.recipient,
-          recipientLabel: intent.recipientLabel,
-        });
-      }
+    if (intent.type === "bridge" && intent.amount && intent.fromChain && intent.toChain) {
+      transaction = await runBridgeFlow({ amount: intent.amount, token: intent.token || "USDC", fromChain: intent.fromChain, toChain: intent.toChain });
+    } else if (intent.type === "swap" && intent.amount && intent.token && intent.tokenOut && intent.toChain) {
+      transaction = await runSwapFlow({ amount: intent.amount, tokenIn: intent.token, tokenOut: intent.tokenOut, chain: intent.toChain });
+    } else if (intent.type === "send" && intent.amount && intent.recipient && intent.toChain && /^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
+      transaction = await runSendFlow({ amount: intent.amount, token: intent.token || "USDC", chain: intent.toChain, recipient: intent.recipient, recipientLabel: intent.recipientLabel });
+    } else if (intent.type === "route" && intent.amount && intent.fromChain && intent.toChain && intent.recipient && /^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
+      transaction = await runUnifiedRouteFlow({ amount: intent.amount, token: intent.token || "USDC", fromChain: intent.fromChain, toChain: intent.toChain, recipient: intent.recipient, recipientLabel: intent.recipientLabel });
     }
   }
 
@@ -325,13 +240,7 @@ export async function orchestrateUserMessage(
   };
 
   if (transaction?.status === "success") {
-    message.content =
-      message.content +
-      `\n\n✅ **Completed** — ${transaction.type} of ${transaction.amount} ${transaction.token}` +
-      (transaction.recipientLabel
-        ? ` to ${transaction.recipientLabel}`
-        : "") +
-      ".";
+    message.content += `\n\n✅ **Completed** — ${transaction.type} of ${transaction.amount} ${transaction.token}${transaction.recipientLabel ? ` to ${transaction.recipientLabel}` : ""}.`;
   }
 
   return { message, transaction };
@@ -342,21 +251,17 @@ export function welcomeMessage(): ChatMessage {
     id: uid("msg"),
     role: "assistant",
     content: [
-      "Hi — I’m the **AGFusion** helper.",
+      "Hi — I’m the **AGFusion Operator**.",
       "",
-      "**What this app is for:** send USDC, swap USDC↔EURC, or bridge USDC between networks — on Arc Testnet (practice money).",
+      "I can plan stablecoin operations across Arc and supported EVM networks: bridge, swap, send, balance and route analysis.",
       "",
-      "**How to start (3 steps):**",
-      "1. Click **Connect** (top right) → choose your wallet → **Arc Testnet**",
-      "2. Get free test USDC: https://faucet.circle.com (pick Arc Testnet)",
-      "3. Try one of these:",
-      '   • Type: **Show my balances**',
-      "   • Or use **Payment Engine** on the right (send 0.05 USDC to a full 0x address)",
-      '   • Or: **Swap 1 USDC to EURC**',
+      "**Safety:** I plan first. Money only moves after you confirm the exact action and approve it in your wallet.",
       "",
-      "I will **plan first**. Money only moves after you press **Confirm** and approve in your wallet.",
-      "",
-      "Confused? Open **“New here? What is this app?”** on the right panel.",
+      "Try:",
+      '• **Show my balances**',
+      '• **Swap 1 USDC to EURC on Arc**',
+      '• **Bridge 5 USDC from Base to Arc**',
+      '• **Send 0.05 USDC to a full 0x address on Arc**',
     ].join("\n"),
     createdAt: new Date().toISOString(),
     intent: "unknown",
