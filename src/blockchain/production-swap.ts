@@ -14,11 +14,13 @@ const TOKENS = {
   cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF" as `0x${string}`,
 } as const;
 const DECIMALS = { USDC: 6, EURC: 6, cirBTC: 8 } as const;
-const SLIPPAGE_BPS = 100n;
+const DEFAULT_SLIPPAGE_BPS = 100;
+const MIN_SLIPPAGE_BPS = 10;
+const MAX_SLIPPAGE_BPS = 500;
 
 type ArcSwapToken = keyof typeof TOKENS;
 type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
-type QuoteResult = { amountOut: string; route: string; slippageBps: number; path: `0x${string}`[] };
+export type QuoteResult = { amountOut: string; route: string; slippageBps: number; path: `0x${string}`[] };
 
 const ROUTER_ABI = [
   { type: "function", name: "getAmountsOut", stateMutability: "view", inputs: [{ name: "amountIn", type: "uint256" }, { name: "path", type: "address[]" }], outputs: [{ name: "amounts", type: "uint256[]" }] },
@@ -34,6 +36,15 @@ const ERC20_ABI = [
 
 function assertToken(token: string): asserts token is ArcSwapToken {
   if (!(token in TOKENS)) throw new Error("Arc Testnet Swap supports USDC, EURC, and cirBTC.");
+}
+
+export function normalizeSlippageBps(value: number): number {
+  if (!Number.isFinite(value)) throw new Error("Enter a valid slippage tolerance.");
+  const bps = Math.round(value);
+  if (bps < MIN_SLIPPAGE_BPS || bps > MAX_SLIPPAGE_BPS) {
+    throw new Error("Slippage must be between 0.1% and 5%.");
+  }
+  return bps;
 }
 
 function normalizeAmount(amount: string, token: ArcSwapToken): bigint {
@@ -99,7 +110,7 @@ export async function getArcDexSwapQuote(params: { amount: string; tokenIn: stri
   return {
     amountOut: formatUnits(best.out, DECIMALS[tokenOut]),
     route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC",
-    slippageBps: Number(SLIPPAGE_BPS),
+    slippageBps: DEFAULT_SLIPPAGE_BPS,
     path: best.path,
   };
 }
@@ -117,7 +128,7 @@ async function approveIfNeeded(provider: Provider, owner: `0x${string}`, token: 
   return tx;
 }
 
-export async function runProductionSwap(params: { amount: string; tokenIn: string; tokenOut: string; chain: ChainId; onStep?: (steps: TxStep[]) => void }): Promise<TransactionRecord> {
+export async function runProductionSwap(params: { amount: string; tokenIn: string; tokenOut: string; chain: ChainId; slippageBps?: number; onStep?: (steps: TxStep[]) => void }): Promise<TransactionRecord> {
   if (params.chain !== ARC_CHAIN) throw new Error("Arc Testnet is the only supported swap testnet.");
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
@@ -125,6 +136,7 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   assertToken(tokenOut);
   if (tokenIn === tokenOut) throw new Error("Choose two different tokens.");
 
+  const slippageBps = normalizeSlippageBps(params.slippageBps ?? DEFAULT_SLIPPAGE_BPS);
   const provider = await getInjectedProvider();
   const accounts = await requestAccounts(provider);
   await switchToChainId(provider, ARC_CHAIN);
@@ -132,11 +144,11 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   const amountIn = normalizeAmount(params.amount, tokenIn);
   const quote = await getArcDexSwapQuote(params);
   const quotedOut = parseUnits(quote.amountOut, DECIMALS[tokenOut]);
-  const minOut = (quotedOut * (10_000n - SLIPPAGE_BPS)) / 10_000n;
+  const minOut = (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = (await blockTimestamp(provider)) + 120n;
 
   const steps: TxStep[] = [
-    { name: "Live quote", state: "success", message: `${quote.route} · ${quote.slippageBps / 100}% slippage` },
+    { name: "Live quote", state: "success", message: `${quote.route} · ${slippageBps / 100}% slippage` },
     { name: "Approve", state: tokenIn === "USDC" ? "success" : "active" },
     { name: "Swap", state: "pending" },
     { name: "Receipt", state: "pending" },
@@ -191,5 +203,5 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
 
   steps[3].state = "success";
   params.onStep?.(steps.map((s) => ({ ...s })));
-  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Receipt verified on-chain.`, executionMode: "live" };
+  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Minimum received protected at ${formatUnits(minOut, DECIMALS[tokenOut])} ${tokenOut} (${slippageBps / 100}% slippage). Receipt verified on-chain.`, executionMode: "live" };
 }
