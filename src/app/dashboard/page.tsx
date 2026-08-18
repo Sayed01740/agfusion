@@ -10,12 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { cn, shortenAddress } from "@/lib/utils";
 import { formatUsdc } from "@/lib/fees";
-import {
-  Activity,
-  ArrowRight,
-  MessageSquare,
-  Wrench,
-} from "lucide-react";
+import { SupportedNetworks } from "@/components/brand/supported-networks";
+import { BrandLogo } from "@/components/brand/logo";
+import { Activity, ArrowRight, MessageSquare, Wrench } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
 
@@ -32,8 +29,7 @@ export default function DashboardPage() {
     addMessage,
     liveBalanceUsdc,
   } = usePilotStore();
-  const active =
-    transactions.find((t) => t.id === activeTxId) || transactions[0];
+  const active = transactions.find((t) => t.id === activeTxId) || transactions[0];
   const [mobileTab, setMobileTab] = useState<"chat" | "tools">("chat");
   const [payRequest, setPayRequest] = useState<{ amount: string; to?: string; memo?: string } | null>(null);
   const [payBusy, setPayBusy] = useState(false);
@@ -61,7 +57,7 @@ export default function DashboardPage() {
         content: `**Payment request**\n\n• Amount: **${amount} USDC**\n• To: \`${to || "your wallet / enter address"}\`\n• Memo: ${memo}\n\nConnect wallet and press **Pay request** below, or use **Tools → More → QR**.`,
         createdAt: new Date().toISOString(),
       });
-      setMobileTab("tools"); // Switch to tools if pay request is loaded
+      setMobileTab("tools");
     } catch {
       /* ignore */
     }
@@ -112,7 +108,7 @@ export default function DashboardPage() {
         content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`,
         createdAt: new Date().toISOString(),
       });
-      setMobileTab("chat"); // Switch to chat to show error
+      setMobileTab("chat");
     } finally {
       setPayBusy(false);
       setThinking(false);
@@ -120,173 +116,107 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl sm:px-6 sm:py-8 pb-4">
-      {/* Page intro */}
-      <header className="mb-4 sm:mb-6 animate-fade-up px-4 sm:px-0 pt-4 sm:pt-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="max-w-2xl hidden sm:block">
-            <p className="section-label mb-1.5">Dashboard</p>
-            <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
-              Your Arc <span className="text-gradient">money workspace</span>
-            </h1>
-            <p className="prose-app mt-2.5 max-w-xl text-sm">
-              Two ways to work: <strong>chat with the agent</strong> (left) or
-              use <strong>Send / Swap / Bridge</strong> forms (right). Testnet
-              only — nothing leaves your wallet until you confirm.
-            </p>
-          </div>
-          
-          <div className="flex sm:hidden flex-col gap-1 w-full">
-            <h1 className="font-display text-xl font-semibold text-slate-50">Workspace</h1>
-            <p className="text-xs text-slate-400">Manage your Arc assets</p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-            <Badge variant="cyan" className="gap-1 hidden xs:inline-flex">
-              <Activity className="h-3 w-3" />
-              Arc
-            </Badge>
-            {walletAddress && (
-              <Badge variant="outline" className="font-mono text-[11px] bg-slate-900/50">
-                {shortenAddress(walletAddress)}
-                {liveBalanceUsdc != null && liveBalanceUsdc !== ""
-                  ? ` · ${formatUsdc(Number(liveBalanceUsdc))} USDC`
-                  : ""}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Layout map — visible on desktop, simple */}
-        <div className="mt-5 hidden sm:grid gap-2 sm:grid-cols-2">
-          <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-slate-900/50 px-3.5 py-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 ring-1 ring-cyan-400/20">
-              <MessageSquare className="h-4 w-4 text-cyan-300" />
-            </span>
-            <div>
-              <p className="text-[13px] font-semibold text-slate-100">
-                Left · AI agent
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                Type in plain English. Best for plans and questions.
-              </p>
+    <div className="ag-premium-shell mx-auto max-w-7xl pb-4 sm:px-6 sm:py-8">
+      <header className="mb-5 px-4 pt-4 sm:px-0 sm:pt-0">
+        <div className="ag-command-hero px-5 py-6 sm:px-7 sm:py-8">
+          <div className="relative z-10 flex flex-col gap-7">
+            <div className="flex items-start justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <BrandLogo variant="icon" height={44} priority />
+                <div>
+                  <p className="ag-eyebrow">AGFusion command center</p>
+                  <h1 className="ag-hero-title mt-2">Move money <em>intelligently.</em></h1>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-[15px]">
+                    One workspace for AI-assisted stablecoin operations across Arc and supported EVM networks.
+                  </p>
+                </div>
+              </div>
+              <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                <Badge variant="cyan" className="gap-1.5 border-cyan-400/15 bg-cyan-400/[0.06]">
+                  <Activity className="h-3 w-3" />
+                  Testnet infrastructure
+                </Badge>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-slate-900/50 px-3.5 py-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 ring-1 ring-blue-400/20">
-              <Wrench className="h-4 w-4 text-blue-300" />
-            </span>
-            <div>
-              <p className="text-[13px] font-semibold text-slate-100">
-                Right · Money tools
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                Tabs: <strong className="text-slate-400">Send</strong>,{" "}
-                <strong className="text-slate-400">Swap</strong>,{" "}
-                <strong className="text-slate-400">Bridge</strong>,{" "}
-                <strong className="text-slate-400">More</strong>.
-              </p>
+
+            <div className="grid gap-5 sm:grid-cols-3">
+              <div className="ag-metric">
+                <p className="ag-metric-label">Available balance</p>
+                <p className="ag-metric-value">{liveBalanceUsdc ? `${formatUsdc(Number(liveBalanceUsdc))} USDC` : "—"}</p>
+              </div>
+              <div className="ag-metric">
+                <p className="ag-metric-label">Connected wallet</p>
+                <p className="ag-metric-value text-[13px] sm:text-[14px]">{walletAddress ? shortenAddress(walletAddress) : "Not connected"}</p>
+              </div>
+              <div className="ag-metric">
+                <p className="ag-metric-label">Operations</p>
+                <p className="ag-metric-value">{transactions.length.toString().padStart(2, "0")} recorded</p>
+              </div>
             </div>
+
+            <div className="ag-route-line" aria-hidden="true" />
+            <SupportedNetworks />
           </div>
         </div>
 
         {payRequest && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-50">
-            <span>
-              Pay request: <strong>{payRequest.amount} USDC</strong>
-              {payRequest.to ? ` → ${payRequest.to.slice(0, 10)}…` : ""}
-            </span>
-            <Button
-              size="sm"
-              className="h-7"
-              disabled={!walletAddress || payBusy}
-              onClick={() => void fulfillPayRequest()}
-            >
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2 text-xs text-cyan-50">
+            <span>Pay request: <strong>{payRequest.amount} USDC</strong>{payRequest.to ? ` → ${payRequest.to.slice(0, 10)}…` : ""}</span>
+            <Button size="sm" className="h-7" disabled={!walletAddress || payBusy} onClick={() => void fulfillPayRequest()}>
               {payBusy ? "Signing…" : "Pay request (live)"}
             </Button>
           </div>
         )}
       </header>
 
-      {/* Mobile Tab Switcher */}
       <div className="px-4 sm:px-0">
-        <div className="flex p-1 mb-4 sm:mb-6 rounded-xl bg-slate-900/60 ring-1 ring-white/10 lg:hidden">
+        <div className="mb-4 flex rounded-xl border border-white/[0.06] bg-white/[0.018] p-1 lg:hidden">
           <button
             onClick={() => setMobileTab("chat")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300",
-              mobileTab === "chat"
-                ? "bg-gradient-to-b from-cyan-400/20 to-teal-500/10 text-cyan-50 shadow-sm ring-1 ring-cyan-500/30"
-                : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-            )}
+            className={cn("flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition", mobileTab === "chat" ? "bg-cyan-400/[0.08] text-cyan-50 ring-1 ring-cyan-400/20" : "text-slate-500 hover:text-slate-200")}
           >
-            <MessageSquare className={cn("w-4 h-4", mobileTab === "chat" ? "text-cyan-300" : "text-slate-500")} />
-            AI Agent
+            <MessageSquare className={cn("h-4 w-4", mobileTab === "chat" ? "text-cyan-300" : "text-slate-500")} />
+            AI Operator
           </button>
           <button
             onClick={() => setMobileTab("tools")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300",
-              mobileTab === "tools"
-                ? "bg-gradient-to-b from-blue-500/20 to-indigo-500/10 text-blue-50 shadow-sm ring-1 ring-blue-500/30"
-                : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
-            )}
+            className={cn("flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition", mobileTab === "tools" ? "bg-white/[0.06] text-slate-50 ring-1 ring-white/10" : "text-slate-500 hover:text-slate-200")}
           >
-            <Wrench className={cn("w-4 h-4", mobileTab === "tools" ? "text-blue-300" : "text-slate-500")} />
-            Money Tools
+            <Wrench className={cn("h-4 w-4", mobileTab === "tools" ? "text-slate-200" : "text-slate-500")} />
+            Operate
           </button>
         </div>
       </div>
 
-      <div className="grid gap-8 lg:gap-5 lg:grid-cols-12 max-w-[100vw] overflow-x-hidden">
-        {/* LEFT: chat only — do not redesign */}
-        <div className={cn(
-          "min-w-0 w-full lg:min-h-[560px] lg:col-span-7 xl:col-span-8 animate-fade-up",
-          mobileTab !== "chat" && "hidden lg:block"
-        )}>
+      <div className="grid max-w-[100vw] gap-5 overflow-x-hidden lg:grid-cols-12">
+        <div className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8 lg:min-h-[560px]", mobileTab !== "chat" && "hidden lg:block")}>
           <ChatPanel />
         </div>
 
-        {/* RIGHT: clear tools stack */}
-        <div className={cn(
-          "space-y-4 lg:col-span-5 xl:col-span-4 animate-fade-up px-4 sm:px-0",
-          mobileTab !== "tools" && "hidden lg:block"
-        )}>
-
+        <div className={cn("space-y-4 px-4 sm:px-0 lg:col-span-5 xl:col-span-4", mobileTab !== "tools" && "hidden lg:block")}>
           <UserGuideCard />
-
           <ToolsWorkspace defaultTab="send" />
 
           {active && (
             <TransactionProgress
               tx={active}
-              onRetry={
-                active.status === "error" || active.retryable
-                  ? () => void retryActive()
-                  : undefined
-              }
+              onRetry={active.status === "error" || active.retryable ? () => void retryActive() : undefined}
             />
           )}
 
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Recent activity</CardTitle>
-                <a
-                  href="#tools"
-                  className="inline-flex items-center gap-1 text-[11px] text-cyan-400/90 hover:text-cyan-300"
-                >
-                  Open tools
-                  <ArrowRight className="h-3 w-3" />
+                <CardTitle className="text-sm">Activity timeline</CardTitle>
+                <a href="#tools" className="inline-flex items-center gap-1 text-[11px] text-cyan-400/90 hover:text-cyan-300">
+                  Operate <ArrowRight className="h-3 w-3" />
                 </a>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {transactions.length === 0 && (
                 <p className="text-[12px] leading-relaxed text-slate-500">
-                  No transactions yet. Try{" "}
-                  <strong className="text-slate-400">Send</strong> with a small
-                  amount, or ask the agent: “Swap 1 USDC to EURC”.
+                  No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.
                 </p>
               )}
               {transactions.slice(0, 8).map((tx) => {
@@ -298,34 +228,17 @@ export default function DashboardPage() {
                     onClick={() => setActiveTx(tx.id)}
                     className={cn(
                       "flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition",
-                      isActive
-                        ? "border-cyan-500/40 bg-cyan-500/10"
-                        : "border-white/5 bg-white/[0.02] hover:border-white/15",
+                      isActive ? "border-cyan-500/30 bg-cyan-500/[0.06]" : "border-white/[0.05] bg-white/[0.018] hover:border-white/10",
                     )}
                   >
                     <div>
-                      <div className="capitalize text-slate-200">
-                        {tx.type.replace("_", " ")} · {tx.amount} {tx.token}
-                      </div>
+                      <div className="capitalize text-slate-200">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div>
                       <div className="mt-0.5 text-[11px] text-slate-500">
                         {tx.status}
-                        {tx.recipient
-                          ? ` · ${shortenAddress(tx.recipient)}`
-                          : tx.toChain
-                            ? ` · ${tx.toChain.replace(/_/g, " ")}`
-                            : ""}
+                        {tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        tx.status === "success"
-                          ? "success"
-                          : tx.status === "error"
-                            ? "outline"
-                            : "cyan"
-                      }
-                      className="shrink-0 text-[10px]"
-                    >
+                    <Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[10px]">
                       {tx.status}
                     </Badge>
                   </button>
