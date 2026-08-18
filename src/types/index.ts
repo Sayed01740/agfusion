@@ -17,7 +17,6 @@ export type ChainId =
   | "Plume"
   | "Polygon"
   | "Sei"
-  | "Solana"
   | "Sonic"
   | "Unichain"
   | "World_Chain"
@@ -107,12 +106,9 @@ export interface TransactionRecord {
   explorerUrl?: string;
   createdAt: string;
   message?: string;
-  /** demo = simulated App Kit; live = wallet / real App Kit */
   executionMode?: ExecutionMode;
   retryable?: boolean;
-  /** Opaque App Kit bridge result for retryBridge */
   bridgeResult?: unknown;
-  /** Persistent bridge state machine (see @/lib/bridge-state) */
   bridgeState?: {
     txId: string;
     walletType: "evm" | "circle" | "agent";
@@ -168,7 +164,6 @@ export interface ChatMessage {
   transactionId?: string;
   codeBlocks?: CodeBlock[];
   isStreaming?: boolean;
-  /** Live agent status line while streaming */
   agentStatus?: string;
   toolTrace?: AgentToolTrace[];
 }
@@ -197,6 +192,8 @@ export interface ActionPreview {
   canExecute: boolean;
   executed?: boolean;
   requiresWallet?: boolean;
+  /** Wallet-bound, short-lived capability issued by the server after planning. */
+  confirmToken?: string;
 }
 
 export interface CodeBlock {
@@ -226,7 +223,6 @@ export interface BridgeEstimate {
   eta: string;
   route: string;
   speed: "fast" | "standard";
-  /** True when this is a simulation estimate, not a live quote. */
   estimated?: boolean;
   note?: string;
 }
@@ -239,7 +235,6 @@ export interface SwapEstimate {
   feeUsd: number;
   slippageBps: number;
   route: string;
-  /** True when this is a simulation estimate, not a live quote. */
   estimated?: boolean;
   note?: string;
 }
@@ -253,15 +248,10 @@ export interface AgentProfile {
   paymentsEnabled: boolean;
   identity: string;
   actions24h: number;
-  /** ERC-8004 registry id / handle */
   erc8004Id?: string;
-  /** Max single payout policy (USDC) */
   maxPayoutUsdc?: number;
-  /** Supports ERC-8183 job escrow */
   escrowEnabled?: boolean;
-  /** Supports scheduled / batch payroll */
   batchEnabled?: boolean;
-  /** x402 tool marketplace participant */
   x402Enabled?: boolean;
 }
 
