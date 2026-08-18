@@ -76,4 +76,58 @@ export const CHAINS: Record<ChainId, ChainMeta> = {
   XDC_Apothem: { id: "XDC_Apothem", label: "XDC Apothem", short: "XDC", color: "#a3a3a3", explorer: "https://explorer.apothem.network", appKitName: "XDC_Apothem", testnet: true },
 };
 
+/** Ordered list used by UI and agent tooling. */
+export const CHAIN_LIST: ChainMeta[] = Object.values(CHAINS);
+
+const CHAIN_ALIASES: Record<string, ChainId> = {
+  arc: "Arc_Testnet",
+  "arc testnet": "Arc_Testnet",
+  base: "Base_Sepolia",
+  "base sepolia": "Base_Sepolia",
+  ethereum: "Ethereum_Sepolia",
+  eth: "Ethereum_Sepolia",
+  "ethereum sepolia": "Ethereum_Sepolia",
+  "eth sepolia": "Ethereum_Sepolia",
+  arbitrum: "Arbitrum_Sepolia",
+  arb: "Arbitrum_Sepolia",
+  "arbitrum sepolia": "Arbitrum_Sepolia",
+  optimism: "Optimism_Sepolia",
+  op: "Optimism_Sepolia",
+  "optimism sepolia": "Optimism_Sepolia",
+  polygon: "Polygon_Amoy_Testnet",
+  amoy: "Polygon_Amoy_Testnet",
+  "polygon amoy": "Polygon_Amoy_Testnet",
+  avalanche: "Avalanche_Fuji",
+  avax: "Avalanche_Fuji",
+  fuji: "Avalanche_Fuji",
+  "avalanche fuji": "Avalanche_Fuji",
+  solana: "Solana_Devnet",
+  sol: "Solana_Devnet",
+  "solana devnet": "Solana_Devnet",
+  linea: "Linea_Sepolia",
+  "linea sepolia": "Linea_Sepolia",
+  unichain: "Unichain_Sepolia",
+  "unichain sepolia": "Unichain_Sepolia",
+  sonic: "Sonic_Testnet",
+  "sonic testnet": "Sonic_Testnet",
+  "world chain": "World_Chain_Sepolia",
+  "world chain sepolia": "World_Chain_Sepolia",
+  xdc: "XDC_Apothem",
+  "xdc apothem": "XDC_Apothem",
+};
+
+/** Resolve natural-language chain names to the app's canonical testnet ChainId. */
+export function resolveChain(value: string | null | undefined): ChainId | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (!normalized) return undefined;
+
+  const direct = Object.keys(CHAINS).find(
+    (id) => id.toLowerCase().replace(/_/g, " ") === normalized,
+  ) as ChainId | undefined;
+  if (direct) return direct;
+
+  return CHAIN_ALIASES[normalized];
+}
+
 export { ARC_CHAIN_ID, ARC_TESTNET_RPC, ARC_CURRENCY_DECIMALS, ARC_CURRENCY_NAME, ARC_CURRENCY_SYMBOL };
