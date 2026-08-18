@@ -12,7 +12,7 @@ export type SupportedChainMark =
   | "Linea_Sepolia";
 
 const marks: Record<SupportedChainMark, { name: string; short: string; src: string }> = {
-  Arc_Testnet: { name: "Arc Testnet", short: "ARC", src: "https://cdn.simpleicons.org/circle" },
+  Arc_Testnet: { name: "Arc Testnet", short: "ARC", src: "https://www.arc.io/favicon.ico" },
   Base_Sepolia: { name: "Base Sepolia", short: "BASE", src: "https://cdn.simpleicons.org/base" },
   Arbitrum_Sepolia: { name: "Arbitrum Sepolia", short: "ARB", src: "https://cdn.simpleicons.org/arbitrum" },
   Ethereum_Sepolia: { name: "Ethereum Sepolia", short: "ETH", src: "https://cdn.simpleicons.org/ethereum" },
