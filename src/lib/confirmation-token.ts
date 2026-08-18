@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 const TOKEN_VERSION = "v1";
 const TTL_SECONDS = 10 * 60;
+const consumedTokens = new Set<string>();
 
 type ConfirmationPayload = {
   v: typeof TOKEN_VERSION;
@@ -83,4 +84,17 @@ export function verifyConfirmationToken(input: {
   } catch {
     return false;
   }
+}
+
+/** Verify and consume a capability. Warm server instances reject replayed tokens. */
+export function consumeConfirmationToken(input: {
+  token?: string | null;
+  wallet?: string | null;
+  action: Record<string, unknown>;
+}): boolean {
+  const token = String(input.token || "");
+  if (!verifyConfirmationToken(input) || consumedTokens.has(token)) return false;
+  consumedTokens.add(token);
+  if (consumedTokens.size > 2000) consumedTokens.clear();
+  return true;
 }
