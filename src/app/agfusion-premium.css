@@ -1,42 +1,89 @@
-/* AGFusion Premium System: Obsidian × Arc Cyan × Editorial Intelligence */
+/* AGFusion Premium System: Arc Terminal
+ * Dark institutional terminal × Arc blue × stablecoin-green status language.
+ * Visual-only layer. No transaction, wallet, swap, bridge, or agent logic is changed here.
+ */
 :root {
-  --ag-bg: #050709;
-  --ag-surface: #0a0f13;
-  --ag-surface-2: #0e1419;
-  --ag-surface-3: #121a20;
-  --ag-border: rgba(255,255,255,.075);
-  --ag-border-strong: rgba(34,211,238,.20);
-  --ag-text: #f4f7f8;
-  --ag-muted: #8d989f;
+  --ag-bg: #05080d;
+  --ag-bg-deep: #02050a;
+  --ag-surface: #0a1018;
+  --ag-surface-2: #0d1520;
+  --ag-surface-3: #111c29;
+  --ag-border: rgba(148, 163, 184, .12);
+  --ag-border-strong: rgba(37, 99, 235, .42);
+  --ag-text: #f3f7fb;
+  --ag-muted: #8794a5;
+  --ag-blue: #2563eb;
+  --ag-blue-bright: #3b82f6;
   --ag-cyan: #22d3ee;
-  --ag-mint: #5eead4;
-  --ag-success: #65d6a3;
-  --ag-warning: #e7b86a;
-  --ag-danger: #e36d78;
+  --ag-green: #35d07f;
+  --ag-green-soft: #7ce7aa;
+  --ag-warning: #eabf6b;
+  --ag-danger: #ef6675;
+  --ag-grid: rgba(59, 130, 246, .055);
 }
 
+/* Terminal foundation */
 body {
   background:
-    radial-gradient(900px 500px at 15% -10%, rgba(34,211,238,.075), transparent 65%),
-    radial-gradient(700px 420px at 92% 4%, rgba(94,234,212,.045), transparent 62%),
-    var(--ag-bg) !important;
+    radial-gradient(900px 520px at 76% -12%, rgba(37, 99, 235, .13), transparent 62%),
+    radial-gradient(700px 460px at 10% 18%, rgba(34, 211, 238, .055), transparent 64%),
+    linear-gradient(180deg, #05080d 0%, #03060b 55%, #02050a 100%) !important;
   color: var(--ag-text);
 }
 
-/* Presentation layer: restrained surfaces, no generic Web3 neon treatment. */
-.glass, .glass-strong, .glass-soft, .liquid-glass, .glass-ultra, .surface-card {
-  background: linear-gradient(155deg, rgba(14,20,25,.96), rgba(7,11,14,.94)) !important;
-  backdrop-filter: blur(18px) saturate(120%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(120%) !important;
-  border-color: var(--ag-border) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,.035) inset, 0 18px 55px rgba(0,0,0,.28) !important;
+/* The existing AppShell uses these utility backgrounds. Re-skin them without touching JSX. */
+.mesh-bg {
+  background:
+    radial-gradient(ellipse 85% 58% at 78% -8%, rgba(37, 99, 235, .12), transparent 58%),
+    radial-gradient(ellipse 65% 48% at 8% 22%, rgba(34, 211, 238, .045), transparent 58%),
+    #03060b !important;
 }
 
-.glass-ultra:hover, .surface-card:hover {
+.mesh-bg .bg-cyan-500\/10,
+.mesh-bg .bg-indigo-500\/10 {
+  opacity: .035 !important;
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(var(--ag-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ag-grid) 1px, transparent 1px) !important;
+  background-size: 56px 56px !important;
+  mask-image: radial-gradient(ellipse 82% 68% at 55% 18%, black 10%, transparent 74%) !important;
+}
+
+/* Restrained surfaces: more terminal, less generic glass. */
+.glass,
+.glass-strong,
+.glass-soft,
+.liquid-glass,
+.glass-ultra,
+.surface-card {
+  background: linear-gradient(145deg, rgba(12, 19, 29, .97), rgba(5, 9, 15, .97)) !important;
+  backdrop-filter: blur(14px) saturate(125%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(125%) !important;
+  border: 1px solid var(--ag-border) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.035),
+    0 16px 48px rgba(0,0,0,.28) !important;
+}
+
+.glass-ultra,
+.liquid-glass {
+  border-color: rgba(37, 99, 235, .18) !important;
+}
+
+.glass-ultra:hover,
+.surface-card:hover,
+.liquid-glass:hover {
   border-color: var(--ag-border-strong) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 0 0 1px rgba(34,211,238,.035), 0 22px 60px rgba(0,0,0,.34) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.04),
+    0 0 0 1px rgba(37,99,235,.07),
+    0 22px 62px rgba(0,0,0,.36) !important;
 }
 
+/* Terminal shell and command-surface language. */
 .ag-premium-shell {
   position: relative;
   isolation: isolate;
@@ -46,30 +93,33 @@ body {
   content: "";
   position: absolute;
   inset: 0 0 auto;
-  height: 360px;
+  height: 320px;
   pointer-events: none;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(34,211,238,.055), transparent 72%);
+  background: linear-gradient(180deg, rgba(37,99,235,.075), transparent 76%);
   mask-image: linear-gradient(#000, transparent);
 }
 
 .ag-command-hero {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--ag-border);
-  border-radius: 22px;
-  background: linear-gradient(145deg, rgba(14,21,26,.98), rgba(6,10,13,.97));
-  box-shadow: 0 24px 80px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.035);
+  border: 1px solid var(--ag-border) !important;
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(13,21,32,.99), rgba(4,8,14,.99)) !important;
+  box-shadow:
+    0 26px 82px rgba(0,0,0,.42),
+    inset 0 1px 0 rgba(255,255,255,.04) !important;
 }
 
 .ag-command-hero::before {
-  content: "ARC / ECONOMIC OS";
+  content: "ARC / ECONOMIC OS / TERMINAL";
   position: absolute;
-  right: 28px;
-  bottom: 20px;
-  color: rgba(148,163,184,.16);
+  right: 24px;
+  bottom: 17px;
+  color: rgba(148,163,184,.14);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: .18em;
   pointer-events: none;
   white-space: nowrap;
@@ -78,20 +128,25 @@ body {
 .ag-command-hero::after {
   content: "";
   position: absolute;
-  width: 420px;
-  height: 420px;
-  right: -180px;
-  top: -230px;
+  width: 460px;
+  height: 460px;
+  right: -220px;
+  top: -260px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(34,211,238,.10), transparent 68%);
+  border: 1px solid rgba(59,130,246,.08);
+  box-shadow:
+    0 0 0 48px rgba(59,130,246,.018),
+    0 0 0 96px rgba(59,130,246,.012),
+    0 0 0 144px rgba(59,130,246,.008);
   pointer-events: none;
 }
 
 .ag-eyebrow {
-  color: rgba(94,234,212,.88);
-  font-size: 10px;
+  color: rgba(59,130,246,.95);
+  font-family: var(--font-mono);
+  font-size: 9px;
   line-height: 1;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: .20em;
   text-transform: uppercase;
 }
@@ -107,7 +162,7 @@ body {
 
 .ag-hero-title em {
   font-style: normal;
-  color: var(--ag-cyan);
+  color: var(--ag-blue-bright);
 }
 
 .ag-network-rail {
@@ -126,15 +181,15 @@ body {
   gap: 8px;
   min-height: 40px;
   padding: 7px 11px;
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: 12px;
-  background: rgba(255,255,255,.025);
-  color: #cbd5da;
+  border: 1px solid rgba(148,163,184,.11);
+  border-radius: 10px;
+  background: rgba(255,255,255,.018);
+  color: #cbd5e1;
   transition: border-color .2s ease, background .2s ease, transform .2s ease;
 }
 .ag-network-chip:hover {
-  border-color: rgba(34,211,238,.22);
-  background: rgba(34,211,238,.045);
+  border-color: rgba(59,130,246,.35);
+  background: rgba(37,99,235,.055);
   transform: translateY(-1px);
 }
 .ag-network-chip img {
@@ -144,7 +199,8 @@ body {
 }
 .ag-network-chip small {
   display:block;
-  color:#65727a;
+  color:#68788a;
+  font-family:var(--font-mono);
   font-size:9px;
   letter-spacing:.04em;
   margin-top:1px;
@@ -153,7 +209,7 @@ body {
 .ag-route-line {
   position: relative;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(34,211,238,.28), transparent);
+  background: linear-gradient(90deg, transparent, rgba(59,130,246,.38), transparent);
 }
 .ag-route-line::after {
   content:"";
@@ -163,30 +219,115 @@ body {
   width:5px;
   height:5px;
   border-radius:50%;
-  background:var(--ag-cyan);
-  box-shadow:0 0 14px rgba(34,211,238,.7);
+  background:var(--ag-green);
+  box-shadow:0 0 12px rgba(53,208,127,.65);
 }
 
 .ag-metric {
-  border-left: 1px solid rgba(255,255,255,.07);
+  border-left: 1px solid rgba(148,163,184,.09);
   padding-left: 16px;
 }
 .ag-metric:first-child { border-left:0; padding-left:0; }
-.ag-metric-label { color:#68747b; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
-.ag-metric-value { color:#f3f6f7; font-family:var(--font-mono); font-size:16px; font-weight:600; margin-top:3px; }
+.ag-metric-label {
+  color:#68788a;
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.ag-metric-value {
+  color:#f3f7fb;
+  font-family:var(--font-mono);
+  font-size:16px;
+  font-weight:600;
+  margin-top:3px;
+  font-variant-numeric:tabular-nums;
+}
 
-/* Phase 9: Arc-focused editorial details. */
-.ag-command-hero .ag-metric-value,
+/* Blue terminal buttons and action surfaces. */
+.ag-premium-shell .bg-cyan-600,
+.ag-premium-shell .bg-cyan-500 {
+  background-color: var(--ag-blue) !important;
+}
+
+.ag-premium-shell .hover\:bg-cyan-500:hover,
+.ag-premium-shell .hover\:bg-cyan-400:hover {
+  background-color: var(--ag-blue-bright) !important;
+}
+
+.ag-premium-shell .text-cyan-400,
+.ag-premium-shell .text-cyan-300,
+.ag-premium-shell .text-cyan-200 {
+  color: #60a5fa !important;
+}
+
+.ag-premium-shell .text-teal-300,
+.ag-premium-shell .text-teal-200 {
+  color: var(--ag-cyan) !important;
+}
+
+.ag-premium-shell .text-emerald-400,
+.ag-premium-shell .text-green-400 {
+  color: var(--ag-green) !important;
+}
+
+.ag-premium-shell .border-cyan-400\/20,
+.ag-premium-shell .border-cyan-500\/20,
+.ag-premium-shell .border-cyan-500\/30 {
+  border-color: rgba(59,130,246,.22) !important;
+}
+
+.ag-premium-shell .bg-cyan-500\/10,
+.ag-premium-shell .bg-cyan-500\/\[0\.06\],
+.ag-premium-shell .bg-cyan-500\/\[0\.04\] {
+  background-color: rgba(37,99,235,.055) !important;
+}
+
+/* Swap / financial controls get a sharper terminal edge. */
+.ag-premium-shell input,
+.ag-premium-shell textarea,
+.ag-premium-shell select {
+  border-color: rgba(148,163,184,.14);
+  background: rgba(3,8,14,.72);
+}
+
+.ag-premium-shell input:focus,
+.ag-premium-shell textarea:focus,
+.ag-premium-shell select:focus {
+  border-color: rgba(59,130,246,.55);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.10);
+}
+
+.ag-premium-shell .font-mono,
 .ag-command-hero .font-mono {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1, "zero" 1;
 }
 
+/* Small status lights reinforce the terminal language. */
+.ag-terminal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: #a9b5c3;
+}
+.ag-terminal-status::before {
+  content:"";
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--ag-green);
+  box-shadow:0 0 10px rgba(53,208,127,.6);
+}
+
 .ag-premium-shell a:focus-visible,
 .ag-premium-shell button:focus-visible {
-  outline: 1px solid rgba(94,234,212,.75);
+  outline: 1px solid rgba(59,130,246,.85);
   outline-offset: 3px;
-  box-shadow: 0 0 0 4px rgba(34,211,238,.08);
+  box-shadow: 0 0 0 4px rgba(37,99,235,.10);
 }
 
 .ag-premium-shell button,
@@ -194,6 +335,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Footer and low-contrast metadata. */
+.ag-premium-shell footer,
+.ag-premium-shell .text-slate-600,
+.ag-premium-shell .text-slate-500 {
+  color: #657487 !important;
+}
+
+/* Presentation layer: keep motion, but make it subtle and terminal-like. */
 @media (prefers-reduced-motion: reduce) {
   .ag-premium-shell *,
   .ag-command-hero,
@@ -206,8 +355,8 @@ body {
 }
 
 @media (max-width: 640px) {
-  .ag-command-hero { border-radius: 18px; }
-  .ag-command-hero::before { right: 16px; bottom: 12px; font-size: 7px; }
+  .ag-command-hero { border-radius: 16px; }
+  .ag-command-hero::before { right: 14px; bottom: 11px; font-size: 6px; }
   .ag-metric { padding-left: 10px; }
   .ag-metric-value { font-size:14px; }
 }
