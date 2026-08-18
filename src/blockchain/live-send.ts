@@ -1,5 +1,5 @@
 /**
- * Live USDC send on Arc Testnet via the *active* injected wallet + viem.
+ * Live USDC send on Arc Testnet via the active injected wallet + viem.
  * Uses the wallet the user selected (Rabby / MetaMask / …) — never random window.ethereum.
  */
 
@@ -44,9 +44,7 @@ function arcRpcUrl(): string {
     : arcTestnet.rpcUrls.default.http[0];
 }
 
-export async function fetchArcNativeBalance(
-  address: Address,
-): Promise<string> {
+export async function fetchArcNativeBalance(address: Address): Promise<string> {
   const client = createPublicClient({
     chain: arcTestnet,
     transport: http(arcRpcUrl()),
@@ -64,12 +62,9 @@ export async function liveSendUsdcOnArc(params: {
   provider?: InjectedProvider;
 }): Promise<TransactionRecord> {
   if (typeof window === "undefined") {
-    throw new Error(
-      "Live send must run in the browser with your connected wallet.",
-    );
+    throw new Error("Live send must run in the browser with your connected wallet.");
   }
 
-  // Ensure reads (balance, receipt) go through the same-origin /api/rpc proxy.
   const { installCircleApiProxy } = await import("@/lib/circle-proxy");
   installCircleApiProxy();
 
@@ -110,6 +105,9 @@ export async function liveSendUsdcOnArc(params: {
     throw new Error("Invalid recipient address");
   }
 
+  // Arc's native USDC representation uses 18 decimals for native transfers.
+  // The underlying balance is the same USDC balance exposed by the ERC-20
+  // interface (6 decimals). This path intentionally uses a native USDC send.
   const value = parseEther(params.amount);
   const hash = await walletClient.sendTransaction({
     account: from,
@@ -128,12 +126,28 @@ export async function liveSendUsdcOnArc(params: {
     transport: http(arcRpcUrl()),
   });
 
+  let status: TransactionRecord["status"] = "success";
+  let finalityMessage = "Confirmed on Arc Testnet";
   try {
-    await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
-    steps[3].state = "success";
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      timeout: 60_000,
+    });
+    if (receipt.status !== "success") {
+      status = "error";
+      finalityMessage = "Transaction reverted on Arc Testnet";
+      steps[3].state = "error";
+      steps[3].message = finalityMessage;
+    } else {
+      steps[3].state = "success";
+    }
   } catch {
-    steps[3].state = "success";
-    steps[3].message = "Submitted — finality pending on explorer";
+    // A timeout/network failure is not proof of success. Keep the hash and mark
+    // the transaction retryable so the UI never lies about on-chain finality.
+    status = "retryable";
+    finalityMessage = "Submitted — finality is still pending. Verify the explorer before retrying.";
+    steps[3].state = "pending";
+    steps[3].message = finalityMessage;
   }
   steps[3].txHash = hash;
   emit();
@@ -141,7 +155,8 @@ export async function liveSendUsdcOnArc(params: {
   return {
     id,
     type: "send",
-    status: "success",
+    status,
+    retryable: status === "retryable",
     amount: params.amount,
     token: "USDC",
     fromChain: "Arc_Testnet",
@@ -153,7 +168,7 @@ export async function liveSendUsdcOnArc(params: {
     txHash: hash,
     explorerUrl: explorerTxUrl(hash),
     createdAt: new Date().toISOString(),
-    message: "Live USDC send on Arc Testnet (native gas token)",
+    message: `Live USDC send on Arc Testnet — ${finalityMessage}`,
     executionMode: "live",
   };
 }
