@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
+import "./agfusion-premium.css";
 
 const siteUrl = "https://agfusion.vercel.app";
 const siteTitle = "AGFusion — Stablecoin operations on Arc";
@@ -57,14 +58,12 @@ export const metadata: Metadata = {
   },
 };
 
-
-
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#030712",
+  themeColor: "#050709",
 };
 
 export default function RootLayout({
