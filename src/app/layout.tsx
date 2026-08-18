@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
-import "./agfusion-premium.css";
 
 const siteUrl = "https://agfusion.vercel.app";
 const siteTitle = "AGFusion — Stablecoin operations on Arc";
@@ -12,16 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: siteTitle,
   description: siteDescription,
-  keywords: [
-    "AGFusion",
-    "Arc Network",
-    "Arc House",
-    "USDC",
-    "stablecoin",
-    "Economic OS",
-    "programmable money",
-    "AI finance",
-  ],
+  keywords: ["AGFusion", "Arc Network", "Arc House", "USDC", "stablecoin", "Economic OS", "programmable money", "AI finance"],
   applicationName: "AGFusion",
   authors: [{ name: "AGFusion" }],
   icons: {
@@ -65,12 +55,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700&display=swap"
-          rel="stylesheet"
-        />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased selection:bg-blue-500/15">
+      <body className="antialiased selection:bg-cyan-500/20">
         <AppShell>{children}</AppShell>
       </body>
     </html>
