@@ -7,10 +7,10 @@ import {
   runBridgeFlow,
   runBridgeWithRecovery,
   runSendFlow,
-  runSwapFlow,
   runUnifiedDeposit,
   runUnifiedSpend,
 } from "@/blockchain/appkit-service";
+import { runProductionSwap } from "@/blockchain/production-swap";
 import { runCircleEmailWalletForwardingBridge } from "@/lib/circle-forwarding-bridge";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
@@ -98,7 +98,7 @@ export async function executeSwap(params: {
   chain?: ChainId;
 }): Promise<TransactionRecord> {
   const chain = params.chain || "Arc_Testnet";
-  const result = await runSwapFlow({
+  const result = await runProductionSwap({
     amount: params.amount,
     tokenIn: params.tokenIn || "USDC",
     tokenOut: params.tokenOut || "EURC",
