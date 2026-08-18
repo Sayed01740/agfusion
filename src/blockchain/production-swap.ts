@@ -18,6 +18,7 @@ const SLIPPAGE_BPS = 100n;
 
 type ArcSwapToken = keyof typeof TOKENS;
 type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
+type QuoteResult = { amountOut: string; route: string; slippageBps: number; path: `0x${string}`[] };
 
 const ROUTER_ABI = [
   { type: "function", name: "getAmountsOut", stateMutability: "view", inputs: [{ name: "amountIn", type: "uint256" }, { name: "path", type: "address[]" }], outputs: [{ name: "amounts", type: "uint256[]" }] },
@@ -50,8 +51,7 @@ async function blockTimestamp(provider: Provider): Promise<bigint> {
   try {
     const block = await provider.request({ method: "eth_getBlockByNumber", params: ["latest", false] });
     if (block && typeof block === "object" && "timestamp" in block) {
-      const timestamp = String((block as { timestamp?: unknown }).timestamp || "0x0");
-      return BigInt(timestamp);
+      return BigInt(String((block as { timestamp?: unknown }).timestamp || "0x0"));
     }
   } catch {}
   return BigInt(Math.floor(Date.now() / 1000));
@@ -74,7 +74,7 @@ async function quotePath(provider: Provider, amountIn: bigint, path: `0x${string
   return BigInt(`0x${last}`);
 }
 
-export async function getArcDexSwapQuote(params: { amount: string; tokenIn: string; tokenOut: string }): Promise<{ amountOut: string; route: string; slippageBps: number }> {
+export async function getArcDexSwapQuote(params: { amount: string; tokenIn: string; tokenOut: string }): Promise<QuoteResult> {
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
   assertToken(tokenIn);
@@ -96,7 +96,12 @@ export async function getArcDexSwapQuote(params: { amount: string; tokenIn: stri
   if (!candidates.length) throw new Error(`No liquidity route available for ${tokenIn} → ${tokenOut} on Arc Testnet.`);
   candidates.sort((x, y) => (x.out > y.out ? -1 : x.out < y.out ? 1 : 0));
   const best = candidates[0];
-  return { amountOut: formatUnits(best.out, DECIMALS[tokenOut]), route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC", slippageBps: Number(SLIPPAGE_BPS) };
+  return {
+    amountOut: formatUnits(best.out, DECIMALS[tokenOut]),
+    route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC",
+    slippageBps: Number(SLIPPAGE_BPS),
+    path: best.path,
+  };
 }
 
 async function approveIfNeeded(provider: Provider, owner: `0x${string}`, token: ArcSwapToken, amount: bigint): Promise<string | undefined> {
@@ -145,19 +150,14 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
     params.onStep?.(steps.map((s) => ({ ...s })));
   }
 
-  const inPath = effectiveAddress(tokenIn);
-  const outPath = effectiveAddress(tokenOut);
-  const finalPath = inPath !== WUSDC && outPath !== WUSDC ? [inPath, outPath] : [inPath, outPath];
   let data: `0x${string}`;
-  let value = "0x0";
-
+  const value = tokenIn === "USDC" ? `0x${parseUnits(params.amount, 18).toString(16)}` : "0x0";
   if (tokenIn === "USDC") {
-    data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens", args: [minOut, finalPath, owner, deadline] });
-    value = `0x${parseUnits(params.amount, 18).toString(16)}`;
+    data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens", args: [minOut, quote.path, owner, deadline] });
   } else if (tokenOut === "USDC") {
-    data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactTokensForETHSupportingFeeOnTransferTokens", args: [amountIn, minOut, finalPath, owner, deadline] });
+    data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactTokensForETHSupportingFeeOnTransferTokens", args: [amountIn, minOut, quote.path, owner, deadline] });
   } else {
-    data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactTokensForTokensSupportingFeeOnTransferTokens", args: [amountIn, minOut, finalPath, owner, deadline] });
+    data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactTokensForTokensSupportingFeeOnTransferTokens", args: [amountIn, minOut, quote.path, owner, deadline] });
   }
 
   let txHash: string;
