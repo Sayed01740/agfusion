@@ -1,5 +1,5 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getAppKit } from "@/sdk/appkit-client";
+import { getAppKit, getBrowserKitKey } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
@@ -45,6 +45,10 @@ export async function runProductionSwap(params: {
   const kit = await getAppKit();
   if (!kit) throw new Error("Circle App Kit could not be loaded. Refresh and retry.");
 
+  // Circle validates kitKey on each Swap/Estimate call. Bootstrap the same
+  // server-owned key that initialized App Kit so quote and execution cannot diverge.
+  const kitKey = await getBrowserKitKey();
+
   const provider = await getInjectedProvider();
   await requestAccounts(provider);
   await switchToChainId(provider, params.chain);
@@ -68,6 +72,7 @@ export async function runProductionSwap(params: {
     tokenOut,
     amountIn: String(params.amount),
     config: {
+      kitKey,
       slippageBps: 100,
       allowanceStrategy: "approve" as const,
     },
