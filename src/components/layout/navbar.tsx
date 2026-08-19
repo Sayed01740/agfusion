@@ -32,8 +32,11 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-[#e3e8ef] bg-white/95 text-[#172033] shadow-[0_4px_18px_rgba(15,23,42,.05)] backdrop-blur-2xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-3 sm:h-[4.25rem] sm:px-6">
         <Link href="/" className="flex min-w-0 items-center gap-2.5 group" aria-label="AGFusion home">
-          <BrandLogo variant="full" height={38} priority className="h-8 w-auto max-w-[10rem] sm:h-9 sm:max-w-[12rem]" />
-          <span className="hidden whitespace-nowrap text-[8px] font-semibold uppercase tracking-[0.14em] text-[#64748b] lg:block">On Arc · programmable money</span>
+          <BrandLogo variant="icon" height={38} priority className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
+          <div className="min-w-0 leading-tight">
+            <div className="font-display text-[15px] font-bold tracking-[-0.02em] text-[#172033] sm:text-base">AGFusion</div>
+            <div className="hidden text-[8px] font-semibold uppercase tracking-[0.14em] text-[#64748b] lg:block">On Arc · programmable money</div>
+          </div>
         </Link>
         <nav className="hidden items-center gap-0.5 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-1 md:flex">
           {visibleLinks.map((link) => { const active = pathname.startsWith(link.href); const Icon = link.icon; return <Link key={link.href} href={link.href} className={cn("relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors", active ? "text-[#172033]" : "text-[#64748b] hover:text-[#172033]")}>{active && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-lg border border-[#dbe3ee] bg-white shadow-sm" transition={{ type: "spring", bounce: 0.18, duration: 0.4 }} />}<Icon className="relative h-3.5 w-3.5" /><span className="relative font-semibold">{link.label}</span></Link>; })}
