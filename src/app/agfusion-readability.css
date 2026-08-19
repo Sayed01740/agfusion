@@ -1,0 +1,176 @@
+/* AGFusion readability calibration layer. Loaded after the Pearl theme. */
+.ag-premium-shell {
+  --ui-text:#172033;
+  --ui-text-strong:#0b1220;
+  --ui-text-secondary:#334155;
+  --ui-text-muted:#5b6b80;
+  --ui-border:#d9e2ec;
+  --ui-border-strong:#c7d3df;
+  --ui-surface:#ffffff;
+  --ui-surface-soft:#f6f9fc;
+  --ui-blue:#1d4ed8;
+  --ui-blue-soft:#eff6ff;
+  --ui-green:#15803d;
+  --ui-red:#b42318;
+  --ui-amber:#a16207;
+}
+
+/* Remove faded text treatment inherited from the dark theme. */
+.ag-premium-shell [class*="text-slate-"],
+.ag-premium-shell [class*="text-gray-"],
+.ag-premium-shell [class*="text-zinc-"] {
+  opacity:1 !important;
+}
+.ag-premium-shell [class*="text-slate-50"],
+.ag-premium-shell [class*="text-slate-100"],
+.ag-premium-shell [class*="text-slate-200"] { color:var(--ui-text-strong) !important; }
+.ag-premium-shell [class*="text-slate-300"] { color:var(--ui-text-secondary) !important; }
+.ag-premium-shell [class*="text-slate-400"],
+.ag-premium-shell [class*="text-slate-500"],
+.ag-premium-shell [class*="text-slate-600"] { color:var(--ui-text-muted) !important; }
+
+/* Calibrated semantic colors. */
+.ag-premium-shell [class*="text-cyan-"],
+.ag-premium-shell [class*="text-sky-"],
+.ag-premium-shell [class*="text-blue-"] { color:var(--ui-blue) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-teal-"] { color:#0f7490 !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-emerald-"],
+.ag-premium-shell [class*="text-green-"] { color:var(--ui-green) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-red-"],
+.ag-premium-shell [class*="text-rose-"] { color:var(--ui-red) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-yellow-"],
+.ag-premium-shell [class*="text-amber-"] { color:var(--ui-amber) !important; opacity:1 !important; }
+
+/* Every legacy dark surface becomes a controlled light surface. */
+.ag-premium-shell [class*="bg-slate-950"],
+.ag-premium-shell [class*="bg-slate-900"],
+.ag-premium-shell [class*="bg-slate-800"],
+.ag-premium-shell [class*="bg-[#030712]"],
+.ag-premium-shell [class*="bg-[#060c18]"],
+.ag-premium-shell [class*="bg-[#060d18]"],
+.ag-premium-shell [class*="bg-[#0a1120]"],
+.ag-premium-shell [class*="bg-[#0c1628]"] {
+  background:#fff !important;
+}
+.ag-premium-shell [class*="bg-slate-700"],
+.ag-premium-shell [class*="bg-slate-600"] { background:#f4f7fb !important; }
+.ag-premium-shell [class*="bg-white/"] { background:#fff !important; }
+.ag-premium-shell [class*="bg-cyan-"] { background:var(--ui-blue-soft) !important; }
+
+/* Do not allow dark gradient layers to wash out transaction content. */
+.ag-premium-shell [class*="from-slate-950"],
+.ag-premium-shell [class*="to-slate-950"],
+.ag-premium-shell [class*="from-[#"],
+.ag-premium-shell [class*="to-[#"] {
+  background-image:none !important;
+}
+
+/* Borders and separators stay visible without looking heavy. */
+.ag-premium-shell [class*="border-white"],
+.ag-premium-shell [class*="border-slate-"] { border-color:var(--ui-border) !important; }
+.ag-premium-shell [class*="border-cyan-"] { border-color:#bfdbfe !important; }
+
+/* Transaction cards, activity rows, tool rows and confirmation panels. */
+.ag-premium-shell [class*="transaction"],
+.ag-premium-shell [class*="activity"],
+.ag-premium-shell [class*="tool"],
+.ag-premium-shell [class*="transfer"],
+.ag-premium-shell [class*="confirm"],
+.ag-premium-shell [class*="preview"],
+.ag-premium-shell [class*="receipt"] {
+  color:var(--ui-text) !important;
+}
+.ag-premium-shell [class*="transaction"] [class*="text-"],
+.ag-premium-shell [class*="activity"] [class*="text-"],
+.ag-premium-shell [class*="tool"] [class*="text-"],
+.ag-premium-shell [class*="transfer"] [class*="text-"],
+.ag-premium-shell [class*="confirm"] [class*="text-"],
+.ag-premium-shell [class*="preview"] [class*="text-"] {
+  opacity:1 !important;
+}
+
+/* Agent/chat workspace: strong hierarchy, no washed-out labels. */
+.ag-premium-shell [class*="h-[65vh]"],
+.ag-premium-shell [class*="rounded-3xl"][class*="overflow-hidden"] {
+  color:var(--ui-text) !important;
+}
+.ag-premium-shell [class*="h-[65vh]"] [class*="text-"] { opacity:1 !important; }
+.ag-premium-shell [class*="h-[65vh]"] p,
+.ag-premium-shell [class*="h-[65vh]"] span,
+.ag-premium-shell [class*="h-[65vh]"] label,
+.ag-premium-shell [class*="h-[65vh]"] small {
+  color:var(--ui-text-secondary) !important;
+}
+.ag-premium-shell [class*="h-[65vh]"] h1,
+.ag-premium-shell [class*="h-[65vh]"] h2,
+.ag-premium-shell [class*="h-[65vh]"] h3,
+.ag-premium-shell [class*="h-[65vh]"] strong {
+  color:var(--ui-text-strong) !important;
+}
+
+/* Inputs and text areas. */
+.ag-premium-shell input,
+.ag-premium-shell textarea,
+.ag-premium-shell select {
+  background:#fff !important;
+  color:var(--ui-text-strong) !important;
+  border-color:var(--ui-border-strong) !important;
+  opacity:1 !important;
+}
+.ag-premium-shell input::placeholder,
+.ag-premium-shell textarea::placeholder { color:#64748b !important; opacity:1 !important; }
+
+/* Buttons: primary = white text on Arc blue, secondary = dark text on white. */
+.ag-premium-shell button,
+.ag-premium-shell [role="button"] { opacity:1 !important; }
+.ag-premium-shell button[class*="bg-cyan-"],
+.ag-premium-shell button[class*="from-cyan-"],
+.ag-premium-shell button[class*="from-teal-"],
+.ag-premium-shell a[class*="bg-cyan-"],
+.ag-premium-shell a[class*="from-cyan-"],
+.ag-premium-shell a[class*="from-teal-"] {
+  color:#fff !important;
+  background-image:linear-gradient(135deg,#2563eb,#0891b2) !important;
+  background-color:#2563eb !important;
+  border-color:#2563eb !important;
+}
+.ag-premium-shell button[class*="bg-cyan-"] *,
+.ag-premium-shell button[class*="from-cyan-"] *,
+.ag-premium-shell button[class*="from-teal-"] *,
+.ag-premium-shell a[class*="bg-cyan-"] *,
+.ag-premium-shell a[class*="from-cyan-"] *,
+.ag-premium-shell a[class*="from-teal-"] * { color:#fff !important; }
+.ag-premium-shell button:not([class*="bg-cyan-"]):not([class*="from-cyan-"]):not([class*="from-teal-"]),
+.ag-premium-shell [role="button"]:not([class*="bg-cyan-"]):not([class*="from-cyan-"]):not([class*="from-teal-"]) {
+  color:var(--ui-text-strong) !important;
+}
+
+/* Status pills and transaction outcomes. */
+.ag-premium-shell [class*="bg-emerald-"] { background:#ecfdf3 !important; }
+.ag-premium-shell [class*="bg-red-"] { background:#fef3f2 !important; }
+.ag-premium-shell [class*="bg-yellow-"],
+.ag-premium-shell [class*="bg-amber-"] { background:#fffbeb !important; }
+.ag-premium-shell [class*="bg-blue-"],
+.ag-premium-shell [class*="bg-cyan-"] { background:#eff6ff !important; }
+
+/* Icons inherit the calibrated semantic color instead of becoming low-contrast gray. */
+.ag-premium-shell svg { opacity:1 !important; }
+.ag-premium-shell [class*="text-cyan-"] svg,
+.ag-premium-shell [class*="text-blue-"] svg { color:var(--ui-blue) !important; }
+.ag-premium-shell [class*="text-emerald-"] svg,
+.ag-premium-shell [class*="text-green-"] svg { color:var(--ui-green) !important; }
+.ag-premium-shell [class*="text-red-"] svg { color:var(--ui-red) !important; }
+
+/* Shadows are structural, not glow. */
+.ag-premium-shell [class*="shadow-cyan-"],
+.ag-premium-shell [class*="shadow-blue-"],
+.ag-premium-shell [class*="shadow-black/"] {
+  box-shadow:0 8px 24px rgba(15,23,42,.08) !important;
+}
+
+/* Prevent transparent text caused by gradient utility classes outside hero headings. */
+.ag-premium-shell [class*="text-gradient"] { color:var(--ui-text-strong) !important; }
+
+@media (max-width:767px) {
+  .ag-premium-shell button,.ag-premium-shell [role="button"],.ag-premium-shell input,.ag-premium-shell select { min-height:44px; }
+}
