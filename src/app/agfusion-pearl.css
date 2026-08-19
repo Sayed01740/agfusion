@@ -38,8 +38,61 @@
 .ag-premium-shell .noise-overlay::after { opacity:.008 !important; mix-blend-mode:multiply !important; }
 .ag-premium-shell .ag-premium-shell { min-width:0; }
 
+/* A-to-Z readability overrides for legacy Tailwind utility classes */
+.ag-premium-shell [class*="bg-[#030712]"],
+.ag-premium-shell [class*="bg-[#060c18]"],
+.ag-premium-shell [class*="bg-[#0a1120]"],
+.ag-premium-shell [class*="bg-[#0c1628]"],
+.ag-premium-shell [class*="bg-[#060d18]"],
+.ag-premium-shell [class*="bg-slate-950"],
+.ag-premium-shell [class*="bg-slate-900"] { background:#fff !important; }
+.ag-premium-shell [class*="bg-slate-800"],
+.ag-premium-shell [class*="bg-slate-700"] { background:#f8fafc !important; }
+.ag-premium-shell [class*="bg-white/[0.0"] { background:#fff !important; }
+.ag-premium-shell [class*="bg-white/\["] { background:#fff !important; }
+.ag-premium-shell [class*="border-white/"] { border-color:#e2e8f0 !important; }
+.ag-premium-shell [class*="border-cyan-"] { border-color:#bfdbfe !important; }
+.ag-premium-shell [class*="text-slate-100"],
+.ag-premium-shell [class*="text-slate-200"] { color:#0f172a !important; }
+.ag-premium-shell [class*="text-slate-300"] { color:#334155 !important; }
+.ag-premium-shell [class*="text-slate-400"],
+.ag-premium-shell [class*="text-slate-500"],
+.ag-premium-shell [class*="text-slate-600"] { color:#64748b !important; }
+.ag-premium-shell [class*="text-cyan-100"],
+.ag-premium-shell [class*="text-cyan-200"],
+.ag-premium-shell [class*="text-cyan-300"],
+.ag-premium-shell [class*="text-cyan-400"] { color:#2563eb !important; }
+.ag-premium-shell [class*="text-teal-"] { color:#0891b2 !important; }
+.ag-premium-shell [class*="shadow-cyan-"] { box-shadow:0 8px 24px rgba(37,99,235,.08) !important; }
+.ag-premium-shell [class*="ring-white/"] { --tw-ring-color:#e2e8f0 !important; }
+
+/* Preserve white text only on true primary actions */
+.ag-premium-shell [class*="from-cyan-"] [class*="text-white"],
+.ag-premium-shell [class*="from-teal-"] [class*="text-slate-950"],
+.ag-premium-shell [class*="bg-cyan-600"] { color:#fff !important; }
+.ag-premium-shell [class*="from-cyan-"] { background-image:linear-gradient(90deg,#2563eb,#0891b2) !important; color:#fff !important; border-color:#2563eb !important; }
+.ag-premium-shell [class*="from-teal-"] { background-image:linear-gradient(90deg,#2563eb,#0891b2) !important; color:#fff !important; border-color:#2563eb !important; }
+
+/* Chat and agent workspace */
+.ag-premium-shell [class*="h-[65vh]"],
+.ag-premium-shell [class*="bg-[#0a1120]"],
+.ag-premium-shell [class*="from-[#0c1628]"],
+.ag-premium-shell [class*="to-[#060d18]"] { background:#fff !important; color:#0f172a !important; border-color:#dbe4ee !important; box-shadow:0 10px 30px rgba(15,23,42,.06) !important; }
+.ag-premium-shell [class*="text-white"] { color:#0f172a !important; }
+.ag-premium-shell [class*="text-white"][class*="from-cyan-"],
+.ag-premium-shell [class*="text-white"][class*="bg-cyan-"] { color:#fff !important; }
+.ag-premium-shell code { background:#f1f5f9 !important; color:#0f172a !important; border:1px solid #e2e8f0; }
+.ag-premium-shell pre { background:#f8fafc !important; color:#0f172a !important; border-color:#e2e8f0 !important; }
+
+/* Navigation, menus and mobile bar */
+.ag-premium-shell header { background:rgba(255,255,255,.94) !important; border-color:#e2e8f0 !important; box-shadow:0 4px 18px rgba(15,23,42,.045) !important; backdrop-filter:blur(16px) !important; }
+.ag-premium-shell header > div:first-child { background:linear-gradient(90deg,transparent,#2563eb,transparent) !important; opacity:.45; }
+.ag-premium-shell nav.md\:hidden { background:rgba(255,255,255,.97) !important; border-color:#e2e8f0 !important; box-shadow:0 -10px 30px rgba(15,23,42,.08) !important; }
+.ag-premium-shell nav:not(.md\:hidden) { background:#fff !important; border-color:#e2e8f0 !important; box-shadow:0 1px 3px rgba(15,23,42,.04) !important; }
+
 @media (max-width:767px) {
   .ag-premium-shell .surface-card,.ag-premium-shell .glass,.ag-premium-shell .glass-ultra { border-radius:14px; }
   .ag-premium-shell button,.ag-premium-shell [role="button"],.ag-premium-shell input,.ag-premium-shell select { min-height:44px; }
   .ag-premium-shell main { overflow-x:clip; }
+  .ag-premium-shell [class*="grid-cols-"] { min-width:0; }
 }
