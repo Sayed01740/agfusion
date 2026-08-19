@@ -1,0 +1,281 @@
+/* AGFusion final contrast calibration
+   This layer is intentionally loaded last.
+   It removes legacy dark/transparent utility collisions and keeps text,
+   surfaces, transaction panels and responsive layouts readable on every viewport. */
+
+.ag-premium-shell {
+  color-scheme: light;
+  --cal-bg:#f5f8fc;
+  --cal-surface:#ffffff;
+  --cal-surface-2:#f7f9fc;
+  --cal-surface-3:#eef3f8;
+  --cal-text:#0f172a;
+  --cal-text-2:#334155;
+  --cal-muted:#64748b;
+  --cal-border:#d7e1eb;
+  --cal-border-strong:#c3d0de;
+  --cal-blue:#2563eb;
+  --cal-blue-dark:#1d4ed8;
+  --cal-cyan:#0891b2;
+  --cal-success:#15803d;
+  --cal-danger:#b42318;
+  --cal-warning:#a16207;
+  background:var(--cal-bg) !important;
+  color:var(--cal-text) !important;
+}
+
+/* 1. Kill texture/noise as a readability hazard. Keep only a very subtle grid. */
+.ag-premium-shell .noise-overlay::after { display:none !important; }
+.ag-premium-shell .grid-bg {
+  opacity:.28 !important;
+  mix-blend-mode:normal !important;
+}
+.ag-premium-shell [class*="mix-blend-"] { mix-blend-mode:normal !important; }
+
+/* 2. Universal text contrast. */
+.ag-premium-shell .text-transparent,
+.ag-premium-shell [class*="text-transparent"] {
+  color:var(--cal-text) !important;
+  -webkit-text-fill-color:var(--cal-text) !important;
+  background-image:none !important;
+}
+.ag-premium-shell h1,
+.ag-premium-shell h2,
+.ag-premium-shell h3,
+.ag-premium-shell h4,
+.ag-premium-shell strong,
+.ag-premium-shell b { color:var(--cal-text) !important; }
+.ag-premium-shell p,
+.ag-premium-shell label,
+.ag-premium-shell small { color:var(--cal-text-2); }
+
+/* Restore white only where it is actually intended: primary actions. */
+.ag-premium-shell button[class*="bg-cyan-"],
+.ag-premium-shell button[class*="from-cyan-"],
+.ag-premium-shell button[class*="from-teal-"],
+.ag-premium-shell a[class*="bg-cyan-"],
+.ag-premium-shell a[class*="from-cyan-"],
+.ag-premium-shell a[class*="from-teal-"],
+.ag-premium-shell .cal-primary {
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+  background:linear-gradient(135deg,#2563eb,#0891b2) !important;
+  background-image:linear-gradient(135deg,#2563eb,#0891b2) !important;
+  border-color:#2563eb !important;
+}
+.ag-premium-shell button[class*="bg-cyan-"] *,
+.ag-premium-shell button[class*="from-cyan-"] *,
+.ag-premium-shell button[class*="from-teal-"] *,
+.ag-premium-shell a[class*="bg-cyan-"] *,
+.ag-premium-shell a[class*="from-cyan-"] *,
+.ag-premium-shell a[class*="from-teal-"] * { color:#fff !important; -webkit-text-fill-color:#fff !important; }
+
+/* 3. Landing hero: never use white/transparent text on the pearl background. */
+.ag-premium-shell h1 [class*="bg-clip-text"],
+.ag-premium-shell h1 [class*="text-transparent"] {
+  color:var(--cal-text) !important;
+  -webkit-text-fill-color:var(--cal-text) !important;
+  background:none !important;
+  -webkit-background-clip:initial !important;
+  background-clip:initial !important;
+}
+.ag-premium-shell .text-arc,
+.ag-premium-shell .text-gradient,
+.ag-premium-shell .text-gradient-subtle {
+  color:var(--cal-blue) !important;
+  -webkit-text-fill-color:var(--cal-blue) !important;
+  background:none !important;
+  -webkit-background-clip:initial !important;
+  background-clip:initial !important;
+}
+
+/* 4. Dashboard command center is a real surface, not a transparent blue wash. */
+.ag-premium-shell .ag-command-hero {
+  position:relative;
+  background:#fff !important;
+  background-image:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%) !important;
+  color:var(--cal-text) !important;
+  border:1px solid var(--cal-border) !important;
+  border-radius:22px !important;
+  box-shadow:0 12px 34px rgba(15,23,42,.07) !important;
+}
+.ag-premium-shell .ag-command-hero::before,
+.ag-premium-shell .ag-command-hero::after { opacity:0 !important; background:none !important; }
+.ag-premium-shell .ag-command-hero .ag-hero-title,
+.ag-premium-shell .ag-command-hero .ag-hero-title * {
+  color:#0b1220 !important;
+  -webkit-text-fill-color:#0b1220 !important;
+  background:none !important;
+  -webkit-background-clip:initial !important;
+  background-clip:initial !important;
+  text-shadow:none !important;
+}
+.ag-premium-shell .ag-command-hero .ag-hero-title em { color:#1d4ed8 !important; font-style:italic; }
+.ag-premium-shell .ag-command-hero p { color:#475569 !important; }
+.ag-premium-shell .ag-command-hero .section-label,
+.ag-premium-shell .ag-command-hero [class*="text-cyan-"] { color:#1d4ed8 !important; }
+
+/* Metric tiles: opaque, separated, high-contrast. */
+.ag-premium-shell .ag-command-hero [class*="grid-cols-2"] {
+  background:#e8eef5 !important;
+  border:1px solid #d5e0eb !important;
+}
+.ag-premium-shell .ag-command-hero [class*="bg-black/"] {
+  background:#fff !important;
+}
+.ag-premium-shell .ag-command-hero .ag-metric-label {
+  color:#64748b !important;
+  font-weight:600 !important;
+}
+.ag-premium-shell .ag-command-hero .ag-metric-value {
+  color:#0f172a !important;
+  font-weight:700 !important;
+}
+.ag-premium-shell .ag-command-hero .ag-metric-value span { color:#64748b !important; }
+
+/* 5. Money tools / transaction area. */
+.ag-premium-shell [id="tools"],
+.ag-premium-shell .glow-border.scroll-mt-24 {
+  background:#fff !important;
+  background-image:none !important;
+  color:var(--cal-text) !important;
+  border:1px solid var(--cal-border) !important;
+  box-shadow:0 10px 30px rgba(15,23,42,.06) !important;
+}
+.ag-premium-shell [id="tools"] > div,
+.ag-premium-shell .glow-border.scroll-mt-24 > div {
+  border-color:var(--cal-border) !important;
+}
+.ag-premium-shell [id="tools"] [class*="bg-[#"],
+.ag-premium-shell [id="tools"] [class*="from-[#"],
+.ag-premium-shell [id="tools"] [class*="via-[#"],
+.ag-premium-shell [id="tools"] [class*="to-[#"],
+.ag-premium-shell [id="tools"] [class*="bg-slate-950"],
+.ag-premium-shell [id="tools"] [class*="bg-slate-900"],
+.ag-premium-shell [id="tools"] [class*="bg-slate-800"] {
+  background:#fff !important;
+  background-image:none !important;
+}
+.ag-premium-shell [id="tools"] [class*="bg-white/"] { background:#f7f9fc !important; }
+.ag-premium-shell [id="tools"] [class*="border-white/"] { border-color:var(--cal-border) !important; }
+.ag-premium-shell [id="tools"] .section-label { color:#1d4ed8 !important; }
+.ag-premium-shell [id="tools"] h2,
+.ag-premium-shell [id="tools"] h3 { color:#0f172a !important; }
+.ag-premium-shell [id="tools"] p { color:#475569 !important; }
+.ag-premium-shell [id="tools"] strong { color:#0f172a !important; }
+
+/* Tool tabs: explicit active/inactive states. */
+.ag-premium-shell [id="tools"] [role="tablist"] {
+  background:#eef3f8 !important;
+  border:1px solid #d6e0ea !important;
+  box-shadow:none !important;
+}
+.ag-premium-shell [id="tools"] [role="tab"] {
+  color:#475569 !important;
+  background:transparent !important;
+  border:1px solid transparent !important;
+  box-shadow:none !important;
+}
+.ag-premium-shell [id="tools"] [role="tab"]:hover { background:#e3ebf4 !important; color:#0f172a !important; }
+.ag-premium-shell [id="tools"] [role="tab"][aria-selected="true"] {
+  background:linear-gradient(135deg,#2563eb,#0891b2) !important;
+  color:#fff !important;
+  border-color:#2563eb !important;
+  box-shadow:0 5px 14px rgba(37,99,235,.18) !important;
+}
+.ag-premium-shell [id="tools"] [role="tab"][aria-selected="true"] * { color:#fff !important; }
+
+/* Tool explanation strip and form cards. */
+.ag-premium-shell [id="tools"] [class*="border-b"] { border-color:var(--cal-border) !important; }
+.ag-premium-shell [id="tools"] [class*="bg-gradient-to-r"] {
+  background:#f7faff !important;
+  background-image:none !important;
+}
+.ag-premium-shell [id="tools"] [class*="rounded-xl"][class*="border"] {
+  background:#fff !important;
+  border-color:var(--cal-border) !important;
+  color:var(--cal-text) !important;
+}
+
+/* 6. Activity + transaction cards must have a clear surface/text pairing. */
+.ag-premium-shell [class*="activity"],
+.ag-premium-shell [class*="transaction"],
+.ag-premium-shell [class*="transfer"],
+.ag-premium-shell [class*="confirm"],
+.ag-premium-shell [class*="receipt"],
+.ag-premium-shell [class*="preview"] {
+  background-color:#fff !important;
+  background-image:none !important;
+  color:#0f172a !important;
+  border-color:var(--cal-border) !important;
+}
+.ag-premium-shell [class*="activity"] [class*="bg-white/"],
+.ag-premium-shell [class*="transaction"] [class*="bg-white/"] {
+  background:#f7f9fc !important;
+}
+.ag-premium-shell [class*="activity"] [class*="text-slate-"],
+.ag-premium-shell [class*="transaction"] [class*="text-slate-"],
+.ag-premium-shell [class*="transfer"] [class*="text-slate-"] { opacity:1 !important; }
+
+/* 7. Generic opaque utility cleanup inside the light shell. */
+.ag-premium-shell [class*="bg-black/"] { background:#f3f6fa !important; }
+.ag-premium-shell [class*="bg-white/[0.0"],
+.ag-premium-shell [class*="bg-white/[0.01"],
+.ag-premium-shell [class*="bg-white/[0.02"],
+.ag-premium-shell [class*="bg-white/[0.03"],
+.ag-premium-shell [class*="bg-white/[0.04"],
+.ag-premium-shell [class*="bg-white/[0.05"] { background:#f7f9fc !important; }
+.ag-premium-shell [class*="bg-white/[0.06"],
+.ag-premium-shell [class*="bg-white/[0.07"],
+.ag-premium-shell [class*="bg-white/[0.08"],
+.ag-premium-shell [class*="bg-white/[0.1"] { background:#eef3f8 !important; }
+
+/* Dark arbitrary surfaces that were not caught by the previous theme. */
+.ag-premium-shell [class*="bg-[#040a14"],
+.ag-premium-shell [class*="bg-[#0c1526"],
+.ag-premium-shell [class*="bg-[#0a1220"],
+.ag-premium-shell [class*="bg-[#060d18"],
+.ag-premium-shell [class*="bg-[#0b1220"] {
+  background:#fff !important;
+  background-image:none !important;
+}
+
+/* 8. Responsive guarantees. */
+.ag-premium-shell,
+.ag-premium-shell * { box-sizing:border-box; }
+.ag-premium-shell main,
+.ag-premium-shell section,
+.ag-premium-shell article,
+.ag-premium-shell [role="tabpanel"] { min-width:0; }
+.ag-premium-shell img,
+.ag-premium-shell svg,
+.ag-premium-shell canvas,
+.ag-premium-shell video { max-width:100%; }
+.ag-premium-shell pre,
+.ag-premium-shell code { overflow-wrap:anywhere; }
+
+@media (max-width:767px) {
+  .ag-premium-shell .ag-command-hero { border-radius:18px !important; }
+  .ag-premium-shell .ag-command-hero .ag-hero-title { font-size:clamp(2rem,10vw,3rem) !important; }
+  .ag-premium-shell .ag-command-hero [class*="grid-cols-2"] { border-radius:16px !important; }
+  .ag-premium-shell [id="tools"] { border-radius:18px !important; }
+  .ag-premium-shell [id="tools"] [role="tablist"] { gap:3px !important; }
+  .ag-premium-shell [id="tools"] [role="tab"] { min-height:52px !important; }
+  .ag-premium-shell button,
+  .ag-premium-shell [role="button"],
+  .ag-premium-shell input,
+  .ag-premium-shell select { min-height:44px; }
+}
+
+@media (min-width:768px) {
+  .ag-premium-shell .ag-command-hero { border-radius:24px !important; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .ag-premium-shell *,
+  .ag-premium-shell *::before,
+  .ag-premium-shell *::after {
+    transition-duration:.01ms !important;
+    animation-duration:.01ms !important;
+  }
+}
