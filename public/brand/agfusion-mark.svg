@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-label="AGFusion">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8B5CF6"/><stop offset="0.48" stop-color="#4F46E5"/><stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <path d="M95 500 L235 130 Q248 96 285 96 H355 Q392 96 405 130 L545 500 H445 L355 260 Q349 244 331 244 H309 Q291 244 285 260 L195 500 Z" fill="url(#g)"/>
+  <path d="M62 500 Q320 220 578 500 H485 Q320 365 155 500 Z" fill="url(#g)"/>
+  <path d="M170 450 Q320 340 470 450" fill="none" stroke="#A5F3FC" stroke-width="10" stroke-linecap="round" opacity="0.82"/>
+</svg>
