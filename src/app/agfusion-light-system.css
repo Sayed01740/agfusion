@@ -1,0 +1,83 @@
+/* AGFusion unified light system: final route-wide visual contract */
+.ag-premium-shell {
+  --ag-ui-bg:#f5f8fc;
+  --ag-ui-surface:#ffffff;
+  --ag-ui-soft:#f8fafc;
+  --ag-ui-muted:#eef3f8;
+  --ag-ui-text:#0b1220;
+  --ag-ui-text-2:#334155;
+  --ag-ui-text-3:#5b6b80;
+  --ag-ui-border:#d9e2ec;
+  --ag-ui-blue:#2563eb;
+  --ag-ui-cyan:#0891b2;
+  background:#f5f8fc !important;
+  color:#0b1220 !important;
+  color-scheme:light;
+}
+.ag-premium-shell .mesh-bg { background:radial-gradient(900px 420px at 92% -10%,rgba(37,99,235,.055),transparent 66%),linear-gradient(180deg,#fff 0%,#f7f9fc 52%,#f3f6fa 100%) !important; }
+.ag-premium-shell .grid-bg { background-image:linear-gradient(rgba(37,99,235,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(37,99,235,.025) 1px,transparent 1px) !important; opacity:.65 !important; }
+.ag-premium-shell .noise-overlay::after { display:none !important; }
+
+/* Surfaces */
+.ag-premium-shell .glass,.ag-premium-shell .glass-strong,.ag-premium-shell .glass-soft,.ag-premium-shell .liquid-glass,.ag-premium-shell .glass-ultra,.ag-premium-shell .surface-card {
+  background:#fff !important;
+  color:#0b1220 !important;
+  border:1px solid #d9e2ec !important;
+  box-shadow:0 8px 28px rgba(15,23,42,.055) !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+}
+.ag-premium-shell .glass-soft { background:#f8fafc !important; }
+
+/* Legacy dark utility cleanup */
+.ag-premium-shell [class*="bg-slate-950"],.ag-premium-shell [class*="bg-slate-900"],.ag-premium-shell [class*="bg-slate-800"],.ag-premium-shell [class*="bg-[#030712"],.ag-premium-shell [class*="bg-[#040a14"],.ag-premium-shell [class*="bg-[#060c18"],.ag-premium-shell [class*="bg-[#060d18"],.ag-premium-shell [class*="bg-[#0a1120"],.ag-premium-shell [class*="bg-[#0c1628"] { background:#fff !important; color:#0b1220 !important; }
+.ag-premium-shell [class*="bg-black/"] { background:#f8fafc !important; color:#0b1220 !important; }
+.ag-premium-shell [class*="from-slate-950"],.ag-premium-shell [class*="to-slate-950"],.ag-premium-shell [class*="from-[#"],.ag-premium-shell [class*="to-[#"] { background-image:none !important; }
+
+/* Typography */
+.ag-premium-shell [class*="text-white"],.ag-premium-shell [class*="text-slate-50"],.ag-premium-shell [class*="text-slate-100"],.ag-premium-shell [class*="text-slate-200"] { color:#0b1220 !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-slate-300"] { color:#334155 !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-slate-400"],.ag-premium-shell [class*="text-slate-500"],.ag-premium-shell [class*="text-slate-600"] { color:#5b6b80 !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-cyan-"],.ag-premium-shell [class*="text-sky-"],.ag-premium-shell [class*="text-blue-"] { color:#2563eb !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-teal-"] { color:#0891b2 !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-emerald-"],.ag-premium-shell [class*="text-green-"] { color:#15803d !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-red-"],.ag-premium-shell [class*="text-rose-"] { color:#b42318 !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-amber-"],.ag-premium-shell [class*="text-yellow-"] { color:#a16207 !important; opacity:1 !important; }
+
+/* Borders and cards */
+.ag-premium-shell [class*="border-white"],.ag-premium-shell [class*="border-slate-"],.ag-premium-shell [class*="border-gray-"] { border-color:#d9e2ec !important; }
+.ag-premium-shell [class*="border-cyan-"],.ag-premium-shell [class*="border-blue-"] { border-color:#bfd3ec !important; }
+
+/* Semantic states */
+.ag-premium-shell [class*="bg-cyan-"] { background:#eff6ff !important; }
+.ag-premium-shell [class*="bg-blue-"] { background:#eff6ff !important; }
+.ag-premium-shell [class*="bg-emerald-"],.ag-premium-shell [class*="bg-green-"] { background:#ecfdf3 !important; }
+.ag-premium-shell [class*="bg-red-"],.ag-premium-shell [class*="bg-rose-"] { background:#fef3f2 !important; }
+.ag-premium-shell [class*="bg-amber-"],.ag-premium-shell [class*="bg-yellow-"] { background:#fffbeb !important; }
+
+/* Keep primary actions saturated and readable */
+.ag-premium-shell button[class*="bg-cyan-"],.ag-premium-shell button[class*="from-cyan-"],.ag-premium-shell button[class*="from-blue-"],.ag-premium-shell button[class*="from-[#4f46e5"],.ag-premium-shell a[class*="from-cyan-"],.ag-premium-shell a[class*="from-blue-"] { background:linear-gradient(135deg,#2563eb,#0891b2) !important; background-image:linear-gradient(135deg,#2563eb,#0891b2) !important; color:#fff !important; border-color:#2563eb !important; }
+.ag-premium-shell button[class*="bg-cyan-"] *, .ag-premium-shell button[class*="from-cyan-"] *, .ag-premium-shell button[class*="from-blue-"] *, .ag-premium-shell button[class*="from-[#4f46e5"] * { color:#fff !important; }
+
+/* Forms and interactive fields */
+.ag-premium-shell input,.ag-premium-shell textarea,.ag-premium-shell select { background:#fff !important; color:#0b1220 !important; border-color:#c5d1de !important; opacity:1 !important; }
+.ag-premium-shell input::placeholder,.ag-premium-shell textarea::placeholder { color:#64748b !important; opacity:1 !important; }
+.ag-premium-shell input:focus,.ag-premium-shell textarea:focus,.ag-premium-shell select:focus { border-color:#60a5fa !important; box-shadow:0 0 0 3px rgba(37,99,235,.12) !important; outline:none !important; }
+
+/* Header and mobile navigation */
+.ag-premium-shell header { background:rgba(255,255,255,.97) !important; color:#0b1220 !important; border-color:#d9e2ec !important; box-shadow:0 4px 18px rgba(15,23,42,.05) !important; }
+.ag-premium-shell nav.fixed.bottom-0 { background:rgba(255,255,255,.98) !important; border-color:#d9e2ec !important; box-shadow:0 -12px 32px rgba(15,23,42,.08) !important; }
+
+/* Transaction, tools, chat, receipt and activity surfaces */
+.ag-premium-shell [class*="transaction"],.ag-premium-shell [class*="activity"],.ag-premium-shell [class*="tool"],.ag-premium-shell [class*="transfer"],.ag-premium-shell [class*="confirm"],.ag-premium-shell [class*="receipt"] { color:#0b1220 !important; opacity:1 !important; }
+.ag-premium-shell [class*="transaction"] [class*="text-"],.ag-premium-shell [class*="activity"] [class*="text-"],.ag-premium-shell [class*="tool"] [class*="text-"],.ag-premium-shell [class*="transfer"] [class*="text-"],.ag-premium-shell [class*="confirm"] [class*="text-"],.ag-premium-shell [class*="receipt"] [class*="text-"] { opacity:1 !important; }
+.ag-premium-shell code { background:#f1f5f9 !important; color:#0f172a !important; border:1px solid #d9e2ec !important; }
+.ag-premium-shell pre { background:#f8fafc !important; color:#0f172a !important; border:1px solid #d9e2ec !important; }
+
+/* Responsive guardrails */
+.ag-premium-shell,.ag-premium-shell * { box-sizing:border-box; }
+.ag-premium-shell main { min-width:0; overflow-x:clip; }
+@media (max-width:767px) {
+  .ag-premium-shell button,.ag-premium-shell [role="button"],.ag-premium-shell input,.ag-premium-shell select { min-height:44px; }
+  .ag-premium-shell .glass,.ag-premium-shell .glass-strong,.ag-premium-shell .glass-soft,.ag-premium-shell .glass-ultra,.ag-premium-shell .surface-card { border-radius:14px; }
+}
