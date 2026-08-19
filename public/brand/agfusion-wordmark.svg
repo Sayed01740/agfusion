@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 260" role="img" aria-labelledby="title desc">
+  <title id="title">AGFusion</title>
+  <desc id="desc">AGFusion fusion mark and readable wordmark for light interfaces</desc>
+  <defs>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="0.45" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="ag" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6D28D9"/>
+      <stop offset="0.55" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(24 18)">
+    <path d="M45 205 L105 62 Q111 48 126 48 H163 Q178 48 184 62 L244 205 H204 L163 111 Q160 103 151 103 H138 Q129 103 126 111 L85 205 Z" fill="url(#mark)"/>
+    <path d="M30 205 Q126 102 222 205 H187 Q126 155 65 205 Z" fill="url(#mark)"/>
+    <path d="M70 186 Q126 145 182 186" fill="none" stroke="#A5F3FC" stroke-width="5" stroke-linecap="round" opacity="0.9"/>
+  </g>
+  <g font-family="Sora, Inter, Arial, sans-serif" font-weight="700" letter-spacing="-5">
+    <text x="315" y="174" font-size="122" fill="url(#ag)">AG</text>
+    <text x="515" y="174" font-size="122" fill="#172033">Fusion</text>
+  </g>
+</svg>
