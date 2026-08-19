@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Bot, Bridge, Layers, Send, Shield, Sparkles, Wallet } from "lucide-react";
+import { ArrowRight, Bot, Layers, Route, Send, Shield, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { AGFUSION_X_HANDLE, AGFUSION_X_URL } from "@/lib/social";
 const tools = [
   { icon: Send, title: "Send", body: "Transfer USDC with a clear review and wallet confirmation." },
   { icon: Layers, title: "Swap", body: "Exchange supported stablecoins without leaving the workspace." },
-  { icon: Bridge, title: "Bridge", body: "Move supported assets between connected testnet networks." },
+  { icon: Route, title: "Bridge", body: "Move supported assets between connected testnet networks." },
   { icon: Bot, title: "AI Agent", body: "Describe the task naturally. Review the plan before signing." },
 ];
 
