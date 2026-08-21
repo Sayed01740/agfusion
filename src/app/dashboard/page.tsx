@@ -13,6 +13,33 @@ import { formatUsdc } from "@/lib/fees";
 import { Activity, ArrowRight, MessageSquare, Wrench } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
+import type { TransactionRecord } from "@/types";
+
+function getActivityError(tx: TransactionRecord): { step?: string; message?: string } {
+  const failedStep = tx.steps?.find((step) => step.state === "error");
+  if (failedStep?.message) {
+    return { step: failedStep.name, message: failedStep.message };
+  }
+
+  if (tx.message) {
+    const parts = tx.message.split(" · ").filter(Boolean);
+    const meaningful = parts.find((part) =>
+      /error|failed|insufficient|revert|reject|cancel|cannot|could not|not confirmed|retry/i.test(part),
+    );
+    return { message: meaningful || parts[parts.length - 1] };
+  }
+
+  return {};
+}
+
+function getActivityDetail(tx: TransactionRecord): string | null {
+  const error = getActivityError(tx);
+  if (error.step && error.message) return `${error.step}: ${error.message}`;
+  if (error.message) return error.message;
+  if (tx.status === "error") return "Bridge failed. Select this operation to view the full error and retry.";
+  if (tx.retryable) return "Bridge is not confirmed yet. Select this operation to check again.";
+  return null;
+}
 
 export default function DashboardPage() {
   const { transactions, activeTxId, setActiveTx, addTransaction, setThinking, walletAddress, refreshBalances, loadServerTransactions, addMessage, liveBalanceUsdc } = usePilotStore();
@@ -33,7 +60,21 @@ export default function DashboardPage() {
     } catch { /* ignore */ }
   }, [addMessage]);
 
-  async function retryActive() { if (!active?.fromChain || !active.toChain) return; setThinking(true); try { const tx = await executeBridgeRecovery({ amount: active.amount || "0", fromChain: active.fromChain, toChain: active.toChain, token: active.token || "USDC", recipient: active.recipient, failedTx: active, txId: active.id }); addTransaction(tx); setActiveTx(tx.id); } finally { setThinking(false); } }
+  async function retryActive() {
+    if (!active?.fromChain || !active.toChain) return;
+    setThinking(true);
+    try {
+      const tx = await executeBridgeRecovery({ amount: active.amount || "0", fromChain: active.fromChain, toChain: active.toChain, token: active.token || "USDC", recipient: active.recipient, failedTx: active, txId: active.id });
+      addTransaction(tx);
+      setActiveTx(tx.id);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Bridge recovery failed.";
+      addMessage({ id: `msg_bridge_retry_${Date.now()}`, role: "assistant", content: `**Bridge retry failed:** ${message}`, createdAt: new Date().toISOString() });
+    } finally {
+      setThinking(false);
+    }
+  }
+
   async function fulfillPayRequest() { if (!payRequest || !walletAddress) return; const to = payRequest.to || walletAddress; if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return; setPayBusy(true); setThinking(true); try { const tx = await executeSend({ amount: payRequest.amount, token: "USDC", chain: "Arc_Testnet", recipient: to, recipientLabel: payRequest.memo || "Payment request", preferLive: true }); addTransaction(tx); setActiveTx(tx.id); setPayRequest(null); } catch (e) { addMessage({ id: `msg_payerr_${Date.now()}`, role: "assistant", content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`, createdAt: new Date().toISOString() }); setMobileTab("chat"); } finally { setPayBusy(false); setThinking(false); } }
 
   return (
@@ -75,7 +116,21 @@ export default function DashboardPage() {
             <CardHeader className="pb-2"><div className="flex items-center justify-between gap-3"><CardTitle className="truncate text-sm text-[#172033]">Activity timeline</CardTitle><a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-[#315bea] hover:bg-[#eef2ff]">Operate <ArrowRight className="h-3 w-3" /></a></div></CardHeader>
             <CardContent className="space-y-2">
               {transactions.length === 0 && <p className="text-[12px] leading-relaxed text-[#64748b]">No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.</p>}
-              {transactions.slice(0, 8).map((tx) => { const isActive = active?.id === tx.id; return <button key={tx.id} type="button" onClick={() => setActiveTx(tx.id)} className={cn("flex min-w-0 w-full min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc] hover:border-[#cbd5e1] hover:bg-white")}><div className="min-w-0 flex-1 overflow-hidden"><div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div><div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div></div><Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge></button>; })}
+              {transactions.slice(0, 8).map((tx) => {
+                const isActive = active?.id === tx.id;
+                const detail = getActivityDetail(tx);
+                const isBridgeError = tx.type === "bridge" && (tx.status === "error" || tx.retryable);
+                return (
+                  <button key={tx.id} type="button" onClick={() => setActiveTx(tx.id)} className={cn("flex min-w-0 w-full min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc] hover:border-[#cbd5e1] hover:bg-white")}>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div>
+                      <div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div>
+                      {isBridgeError && detail && <div className="mt-1 truncate text-[10px] leading-4 text-red-500" title={detail}>{detail}</div>}
+                    </div>
+                    <Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge>
+                  </button>
+                );
+              })}
             </CardContent>
           </Card>
         </div>
