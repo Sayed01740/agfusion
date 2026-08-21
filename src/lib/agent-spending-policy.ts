@@ -29,9 +29,7 @@ export function getAgentSpendingPolicy(): AgentSpendingPolicy {
   const monthly = positiveEnv("AGENT_POLICY_MONTHLY_USDC", 500);
 
   if (!(perTx <= daily && daily <= weekly && weekly <= monthly)) {
-    throw new Error(
-      "Invalid agent spending policy: per-tx <= daily <= weekly <= monthly is required.",
-    );
+    throw new Error("Invalid agent spending policy: per-tx <= daily <= weekly <= monthly is required.");
   }
 
   return {
@@ -61,8 +59,10 @@ function startOfUtcMonth(now: Date): Date {
 
 async function sumAgentSpend(walletAddress: string, since: Date): Promise<number> {
   const prisma = getPrisma();
-  const result = await prisma.transaction.aggregate({
-    _sum: { amount: true },
+  // Transaction.amount is stored as String in the current Prisma schema, so
+  // Prisma cannot use _sum on it. Fetch only the required field and aggregate
+  // after validation instead of changing the production data model in-place.
+  const rows = await prisma.transaction.findMany({
     where: {
       walletAddress: walletAddress.toLowerCase(),
       executionMode: "live",
@@ -70,10 +70,13 @@ async function sumAgentSpend(walletAddress: string, since: Date): Promise<number
       createdAt: { gte: since },
       token: "USDC",
     },
+    select: { amount: true },
   });
 
-  const raw = result._sum.amount;
-  return raw == null ? 0 : Number(raw);
+  return rows.reduce((total, row) => {
+    const amount = Number(row.amount);
+    return Number.isFinite(amount) && amount > 0 ? total + amount : total;
+  }, 0);
 }
 
 /**
