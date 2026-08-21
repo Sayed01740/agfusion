@@ -13,6 +13,7 @@ import {
 import { runProductionSwap } from "@/blockchain/production-swap";
 import { runCircleEmailWalletForwardingBridge } from "@/lib/circle-forwarding-bridge";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
+import { enforceAgentSpendingPolicy } from "@/lib/agent-spending-policy";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import type { ActionPreview, ChainId, ChatMessage, TransactionRecord } from "@/types";
 
@@ -23,6 +24,20 @@ function withTimeout(ms: number): AbortSignal | undefined {
     /* ignore */
   }
   return undefined;
+}
+
+async function assertAgentPolicy(amount: string, action: "bridge" | "swap" | "send" | "route", recipient?: string): Promise<void> {
+  const meta = getActiveWalletMeta();
+  const isAgent = Boolean(meta?.smartAccountAddress);
+  if (!isAgent) return;
+  const decision = await enforceAgentSpendingPolicy({
+    walletAddress: meta?.address || meta?.smartAccountAddress || "",
+    amount,
+    action,
+    recipient,
+    isAgent,
+  });
+  if (!decision.allowed) throw new Error(decision.reason);
 }
 
 export async function chatWithAI(
@@ -71,6 +86,7 @@ export async function executeBridge(params: {
   txId?: string;
   recipient?: string;
 }): Promise<TransactionRecord> {
+  await assertAgentPolicy(params.amount, "bridge", params.recipient);
   if (getActiveWalletMeta()?.uuid === "circle-pw") {
     return runCircleEmailWalletForwardingBridge({
       amount: params.amount,
@@ -80,7 +96,7 @@ export async function executeBridge(params: {
       recipient: params.recipient,
     });
   }
-  return runBridgeFlow({
+  const result = await runBridgeFlow({
     amount: params.amount,
     token: params.token || "USDC",
     fromChain: params.fromChain,
@@ -89,6 +105,7 @@ export async function executeBridge(params: {
     txId: params.txId,
     recipient: params.recipient,
   });
+  return finalizeVerifiedTransaction(result, params.toChain);
 }
 
 export async function executeSwap(params: {
@@ -99,6 +116,7 @@ export async function executeSwap(params: {
   slippageBps?: number;
 }): Promise<TransactionRecord> {
   const chain = params.chain || "Arc_Testnet";
+  await assertAgentPolicy(params.amount, "swap");
   const result = await runProductionSwap({
     amount: params.amount,
     tokenIn: params.tokenIn || "USDC",
@@ -118,6 +136,7 @@ export async function executeSend(params: {
   preferLive?: boolean;
 }): Promise<TransactionRecord> {
   const chain = params.chain || "Arc_Testnet";
+  await assertAgentPolicy(params.amount, "send", params.recipient);
   const result = await runSendFlow({
     amount: params.amount,
     token: params.token || "USDC",
@@ -135,6 +154,7 @@ export async function executeUnifiedDeposit(params: { amount: string; fromChain:
 }
 
 export async function executeUnifiedSpend(params: { amount: string; recipient: string; recipientLabel?: string }): Promise<TransactionRecord> {
+  await assertAgentPolicy(params.amount, "route", params.recipient);
   const result = await runUnifiedSpend(params);
   return finalizeVerifiedTransaction(result, result.fromChain || "Arc_Testnet");
 }
@@ -148,6 +168,7 @@ export async function executeBridgeRecovery(params: {
   failedTx?: TransactionRecord | null;
   txId?: string;
 }): Promise<TransactionRecord> {
+  await assertAgentPolicy(params.amount, "bridge", params.recipient);
   if (getActiveWalletMeta()?.uuid === "circle-pw") {
     return runCircleEmailWalletForwardingBridge({
       amount: params.amount,
@@ -157,7 +178,7 @@ export async function executeBridgeRecovery(params: {
       txId: params.txId,
     });
   }
-  return runBridgeWithRecovery({
+  const result = await runBridgeWithRecovery({
     amount: params.amount,
     fromChain: params.fromChain,
     toChain: params.toChain,
@@ -166,6 +187,7 @@ export async function executeBridgeRecovery(params: {
     failedTx: params.failedTx,
     txId: params.txId,
   });
+  return finalizeVerifiedTransaction(result, params.toChain);
 }
 
 export function commandFromPreview(preview: ActionPreview): string {
