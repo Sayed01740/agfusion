@@ -3,13 +3,7 @@
  */
 
 import { orchestrateUserMessage } from "@/ai/orchestrator";
-import {
-  runBridgeFlow,
-  runBridgeWithRecovery,
-  runSendFlow,
-  runUnifiedDeposit,
-  runUnifiedSpend,
-} from "@/blockchain/appkit-service";
+import { runBridgeFlow, runBridgeWithRecovery, runSendFlow, runUnifiedDeposit, runUnifiedSpend } from "@/blockchain/appkit-service";
 import { runProductionSwap } from "@/blockchain/production-swap";
 import { runCircleEmailWalletForwardingBridge } from "@/lib/circle-forwarding-bridge";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
@@ -17,63 +11,29 @@ import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import type { ActionPreview, ChainId, ChatMessage, TransactionRecord } from "@/types";
 
 function withTimeout(ms: number): AbortSignal | undefined {
-  try {
-    if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) return AbortSignal.timeout(ms);
-  } catch {
-    /* ignore */
-  }
+  try { if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) return AbortSignal.timeout(ms); } catch {}
   return undefined;
 }
 
 async function assertAgentPolicy(amount: string, action: "bridge" | "swap" | "send" | "route", recipient?: string): Promise<void> {
   const meta = getActiveWalletMeta();
   if (!meta?.smartAccountAddress) return;
-  const res = await fetch("/api/agent/policy/check", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amount, action, recipient }),
-    signal: withTimeout(10_000),
-  });
+  const res = await fetch("/api/agent/policy/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, action, recipient }), signal: withTimeout(10_000) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.allowed !== true) {
-    throw new Error(data?.reason || "Agent spending policy blocked this transaction.");
-  }
+  if (!res.ok || data?.allowed !== true) throw new Error(data?.reason || "Agent spending policy blocked this transaction.");
 }
 
-export async function chatWithAI(
-  message: string,
-  execute = false,
-  wallet?: { address?: string | null; chainId?: number | null; liveBalanceUsdc?: string | null; forceDemo?: boolean },
-): Promise<{ message: ChatMessage; transaction?: TransactionRecord }> {
+export async function chatWithAI(message: string, execute = false, wallet?: { address?: string | null; chainId?: number | null; liveBalanceUsdc?: string | null; forceDemo?: boolean }): Promise<{ message: ChatMessage; transaction?: TransactionRecord }> {
+  const meta = getActiveWalletMeta();
+  const requestWallet = { ...(wallet || {}), smartAccountAddress: meta?.smartAccountAddress || null };
   try {
-    const res = await fetch("/api/ai/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, execute, confirmed: execute, wallet: wallet || {}, stream: false }),
-      signal: withTimeout(120_000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.message) return data;
-    }
-  } catch {
-    /* try legacy */
-  }
-
+    const res = await fetch("/api/ai/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, execute, confirmed: execute, wallet: requestWallet, stream: false }), signal: withTimeout(120_000) });
+    if (res.ok) { const data = await res.json(); if (data?.message) return data; }
+  } catch {}
   try {
-    const res = await fetch("/api/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, execute }),
-      signal: withTimeout(120_000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.message) return data;
-    }
-  } catch {
-    /* local */
-  }
+    const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, execute }), signal: withTimeout(120_000) });
+    if (res.ok) { const data = await res.json(); if (data?.message) return data; }
+  } catch {}
   return orchestrateUserMessage(message, { execute });
 }
 
@@ -85,28 +45,23 @@ export async function executeBridge(params: { amount: string; fromChain: ChainId
 }
 
 export async function executeSwap(params: { amount: string; tokenIn?: string; tokenOut?: string; chain?: ChainId; slippageBps?: number }): Promise<TransactionRecord> {
-  const chain = params.chain || "Arc_Testnet";
-  await assertAgentPolicy(params.amount, "swap");
+  const chain = params.chain || "Arc_Testnet"; await assertAgentPolicy(params.amount, "swap");
   const result = await runProductionSwap({ amount: params.amount, tokenIn: params.tokenIn || "USDC", tokenOut: params.tokenOut || "EURC", chain, slippageBps: params.slippageBps });
   return finalizeVerifiedTransaction(result, chain);
 }
 
 export async function executeSend(params: { amount: string; token?: string; chain?: ChainId; recipient: string; recipientLabel?: string; preferLive?: boolean }): Promise<TransactionRecord> {
-  const chain = params.chain || "Arc_Testnet";
-  await assertAgentPolicy(params.amount, "send", params.recipient);
+  const chain = params.chain || "Arc_Testnet"; await assertAgentPolicy(params.amount, "send", params.recipient);
   const result = await runSendFlow({ amount: params.amount, token: params.token || "USDC", chain, recipient: params.recipient, recipientLabel: params.recipientLabel, preferLive: params.preferLive ?? true });
   return finalizeVerifiedTransaction(result, chain);
 }
 
 export async function executeUnifiedDeposit(params: { amount: string; fromChain: ChainId }): Promise<TransactionRecord> {
-  const result = await runUnifiedDeposit(params);
-  return finalizeVerifiedTransaction(result, result.fromChain || params.fromChain);
+  const result = await runUnifiedDeposit(params); return finalizeVerifiedTransaction(result, result.fromChain || params.fromChain);
 }
 
 export async function executeUnifiedSpend(params: { amount: string; recipient: string; recipientLabel?: string }): Promise<TransactionRecord> {
-  await assertAgentPolicy(params.amount, "route", params.recipient);
-  const result = await runUnifiedSpend(params);
-  return finalizeVerifiedTransaction(result, result.fromChain || "Arc_Testnet");
+  await assertAgentPolicy(params.amount, "route", params.recipient); const result = await runUnifiedSpend(params); return finalizeVerifiedTransaction(result, result.fromChain || "Arc_Testnet");
 }
 
 export async function executeBridgeRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; token?: string; recipient?: string; failedTx?: TransactionRecord | null; txId?: string }): Promise<TransactionRecord> {
@@ -117,8 +72,7 @@ export async function executeBridgeRecovery(params: { amount: string; fromChain:
 }
 
 export function commandFromPreview(preview: ActionPreview): string {
-  const amount = preview.amount || "50";
-  const token = preview.token || "USDC";
+  const amount = preview.amount || "50", token = preview.token || "USDC";
   switch (preview.type) {
     case "route": return preview.recipient ? `Move $${amount} to Arc and pay ${preview.recipient}` : `Move $${amount} to Arc — need 0x recipient`;
     case "bridge": return `Bridge $${amount} from ${preview.fromChain || "Arc_Testnet"} to ${preview.toChain || "Base_Sepolia"}`;
