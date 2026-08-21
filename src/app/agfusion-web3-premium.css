@@ -1,0 +1,211 @@
+/* AGFusion Premium Web3 / Crypto Finance theme
+   Master visual layer: neutral financial UI + restrained AGFusion brand accents. */
+.ag-premium-shell {
+  --ag-bg: #f6f8fb;
+  --ag-surface: #ffffff;
+  --ag-surface-soft: #f8fafc;
+  --ag-surface-tint: #f3f6ff;
+  --ag-text: #101828;
+  --ag-text-2: #344054;
+  --ag-text-3: #667085;
+  --ag-border: #e4e9f0;
+  --ag-border-strong: #d0d7e2;
+  --ag-blue: #2563eb;
+  --ag-indigo: #4f46e5;
+  --ag-cyan: #0891b2;
+  --ag-purple: #7c3aed;
+  --ag-green: #15803d;
+  --ag-amber: #a16207;
+  --ag-red: #b42318;
+  --ag-radius-sm: 10px;
+  --ag-radius-md: 14px;
+  --ag-radius-lg: 18px;
+  --ag-card-shadow: 0 8px 30px rgba(15,23,42,.055);
+  --ag-card-shadow-hover: 0 14px 38px rgba(15,23,42,.09);
+  background: var(--ag-bg) !important;
+  color: var(--ag-text) !important;
+  color-scheme: light;
+}
+
+/* Page atmosphere */
+.ag-premium-shell .mesh-bg {
+  background:
+    radial-gradient(760px 360px at 92% -8%, rgba(79,70,229,.055), transparent 68%),
+    radial-gradient(620px 320px at 4% 8%, rgba(8,145,178,.035), transparent 70%),
+    linear-gradient(180deg,#fff 0%,#f8fafc 42%,#f6f8fb 100%) !important;
+}
+.ag-premium-shell .grid-bg {
+  background-image:
+    linear-gradient(rgba(37,99,235,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,99,235,.022) 1px, transparent 1px) !important;
+  background-size: 48px 48px !important;
+  opacity: .7 !important;
+}
+.ag-premium-shell .noise-overlay::after { display:none !important; }
+
+/* All existing glass/card utilities become premium financial surfaces */
+.ag-premium-shell .glass,
+.ag-premium-shell .glass-strong,
+.ag-premium-shell .glass-soft,
+.ag-premium-shell .liquid-glass,
+.ag-premium-shell .glass-ultra,
+.ag-premium-shell .surface-card {
+  background: var(--ag-surface) !important;
+  color: var(--ag-text) !important;
+  border: 1px solid var(--ag-border) !important;
+  border-radius: var(--ag-radius-lg) !important;
+  box-shadow: var(--ag-card-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.ag-premium-shell .glass-soft { background: var(--ag-surface-soft) !important; }
+.ag-premium-shell .glass:hover,
+.ag-premium-shell .glass-strong:hover,
+.ag-premium-shell .glass-ultra:hover,
+.ag-premium-shell .surface-card:hover {
+  border-color: var(--ag-border-strong) !important;
+  box-shadow: var(--ag-card-shadow-hover) !important;
+  transform: translateY(-1px);
+}
+
+/* Remove legacy dark surfaces and dark text effects */
+.ag-premium-shell [class*="bg-slate-950"],
+.ag-premium-shell [class*="bg-slate-900"],
+.ag-premium-shell [class*="bg-slate-800"],
+.ag-premium-shell [class*="bg-black/"],
+.ag-premium-shell [class*="bg-[#030712"],
+.ag-premium-shell [class*="bg-[#040a14"],
+.ag-premium-shell [class*="bg-[#060c18"],
+.ag-premium-shell [class*="bg-[#060d18"],
+.ag-premium-shell [class*="bg-[#0a1120"],
+.ag-premium-shell [class*="bg-[#0c1628"] {
+  background: var(--ag-surface) !important;
+  color: var(--ag-text) !important;
+}
+.ag-premium-shell [class*="from-slate-950"],
+.ag-premium-shell [class*="to-slate-950"] { background-image:none !important; }
+
+/* Typography calibration */
+.ag-premium-shell [class*="text-white"],
+.ag-premium-shell [class*="text-slate-50"],
+.ag-premium-shell [class*="text-slate-100"],
+.ag-premium-shell [class*="text-slate-200"] { color: var(--ag-text) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-slate-300"] { color: var(--ag-text-2) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-slate-400"],
+.ag-premium-shell [class*="text-slate-500"],
+.ag-premium-shell [class*="text-slate-600"] { color: var(--ag-text-3) !important; opacity:1 !important; }
+
+/* Keep brand accents, but prevent neon UI */
+.ag-premium-shell [class*="text-cyan-"],
+.ag-premium-shell [class*="text-sky-"],
+.ag-premium-shell [class*="text-blue-"] { color: var(--ag-blue) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-purple-"],
+.ag-premium-shell [class*="text-violet-"] { color: var(--ag-purple) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-teal-"] { color: var(--ag-cyan) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-emerald-"],
+.ag-premium-shell [class*="text-green-"] { color: var(--ag-green) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-red-"],
+.ag-premium-shell [class*="text-rose-"] { color: var(--ag-red) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-amber-"],
+.ag-premium-shell [class*="text-yellow-"] { color: var(--ag-amber) !important; opacity:1 !important; }
+
+/* Borders */
+.ag-premium-shell [class*="border-white"],
+.ag-premium-shell [class*="border-slate-"],
+.ag-premium-shell [class*="border-gray-"] { border-color: var(--ag-border) !important; }
+.ag-premium-shell [class*="border-cyan-"],
+.ag-premium-shell [class*="border-blue-"],
+.ag-premium-shell [class*="border-indigo-"] { border-color: #c9d6f4 !important; }
+
+/* Semantic backgrounds */
+.ag-premium-shell [class*="bg-cyan-"],
+.ag-premium-shell [class*="bg-sky-"],
+.ag-premium-shell [class*="bg-blue-"],
+.ag-premium-shell [class*="bg-indigo-"] { background: #eff4ff !important; }
+.ag-premium-shell [class*="bg-emerald-"],
+.ag-premium-shell [class*="bg-green-"] { background: #ecfdf3 !important; }
+.ag-premium-shell [class*="bg-red-"],
+.ag-premium-shell [class*="bg-rose-"] { background: #fef3f2 !important; }
+.ag-premium-shell [class*="bg-amber-"],
+.ag-premium-shell [class*="bg-yellow-"] { background: #fffbeb !important; }
+
+/* Primary action buttons retain the Web3 brand energy */
+.ag-premium-shell button[class*="bg-cyan-"],
+.ag-premium-shell button[class*="from-cyan-"],
+.ag-premium-shell button[class*="from-blue-"],
+.ag-premium-shell button[class*="from-[#4f46e5"],
+.ag-premium-shell a[class*="from-cyan-"],
+.ag-premium-shell a[class*="from-blue-"] {
+  background: linear-gradient(135deg, var(--ag-indigo), var(--ag-blue) 55%, var(--ag-cyan)) !important;
+  color:#fff !important;
+  border-color:transparent !important;
+  box-shadow: 0 8px 18px rgba(37,99,235,.16) !important;
+}
+.ag-premium-shell button[class*="bg-cyan-"] *,
+.ag-premium-shell button[class*="from-cyan-"] *,
+.ag-premium-shell button[class*="from-blue-"] *,
+.ag-premium-shell button[class*="from-[#4f46e5"] * { color:#fff !important; }
+
+/* Inputs / controls */
+.ag-premium-shell input,
+.ag-premium-shell textarea,
+.ag-premium-shell select {
+  background:#fff !important;
+  color:var(--ag-text) !important;
+  border-color:#cfd7e3 !important;
+  opacity:1 !important;
+  border-radius:12px !important;
+}
+.ag-premium-shell input::placeholder,
+.ag-premium-shell textarea::placeholder { color:#667085 !important; opacity:1 !important; }
+.ag-premium-shell input:focus,
+.ag-premium-shell textarea:focus,
+.ag-premium-shell select:focus {
+  border-color:#7da4f8 !important;
+  box-shadow:0 0 0 3px rgba(37,99,235,.11) !important;
+  outline:none !important;
+}
+
+/* Header / navigation */
+.ag-premium-shell header {
+  background:rgba(255,255,255,.96) !important;
+  color:var(--ag-text) !important;
+  border-color:var(--ag-border) !important;
+  box-shadow:0 4px 20px rgba(15,23,42,.045) !important;
+  backdrop-filter:blur(16px) !important;
+}
+.ag-premium-shell nav.fixed.bottom-0 {
+  background:rgba(255,255,255,.98) !important;
+  border-color:var(--ag-border) !important;
+  box-shadow:0 -10px 28px rgba(15,23,42,.075) !important;
+}
+
+/* Transaction / tool / agent surfaces */
+.ag-premium-shell [class*="transaction"],
+.ag-premium-shell [class*="activity"],
+.ag-premium-shell [class*="tool"],
+.ag-premium-shell [class*="transfer"],
+.ag-premium-shell [class*="confirm"],
+.ag-premium-shell [class*="receipt"] { opacity:1 !important; }
+.ag-premium-shell [class*="transaction"] [class*="text-"],
+.ag-premium-shell [class*="activity"] [class*="text-"],
+.ag-premium-shell [class*="tool"] [class*="text-"],
+.ag-premium-shell [class*="transfer"] [class*="text-"],
+.ag-premium-shell [class*="confirm"] [class*="text-"],
+.ag-premium-shell [class*="receipt"] [class*="text-"] { opacity:1 !important; }
+.ag-premium-shell code { background:#f1f5f9 !important; color:#0f172a !important; border:1px solid var(--ag-border) !important; }
+.ag-premium-shell pre { background:#f8fafc !important; color:#0f172a !important; border:1px solid var(--ag-border) !important; }
+
+/* Compact premium information blocks */
+.ag-premium-shell .section-label { color:#667085 !important; letter-spacing:.16em; }
+.ag-premium-shell .prose-app { color:#475467 !important; }
+.ag-premium-shell .prose-app strong { color:#101828 !important; }
+
+/* Responsive foundation */
+.ag-premium-shell,.ag-premium-shell * { box-sizing:border-box; }
+.ag-premium-shell main { min-width:0; overflow-x:clip; }
+@media (max-width:767px) {
+  .ag-premium-shell .glass,.ag-premium-shell .glass-strong,.ag-premium-shell .glass-soft,.ag-premium-shell .glass-ultra,.ag-premium-shell .surface-card { border-radius:14px !important; box-shadow:0 6px 22px rgba(15,23,42,.05) !important; }
+  .ag-premium-shell h1 { font-size:clamp(1.55rem,7vw,2rem); }
+  .ag-premium-shell h2 { font-size:clamp(1.2rem,5.5vw,1.5rem); }
+}
