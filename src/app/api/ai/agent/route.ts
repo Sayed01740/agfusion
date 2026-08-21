@@ -15,54 +15,28 @@ import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function previewAction(preview: Record<string, unknown> | undefined): Record<string, unknown> {
-  if (!preview) return {};
-  const copy = { ...preview }; delete copy.confirmToken; return copy;
-}
-
-function previewPolicyAction(preview: Record<string, unknown> | undefined): AgentSpendAction | null {
-  const type = String(preview?.type || "");
-  if (type === "bridge" || type === "swap" || type === "send" || type === "route") return type;
-  return null;
-}
+function previewAction(preview: Record<string, unknown> | undefined): Record<string, unknown> { if (!preview) return {}; const copy = { ...preview }; delete copy.confirmToken; return copy; }
+function previewPolicyAction(preview: Record<string, unknown> | undefined): AgentSpendAction | null { const type = String(preview?.type || ""); return type === "bridge" || type === "swap" || type === "send" || type === "route" ? type : null; }
 
 export async function POST(req: Request) {
-  const ip = clientIp(req);
-  const limits = agentRateLimitConfig();
-  let raw: unknown;
-  try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
-  const parsed = agentRequestSchema.safeParse(raw);
-  if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-
-  const body = parsed.data;
-  const session = await getSessionUser();
-  const wallet = { ...body.wallet, address: session?.address || body.wallet?.address || null };
+  const ip = clientIp(req); const limits = agentRateLimitConfig();
+  let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
+  const parsed = agentRequestSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const body = parsed.data; const session = await getSessionUser(); const wallet = { ...body.wallet, address: session?.address || body.wallet?.address || null };
 
   if (body.execute) {
     if (!body.confirmed || !body.confirmToken || !body.confirmationPreview) return NextResponse.json({ error: "confirm_required", message: "A fresh confirmation capability and action preview are required." }, { status: 403 });
     const valid = consumeConfirmationToken({ token: body.confirmToken, wallet: wallet.address, action: { preview: previewAction(body.confirmationPreview) } });
     if (!valid) return NextResponse.json({ error: "confirmation_mismatch", message: "Confirmation expired or does not match the reviewed action. Re-plan and confirm again." }, { status: 403 });
-
     const policyAction = previewPolicyAction(body.confirmationPreview);
     if (policyAction && body.wallet?.smartAccountAddress) {
-      const decision = await enforceAgentSpendingPolicy({
-        walletAddress: body.wallet.smartAccountAddress,
-        amount: String(body.confirmationPreview?.amount || ""),
-        action: policyAction,
-        recipient: body.confirmationPreview?.recipient ? String(body.confirmationPreview.recipient) : undefined,
-        isAgent: true,
-      });
+      const decision = await enforceAgentSpendingPolicy({ walletAddress: body.wallet.smartAccountAddress, amount: String(body.confirmationPreview?.amount || ""), action: policyAction, recipient: body.confirmationPreview?.recipient ? String(body.confirmationPreview.recipient) : undefined, isAgent: true });
       if (!decision.allowed) return NextResponse.json({ error: "agent_policy_blocked", reason: decision.reason, policy: decision.policy, spent: decision.spent }, { status: 403 });
     }
   }
 
-  const rlKey = body.execute ? `agent-exec:${ip}` : `agent:${ip}`;
-  const rlMax = body.execute ? limits.maxExecute : limits.maxRequests;
-  const rl = rateLimit(rlKey, { windowMs: limits.windowMs, max: rlMax });
-  if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
-
-  let confirmationToken = body.execute ? body.confirmToken! : "";
-  const wantStream = body.stream !== false;
+  const rlKey = body.execute ? `agent-exec:${ip}` : `agent:${ip}`; const rlMax = body.execute ? limits.maxExecute : limits.maxRequests; const rl = rateLimit(rlKey, { windowMs: limits.windowMs, max: rlMax }); if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  let confirmationToken = body.execute ? body.confirmToken! : ""; const wantStream = body.stream !== false;
 
   const scrubResult = (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
     if (result.message?.content) result.message.content = sanitizeAgentText(result.message.content);
@@ -79,43 +53,34 @@ export async function POST(req: Request) {
     if (result.transaction?.executionMode === "live" && result.transaction.txHash) result.transaction = await finalizeVerifiedTransaction(result.transaction, result.transaction.toChain || result.transaction.fromChain);
     return result;
   };
-
+  const accountingWallet = wallet.smartAccountAddress || wallet.address || undefined;
   const persistAndLog = async (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
     await finalizeResult(result);
-    if (result.transaction) await persistTransaction(result.transaction, { userId: session?.id !== "ephemeral" ? session?.id : undefined, walletAddress: wallet.address || undefined });
-    await logAgentRun({ message: body.message.slice(0, 200), execute: body.execute, confirmed: body.confirmed, ip, walletAddress: wallet.address || undefined, userId: session?.id !== "ephemeral" ? session?.id : undefined, toolTrace: result.toolTrace?.map((t) => t.name), resultSummary: result.transaction?.message });
+    if (result.transaction) await persistTransaction(result.transaction, { userId: session?.id !== "ephemeral" ? session?.id : undefined, walletAddress: accountingWallet });
+    await logAgentRun({ message: body.message.slice(0, 200), execute: body.execute, confirmed: body.confirmed, ip, walletAddress: accountingWallet, userId: session?.id !== "ephemeral" ? session?.id : undefined, toolTrace: result.toolTrace?.map((t) => t.name), resultSummary: result.transaction?.message });
   };
 
   if (!wantStream) {
-    try {
-      const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet });
-      await persistAndLog(result);
-      return Response.json(scrubResult(result));
-    } catch { return NextResponse.json({ error: "agent_failed" }, { status: 500 }); }
+    try { const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet }); await persistAndLog(result); return Response.json(scrubResult(result)); }
+    catch { return NextResponse.json({ error: "agent_failed" }, { status: 500 }); }
   }
 
   const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (event: AgentEvent | { type: "error"; message: string }) => {
-        let out: Record<string, unknown> = { ...event };
-        if (event.type === "status") out = { type: "status", message: sanitizeAgentText(String(event.message || "")).slice(0, 120) };
-        if (event.type === "tool") out = { type: "tool", name: event.name, ok: event.ok };
-        if (event.type === "confirm") { confirmationToken = issueConfirmationToken({ wallet: wallet.address, action: { preview: previewAction(event.preview as unknown as Record<string, unknown>) } }); out = { type: "confirm", preview: { ...event.preview, confirmToken: confirmationToken } }; }
-        if (event.type === "message") out = { type: "message", content: sanitizeAgentText(String(event.content || "")), actionPreview: event.actionPreview ? { ...event.actionPreview, ...(confirmationToken ? { confirmToken: confirmationToken } : {}) } : undefined };
-        if (event.type === "transaction" && event.transaction) out = { type: "transaction", transaction: redactTransactionForClient(event.transaction as unknown as Record<string, unknown>) };
-        if (event.type === "done") out = { type: "done", message: event.message ? { ...event.message, content: sanitizeAgentText(event.message.content), actionPreview: event.message.actionPreview ? { ...event.message.actionPreview, ...(confirmationToken ? { confirmToken: confirmationToken } : {}) } : undefined, toolTrace: redactToolTrace(event.message.toolTrace as Array<{ name: string; summary: string; ok: boolean }> | undefined) } : undefined, transaction: event.transaction ? redactTransactionForClient(event.transaction as unknown as Record<string, unknown>) : undefined };
-        if (event.type === "error") out = { type: "error", message: "Something went wrong. Try again." };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(out)}\n\n`));
-      };
-      try {
-        send({ type: "status", message: "Working…" });
-        const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet, onEvent: (e) => send(e) });
-        await persistAndLog(result);
-        if (result.transaction) send({ type: "transaction", transaction: result.transaction });
-      } catch { send({ type: "error", message: "Something went wrong." }); }
-      finally { controller.close(); }
-    },
-  });
+  const stream = new ReadableStream({ async start(controller) {
+    const send = (event: AgentEvent | { type: "error"; message: string }) => {
+      let out: Record<string, unknown> = { ...event };
+      if (event.type === "status") out = { type: "status", message: sanitizeAgentText(String(event.message || "")).slice(0, 120) };
+      if (event.type === "tool") out = { type: "tool", name: event.name, ok: event.ok };
+      if (event.type === "confirm") { confirmationToken = issueConfirmationToken({ wallet: wallet.address, action: { preview: previewAction(event.preview as unknown as Record<string, unknown>) } }); out = { type: "confirm", preview: { ...event.preview, confirmToken: confirmationToken } }; }
+      if (event.type === "message") out = { type: "message", content: sanitizeAgentText(String(event.content || "")), actionPreview: event.actionPreview ? { ...event.actionPreview, ...(confirmationToken ? { confirmToken: confirmationToken } : {}) } : undefined };
+      if (event.type === "transaction" && event.transaction) out = { type: "transaction", transaction: redactTransactionForClient(event.transaction as unknown as Record<string, unknown>) };
+      if (event.type === "done") out = { type: "done", message: event.message ? { ...event.message, content: sanitizeAgentText(event.message.content), actionPreview: event.message.actionPreview ? { ...event.message.actionPreview, ...(confirmationToken ? { confirmToken: confirmationToken } : {}) } : undefined, toolTrace: redactToolTrace(event.message.toolTrace as Array<{ name: string; summary: string; ok: boolean }> | undefined) } : undefined, transaction: event.transaction ? redactTransactionForClient(event.transaction as unknown as Record<string, unknown>) : undefined };
+      if (event.type === "error") out = { type: "error", message: "Something went wrong. Try again." };
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(out)}\n\n`));
+    };
+    try { send({ type: "status", message: "Working…" }); const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet, onEvent: (e) => send(e) }); await persistAndLog(result); if (result.transaction) send({ type: "transaction", transaction: result.transaction }); }
+    catch { send({ type: "error", message: "Something went wrong." }); }
+    finally { controller.close(); }
+  }});
   return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" } });
 }
