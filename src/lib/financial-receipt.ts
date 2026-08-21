@@ -1,4 +1,4 @@
-import type { ChainId } from "@/types";
+import type { ChainId, TransactionRecord } from "@/types";
 import { getCctpConfig } from "@/lib/cctp-chains";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
@@ -18,9 +18,8 @@ function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount?: str
     const toTopic = String(log?.topics?.[2] || "");
     if (normalizeAddress(toTopic) !== target) return false;
     if (expected == null) return true;
-    const raw = String(log?.data || "0x0");
     try {
-      return BigInt(raw) >= expected;
+      return BigInt(String(log?.data || "0x0")) >= expected;
     } catch {
       return false;
     }
