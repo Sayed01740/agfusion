@@ -6,6 +6,7 @@ import "./agfusion-readability.css";
 import "./agfusion-calibration.css";
 import "./agfusion-light-system.css";
 import "./agfusion-mobile.css";
+import "./agfusion-web3-premium.css";
 
 const siteUrl = "https://agfusion.vercel.app";
 const siteTitle = "AGFusion — Stablecoin operations on Arc";
