@@ -6,7 +6,8 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { sanitizeAgentText } from "@/lib/sanitize";
 import { getSessionUser } from "@/lib/session";
 import { consumeConfirmationToken, issueConfirmationToken } from "@/lib/confirmation-token";
-import { logAgentRun, persistTransaction } from "@/lib/tx-store";
+import { persistTransaction, logAgentRun } from "@/lib/tx-store";
+import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { agentRequestSchema } from "@/lib/validation";
 import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 
@@ -80,7 +81,18 @@ export async function POST(req: Request) {
     return { message: result.message, transaction: result.transaction, toolTrace: redactToolTrace(result.toolTrace) };
   };
 
+  const finalizeResult = async (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
+    if (result.transaction?.executionMode === "live" && result.transaction.txHash) {
+      result.transaction = await finalizeVerifiedTransaction(
+        result.transaction,
+        result.transaction.toChain || result.transaction.fromChain,
+      );
+    }
+    return result;
+  };
+
   const persistAndLog = async (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
+    await finalizeResult(result);
     if (result.transaction) {
       await persistTransaction(result.transaction, {
         userId: session?.id !== "ephemeral" ? session?.id : undefined,
@@ -95,7 +107,7 @@ export async function POST(req: Request) {
       walletAddress: wallet.address || undefined,
       userId: session?.id !== "ephemeral" ? session?.id : undefined,
       toolTrace: result.toolTrace?.map((t) => t.name),
-      resultSummary: undefined,
+      resultSummary: result.transaction?.message,
     });
   };
 
@@ -144,6 +156,9 @@ export async function POST(req: Request) {
         send({ type: "status", message: "Working…" });
         const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet, onEvent: (e) => send(e) });
         await persistAndLog(result);
+        if (result.transaction) {
+          send({ type: "transaction", transaction: result.transaction });
+        }
       } catch {
         send({ type: "error", message: "Something went wrong." });
       } finally {
