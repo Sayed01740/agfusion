@@ -1,11 +1,8 @@
 /**
  * Shared CCTP v2 testnet chain configuration for AGFusion.
  *
- * Source of truth: Circle's current CCTP v2 chain definitions. Contract
- * addresses, domains and chain IDs below are never inferred by AGFusion.
- *
- * Sonic_Testnet is intentionally excluded from the selectable bridge routes
- * until the installed App Kit version and live Sonic network are aligned.
+ * Contract/domain data is pinned to Circle's published testnet configuration.
+ * Runtime RPC health is handled separately by rpc-proxy.ts.
  */
 
 import type { ChainId } from "@/types";
@@ -118,21 +115,21 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     appKitName: "Unichain_Sepolia",
     circleBlockchain: null,
     domain: 10,
-    usdc: "0x31d0220469827808B5c07F8b8a56800bAB864Fa1",
+    usdc: "0x31d0220469e10c4E71834a79b1f276d740d3768F",
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 65,
     rpcProxyKey: "unichain",
-    explorerUrl: "https://unichain-sepolia.blockscout.com",
+    explorerUrl: "https://sepolia.uniscan.xyz",
   },
   Linea_Sepolia: {
     chainId: 59141,
     appKitName: "Linea_Sepolia",
     circleBlockchain: null,
     domain: 11,
-    // Circle's current CCTP v2 testnet definition uses the shared test USDC
-    // deployment used by OP Sepolia/Unichain/Linea, not the obsolete FEce token.
-    usdc: "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    // Circle's current USDC contract registry lists this as the native USDC
+    // deployment for Linea Sepolia. Do not substitute OP/Unichain USDC here.
+    usdc: "0xFEce4462D57bD51A6A552365A011b95f0E16d9B7",
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 65,
@@ -163,7 +160,5 @@ export function getCctpConfig(appKitName: string): CctpChainConfig | null {
 }
 
 export function cctpConfigByChainId(chainId: number): CctpChainConfig | null {
-  return (
-    Object.values(CCTP_CHAIN_CONFIG).find((c) => c.chainId === chainId) ?? null
-  );
+  return Object.values(CCTP_CHAIN_CONFIG).find((c) => c.chainId === chainId) ?? null;
 }
