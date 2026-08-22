@@ -9,7 +9,6 @@ import { initBridgeState, loadBridgeState, saveBridgeState, type BridgeState } f
 
 type SdkStep = { name?: string; state?: string; txHash?: string; errorMessage?: string; error?: unknown; forwarded?: boolean; explorerUrl?: string; [key: string]: unknown };
 type SdkBridgeResult = { state?: "pending" | "success" | "error" | string; steps?: SdkStep[]; amount?: string; source?: unknown; destination?: unknown; provider?: string; [key: string]: unknown };
-
 function stepName(step: SdkStep): string { return String(step.name || "step").toLowerCase(); }
 function findStep(steps: SdkStep[] | undefined, names: string[]): SdkStep | undefined { return [...(steps || [])].reverse().find((step) => names.some((name) => stepName(step).includes(name))); }
 function findHash(steps: SdkStep[] | undefined, names: string[]): string | undefined { return findStep(steps, names)?.txHash; }
@@ -22,18 +21,11 @@ function buildRecord(result: SdkBridgeResult, state: BridgeState, params: { amou
   return { id: state.txId, type: "bridge", status: completed ? "success" : result.state === "error" ? "error" : "retryable", retryable: !completed, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, feeUsd: 0, steps: steps.length ? steps : [{ name: "CCTP bridge", state: "pending" }], txHash: mintHash || burnHash, explorerUrl: mintHash ? (params.toChain === "Base_Sepolia" ? `https://sepolia.basescan.org/tx/${mintHash}` : `https://testnet.arcscan.app/tx/${mintHash}`) : burnHash ? (params.fromChain === "Arc_Testnet" ? `https://testnet.arcscan.app/tx/${burnHash}` : `https://sepolia.basescan.org/tx/${burnHash}`) : undefined, createdAt: new Date(state.createdAt).toISOString(), message: completed ? `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Destination mint confirmed.` : result.state === "error" ? findStep(result.steps, ["error"])?.errorMessage || "Bridge failed." : "Bridge is waiting for destination mint confirmation.", executionMode: "live", bridgeResult: result, bridgeState: state };
 }
 
-/**
- * Browser-wallet CCTP architecture:
- * 1) switch to source chain and create ONE EIP-1193 adapter;
- * 2) pass that adapter to both source and destination contexts;
- * 3) after Circle emits bridge.burn, switch the user's wallet to the destination chain;
- * 4) the same provider-backed adapter then signs the destination mint.
- * This follows Circle's documented browser-wallet pattern and preserves the user's
- * requested third destination signature. Forwarding Service is deliberately NOT used.
- */
+/** Browser-wallet CCTP: one provider-backed adapter, source-chain switch first, destination switch immediately after burn. Forwarding is deliberately disabled so the destination mint is user-signed. */
 export async function runCircleEmailWalletForwardingBridge(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; txId?: string; }): Promise<TransactionRecord> {
   const debugId = params.txId || uid("tx"); const stopGlobal = installBridgeGlobalDiagnostics(debugId); const log = (stage: string, data?: unknown, message?: string) => recordBridgeDebug(stage, data, debugId, message);
   let burnHandler: ((payload: unknown) => void) | null = null;
+  let kit: Awaited<ReturnType<typeof getAppKit>> = null;
   try {
     log("bridge.start", { params, diagnosticVersion: 3 });
     if (typeof window === "undefined") throw new Error("Circle Email Wallet bridge must run in the browser.");
@@ -41,12 +33,11 @@ export async function runCircleEmailWalletForwardingBridge(params: { amount: str
     const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address, walletType: meta?.walletType, chainId: meta?.chainId });
     if (meta?.uuid !== "circle-pw") throw new Error("Circle Email Wallet bridge path requires the active Circle Email Wallet.");
     const walletAddress = meta.address || ""; assertAddress(walletAddress); const recipient = params.recipient || walletAddress; assertAddress(recipient);
-    const kit = await getAppKit();
+    kit = await getAppKit();
     log("appkit.loaded", { loaded: !!kit, bridgeType: typeof kit?.bridge, retryBridgeType: typeof kit?.retryBridge, keys: kit ? Object.keys(kit as object) : [] });
     if (!kit || typeof kit.bridge !== "function") throw new Error("Circle App Kit bridge function is unavailable.");
 
     const sourceChainId = EVM_CHAIN_PARAMS[params.fromChain].chainId; const destinationChainId = EVM_CHAIN_PARAMS[params.toChain].chainId;
-    await switchToChainId((await createAppKitAdapterFromBrowser({ requireArc: false, targetChainId: sourceChainId }))!.provider, params.fromChain);
     const wired = await createAppKitAdapterFromBrowser({ requireArc: false, targetChainId: sourceChainId });
     if (!wired?.adapter) throw new Error("Could not create the source-chain Circle adapter.");
     attachBridgeProviderDiagnostics(wired.provider, "bridge-wallet", debugId);
@@ -70,7 +61,6 @@ export async function runCircleEmailWalletForwardingBridge(params: { amount: str
     const txId = params.txId || debugId; let state = params.txId ? loadBridgeState(params.txId) : null;
     if (!state) state = initBridgeState({ txId, walletType: "circle", walletAddress, fromChain: params.fromChain, toChain: params.toChain, token: "USDC", amount: params.amount, recipient });
     log("bridge.state.before", state);
-
     const bridgeArgs = { from: { adapter: wired.adapter, chain: params.fromChain }, to: { adapter: wired.adapter, chain: params.toChain, recipientAddress: recipient }, amount: params.amount, token: "USDC" };
     log("appkit.bridge.about_to_call", { sourceChainId, destinationChainId, architecture: "single-adapter + switch-on-burn", forwarding: false, argsSummary: { fromChain: params.fromChain, toChain: params.toChain, amount: params.amount, token: "USDC", recipient } });
     const result = (await kit.bridge(bridgeArgs)) as SdkBridgeResult;
@@ -83,7 +73,7 @@ export async function runCircleEmailWalletForwardingBridge(params: { amount: str
     return record;
   } catch (error) { log("bridge.fatal", { error }, error instanceof Error ? error.message : String(error)); throw error instanceof Error ? error : new Error(String(error)); }
   finally {
-    if (burnHandler) { try { kit?.off("bridge.burn", burnHandler); } catch {} }
+    if (burnHandler && kit) { try { kit.off("bridge.burn", burnHandler); } catch {} }
     stopGlobal(); log("diagnostics.end");
   }
 }
