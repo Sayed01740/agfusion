@@ -10,28 +10,22 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { cn, shortenAddress } from "@/lib/utils";
 import { formatUsdc } from "@/lib/fees";
-import { Activity, ArrowRight, MessageSquare, Wrench } from "lucide-react";
+import { Activity, ArrowRight, MessageSquare, Wrench, Download, Trash2, Bug } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
+import { clearBridgeDebugEvents, downloadBridgeDebugLog, getBridgeDebugEvents } from "@/lib/bridge-debug";
 import type { TransactionRecord } from "@/types";
 
 function getActivityError(tx: TransactionRecord): { step?: string; message?: string } {
   const failedStep = tx.steps?.find((step) => step.state === "error");
-  if (failedStep?.message) {
-    return { step: failedStep.name, message: failedStep.message };
-  }
-
+  if (failedStep?.message) return { step: failedStep.name, message: failedStep.message };
   if (tx.message) {
     const parts = tx.message.split(" · ").filter(Boolean);
-    const meaningful = parts.find((part) =>
-      /error|failed|insufficient|revert|reject|cancel|cannot|could not|not confirmed|retry/i.test(part),
-    );
+    const meaningful = parts.find((part) => /error|failed|insufficient|revert|reject|cancel|cannot|could not|not confirmed|retry/i.test(part));
     return { message: meaningful || parts[parts.length - 1] };
   }
-
   return {};
 }
-
 function getActivityDetail(tx: TransactionRecord): string | null {
   const error = getActivityError(tx);
   if (error.step && error.message) return `${error.step}: ${error.message}`;
@@ -47,8 +41,10 @@ export default function DashboardPage() {
   const [mobileTab, setMobileTab] = useState<"chat" | "tools">("chat");
   const [payRequest, setPayRequest] = useState<{ amount: string; to?: string; memo?: string } | null>(null);
   const [payBusy, setPayBusy] = useState(false);
+  const [debugCount, setDebugCount] = useState(0);
 
   useEffect(() => { if (walletAddress) { refreshBalances(); void loadServerTransactions(walletAddress); } }, [walletAddress, refreshBalances, loadServerTransactions]);
+  useEffect(() => { setDebugCount(getBridgeDebugEvents().length); }, []);
 
   useEffect(() => {
     try {
@@ -65,14 +61,11 @@ export default function DashboardPage() {
     setThinking(true);
     try {
       const tx = await executeBridgeRecovery({ amount: active.amount || "0", fromChain: active.fromChain, toChain: active.toChain, token: active.token || "USDC", recipient: active.recipient, failedTx: active, txId: active.id });
-      addTransaction(tx);
-      setActiveTx(tx.id);
+      addTransaction(tx); setActiveTx(tx.id);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Bridge recovery failed.";
       addMessage({ id: `msg_bridge_retry_${Date.now()}`, role: "assistant", content: `**Bridge retry failed:** ${message}`, createdAt: new Date().toISOString() });
-    } finally {
-      setThinking(false);
-    }
+    } finally { setThinking(false); setDebugCount(getBridgeDebugEvents().length); }
   }
 
   async function fulfillPayRequest() { if (!payRequest || !walletAddress) return; const to = payRequest.to || walletAddress; if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return; setPayBusy(true); setThinking(true); try { const tx = await executeSend({ amount: payRequest.amount, token: "USDC", chain: "Arc_Testnet", recipient: to, recipientLabel: payRequest.memo || "Payment request", preferLive: true }); addTransaction(tx); setActiveTx(tx.id); setPayRequest(null); } catch (e) { addMessage({ id: `msg_payerr_${Date.now()}`, role: "assistant", content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`, createdAt: new Date().toISOString() }); setMobileTab("chat"); } finally { setPayBusy(false); setThinking(false); } }
@@ -95,6 +88,10 @@ export default function DashboardPage() {
               <div className="min-w-0 rounded-xl border border-[#e1e7ef] bg-[#f8fafc] px-3.5 py-3.5 sm:px-5 sm:py-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Connected wallet</p><p className="mt-1 truncate text-[12px] font-semibold text-[#101828] sm:text-[14px]">{walletAddress ? shortenAddress(walletAddress) : "Not connected"}</p></div>
               <div className="col-span-2 min-w-0 rounded-xl border border-[#e1e7ef] bg-[#f8fafc] px-3.5 py-3.5 sm:col-span-1 sm:px-5 sm:py-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Operations</p><p className="mt-1 text-base font-semibold text-[#101828] sm:text-xl">{transactions.length.toString().padStart(2, "0")} <span className="text-[10px] font-medium text-[#64748b] sm:text-xs">recorded</span></p></div>
             </div>
+            <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2"><Bug className="h-4 w-4 shrink-0 text-amber-600" /><div className="min-w-0"><p className="text-xs font-semibold text-amber-900">Bridge Diagnostics</p><p className="truncate text-[10px] text-amber-800">Records SDK steps, chain IDs, tx hashes, errors and raw bridge responses. Secrets are redacted.</p></div></div>
+              <div className="flex shrink-0 gap-2"><Button type="button" variant="outline" size="sm" className="h-9 bg-white text-[10px]" onClick={() => downloadBridgeDebugLog()}><Download className="mr-1.5 h-3.5 w-3.5" />Export JSON ({debugCount})</Button><Button type="button" variant="outline" size="sm" className="h-9 bg-white text-[10px]" onClick={() => { clearBridgeDebugEvents(); setDebugCount(0); }}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Clear</Button></div>
+            </div>
             <div className="h-px w-full bg-gradient-to-r from-transparent via-[#2563eb]/20 to-transparent" />
           </div>
         </div>
@@ -116,21 +113,7 @@ export default function DashboardPage() {
             <CardHeader className="pb-2"><div className="flex items-center justify-between gap-3"><CardTitle className="truncate text-sm text-[#172033]">Activity timeline</CardTitle><a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-[#315bea] hover:bg-[#eef2ff]">Operate <ArrowRight className="h-3 w-3" /></a></div></CardHeader>
             <CardContent className="space-y-2">
               {transactions.length === 0 && <p className="text-[12px] leading-relaxed text-[#64748b]">No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.</p>}
-              {transactions.slice(0, 8).map((tx) => {
-                const isActive = active?.id === tx.id;
-                const detail = getActivityDetail(tx);
-                const isBridgeError = tx.type === "bridge" && (tx.status === "error" || tx.retryable);
-                return (
-                  <button key={tx.id} type="button" onClick={() => setActiveTx(tx.id)} className={cn("flex min-w-0 w-full min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc] hover:border-[#cbd5e1] hover:bg-white")}>
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div>
-                      <div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div>
-                      {isBridgeError && detail && <div className="mt-1 truncate text-[10px] leading-4 text-red-500" title={detail}>{detail}</div>}
-                    </div>
-                    <Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge>
-                  </button>
-                );
-              })}
+              {transactions.slice(0, 8).map((tx) => { const isActive = active?.id === tx.id; const detail = getActivityDetail(tx); const isBridgeError = tx.type === "bridge" && (tx.status === "error" || tx.retryable); return (<button key={tx.id} type="button" onClick={() => setActiveTx(tx.id)} className={cn("flex min-w-0 w-full min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc] hover:border-[#cbd5e1] hover:bg-white")}><div className="min-w-0 flex-1 overflow-hidden"><div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div><div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div>{isBridgeError && detail && <div className="mt-1 truncate text-[10px] leading-4 text-red-500" title={detail}>{detail}</div>}</div><Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge></button>); })}
             </CardContent>
           </Card>
         </div>
