@@ -61,7 +61,11 @@ function destinationHash(steps: BridgeKitStepLike[]): string | undefined {
     .reverse()
     .find((step) => {
       const name = (step.name || "").toLowerCase();
-      return step.state === "success" && !!step.txHash && /(mint|receive|destination)/i.test(name);
+      return (
+        step.state === "success" &&
+        !!step.txHash &&
+        /(mint|receive|destination)/i.test(name)
+      );
     })?.txHash;
 }
 
@@ -87,7 +91,9 @@ function mapSteps(steps: BridgeKitStepLike[] = []): TxStep[] {
 
 function deriveState(steps: BridgeKitStepLike[], failedMessage?: string): BridgeStateName {
   if (failedMessage) {
-    const burned = steps.some((s) => s.state === "success" && /(burn|deposit)/i.test(s.name || ""));
+    const burned = steps.some(
+      (s) => s.state === "success" && /(burn|deposit)/i.test(s.name || ""),
+    );
     return burned ? "RECOVERABLE" : "FAILED";
   }
 
@@ -157,11 +163,6 @@ async function makeAdapter() {
   const provider = await getInjectedProvider();
   await requestAccounts(provider);
 
-  // wallet-adapter intentionally exposes a looser EIP-1193 provider type because
-  // some injected wallets omit optional event methods. Bridge Kit's viem adapter
-  // type requires those methods at compile time, while the runtime only needs the
-  // standard request interface for transaction execution. Keep the boundary cast
-  // here rather than weakening the shared wallet provider type across the app.
   const bridgeProvider = provider as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
 
   return {
@@ -235,9 +236,7 @@ export async function runBridgeKitFlow(params: {
     });
   }
 
-  let result: BridgeKitResultLike | undefined;
-  let failure: string | undefined;
-
+  let result: BridgeKitResultLike;
   try {
     result = await executeKitBridge({
       adapter: wallet.adapter,
@@ -248,8 +247,32 @@ export async function runBridgeKitFlow(params: {
       failedResult: params.failedResult as BridgeKitResultLike | undefined,
     });
   } catch (error) {
-    failure = errorText(error);
+    const message = errorText(error);
+    const state = buildBridgeState({
+      txId,
+      walletAddress,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      amount: params.amount,
+      recipient: params.recipient,
+      error: message,
+    });
+    saveBridgeState(state);
+    const retryable = isRetryableMessage(message);
+    throw Object.assign(new Error(message), {
+      bridgeState: state,
+      bridgeResult: undefined,
+      retryable,
+    });
   }
+
+  const steps = result.steps || [];
+  const destHash = destinationHash(steps);
+  const sdkSuccess = result.state === "success";
+  const failedStep = steps.find((s) => s.state === "error");
+  const failedMessage = failedStep
+    ? failedStep.errorMessage || errorText(failedStep.error)
+    : undefined;
 
   const state = buildBridgeState({
     txId,
@@ -259,36 +282,54 @@ export async function runBridgeKitFlow(params: {
     amount: params.amount,
     recipient: params.recipient,
     result,
-    error: failure,
+    error: failedMessage,
   });
   saveBridgeState(state);
 
-  const steps = mapSteps(result?.steps);
-  const txHash = destinationHash(result?.steps || []) || latestTxHash(result?.steps || []);
-  const retryable = !!failure && isRetryableMessage(failure);
-  const status: TransactionRecord["status"] = result?.state === "success" && destinationHash(result.steps || [])
-    ? "success"
-    : failure
-      ? retryable ? "retryable" : "error"
-      : "retryable";
-
-  if (failure) updateBridgeState(txId, { state: state.state, error: failure });
+  const success = sdkSuccess && !!destHash;
+  const retryable = !success && (!!failedMessage ? isRetryableMessage(failedMessage) : true);
+  const status = success ? "success" : retryable ? "retryable" : "error";
+  const txHash = destHash || latestTxHash(steps);
+  const explorer = txHash ? CHAINS[params.toChain]?.explorer || undefined : undefined;
 
   return {
     id: txId,
     type: "bridge",
     status,
-    retryable: status === "retryable",
     amount: params.amount,
     token: "USDC",
     fromChain: params.fromChain,
     toChain: params.toChain,
+    recipient: params.recipient || walletAddress || undefined,
     feeUsd: 0.05,
-    steps,
+    steps: mapSteps(steps),
     txHash,
-    createdAt: new Date().toISOString(),
-    message: failure || (result ? resultMessage(result, params.fromChain, params.toChain) : "Bridge did not complete."),
+    explorerUrl: txHash && explorer ? `${explorer}/tx/${txHash}` : undefined,
+    createdAt: new Date(state.createdAt).toISOString(),
+    message: success
+      ? resultMessage(result, params.fromChain, params.toChain)
+      : failedMessage || resultMessage(result, params.fromChain, params.toChain),
     executionMode: "live",
+    retryable,
+    bridgeResult: result,
     bridgeState: state,
-  } as TransactionRecord;
+  };
+}
+
+export async function runBridgeKitRecovery(params: {
+  amount: string;
+  fromChain: ChainId;
+  toChain: ChainId;
+  recipient?: string;
+  failedTx?: TransactionRecord | null;
+  txId?: string;
+}): Promise<TransactionRecord> {
+  return runBridgeKitFlow({
+    amount: params.amount,
+    fromChain: params.fromChain,
+    toChain: params.toChain,
+    recipient: params.recipient,
+    txId: params.txId,
+    failedResult: params.failedTx?.bridgeResult,
+  });
 }
