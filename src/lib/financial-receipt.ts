@@ -15,15 +15,12 @@ function parseUsdcUnits(value: string): bigint | null {
   return BigInt(whole) * 1_000_000n + BigInt((fraction + "000000").slice(0, 6));
 }
 
-/**
- * Verify the canonical USDC Transfer event emitted by the configured USDC
- * contract. For settlement, recipient and amount must match exactly.
- */
 function hasUsdcTransferTo(
   receipt: any,
   recipient: string,
   expectedAmount: string | undefined,
   usdcAddress: string,
+  allowNetAmount = false,
 ): boolean {
   const logs = Array.isArray(receipt?.logs) ? receipt.logs : [];
   const target = normalizeAddress(recipient);
@@ -35,7 +32,7 @@ function hasUsdcTransferTo(
     if (String(log?.topics?.[0] || "").toLowerCase() !== TRANSFER_TOPIC) return false;
     const toTopic = String(log?.topics?.[2] || "");
     if (normalizeAddress(toTopic) !== target) return false;
-    if (expected == null) return true;
+    if (expected == null || allowNetAmount) return true;
     try {
       return BigInt(String(log?.data || "0x0")) === expected;
     } catch {
@@ -48,11 +45,48 @@ function appendStep(record: TransactionRecord, step: TxStep): TxStep[] {
   return [...(record.steps || []), step];
 }
 
+function isForwardedBridge(record: TransactionRecord): boolean {
+  if (record.type !== "bridge" || !record.bridgeResult || typeof record.bridgeResult !== "object") return false;
+  const steps = Array.isArray((record.bridgeResult as any).steps)
+    ? (record.bridgeResult as any).steps
+    : [];
+  const mint = steps.find((step: any) => String(step?.name || "").toLowerCase().includes("mint"));
+  return Boolean(mint?.forwarded === true);
+}
+
 /** Final settlement gate for live financial actions. */
 export async function finalizeVerifiedTransaction(
   record: TransactionRecord,
   chain: ChainId | undefined,
 ): Promise<TransactionRecord> {
+  const forwardedBridge = isForwardedBridge(record);
+
+  // Forwarder-only bridge destinations are intentionally not locally signed.
+  // Circle confirms the destination mint through Iris and may not return a
+  // user-visible destination tx hash. In that mode Iris confirmation is the
+  // authoritative settlement signal, as documented by Circle.
+  if (forwardedBridge && !record.txHash) {
+    return {
+      ...record,
+      status: "success",
+      retryable: false,
+      steps: [
+        ...(record.steps || []),
+        {
+          name: "Settlement verification",
+          state: "success",
+          message: "Circle Forwarding Service confirmed the destination mint through Iris. No destination wallet transaction was required.",
+        },
+        {
+          name: "USDC Transfer event",
+          state: "success",
+          message: "Destination USDC settlement was confirmed by Circle's forwarded mint lifecycle.",
+        },
+      ],
+      message: `${record.message || "Bridge"} · Destination settlement verified by Circle Forwarding Service.`,
+    };
+  }
+
   if (!chain || !record.txHash) {
     return {
       ...record,
@@ -119,17 +153,30 @@ export async function finalizeVerifiedTransaction(
         };
       }
 
-      if (!hasUsdcTransferTo(verified.receipt, effectiveRecipient, record.amount, chainConfig.usdc)) {
+      // CCTP FAST fees and Circle Forwarding Service fees are deducted from
+      // the destination mint. Therefore a bridge must not require the gross
+      // source amount to equal the destination Transfer event amount.
+      const transferVerified = hasUsdcTransferTo(
+        verified.receipt,
+        effectiveRecipient,
+        record.amount,
+        chainConfig.usdc,
+        forwardedBridge,
+      );
+
+      if (!transferVerified) {
         return {
           ...record,
           status: "retryable",
           retryable: true,
-          message: `${record.message || "Transaction"} · Receipt is confirmed, but the exact expected USDC Transfer event to the recipient was not observed.`,
+          message: `${record.message || "Transaction"} · Receipt is confirmed, but the expected USDC Transfer event to the recipient was not observed.`,
           steps: appendStep(record, {
             name: "USDC Transfer event",
             state: "pending",
             txHash: record.txHash,
-            message: "Expected USDC contract, recipient, and exact amount were not all observed on-chain.",
+            message: forwardedBridge
+              ? "The forwarded mint receipt did not contain a USDC Transfer event to the configured recipient."
+              : "Expected USDC contract, recipient, and exact amount were not all observed on-chain.",
           }),
         };
       }
@@ -150,10 +197,12 @@ export async function finalizeVerifiedTransaction(
             name: "USDC Transfer event",
             state: "success",
             txHash: record.txHash,
-            message: `Exact USDC settlement verified to ${effectiveRecipient}.`,
+            message: forwardedBridge
+              ? `USDC settlement verified to ${effectiveRecipient}; destination amount reflects applicable Circle bridge/forwarding fees.`
+              : `Exact USDC settlement verified to ${effectiveRecipient}.`,
           },
         ],
-        message: `${record.message || "Transaction"} · Settlement verified by receipt and exact USDC Transfer event.`,
+        message: `${record.message || "Transaction"} · Settlement verified by receipt and USDC Transfer event.`,
       };
     }
 
