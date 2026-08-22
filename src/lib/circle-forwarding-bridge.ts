@@ -1,18 +1,19 @@
 /**
  * Circle Email Wallet bridge path.
  *
- * IMPORTANT: do not hand-roll CCTP forwarding here. App Kit already supports
- * the Circle Forwarding Service and knows how to wait for Iris confirmation.
- * For a user-controlled Circle wallet we sign only the source-chain work.
- * The destination adapter is intentionally omitted and useForwarder=true is
- * used, so the destination mint is submitted by Circle's relayer.
+ * Browser-wallet/Circle Email Wallet mode intentionally uses the user's
+ * connected EVM wallet for BOTH sides of the CCTP bridge. This is the
+ * user-controlled flow: source approve -> source burn -> attestation ->
+ * destination mint. The wallet therefore switches from Arc to Base and
+ * receives the destination mint signature instead of silently handing the
+ * mint to Circle's Forwarding Service.
  */
 
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
 import { uid } from "@/lib/utils";
 import { getAppKit } from "@/sdk/appkit-client";
-import { createAppKitAdapterFromBrowser, switchToChainId } from "@/sdk/wallet-adapter";
+import { createAppKitAdapterFromBrowser, switchToChainId, getChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import {
   deriveBridgeState,
@@ -28,8 +29,6 @@ type SdkStep = {
   txHash?: string;
   errorMessage?: string;
   error?: unknown;
-  forwarded?: boolean;
-  data?: unknown;
 };
 
 type SdkBridgeResult = {
@@ -51,16 +50,13 @@ function findStep(steps: SdkStep[] | undefined, names: string[]): SdkStep | unde
     .find((step) => names.some((name) => stepName(step).includes(name)));
 }
 
-function findBurnHash(steps: SdkStep[] | undefined): string | undefined {
-  return findStep(steps, ["burn"])?.txHash;
+function findHash(steps: SdkStep[] | undefined, names: string[]): string | undefined {
+  return findStep(steps, names)?.txHash;
 }
 
 function toTxSteps(steps: SdkStep[] | undefined): TxStep[] {
   return (steps || []).map((step) => ({
-    name:
-      step.forwarded && stepName(step).includes("mint")
-        ? "Destination Mint (Circle Forwarder)"
-        : step.name || "Bridge step",
+    name: step.name || "Bridge step",
     state:
       step.state === "success"
         ? "success"
@@ -90,12 +86,10 @@ function assertAddress(address: string): void {
   }
 }
 
-function isForwardedSuccess(result: SdkBridgeResult): boolean {
+function isCompleted(result: SdkBridgeResult): boolean {
   if (result.state !== "success") return false;
   const mint = findStep(result.steps, ["mint", "receive", "destination"]);
-  // Forwarder mints deliberately do not expose a local txHash. Circle's Iris
-  // confirmation is the completion signal in this mode.
-  return !!mint && (mint.state === "success" || mint.state === "noop" || mint.forwarded === true);
+  return mint?.state === "success" && !!mint.txHash;
 }
 
 function buildRecord(
@@ -104,15 +98,15 @@ function buildRecord(
   params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient: string },
 ): TransactionRecord {
   const steps = toTxSteps(result.steps);
-  const burnHash = findBurnHash(result.steps);
-  const forwardedMint = findStep(result.steps, ["mint", "receive", "destination"]);
-  const forwarderConfirmed = isForwardedSuccess(result);
+  const mintHash = findHash(result.steps, ["mint", "receive", "destination"]);
+  const burnHash = findHash(result.steps, ["burn"]);
+  const completed = isCompleted(result);
 
   return {
     id: state.txId,
     type: "bridge",
-    status: forwarderConfirmed ? "success" : result.state === "error" ? "error" : "retryable",
-    retryable: !forwarderConfirmed && result.state !== "error",
+    status: completed ? "success" : result.state === "error" ? "error" : "retryable",
+    retryable: !completed && result.state !== "error",
     amount: params.amount,
     token: "USDC",
     fromChain: params.fromChain,
@@ -122,19 +116,25 @@ function buildRecord(
     steps:
       steps.length > 0
         ? steps
-        : [{ name: "Circle Forwarding Service", state: forwarderConfirmed ? "success" : "pending" }],
-    // Forwarder mode intentionally has no locally signed destination tx hash.
-    // Keep the source burn hash as the transaction/explorer reference instead.
-    txHash: burnHash,
-    explorerUrl: burnHash
-      ? params.fromChain === "Arc_Testnet"
-        ? `https://testnet.arcscan.app/tx/${burnHash}`
-        : `https://sepolia.basescan.org/tx/${burnHash}`
-      : undefined,
+        : [{ name: "CCTP bridge", state: completed ? "success" : "pending" }],
+    // The destination mint is the final transaction and is the correct
+    // explorer/activity reference once the bridge is settled.
+    txHash: mintHash || burnHash,
+    explorerUrl: mintHash
+      ? params.toChain === "Base_Sepolia"
+        ? `https://sepolia.basescan.org/tx/${mintHash}`
+        : `https://testnet.arcscan.app/tx/${mintHash}`
+      : burnHash
+        ? params.fromChain === "Arc_Testnet"
+          ? `https://testnet.arcscan.app/tx/${burnHash}`
+          : `https://sepolia.basescan.org/tx/${burnHash}`
+        : undefined,
     createdAt: new Date(state.createdAt).toISOString(),
-    message: forwarderConfirmed
-      ? `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Circle Forwarding Service confirmed the destination mint.`
-      : forwardedMint?.errorMessage || "Bridge is still processing through Circle Forwarding Service.",
+    message: completed
+      ? `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Destination mint confirmed.`
+      : result.state === "error"
+        ? findStep(result.steps, ["error"])?.errorMessage || "Bridge failed."
+        : "Bridge is waiting for destination mint confirmation.",
     executionMode: "live",
     bridgeResult: result,
     bridgeState: state,
@@ -156,7 +156,7 @@ export async function runCircleEmailWalletForwardingBridge(params: {
 
   const meta = getActiveWalletMeta();
   if (meta?.uuid !== "circle-pw") {
-    throw new Error("Circle Email Wallet forwarding path requires the active Circle Email Wallet.");
+    throw new Error("Circle Email Wallet bridge path requires the active Circle Email Wallet.");
   }
 
   const walletAddress = meta.address || "";
@@ -167,21 +167,25 @@ export async function runCircleEmailWalletForwardingBridge(params: {
   const kit = await getAppKit();
   if (!kit) throw new Error("Circle App Kit failed to load. Hard-refresh and reconnect the wallet.");
 
+  // One adapter object is intentionally reused for source AND destination.
+  // App Kit/Viem handles the chain switch before the destination mint.
   const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
   if (!wired?.adapter) {
     throw new Error("Could not create the Circle Email Wallet bridge adapter. Reconnect the wallet and retry.");
   }
 
-  // The source wallet must be on the source chain before App Kit starts.
-  // There is deliberately NO destination chain switch and NO destination
-  // adapter. useForwarder=true makes Circle own the destination mint.
   const provider = wired.provider || wired.adapter;
   try {
-    if (provider) await switchToChainId(provider as any, params.fromChain);
-  } catch {
-    // The Circle adapter may already be chain-bound. App Kit will validate the
-    // source context itself, so don't turn an adapter-specific switch failure
-    // into a second signing flow.
+    await switchToChainId(provider as any, params.fromChain);
+    const expected = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
+    if (expected) {
+      const actual = await getChainId(provider as any);
+      if (actual !== expected) {
+        throw new Error(`Wallet is on chain ${actual}, expected ${expected} for ${params.fromChain}.`);
+      }
+    }
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e));
   }
 
   const txId = params.txId || uid("tx");
@@ -199,38 +203,28 @@ export async function runCircleEmailWalletForwardingBridge(params: {
     });
   }
 
-  // Never start a second burn for a state that already has a confirmed burn.
-  // Recovery must use the exact SDK result returned by App Kit.
   let result: SdkBridgeResult;
   try {
-    if (state.burnTxHash && state.attestationData) {
-      result = (await kit.retryBridge(state.attestationData as any, {
-        from: wired.adapter,
-      })) as SdkBridgeResult;
-    } else if (state.burnTxHash) {
-      throw new Error(
-        `This bridge already burned ${state.burnTxHash}. The previous App Kit result is missing, so AGFusion will not submit another burn. Start recovery from the existing bridge activity.`,
-      );
-    } else {
-      result = (await kit.bridge({
-        from: {
-          adapter: wired.adapter,
-          chain: params.fromChain,
-        },
-        to: {
-          chain: params.toChain,
-          recipientAddress: recipient,
-          useForwarder: true,
-        },
-        amount: params.amount,
-        token: "USDC",
-      })) as SdkBridgeResult;
-    }
+    // IMPORTANT: do NOT set useForwarder=true here. The requested UX is the
+    // normal user-controlled CCTP lifecycle, which produces the destination
+    // mint transaction on Base and therefore the third wallet signature.
+    result = (await kit.bridge({
+      from: {
+        adapter: wired.adapter,
+        chain: params.fromChain,
+      },
+      to: {
+        adapter: wired.adapter,
+        chain: params.toChain,
+        recipientAddress: recipient,
+      },
+      amount: params.amount,
+      token: "USDC",
+    })) as SdkBridgeResult;
   } catch (error) {
     const partial = (error as any)?.bridgeResult as SdkBridgeResult | undefined;
-    const partialSteps = partial?.steps || [];
-    const burnHash = findBurnHash(partialSteps);
     if (partial) {
+      const burnHash = findHash(partial.steps, ["burn"]);
       state = {
         ...state,
         burnTxHash: burnHash || state.burnTxHash,
@@ -244,17 +238,16 @@ export async function runCircleEmailWalletForwardingBridge(params: {
     throw error instanceof Error ? error : new Error(String(error));
   }
 
-  const burnHash = findBurnHash(result.steps);
-  const completed = isForwardedSuccess(result);
+  const burnHash = findHash(result.steps, ["burn"]);
+  const mintHash = findHash(result.steps, ["mint", "receive", "destination"]);
+  const completed = isCompleted(result);
 
   state = {
     ...state,
     burnTxHash: burnHash || state.burnTxHash,
-    // Store the complete SDK result so a retry can resume after a transient
-    // forwarder/Iris problem without creating another source burn.
     attestationData: result,
     state: completed ? "COMPLETED" : burnHash ? "RECOVERABLE" : "FAILED",
-    error: completed ? undefined : "Circle Forwarding Service has not confirmed the destination mint yet.",
+    error: completed ? undefined : "Destination mint has not been confirmed yet.",
     updatedAt: Date.now(),
   };
   saveBridgeState(state);
@@ -268,8 +261,10 @@ export async function runCircleEmailWalletForwardingBridge(params: {
 
   if (!completed && result.state === "error") {
     const failed = result.steps?.find((step) => step.state === "error");
-    throw new Error(failed?.errorMessage || "Circle bridge failed. The source burn will not be repeated automatically.");
+    throw new Error(failed?.errorMessage || "Circle CCTP bridge failed. Existing burn will not be repeated automatically.");
   }
 
+  // If App Kit returns before mint confirmation, keep the record retryable.
+  // This is intentional: no false success and no second burn.
   return record;
 }
