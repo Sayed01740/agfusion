@@ -1,27 +1,29 @@
 /**
  * Shared JSON-RPC proxy logic used by /api/rpc.
  *
- * Arc Testnet upstreams follow docs.arc.io/references/rpc-endpoints:
- * Circle primary (rpc.testnet.arc.io), Blockdaemon, dRPC, QuickNode — all
- * verified on 2026-08-16 to answer `eth_chainId` → 0x4cef52. They are
- * genuinely independent providers, not the same endpoint repeated with
- * different path spellings.
- *
- * Safety rules:
- * - Read-only requests may fail over across upstreams.
- * - Write requests (eth_sendRawTransaction, personal_sign, …) are NEVER
- *   retried on another upstream — a lost response after acceptance would
- *   otherwise cause a duplicate on-chain submission.
+ * Every bridge chain gets an independent upstream pool and an expected chain ID.
+ * Read-only requests can fail over. Write requests are sent exactly once, but
+ * only after selecting a currently healthy upstream, which avoids sending a
+ * transaction to a dead public endpoint while preserving the no-duplicate rule.
  */
 
 export const ARC_EXPECTED_CHAIN_ID_HEX = "0x4cef52";
 
-/** Ordered upstreams per chain key — first healthy provider wins. */
+/** Expected EVM chain IDs for every chain exposed by the bridge UI. */
+export const EXPECTED_CHAIN_IDS: Record<string, string> = {
+  arc: ARC_EXPECTED_CHAIN_ID_HEX,
+  base: "0x14a34",
+  eth: "0xaa36a7",
+  arb: "0x66eee",
+  op: "0xaa37dc",
+  polygon: "0x13882",
+  avax: "0xa869",
+  unichain: "0x515",
+  linea: "0xe705",
+};
+
+/** Ordered upstreams per chain key. First healthy provider wins. */
 export const RPC_UPSTREAMS: Record<string, string[]> = {
-  // Genuinely independent Arc Testnet RPC providers (all return 0x4cef52).
-  // Order: docs primary (Circle .io) first, then the SDK/viem .network
-  // endpoint, then Blockdaemon / dRPC / QuickNode. See
-  // docs.arc.io/references/rpc-endpoints.
   arc: [
     "https://rpc.testnet.arc.io",
     "https://rpc.testnet.arc.network",
@@ -30,75 +32,62 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
     "https://rpc.quicknode.testnet.arc.io",
   ],
   base: [
-    "https://sepolia.base.org",
+    // Base's public endpoint is rate-limited, so keep it as a last resort.
     "https://base-sepolia-rpc.publicnode.com",
     "https://base-sepolia.g.alchemy.com/v2/demo",
     "https://84532.rpc.thirdweb.com",
+    "https://sepolia.base.org",
   ],
   eth: [
-    "https://rpc.sepolia.org",
     "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://rpc.sepolia.org",
     "https://rpc2.sepolia.org",
     "https://11155111.rpc.thirdweb.com",
   ],
   arb: [
-    "https://sepolia-rollup.arbitrum.io/rpc",
     "https://arbitrum-sepolia-rpc.publicnode.com",
+    "https://sepolia-rollup.arbitrum.io/rpc",
     "https://421614.rpc.thirdweb.com",
   ],
   op: [
-    "https://sepolia.optimism.io",
     "https://optimism-sepolia-rpc.publicnode.com",
+    "https://sepolia.optimism.io",
     "https://11155420.rpc.thirdweb.com",
   ],
   polygon: [
-    "https://rpc-amoy.polygon.technology",
     "https://polygon-amoy-bor-rpc.publicnode.com",
+    "https://rpc-amoy.polygon.technology",
     "https://80002.rpc.thirdweb.com",
   ],
   avax: [
-    "https://api.avax-test.network/ext/bc/C/rpc",
     "https://avalanche-fuji-c-chain-rpc.publicnode.com",
+    "https://api.avax-test.network/ext/bc/C/rpc",
     "https://43113.rpc.thirdweb.com",
   ],
   unichain: [
+    "https://unichain-sepolia.g.alchemy.com/v2/demo",
     "https://sepolia.unichain.org",
-    "https://unichain-sepolia-g.alchemy.com/v2/demo",
     "https://1301.rpc.thirdweb.com",
   ],
   linea: [
-    "https://rpc.sepolia.linea.build",
     "https://linea-sepolia-rpc.publicnode.com",
+    "https://rpc.sepolia.linea.build",
     "https://59141.rpc.thirdweb.com",
   ],
 };
 
-// NOTE: `sonic` is intentionally absent from RPC_UPSTREAMS. The installed
-// Circle SDK defines Sonic_Testnet with chainId 14601 while the live Sonic
-// Blaze testnet uses 57054, so Sonic bridging is disabled until the SDK
-// configuration and the actual network are verified compatible.
-
-/**
- * Methods that mutate chain state. A blind retry on a second upstream could
- * double-execute if the first upstream actually accepted the request but the
- * response was lost — these are single-attempt only.
- */
 const WRITE_METHODS = new Set<string>([
   "eth_sendRawTransaction",
   "eth_sendTransaction",
   "eth_sign",
   "personal_sign",
   "eth_signTypedData_v4",
-  "wallet_switchEthereumChain",
-  "wallet_addEthereumChain",
 ]);
 
-/** True when retrying the call on another upstream is unsafe. */
 export function isWriteMethod(method: string): boolean {
   return WRITE_METHODS.has(method);
 }
 
-/** Normalize ?chain=… into a proxy key. */
 export function chainKey(raw: string | null): string {
   return (raw || "arc").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -109,11 +98,6 @@ export interface ForwardResult {
   text: string;
 }
 
-/**
- * POST a JSON-RPC body to a single upstream with a timeout and a hard
- * non-HTML / valid-JSON gate (an HTTP 200 HTML page is never a valid
- * JSON-RPC response).
- */
 export async function forwardJsonRpc(
   upstream: string,
   body: string,
@@ -153,13 +137,11 @@ export async function forwardJsonRpc(
   }
 }
 
-/** An HTTP 200 HTML page is not JSON-RPC. */
 function looksLikeJson(text: string): boolean {
   const t = text.trim();
   return t.startsWith("{") || t.startsWith("[");
 }
 
-/** Parse a JSON-RPC response body. */
 export function parseJsonRpc(text: string): {
   ok: boolean;
   result?: unknown;
@@ -178,9 +160,36 @@ export function parseJsonRpc(text: string): {
 }
 
 /**
- * Health check for one chain: walk upstreams, require eth_chainId to match the
- * chain's expected id, and report the winner plus latency in ms.
+ * Find a live upstream by asking it for eth_chainId. This is safe even for
+ * write operations because the write itself is still performed only once.
  */
+export async function findHealthyUpstream(
+  chain: string,
+  timeoutMs = 5_000,
+): Promise<{ upstream: string; chainId: string } | null> {
+  const upstreams = RPC_UPSTREAMS[chain];
+  if (!upstreams?.length) return null;
+  const expected = EXPECTED_CHAIN_IDS[chain]?.toLowerCase();
+  const body = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_chainId",
+    params: [],
+  });
+
+  for (const upstream of upstreams) {
+    const result = await forwardJsonRpc(upstream, body, timeoutMs);
+    if (!result.ok) continue;
+    const parsed = parseJsonRpc(result.text);
+    if (!parsed.ok) continue;
+    const chainId = String(parsed.result ?? "").toLowerCase();
+    if (!expected || chainId === expected) {
+      return { upstream, chainId };
+    }
+  }
+  return null;
+}
+
 export async function healthCheck(chain: string): Promise<{
   ok: boolean;
   chain: string;
@@ -195,8 +204,7 @@ export async function healthCheck(chain: string): Promise<{
   if (!upstreams?.length) {
     return { ok: false, chain, error: "unknown_chain" };
   }
-  const expected =
-    chain === "arc" ? ARC_EXPECTED_CHAIN_ID_HEX : null;
+  const expected = EXPECTED_CHAIN_IDS[chain] ?? null;
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id: 1,
@@ -218,7 +226,7 @@ export async function healthCheck(chain: string): Promise<{
     }
     const chainId = String(parsed.result ?? "");
     if (expected && chainId.toLowerCase() !== expected.toLowerCase()) {
-      tried.push(`${up}→chain-mismatch`);
+      tried.push(`${up}→chain-mismatch(${chainId})`);
       continue;
     }
     return {
