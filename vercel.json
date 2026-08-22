@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm install --legacy-peer-deps --no-save typescript@5.8.3 @types/node@22.15.30 @types/react@19.1.6 @types/react-dom@19.1.6 && prisma generate && next build",
+  "buildCommand": "prisma generate && next build",
   "installCommand": "npm install --legacy-peer-deps --include=dev"
 }
