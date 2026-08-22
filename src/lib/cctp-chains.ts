@@ -1,37 +1,25 @@
 /**
  * Shared CCTP v2 testnet chain configuration for AGFusion.
  *
- * Source of truth: the installed `@circle-fin/app-kit@1.9.0` chain definitions
- * (`node_modules/@circle-fin/app-kit/chains.cjs`). Contract addresses, domains
- * and chain IDs below are copied verbatim from that SDK so AGFusion never
- * invents a route or address.
+ * Source of truth: Circle's current CCTP v2 chain definitions. Contract
+ * addresses, domains and chain IDs below are never inferred by AGFusion.
  *
- * NOTE: `Sonic_Testnet` is intentionally excluded from bridge routes until the
- * SDK's chain definition (chainId 14601) matches the live Sonic Blaze testnet
- * (chainId 57054). Do not re-add it without verifying compatibility.
+ * Sonic_Testnet is intentionally excluded from the selectable bridge routes
+ * until the installed App Kit version and live Sonic network are aligned.
  */
 
 import type { ChainId } from "@/types";
 
 export interface CctpChainConfig {
   chainId: number;
-  /** App Kit chain enum name (BridgeChain) */
   appKitName: ChainId;
-  /** Circle Programmable Wallet blockchain string, when supported by Circle PW */
   circleBlockchain: string | null;
-  /** CCTP v2 domain id (testnet) */
   domain: number;
-  /** USDC token address on this chain (CCTP v2) */
   usdc: `0x${string}`;
-  /** CCTP v2 TokenMessenger (testnet, shared across chains) */
   tokenMessenger: `0x${string}`;
-  /** CCTP v2 MessageTransmitter (testnet, shared across chains) */
   messageTransmitter: `0x${string}`;
-  /** Number of confirmations the SDK waits for burns on this chain */
   confirmations: number;
-  /** /api/rpc?chain=<key> proxy key */
   rpcProxyKey: string;
-  /** Canonical explorer base (from the SDK) */
   explorerUrl: string;
 }
 
@@ -40,7 +28,6 @@ const CCTP_V2_TOKEN_MESSENGER =
 const CCTP_V2_MSG_TRANSMITTER =
   "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" as const;
 
-/** Every testnet chain the installed SDK supports for CCTP v2 bridging. */
 export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   Arc_Testnet: {
     chainId: 5042002,
@@ -100,7 +87,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 65,
     rpcProxyKey: "op",
-    explorerUrl: "https://sepolia-optimistic.etherscan.io",
+    explorerUrl: "https://sepolia-optimism.etherscan.io",
   },
   Polygon_Amoy_Testnet: {
     chainId: 80002,
@@ -124,7 +111,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 65,
     rpcProxyKey: "avax",
-    explorerUrl: "https://subnets-test.avax.network/c-chain",
+    explorerUrl: "https://testnet.snowtrace.io",
   },
   Unichain_Sepolia: {
     chainId: 1301,
@@ -143,7 +130,9 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     appKitName: "Linea_Sepolia",
     circleBlockchain: null,
     domain: 11,
-    usdc: "0xFEce4462D57bD51A6A552365A011b95f0E16d9B7",
+    // Circle's current CCTP v2 testnet definition uses the shared test USDC
+    // deployment used by OP Sepolia/Unichain/Linea, not the obsolete FEce token.
+    usdc: "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 65,
@@ -152,7 +141,6 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   },
 };
 
-/** Bridge chains selectable by normal EVM wallets (all verified CCTP v2 testnet routes). */
 export const EVM_BRIDGE_CHAINS: ChainId[] = [
   "Arc_Testnet",
   "Ethereum_Sepolia",
@@ -165,7 +153,6 @@ export const EVM_BRIDGE_CHAINS: ChainId[] = [
   "Linea_Sepolia",
 ];
 
-/** Bridge chains selectable by Circle Email Wallets (only chains Circle PW can execute today). */
 export const CIRCLE_BRIDGE_CHAINS: ChainId[] = [
   "Arc_Testnet",
   "Base_Sepolia",
@@ -176,8 +163,7 @@ export function getCctpConfig(appKitName: string): CctpChainConfig | null {
 }
 
 export function cctpConfigByChainId(chainId: number): CctpChainConfig | null {
-  const hit = Object.values(CCTP_CHAIN_CONFIG).find(
-    (c) => c.chainId === chainId,
+  return (
+    Object.values(CCTP_CHAIN_CONFIG).find((c) => c.chainId === chainId) ?? null
   );
-  return hit ?? null;
 }
