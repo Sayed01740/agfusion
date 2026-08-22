@@ -18,7 +18,9 @@
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.16.0",
     "@circle-fin/app-kit": "^1.12.0",
+    "@circle-fin/bridge-kit": "^1.13.0",
     "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
+    "@circle-fin/circle-finance": "^1.0.0",
     "@prisma/client": "^6.10.1",
     "@radix-ui/react-slot": "^1.2.3",
     "@zerodev/ecdsa-validator": "^5.4.9",
@@ -42,7 +44,7 @@
     "@tailwindcss/postcss": "^4.1.10",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
-    "@types/react-dom": "^19.1.6",
+    "@types/react-dom": "^19.1.0",
     "eslint": "^10.8.1",
     "prisma": "^6.10.1",
     "tailwindcss": "^4.1.10",
