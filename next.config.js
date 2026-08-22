@@ -6,9 +6,6 @@ const nextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   eslint: { ignoreDuringBuilds: true },
-  // TypeScript is compiled by Next/SWC; typechecking is handled separately.
-  // This avoids Next trying to install TypeScript during a production build
-  // when Vercel is using the legacy peer-dependency resolver.
   typescript: { ignoreBuildErrors: true },
   outputFileTracingRoot: path.join(__dirname),
   transpilePackages: [
@@ -61,6 +58,10 @@ const nextConfig = {
     ];
   },
   webpack: (config, { isServer }) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@": path.resolve(__dirname, "src"),
+    };
     config.externals.push("pino-pretty", "lokijs", "encoding");
     if (!isServer) {
       config.resolve.fallback = {
