@@ -2,7 +2,8 @@ import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getCctpConfig } from "@/lib/cctp-chains";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
-const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a7e7b5d8a4";
+// keccak256("Transfer(address,address,uint256)")
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 function normalizeAddress(value: string): string {
   const hex = String(value || "").toLowerCase().replace(/^0x/, "");
@@ -47,7 +48,6 @@ export async function finalizeVerifiedTransaction(record: TransactionRecord, cha
   const forwardedBridge = isForwardedBridge(record);
   if (!record.txHash) {
     return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination settlement hash is missing.`, steps: appendStep(record, { name: "Destination settlement receipt", state: "pending", message: "A destination transaction hash is required before bridge completion can be declared." }) };
-  }
 
   const verificationChain = forwardedBridge ? record.toChain : chain;
   if (!verificationChain) {
