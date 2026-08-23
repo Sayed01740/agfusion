@@ -3,11 +3,11 @@
 /**
  * Circle CCTP v2 browser bridge using the documented Forwarding Service flow.
  *
- * We intentionally do not delegate the critical burn to App Kit here. The
- * source wallet signs only the approval (when allowance is insufficient) and
- * depositForBurnWithHook. Circle then handles attestation + destination mint.
- * Iris is polled for forwardTxHash and the destination receipt is verified
- * before the application reports success.
+ * The source wallet signs only approval (when needed) and depositForBurnWithHook.
+ * Circle handles attestation + destination mint. Iris is asynchronous, so 404,
+ * empty messages, rate limits and temporary server errors are treated as
+ * transient states, never as a failed bridge. Existing burns are recoverable
+ * without submitting another burn.
  */
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getCctpConfig } from "@/lib/cctp-chains";
@@ -22,13 +22,18 @@ import { verifyReceiptOnChain } from "@/lib/tx-verify";
 const TOKEN_MESSENGER_V2 = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as const;
 const FORWARDING_HOOK = "0x636374702d666f72776172640000000000000000000000000000000000000000" as const;
 const IRIS_PROXY = "/api/circle/iris";
-const IRIS_MAX_POLLS = 90;
-const IRIS_POLL_MS = 2000;
+// Iris indexing/forwarding is asynchronous. Keep the browser flow alive long
+// enough for normal testnet latency, while returning a recoverable record if
+// the user has to leave the page before settlement appears.
+const IRIS_MAX_POLLS = 240; // 20 minutes at 5 seconds
+const IRIS_POLL_MS = 5000;
+const IRIS_INITIAL_DELAY_MS = 5000;
 const USDC_DECIMALS = 6;
 
 type Eip1193 = { request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown> };
 type FeeRow = { finalityThreshold?: number; minimumFee?: number; forwardFee?: { low?: number; med?: number; high?: number } };
-type IrisMessage = { status?: string; forwardTxHash?: string; eventNonce?: string; transactionHash?: string; attestation?: string };
+type IrisMessage = { status?: string; forwardTxHash?: string; eventNonce?: string; transactionHash?: string; attestation?: string; forwardState?: string };
+type IrisTransient = { __transient: true; status: number; body: unknown };
 
 const ALLOWANCE_ABI = [{ type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
 const APPROVE_ABI = [{ type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] }] as const;
@@ -47,23 +52,34 @@ function toUnits(amount: string): bigint {
 function assertAddress(value: string): asserts value is `0x${string}` { if (!/^0x[a-fA-F0-9]{40}$/.test(value)) throw new Error("Bridge recipient must be a valid EVM address."); }
 function step(name: string, state: TxStep["state"], txHash?: string, message?: string): TxStep { return { name, state, txHash, message }; }
 async function rpc(provider: Eip1193, method: string, params: unknown[] = []): Promise<any> { return provider.request({ method, params }); }
+async function sleep(ms: number): Promise<void> { await new Promise((resolve) => setTimeout(resolve, ms)); }
 
 async function waitReceipt(provider: Eip1193, txHash: string, timeoutMs = 120_000): Promise<any> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const receipt = await rpc(provider, "eth_getTransactionReceipt", [txHash]);
     if (receipt) return receipt;
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await sleep(1500);
   }
   throw new Error(`Transaction ${txHash} was not confirmed within ${Math.round(timeoutMs / 1000)} seconds.`);
 }
 
-async function irisGet(path: string): Promise<any> {
+/**
+ * Fetch Iris. For the message polling endpoint, 404/429/5xx are normal
+ * transient conditions while Iris indexes or forwards a newly-burned message.
+ * Fee lookup remains fail-closed because a missing fee quote is not a polling
+ * condition.
+ */
+async function irisGet(path: string, options: { allowTransient?: boolean } = {}): Promise<any | IrisTransient> {
   const response = await fetch(`${IRIS_PROXY}?path=${encodeURIComponent(path)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
   const text = await response.text();
   let json: any;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  if (!response.ok) throw new Error(`Circle Iris ${response.status}: ${JSON.stringify(json).slice(0, 1200)}`);
+  if (!response.ok) {
+    const transient = options.allowTransient && (response.status === 404 || response.status === 429 || response.status >= 500);
+    if (transient) return { __transient: true, status: response.status, body: json };
+    throw new Error(`Circle Iris ${response.status}: ${JSON.stringify(json).slice(0, 1200)}`);
+  }
   return json;
 }
 
@@ -90,26 +106,58 @@ async function sendTx(provider: Eip1193, from: string, to: string, data: string,
   return hash;
 }
 
-async function waitForwardedMint(sourceDomain: number, burnTx: string, destinationChain: ChainId, recipient: string, amount: string, debugId: string): Promise<string> {
-  recordBridgeDebug("cctp.iris.poll.start", { sourceDomain, burnTx, destinationChain, recipient, maxPolls: IRIS_MAX_POLLS, intervalMs: IRIS_POLL_MS }, debugId, "Waiting for Circle Iris forwardTxHash");
+async function waitForwardedMint(sourceDomain: number, burnTx: string, destinationChain: ChainId, recipient: string, amount: string, debugId: string): Promise<string | null> {
+  recordBridgeDebug("cctp.iris.poll.start", { sourceDomain, burnTx, destinationChain, recipient, maxPolls: IRIS_MAX_POLLS, intervalMs: IRIS_POLL_MS, initialDelayMs: IRIS_INITIAL_DELAY_MS }, debugId, "Waiting for Circle Iris forwardTxHash; 404 is treated as transient");
+  // Do not query immediately after the source receipt. Iris may need time to
+  // index the MessageSent event. This also prevents hammering the API.
+  await sleep(IRIS_INITIAL_DELAY_MS);
+
   for (let attempt = 1; attempt <= IRIS_MAX_POLLS; attempt++) {
-    const response = await irisGet(`/v2/messages/${sourceDomain}?transactionHash=${encodeURIComponent(burnTx)}`);
-    const message: IrisMessage | undefined = Array.isArray(response?.messages) ? response.messages[0] : undefined;
-    recordBridgeDebug("cctp.iris.poll.response", { attempt, status: message?.status, forwardTxHash: message?.forwardTxHash, eventNonce: message?.eventNonce, transactionHash: message?.transactionHash, hasAttestation: Boolean(message?.attestation) }, debugId, `Circle Iris poll ${attempt}/${IRIS_MAX_POLLS}`);
+    let response: any | IrisTransient;
+    try {
+      response = await irisGet(`/v2/messages/${sourceDomain}?transactionHash=${encodeURIComponent(burnTx)}`, { allowTransient: true });
+    } catch (error) {
+      recordBridgeDebug("cctp.iris.poll.error", { attempt, error: error instanceof Error ? error.message : String(error) }, debugId, `Iris polling request failed at attempt ${attempt}; retrying` , { error });
+      await sleep(IRIS_POLL_MS);
+      continue;
+    }
+
+    if (response && response.__transient) {
+      recordBridgeDebug("cctp.iris.poll.transient", { attempt, httpStatus: response.status, body: response.body }, debugId, `Circle Iris returned transient HTTP ${response.status}; continuing to poll`);
+      await sleep(IRIS_POLL_MS);
+      continue;
+    }
+
+    const messages: IrisMessage[] = Array.isArray(response?.messages) ? response.messages : [];
+    const message = messages.find((candidate) => String(candidate?.transactionHash || "").toLowerCase() === burnTx.toLowerCase()) || messages[0];
+    recordBridgeDebug("cctp.iris.poll.response", { attempt, messageCount: messages.length, status: message?.status, forwardState: message?.forwardState, forwardTxHash: message?.forwardTxHash, eventNonce: message?.eventNonce, transactionHash: message?.transactionHash, hasAttestation: Boolean(message?.attestation) }, debugId, `Circle Iris poll ${attempt}/${IRIS_MAX_POLLS}`);
+
     if (message?.forwardTxHash) {
       const mintTx = String(message.forwardTxHash);
       const destinationConfig = getCctpConfig(destinationChain);
       if (!destinationConfig) throw new Error(`Missing destination configuration for ${destinationChain}.`);
       const verified = await verifyReceiptOnChain({ chainKey: destinationConfig.rpcProxyKey, txHash: mintTx, attempts: 5, delayMs: 1200 });
-      if (verified.status !== "success") throw new Error(`Circle returned forwardTxHash ${mintTx}, but the destination receipt is not successful yet.`);
-      recordBridgeDebug("cctp.destination.receipt.confirmed", { mintTx, destinationChain, recipient, amount }, debugId, "Destination mint receipt confirmed");
-      recordBridgeDebug("cctp.iris.forwarded.confirmed", { burnTx, mintTx }, debugId, "Circle Forwarding Service confirmed destination mint");
-      return mintTx;
+      recordBridgeDebug("cctp.destination.receipt.check", { attempt, mintTx, status: verified.status, destinationChain }, debugId, `Checked Circle forwarded destination receipt: ${verified.status}`);
+      if (verified.status === "success") {
+        recordBridgeDebug("cctp.destination.receipt.confirmed", { mintTx, destinationChain, recipient, amount }, debugId, "Destination mint receipt confirmed");
+        recordBridgeDebug("cctp.iris.forwarded.confirmed", { burnTx, mintTx }, debugId, "Circle Forwarding Service confirmed destination mint");
+        return mintTx;
+      }
+      if (verified.status === "reverted") throw new Error(`Circle returned forwardTxHash ${mintTx}, but the destination transaction reverted.`);
+      // pending/not_found means the hash exists in Iris before the destination
+      // RPC can see its receipt. Keep polling instead of declaring failure.
+      await sleep(IRIS_POLL_MS);
+      continue;
     }
-    if (message?.status && /failed|error|rejected/i.test(message.status)) throw new Error(`Circle Iris reported forwarding status ${message.status}.`);
-    await new Promise((resolve) => setTimeout(resolve, IRIS_POLL_MS));
+
+    if (message?.status && /failed|error|rejected/i.test(message.status)) {
+      throw new Error(`Circle Iris reported permanent forwarding status ${message.status}.`);
+    }
+    await sleep(IRIS_POLL_MS);
   }
-  throw new Error(`Circle Iris did not return forwardTxHash for burn ${burnTx} within ${Math.round(IRIS_MAX_POLLS * IRIS_POLL_MS / 1000)} seconds.`);
+
+  recordBridgeDebug("cctp.iris.poll.timeout", { burnTx, sourceDomain, destinationChain, maxPolls: IRIS_MAX_POLLS, intervalMs: IRIS_POLL_MS }, debugId, "Iris did not expose a destination mint within the polling window; source burn remains recoverable");
+  return null;
 }
 
 export async function runBridgeKitFlow(params: { amount: string; fromChain: ChainId; toChain: ChainId; txId?: string; recipient?: string; failedResult?: unknown }): Promise<TransactionRecord> {
@@ -173,6 +221,29 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   recordBridgeDebug("cctp.burn.confirmed", { burnTx }, debugId, "CCTP burn confirmed");
 
   const mintTx = await waitForwardedMint(source.domain, burnTx, params.toChain, recipient, params.amount, debugId);
+  if (!mintTx) {
+    const pendingMessage = `Source burn ${burnTx} is confirmed. Circle Iris has not returned a destination mint yet; this bridge is recoverable and no second burn is required.`;
+    steps.push(step("Destination Mint via Circle Forwarding Service", "pending", undefined, pendingMessage));
+    return {
+      id: params.txId || debugId,
+      type: "bridge",
+      status: "retryable",
+      retryable: true,
+      amount: params.amount,
+      token: "USDC",
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      recipient,
+      feeUsd: Number(fees.maxFee) / 1_000_000,
+      steps,
+      txHash: burnTx,
+      explorerUrl: explorerTxUrl(burnTx),
+      createdAt: new Date().toISOString(),
+      message: pendingMessage,
+      executionMode: "live",
+      bridgeResult: { burnTxHash: burnTx, forwardTxHash: undefined, approvalTxHash: approvalTx, sourceDomain: source.domain, destinationDomain: destination.domain, maxFee: fees.maxFee.toString(), forwardingFee: fees.forwardFee.toString(), protocolFee: fees.protocolFee.toString(), hookData: FORWARDING_HOOK, settlementPending: true },
+    };
+  }
   steps.push(step("Destination Mint via Circle Forwarding Service", "success", mintTx, "Circle Iris returned forwardTxHash and destination receipt was confirmed."));
 
   return {
@@ -204,8 +275,13 @@ export async function runBridgeKitRecovery(params: { amount: string; fromChain: 
   if (burnTx && source && recipient) {
     assertAddress(recipient);
     const debugId = params.txId || params.failedTx?.id || uid("bridge-recovery");
+    recordBridgeDebug("cctp.recovery.existing-burn", { burnTx, sourceDomain: source.domain, destinationChain: params.toChain, recipient }, debugId, "Recovering existing confirmed CCTP burn without reburning");
     const mintTx = await waitForwardedMint(source.domain, burnTx, params.toChain, recipient, params.amount, debugId);
-    return { ...(params.failedTx as TransactionRecord), id: debugId, status: "success", retryable: false, txHash: mintTx, explorerUrl: explorerTxUrl(mintTx), steps: [...(params.failedTx?.steps || []), step("Destination Mint via Circle Forwarding Service", "success", mintTx, "Recovered existing CCTP burn through Circle Iris.")], message: `Recovered existing burn ${burnTx}; destination mint ${mintTx} confirmed.` };
+    if (!mintTx) {
+      const pendingMessage = `Existing source burn ${burnTx} is confirmed, but Circle Iris has not returned the destination mint yet. No new burn was submitted.`;
+      return { ...(params.failedTx as TransactionRecord), id: debugId, status: "retryable", retryable: true, txHash: burnTx, explorerUrl: explorerTxUrl(burnTx), steps: [...(params.failedTx?.steps || []), step("Destination Mint via Circle Forwarding Service", "pending", undefined, pendingMessage)], message: pendingMessage, bridgeResult: { ...(params.failedTx?.bridgeResult as any), burnTxHash: burnTx, settlementPending: true } };
+    }
+    return { ...(params.failedTx as TransactionRecord), id: debugId, status: "success", retryable: false, txHash: mintTx, explorerUrl: explorerTxUrl(mintTx), steps: [...(params.failedTx?.steps || []), step("Destination Mint via Circle Forwarding Service", "success", mintTx, "Recovered existing CCTP burn through Circle Iris.")], message: `Recovered existing burn ${burnTx}; destination mint ${mintTx} confirmed.`, bridgeResult: { ...(params.failedTx?.bridgeResult as any), burnTxHash: burnTx, forwardTxHash: mintTx, settlementPending: false } };
   }
   return runBridgeKitFlow({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient, txId: params.txId });
 }
