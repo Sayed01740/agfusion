@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ArrowRight, Check, Clock, Fuel, Loader2, Route, Wallet } from "lucide-react";
 import type { ActionPreview } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ export function ActionPreviewCard({
   onExecute: () => void;
   busy?: boolean;
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const done = Boolean(preview.executed);
   const cta = preview.type === "swap"
     ? "Confirm & open wallet to swap"
@@ -25,17 +28,54 @@ export function ActionPreviewCard({
         : "Confirm & open wallet";
 
   async function confirmAndExecute() {
-    if (!preview.confirmToken) return;
+    if (!preview.canExecute || done || busy || confirming) return;
+
+    setConfirming(true);
+    setError(null);
+
     try {
+      // Local agent previews do not have a server capability yet. Ask the
+      // server to issue one for this exact preview, then consume it once.
+      // Server-issued previews already carry a token, so we reuse it.
+      let confirmToken = preview.confirmToken;
+
+      if (!confirmToken) {
+        const issueResponse = await fetch("/api/ai/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "issue", preview }),
+        });
+        const issueData = await issueResponse.json().catch(() => ({}));
+        if (!issueResponse.ok || !issueData?.confirmToken) {
+          throw new Error(
+            issueData?.message ||
+              "The server could not authorize this transaction. Reconnect your wallet and try again.",
+          );
+        }
+        confirmToken = String(issueData.confirmToken);
+      }
+
       const response = await fetch("/api/ai/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmToken: preview.confirmToken, preview }),
+        body: JSON.stringify({ confirmToken, preview }),
       });
-      if (!response.ok) return;
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            "Confirmation expired or no longer matches this transaction. Re-plan it and try again.",
+        );
+      }
+
+      // The server capability has now been consumed. Only after that gate
+      // succeeds do we enter the browser-side App Kit/Rabby execution path.
       onExecute();
-    } catch {
-      // Do not open the wallet if the server could not authorize this exact plan.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Confirmation failed.");
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -87,7 +127,7 @@ export function ActionPreviewCard({
       <Button
         size="lg"
         className="w-full text-sm font-semibold h-11"
-        disabled={!preview.canExecute || done || busy || !preview.confirmToken}
+        disabled={!preview.canExecute || done || busy || confirming}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -95,8 +135,14 @@ export function ActionPreviewCard({
         }}
         type="button"
       >
-        {done ? <><Check className="h-4 w-4" />Executed</> : busy ? <><Loader2 className="h-4 w-4 animate-spin" />Waiting for wallet…</> : preview.canExecute ? cta : "Missing details"}
+        {done ? <><Check className="h-4 w-4" />Executed</> : busy || confirming ? <><Loader2 className="h-4 w-4 animate-spin" />{confirming ? "Authorizing…" : "Waiting for wallet…"}</> : preview.canExecute ? cta : "Missing details"}
       </Button>
+
+      {error && (
+        <div className="rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-[11px] leading-relaxed text-red-200">
+          {error}
+        </div>
+      )}
       <p className="text-[10px] text-center text-slate-500">The server authorizes this exact plan once, then the wallet can open.</p>
     </div>
   );
