@@ -10,11 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { cn, shortenAddress } from "@/lib/utils";
 import { formatUsdc } from "@/lib/fees";
-import { Activity, ArrowRight, MessageSquare, Wrench, Download, Trash2, Bug } from "lucide-react";
+import { Activity, ArrowRight, MessageSquare, Wrench, Download, Trash2, Bug, ExternalLink } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
 import { clearBridgeDebugEvents, downloadBridgeDebugLog, getBridgeDebugEvents } from "@/lib/bridge-debug";
-import type { TransactionRecord } from "@/types";
+import type { TransactionRecord, TxStep } from "@/types";
 
 function getActivityError(tx: TransactionRecord): { step?: string; message?: string } {
   const failedStep = tx.steps?.find((step) => step.state === "error");
@@ -33,6 +33,27 @@ function getActivityDetail(tx: TransactionRecord): string | null {
   if (tx.status === "error") return "Bridge failed. Select this operation to view the full error and retry.";
   if (tx.retryable) return "Bridge is not confirmed yet. Select this operation to check again.";
   return null;
+}
+
+function getBridgeStepChain(tx: TransactionRecord, step: TxStep): string | undefined {
+  const name = step.name.toLowerCase();
+  if (name.includes("mint") || name.includes("receive") || name.includes("destination")) return tx.toChain;
+  return tx.fromChain;
+}
+
+function getStepExplorerUrl(tx: TransactionRecord, step: TxStep): string | null {
+  if (!step.txHash) return null;
+  const chain = tx.type === "bridge" ? getBridgeStepChain(tx, step) : tx.fromChain || tx.toChain;
+  const explorer = chain === "Arc_Testnet"
+    ? "https://testnet.arcscan.app"
+    : chain === "Base_Sepolia"
+      ? "https://sepolia.basescan.org"
+      : undefined;
+  return explorer ? `${explorer}/tx/${step.txHash}` : null;
+}
+
+function bridgeTxSteps(tx: TransactionRecord): TxStep[] {
+  return (tx.steps || []).filter((step) => Boolean(step.txHash));
 }
 
 export default function DashboardPage() {
@@ -111,9 +132,44 @@ export default function DashboardPage() {
           {active && <TransactionProgress tx={active} onRetry={active.status === "error" || active.retryable ? () => void retryActive() : undefined} />}
           <Card className="w-full overflow-hidden border-[#e1e7ef] bg-white shadow-sm">
             <CardHeader className="pb-2"><div className="flex items-center justify-between gap-3"><CardTitle className="truncate text-sm text-[#172033]">Activity timeline</CardTitle><a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-[#315bea] hover:bg-[#eef2ff]">Operate <ArrowRight className="h-3 w-3" /></a></div></CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               {transactions.length === 0 && <p className="text-[12px] leading-relaxed text-[#64748b]">No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.</p>}
-              {transactions.slice(0, 8).map((tx) => { const isActive = active?.id === tx.id; const detail = getActivityDetail(tx); const isBridgeError = tx.type === "bridge" && (tx.status === "error" || tx.retryable); return (<button key={tx.id} type="button" onClick={() => setActiveTx(tx.id)} className={cn("flex min-w-0 w-full min-h-12 items-center justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc] hover:border-[#cbd5e1] hover:bg-white")}><div className="min-w-0 flex-1 overflow-hidden"><div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div><div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div>{isBridgeError && detail && <div className="mt-1 truncate text-[10px] leading-4 text-red-500" title={detail}>{detail}</div>}</div><Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge></button>); })}
+              {transactions.slice(0, 8).map((tx) => {
+                const isActive = active?.id === tx.id;
+                const detail = getActivityDetail(tx);
+                const isBridgeError = tx.type === "bridge" && (tx.status === "error" || tx.retryable);
+                const childSteps = tx.type === "bridge" ? bridgeTxSteps(tx) : [];
+                return (
+                  <div key={tx.id} className={cn("rounded-xl border p-2.5", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc]")}>
+                    <button type="button" onClick={() => setActiveTx(tx.id)} className="flex min-w-0 w-full min-h-10 items-center justify-between gap-2 text-left text-sm">
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div>
+                        <div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div>
+                        {isBridgeError && detail && <div className="mt-1 truncate text-[10px] leading-4 text-red-500" title={detail}>{detail}</div>}
+                      </div>
+                      <Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge>
+                    </button>
+                    {childSteps.length > 0 && (
+                      <div className="mt-2 border-t border-[#e2e8f0] pt-2 space-y-1.5">
+                        {childSteps.map((step, index) => {
+                          const href = getStepExplorerUrl(tx, step);
+                          return (
+                            <div key={`${step.name}-${step.txHash}-${index}`} className="flex min-w-0 items-center gap-2 rounded-lg bg-white/75 px-2.5 py-2">
+                              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", step.state === "success" ? "bg-emerald-500" : step.state === "error" ? "bg-red-500" : "bg-amber-400")} />
+                              <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[#334155]">{step.name}</span>
+                              {href ? (
+                                <a href={href} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="inline-flex shrink-0 items-center gap-1 font-mono text-[9px] text-[#315bea] hover:underline" title={step.txHash}>{shortenAddress(step.txHash || "", 3)}<ExternalLink className="h-2.5 w-2.5" /></a>
+                              ) : step.txHash ? (
+                                <span className="shrink-0 font-mono text-[9px] text-[#64748b]">{shortenAddress(step.txHash, 3)}</span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </div>
