@@ -1,67 +1,211 @@
 "use client";
 
-/** Circle CCTP browser bridge facade using the Forwarding Service. */
+/**
+ * Circle CCTP v2 browser bridge using the documented Forwarding Service flow.
+ *
+ * We intentionally do not delegate the critical burn to App Kit here. The
+ * source wallet signs only the approval (when allowance is insufficient) and
+ * depositForBurnWithHook. Circle then handles attestation + destination mint.
+ * Iris is polled for forwardTxHash and the destination receipt is verified
+ * before the application reports success.
+ */
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getAppKit, getAppKitLoadError } from "@/sdk/appkit-client";
-import { createAppKitAdapterFromBrowser, getChainId, getInjectedProvider, switchToChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
 import { getCctpConfig } from "@/lib/cctp-chains";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { uid } from "@/lib/utils";
-import { recordBridgeDebug } from "@/lib/bridge-debug";
+import { getInjectedProvider, getChainId, switchToChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
+import { getActiveWalletMeta } from "@/sdk/active-wallet";
+import { attachBridgeProviderDiagnostics, recordBridgeDebug } from "@/lib/bridge-debug";
+import { encodeFunctionData, decodeFunctionResult, pad } from "viem";
+import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
-interface BridgeKitStepLike { name?: string; state?: string; txHash?: string; errorMessage?: string; error?: unknown; forwarded?: boolean; data?: unknown; explorerUrl?: string; }
-interface BridgeKitResultLike { state?: "pending" | "success" | "error"; steps?: BridgeKitStepLike[]; amount?: string; source?: { address?: string; chain?: string }; destination?: { address?: string; chain?: string }; [key: string]: unknown; }
-function normalizeStepState(state: string | undefined): TxStep["state"] { if (state === "success") return "success"; if (state === "error") return "error"; if (state === "noop") return "noop"; if (state === "pending") return "pending"; return "active"; }
-function mapSteps(result: BridgeKitResultLike): TxStep[] { return (result.steps || []).map((step) => ({ name: step.name || "Bridge step", state: normalizeStepState(step.state), txHash: step.txHash, message: step.forwarded && step.state === "success" ? "Destination mint handled by Circle Forwarding Service and confirmed by Iris." : step.errorMessage })); }
-function findStep(result: BridgeKitResultLike, key: string): BridgeKitStepLike | undefined { return (result.steps || []).find((step) => String(step.name || "").toLowerCase().includes(key)); }
-function hasConfirmedForwardedMint(result: BridgeKitResultLike): boolean { const mint = findStep(result, "mint"); return Boolean(result.state === "success" && mint && mint.state === "success" && (mint.forwarded === true || mint.data === undefined)); }
-async function prepareSourceAdapter(fromChain: ChainId) { const provider = await getInjectedProvider(); await switchToChainId(provider, fromChain); const expected = EVM_CHAIN_PARAMS[fromChain]?.chainId; if (expected) { const actual = await getChainId(provider); if (actual !== expected) throw new Error(`Wallet is on chain ${actual}, but ${fromChain.replace(/_/g, " ")} requires chain ${expected}. Switch networks and retry.`); } const wired = await createAppKitAdapterFromBrowser({ requireArc: false }); if (!wired) throw new Error("Could not connect the selected wallet adapter. Reconnect the wallet and retry."); return wired; }
+const TOKEN_MESSENGER_V2 = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as const;
+const FORWARDING_HOOK = "0x636374702d666f72776172640000000000000000000000000000000000000000" as const;
+const IRIS_PROXY = "/api/circle/iris";
+const IRIS_MAX_POLLS = 90;
+const IRIS_POLL_MS = 2000;
+const USDC_DECIMALS = 6;
 
-async function pollForwarder(kit: any, previous: BridgeKitResultLike, adapter: unknown, txId: string): Promise<BridgeKitResultLike> {
-  let latest = previous;
-  if (latest.state === "success" || latest.state === "error") return latest;
-  if (!latest.steps?.some((s) => String(s.name || "").toLowerCase().includes("burn") && s.txHash)) return latest;
-  const retryBridge = kit?.retryBridge;
-  if (typeof retryBridge !== "function") return latest;
-  for (let attempt = 1; attempt <= 24; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    try {
-      recordBridgeDebug("forwarder.poll.request", { attempt, maxAttempts: 24, previousState: latest.state }, txId, "Checking Circle Forwarding Service status without submitting another burn");
-      latest = (await retryBridge(latest, { from: adapter })) as BridgeKitResultLike;
-      recordBridgeDebug("forwarder.poll.response", { attempt, state: latest.state, steps: latest.steps }, txId, "Circle Forwarding Service status returned");
-      if (latest.state === "success" || latest.state === "error" || hasConfirmedForwardedMint(latest)) return latest;
-    } catch (error) {
-      recordBridgeDebug("forwarder.poll.error", { attempt }, txId, error instanceof Error ? error.message : String(error), { error });
-      // Polling failure is not permission to reburn. Keep the last known bridge state.
+type Eip1193 = { request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown> };
+type FeeRow = { finalityThreshold?: number; minimumFee?: number; forwardFee?: { low?: number; med?: number; high?: number } };
+type IrisMessage = { status?: string; forwardTxHash?: string; eventNonce?: string; transactionHash?: string; attestation?: string };
+
+const ALLOWANCE_ABI = [{ type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] }] as const;
+const APPROVE_ABI = [{ type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] }] as const;
+const BURN_ABI = [{ type: "function", name: "depositForBurnWithHook", stateMutability: "nonpayable", inputs: [
+  { name: "amount", type: "uint256" }, { name: "destinationDomain", type: "uint32" }, { name: "mintRecipient", type: "bytes32" },
+  { name: "burnToken", type: "address" }, { name: "destinationCaller", type: "bytes32" }, { name: "maxFee", type: "uint256" },
+  { name: "minFinalityThreshold", type: "uint32" }, { name: "hookData", type: "bytes" },
+], outputs: [] }] as const;
+
+function toUnits(amount: string): bigint {
+  const value = String(amount || "").trim();
+  if (!/^\d+(\.\d{1,6})?$/.test(value)) throw new Error("Bridge amount must be a valid USDC amount.");
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole) * 1_000_000n + BigInt((fraction + "000000").slice(0, 6));
+}
+function assertAddress(value: string): asserts value is `0x${string}` { if (!/^0x[a-fA-F0-9]{40}$/.test(value)) throw new Error("Bridge recipient must be a valid EVM address."); }
+function step(name: string, state: TxStep["state"], txHash?: string, message?: string): TxStep { return { name, state, txHash, message }; }
+async function rpc(provider: Eip1193, method: string, params: unknown[] = []): Promise<any> { return provider.request({ method, params }); }
+
+async function waitReceipt(provider: Eip1193, txHash: string, timeoutMs = 120_000): Promise<any> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const receipt = await rpc(provider, "eth_getTransactionReceipt", [txHash]);
+    if (receipt) return receipt;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  throw new Error(`Transaction ${txHash} was not confirmed within ${Math.round(timeoutMs / 1000)} seconds.`);
+}
+
+async function irisGet(path: string): Promise<any> {
+  const response = await fetch(`${IRIS_PROXY}?path=${encodeURIComponent(path)}`, { headers: { Accept: "application/json" }, cache: "no-store" });
+  const text = await response.text();
+  let json: any;
+  try { json = JSON.parse(text); } catch { json = { raw: text }; }
+  if (!response.ok) throw new Error(`Circle Iris ${response.status}: ${JSON.stringify(json).slice(0, 1200)}`);
+  return json;
+}
+
+async function getFees(sourceDomain: number, destinationDomain: number, debugId: string) {
+  recordBridgeDebug("cctp.fees.request", { sourceDomain, destinationDomain, forward: true }, debugId, "Requesting live Circle forwarding fee");
+  const response = await irisGet(`/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}?forward=true`);
+  const rows: FeeRow[] = Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+  if (!rows.length) throw new Error(`Circle returned no forwarding fee quote for ${sourceDomain} → ${destinationDomain}.`);
+  const selected = rows.find((row) => Number(row.finalityThreshold) === 1000) || rows[0];
+  const forwardFeeValue = selected.forwardFee?.med ?? selected.forwardFee?.high ?? selected.forwardFee?.low;
+  if (forwardFeeValue == null) throw new Error("Circle fee response did not include forwardFee.");
+  const forwardFee = BigInt(Math.ceil(Number(forwardFeeValue)));
+  const protocolFee = BigInt(Math.ceil(Number(selected.minimumFee || 0) * 100));
+  const maxFee = forwardFee + protocolFee;
+  const finalityThreshold = Number(selected.finalityThreshold || 1000);
+  recordBridgeDebug("cctp.fees.response", { selected, forwardFee: forwardFee.toString(), protocolFee: protocolFee.toString(), maxFee: maxFee.toString(), finalityThreshold }, debugId, "Circle forwarding fee received");
+  return { forwardFee, protocolFee, maxFee, finalityThreshold };
+}
+
+async function sendTx(provider: Eip1193, from: string, to: string, data: string, debugId: string, stage: string): Promise<string> {
+  recordBridgeDebug(`${stage}.request`, { from, to, data }, debugId, `Submitting ${stage}`);
+  const hash = String(await rpc(provider, "eth_sendTransaction", [{ from, to, data }]));
+  recordBridgeDebug(`${stage}.submitted`, { txHash: hash }, debugId, `${stage} submitted`, { method: "eth_sendTransaction" });
+  return hash;
+}
+
+async function waitForwardedMint(sourceDomain: number, burnTx: string, destinationChain: ChainId, recipient: string, amount: string, debugId: string): Promise<string> {
+  recordBridgeDebug("cctp.iris.poll.start", { sourceDomain, burnTx, destinationChain, recipient, maxPolls: IRIS_MAX_POLLS, intervalMs: IRIS_POLL_MS }, debugId, "Waiting for Circle Iris forwardTxHash");
+  for (let attempt = 1; attempt <= IRIS_MAX_POLLS; attempt++) {
+    const response = await irisGet(`/v2/messages/${sourceDomain}?transactionHash=${encodeURIComponent(burnTx)}`);
+    const message: IrisMessage | undefined = Array.isArray(response?.messages) ? response.messages[0] : undefined;
+    recordBridgeDebug("cctp.iris.poll.response", { attempt, status: message?.status, forwardTxHash: message?.forwardTxHash, eventNonce: message?.eventNonce, transactionHash: message?.transactionHash, hasAttestation: Boolean(message?.attestation) }, debugId, `Circle Iris poll ${attempt}/${IRIS_MAX_POLLS}`);
+    if (message?.forwardTxHash) {
+      const mintTx = String(message.forwardTxHash);
+      const destinationConfig = getCctpConfig(destinationChain);
+      if (!destinationConfig) throw new Error(`Missing destination configuration for ${destinationChain}.`);
+      const verified = await verifyReceiptOnChain({ chainKey: destinationConfig.rpcProxyKey, txHash: mintTx, attempts: 5, delayMs: 1200 });
+      if (verified.status !== "success") throw new Error(`Circle returned forwardTxHash ${mintTx}, but the destination receipt is not successful yet.`);
+      recordBridgeDebug("cctp.destination.receipt.confirmed", { mintTx, destinationChain, recipient, amount }, debugId, "Destination mint receipt confirmed");
+      recordBridgeDebug("cctp.iris.forwarded.confirmed", { burnTx, mintTx }, debugId, "Circle Forwarding Service confirmed destination mint");
+      return mintTx;
     }
+    if (message?.status && /failed|error|rejected/i.test(message.status)) throw new Error(`Circle Iris reported forwarding status ${message.status}.`);
+    await new Promise((resolve) => setTimeout(resolve, IRIS_POLL_MS));
   }
-  return latest;
+  throw new Error(`Circle Iris did not return forwardTxHash for burn ${burnTx} within ${Math.round(IRIS_MAX_POLLS * IRIS_POLL_MS / 1000)} seconds.`);
 }
 
-async function executeForwardedBridge(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; txId?: string; previousResult?: BridgeKitResultLike; }): Promise<TransactionRecord> {
-  if (typeof window === "undefined") throw new Error("Bridge must run in the browser with your connected wallet.");
+export async function runBridgeKitFlow(params: { amount: string; fromChain: ChainId; toChain: ChainId; txId?: string; recipient?: string; failedResult?: unknown }): Promise<TransactionRecord> {
+  const debugId = params.txId || uid("bridge");
+  const source = getCctpConfig(params.fromChain);
+  const destination = getCctpConfig(params.toChain);
+  if (!source || !destination) throw new Error("Selected chains are not configured for CCTP v2.");
   if (params.fromChain === params.toChain) throw new Error("Source and destination must be different chains.");
-  const destinationConfig = getCctpConfig(params.toChain); if (!destinationConfig) throw new Error(`CCTP configuration is missing for ${params.toChain.replace(/_/g, " ")}.`);
-  const kit = await getAppKit(); if (!kit) { const detail = getAppKitLoadError(); throw new Error(detail ? `App Kit failed to load: ${detail}` : "App Kit is not loaded. Hard-refresh and retry."); }
-  const wired = await prepareSourceAdapter(params.fromChain); const recipient = params.recipient || wired.address; if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) throw new Error("Bridge recipient must be a valid EVM address.");
-  let result: BridgeKitResultLike;
-  if (params.previousResult) {
-    if (typeof (kit as any).retryBridge !== "function") throw new Error("This Circle App Kit version does not expose retryBridge().");
-    recordBridgeDebug("bridge.recovery.retry", { hasPreviousBurn: true }, params.txId, "Checking existing bridge state without reburning");
-    result = (await (kit as any).retryBridge(params.previousResult, { from: wired.adapter })) as BridgeKitResultLike;
-  } else {
-    result = (await (kit as any).bridge({ from: { adapter: wired.adapter, chain: params.fromChain }, to: { recipientAddress: recipient, chain: params.toChain, useForwarder: true }, amount: String(params.amount), token: "USDC" })) as BridgeKitResultLike;
-  }
-  recordBridgeDebug("bridge.sdk.result.initial", result, params.txId, "Initial Circle bridge result received");
-  if (result.state === "error") { const failed = mapSteps(result).find((step) => step.state === "error"); const error = new Error(failed?.message || "Circle bridge failed. Inspect the failed step and retry from the saved bridge state."); (error as any).bridgeResult = result; throw error; }
-  if (!hasConfirmedForwardedMint(result)) result = await pollForwarder(kit, result, wired.adapter, params.txId || uid("bridge"));
+  if (!EVM_CHAIN_PARAMS[params.fromChain]) throw new Error(`Unsupported EVM source chain ${params.fromChain}.`);
 
-  const steps = mapSteps(result); const burn = findStep(result, "burn"); const mint = findStep(result, "mint");
-  if (result.state === "error") { const failed = steps.find((step) => step.state === "error"); const error = new Error(failed?.message || "Circle bridge failed while waiting for destination settlement."); (error as any).bridgeResult = result; throw error; }
-  const completed = hasConfirmedForwardedMint(result);
-  return { id: params.txId || uid("tx"), type: "bridge", status: completed ? "success" : "retryable", retryable: !completed, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient, feeUsd: 0, steps: steps.length ? steps : [{ name: "Forwarded mint", state: "pending" }], txHash: completed ? mint?.txHash : burn?.txHash, explorerUrl: completed ? (mint?.explorerUrl || (mint?.txHash ? explorerTxUrl(mint.txHash) : undefined)) : (burn?.txHash ? explorerTxUrl(burn.txHash) : destinationConfig.explorerUrl), createdAt: new Date().toISOString(), message: completed ? `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Circle Forwarding Service confirmed the destination mint.` : `Source burn is recorded, but destination mint is not yet confirmed. The bridge can be checked again without submitting another burn.`, executionMode: "live", bridgeResult: result };
+  const provider = await getInjectedProvider();
+  attachBridgeProviderDiagnostics(provider, "cctp-v2-forwarder", debugId);
+  const meta = getActiveWalletMeta();
+  const accounts = (await rpc(provider, "eth_accounts")) as string[];
+  const address = String(accounts?.[0] || meta?.address || "");
+  assertAddress(address);
+  const recipient = params.recipient || address;
+  assertAddress(recipient);
+
+  await switchToChainId(provider, params.fromChain);
+  const actualChain = await getChainId(provider);
+  if (actualChain !== source.chainId) throw new Error(`Wallet is on chain ${actualChain}; expected ${source.chainId} for ${params.fromChain}.`);
+
+  recordBridgeDebug("cctp.flow.start", { amount: params.amount, source: params.fromChain, destination: params.toChain, sourceDomain: source.domain, destinationDomain: destination.domain, wallet: address, recipient, architecture: "direct-CCTP-v2-forwarding-hook" }, debugId, "Starting direct Circle CCTP v2 Forwarding Service flow");
+
+  const transferAmount = toUnits(params.amount);
+  const fees = await getFees(source.domain, destination.domain, debugId);
+  const totalAmount = transferAmount + fees.maxFee;
+  recordBridgeDebug("cctp.amounts.calculated", { transferAmount: transferAmount.toString(), forwardFee: fees.forwardFee.toString(), protocolFee: fees.protocolFee.toString(), maxFee: fees.maxFee.toString(), totalAmount: totalAmount.toString() }, debugId, "Calculated transfer amount plus forwarding fees");
+
+  const allowanceData = encodeFunctionData({ abi: ALLOWANCE_ABI, functionName: "allowance", args: [address, TOKEN_MESSENGER_V2] });
+  const allowanceRaw = await rpc(provider, "eth_call", [{ to: source.usdc, data: allowanceData }, "latest"]);
+  const allowance = BigInt(decodeFunctionResult({ abi: ALLOWANCE_ABI, functionName: "allowance", data: allowanceRaw }) as unknown as bigint);
+  recordBridgeDebug("cctp.allowance", { allowance: allowance.toString(), required: totalAmount.toString(), usdc: source.usdc, tokenMessenger: TOKEN_MESSENGER_V2 }, debugId, "Read USDC allowance");
+
+  const steps: TxStep[] = [];
+  let approvalTx: string | undefined;
+  if (allowance < totalAmount) {
+    const approveData = encodeFunctionData({ abi: APPROVE_ABI, functionName: "approve", args: [TOKEN_MESSENGER_V2, totalAmount] });
+    approvalTx = await sendTx(provider, address, source.usdc, approveData, debugId, "cctp.approval");
+    steps.push(step("USDC Approval", "pending", approvalTx));
+    const receipt = await waitReceipt(provider, approvalTx);
+    if (String(receipt?.status).toLowerCase() !== "0x1") throw new Error(`USDC approval failed: ${approvalTx}`);
+    steps[steps.length - 1] = step("USDC Approval", "success", approvalTx, "USDC approval confirmed.");
+    recordBridgeDebug("cctp.approval.confirmed", { approvalTx }, debugId, "USDC approval confirmed");
+  } else {
+    steps.push(step("USDC Approval", "success", undefined, "Existing allowance covers the bridge amount and fees."));
+    recordBridgeDebug("cctp.approval.skipped", { allowance: allowance.toString() }, debugId, "Approval signature skipped because allowance is sufficient");
+  }
+
+  const burnData = encodeFunctionData({
+    abi: BURN_ABI,
+    functionName: "depositForBurnWithHook",
+    args: [totalAmount, destination.domain, pad(recipient as `0x${string}`, { size: 32 }), source.usdc, pad("0x", { size: 32 }), fees.maxFee, fees.finalityThreshold, FORWARDING_HOOK],
+  });
+  const burnTx = await sendTx(provider, address, TOKEN_MESSENGER_V2, burnData, debugId, "cctp.burn");
+  steps.push(step("CCTP Burn + Forwarding Hook", "pending", burnTx, `Burning ${totalAmount.toString()} USDC base units with Circle forwarding hook.`));
+  const burnReceipt = await waitReceipt(provider, burnTx);
+  if (String(burnReceipt?.status).toLowerCase() !== "0x1") throw new Error(`CCTP burn failed: ${burnTx}`);
+  steps[steps.length - 1] = step("CCTP Burn + Forwarding Hook", "success", burnTx, "Source burn confirmed with cctp-forward hook data.");
+  recordBridgeDebug("cctp.burn.confirmed", { burnTx }, debugId, "CCTP burn confirmed");
+
+  const mintTx = await waitForwardedMint(source.domain, burnTx, params.toChain, recipient, params.amount, debugId);
+  steps.push(step("Destination Mint via Circle Forwarding Service", "success", mintTx, "Circle Iris returned forwardTxHash and destination receipt was confirmed."));
+
+  return {
+    id: params.txId || debugId,
+    type: "bridge",
+    status: "success",
+    retryable: false,
+    amount: params.amount,
+    token: "USDC",
+    fromChain: params.fromChain,
+    toChain: params.toChain,
+    recipient,
+    feeUsd: Number(fees.maxFee) / 1_000_000,
+    steps,
+    txHash: mintTx,
+    explorerUrl: explorerTxUrl(mintTx),
+    createdAt: new Date().toISOString(),
+    message: `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Source burn ${burnTx} confirmed; Circle Forwarding Service destination mint ${mintTx} confirmed.`,
+    executionMode: "live",
+    bridgeResult: { burnTxHash: burnTx, forwardTxHash: mintTx, approvalTxHash: approvalTx, sourceDomain: source.domain, destinationDomain: destination.domain, maxFee: fees.maxFee.toString(), forwardingFee: fees.forwardFee.toString(), protocolFee: fees.protocolFee.toString(), hookData: FORWARDING_HOOK },
+  };
 }
 
-export async function runBridgeKitFlow(params: { amount: string; fromChain: ChainId; toChain: ChainId; txId?: string; recipient?: string; failedResult?: unknown; }): Promise<TransactionRecord> { return executeForwardedBridge(params); }
-export async function runBridgeKitRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; failedTx?: TransactionRecord | null; txId?: string; }): Promise<TransactionRecord> { return executeForwardedBridge({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, txId: params.txId, previousResult: failedTxResult(params.failedTx) }); }
-function failedTxResult(tx: TransactionRecord | null | undefined): BridgeKitResultLike | undefined { if (!tx?.bridgeResult || typeof tx.bridgeResult !== "object") return undefined; const candidate = tx.bridgeResult as BridgeKitResultLike; return Array.isArray(candidate.steps) ? candidate : undefined; }
+export async function runBridgeKitRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; failedTx?: TransactionRecord | null; txId?: string }): Promise<TransactionRecord> {
+  const existing = params.failedTx?.bridgeResult as any;
+  const burnTx = existing?.burnTxHash;
+  const source = getCctpConfig(params.fromChain);
+  const recipient = params.recipient || params.failedTx?.recipient;
+  if (burnTx && source && recipient) {
+    assertAddress(recipient);
+    const debugId = params.txId || params.failedTx?.id || uid("bridge-recovery");
+    const mintTx = await waitForwardedMint(source.domain, burnTx, params.toChain, recipient, params.amount, debugId);
+    return { ...(params.failedTx as TransactionRecord), id: debugId, status: "success", retryable: false, txHash: mintTx, explorerUrl: explorerTxUrl(mintTx), steps: [...(params.failedTx?.steps || []), step("Destination Mint via Circle Forwarding Service", "success", mintTx, "Recovered existing CCTP burn through Circle Iris.")], message: `Recovered existing burn ${burnTx}; destination mint ${mintTx} confirmed.` };
+  }
+  return runBridgeKitFlow({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient, txId: params.txId });
+}
