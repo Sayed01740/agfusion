@@ -15,8 +15,19 @@ import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function previewAction(preview: Record<string, unknown> | undefined): Record<string, unknown> { if (!preview) return {}; const copy = { ...preview }; delete copy.confirmToken; return copy; }
-function previewPolicyAction(preview: Record<string, unknown> | undefined): AgentSpendAction | null { const type = String(preview?.type || ""); return type === "bridge" || type === "swap" || type === "send" || type === "route" ? type : null; }
+/** Keep the confirmation fingerprint identical across issue and consume paths. */
+function previewAction(preview: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!preview) return {};
+  const copy = { ...preview };
+  delete copy.confirmToken;
+  delete copy.executed;
+  return copy;
+}
+
+function previewPolicyAction(preview: Record<string, unknown> | undefined): AgentSpendAction | null {
+  const type = String(preview?.type || "");
+  return type === "bridge" || type === "swap" || type === "send" || type === "route" ? type : null;
+}
 
 export async function POST(req: Request) {
   const ip = clientIp(req); const limits = agentRateLimitConfig();
