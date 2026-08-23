@@ -48,6 +48,7 @@ export async function finalizeVerifiedTransaction(record: TransactionRecord, cha
   const forwardedBridge = isForwardedBridge(record);
   if (!record.txHash) {
     return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination settlement hash is missing.`, steps: appendStep(record, { name: "Destination settlement receipt", state: "pending", message: "A destination transaction hash is required before bridge completion can be declared." }) };
+  }
 
   const verificationChain = forwardedBridge ? record.toChain : chain;
   if (!verificationChain) {
