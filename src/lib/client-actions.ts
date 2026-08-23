@@ -1,7 +1,4 @@
-/**
- * Client-safe action runners with API-first + local fallback.
- */
-
+/** Client-safe action runners with API-first + local fallback. */
 import { orchestrateUserMessage } from "@/ai/orchestrator";
 import { runSendFlow, runUnifiedDeposit, runUnifiedSpend } from "@/blockchain/appkit-service";
 import { runBridgeKitFlow, runBridgeKitRecovery } from "@/blockchain/bridge-kit-service";
@@ -11,52 +8,27 @@ import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import { recordBridgeDebug, startBridgeDebugSession } from "@/lib/bridge-debug";
 import type { ActionPreview, ChainId, ChatMessage, TransactionRecord } from "@/types";
-
 function withTimeout(ms: number): AbortSignal | undefined { try { if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) return AbortSignal.timeout(ms); } catch {} return undefined; }
-
-async function assertAgentPolicy(amount: string, action: "bridge" | "swap" | "send" | "route", recipient?: string): Promise<void> {
-  const meta = getActiveWalletMeta();
-  if (!meta?.smartAccountAddress) return;
-  const res = await fetch("/api/agent/policy/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, action, recipient, smartAccountAddress: meta.smartAccountAddress }), signal: withTimeout(10_000) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.allowed !== true) throw new Error(data?.reason || "Agent spending policy blocked this transaction.");
-}
-
-export async function chatWithAI(message: string, execute = false, wallet?: { address?: string | null; chainId?: number | null; liveBalanceUsdc?: string | null; forceDemo?: boolean }): Promise<{ message: ChatMessage; transaction?: TransactionRecord }> {
-  const meta = getActiveWalletMeta();
-  const requestWallet = { ...(wallet || {}), smartAccountAddress: meta?.smartAccountAddress || null };
-  try { const res = await fetch("/api/ai/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, execute, confirmed: execute, wallet: requestWallet, stream: false }), signal: withTimeout(120_000) }); if (res.ok) { const data = await res.json(); if (data?.message) return data; } } catch {}
-  try { const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, execute }), signal: withTimeout(120_000) }); if (res.ok) { const data = await res.json(); if (data?.message) return data; } } catch {}
-  return orchestrateUserMessage(message, { execute });
-}
-
+async function assertAgentPolicy(amount: string, action: "bridge" | "swap" | "send" | "route", recipient?: string): Promise<void> { const meta = getActiveWalletMeta(); if (!meta?.smartAccountAddress) return; const res = await fetch("/api/agent/policy/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, action, recipient, smartAccountAddress: meta.smartAccountAddress }), signal: withTimeout(10_000) }); const data = await res.json().catch(() => ({})); if (!res.ok || data?.allowed !== true) throw new Error(data?.reason || "Agent spending policy blocked this transaction."); }
+export async function chatWithAI(message: string, execute = false, wallet?: { address?: string | null; chainId?: number | null; liveBalanceUsdc?: string | null; forceDemo?: boolean }): Promise<{ message: ChatMessage; transaction?: TransactionRecord }> { const meta = getActiveWalletMeta(); const requestWallet = { ...(wallet || {}), smartAccountAddress: meta?.smartAccountAddress || null }; try { const res = await fetch("/api/ai/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, execute, confirmed: execute, wallet: requestWallet, stream: false }), signal: withTimeout(120_000) }); if (res.ok) { const data = await res.json(); if (data?.message) return data; } } catch {} try { const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, execute }), signal: withTimeout(120_000) }); if (res.ok) { const data = await res.json(); if (data?.message) return data; } } catch {} return orchestrateUserMessage(message, { execute }); }
 export async function executeBridge(params: { amount: string; fromChain: ChainId; toChain: ChainId; token?: string; preferLive?: boolean; txId?: string; recipient?: string }): Promise<TransactionRecord> {
   const sessionId = startBridgeDebugSession(params.txId, { action: "bridge", amount: params.amount, token: params.token || "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, walletMeta: getActiveWalletMeta() });
   recordBridgeDebug("bridge.action.entered", params, sessionId, "Bridge action handler entered");
   try {
-    await assertAgentPolicy(params.amount, "bridge", params.recipient);
-    recordBridgeDebug("bridge.policy.passed", undefined, sessionId, "Bridge spending policy passed");
+    await assertAgentPolicy(params.amount, "bridge", params.recipient); recordBridgeDebug("bridge.policy.passed", undefined, sessionId, "Bridge spending policy passed");
     if (params.token && params.token !== "USDC") throw new Error("CCTP bridge currently supports USDC only.");
-    recordBridgeDebug("bridge.route.selected", { circleEmailWallet: getActiveWalletMeta()?.uuid === "circle-pw" }, sessionId, "Bridge execution route selected");
-    let result: TransactionRecord;
-    if (getActiveWalletMeta()?.uuid === "circle-pw") {
-      result = await runCircleEmailWalletForwardingBridge({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, txId: sessionId, recipient: params.recipient });
-    } else {
-      result = await runBridgeKitFlow({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, txId: sessionId, recipient: params.recipient });
-      result = finalizeVerifiedTransaction(result, params.toChain);
-    }
-    recordBridgeDebug("bridge.action.completed", result, sessionId, "Bridge action completed", { txHash: result.txHash });
-    return result;
-  } catch (error) {
-    recordBridgeDebug("bridge.action.failed", { params }, sessionId, error instanceof Error ? error.message : String(error), { error });
-    throw error;
-  }
+    const meta = getActiveWalletMeta(); recordBridgeDebug("bridge.route.selected", { circleEmailWallet: meta?.uuid === "circle-pw", walletType: meta?.walletType }, sessionId, "Bridge execution route selected");
+    const result = meta?.uuid === "circle-pw"
+      ? await runCircleEmailWalletForwardingBridge({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, txId: sessionId, recipient: params.recipient })
+      : await runBridgeKitFlow({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, txId: sessionId, recipient: params.recipient });
+    const verified = await finalizeVerifiedTransaction(result, params.toChain);
+    recordBridgeDebug(verified.status === "success" ? "bridge.action.completed" : "bridge.action.waiting", { status: verified.status, retryable: verified.retryable, txHash: verified.txHash, steps: verified.steps, bridgeResult: verified.bridgeResult }, sessionId, verified.status === "success" ? "Bridge action completed" : "Bridge destination settlement is not verified");
+    return verified;
+  } catch (error) { recordBridgeDebug("bridge.action.failed", { params }, sessionId, error instanceof Error ? error.message : String(error), { error }); throw error; }
 }
-
 export async function executeSwap(params: { amount: string; tokenIn?: string; tokenOut?: string; chain?: ChainId; slippageBps?: number }): Promise<TransactionRecord> { const chain = params.chain || "Arc_Testnet"; await assertAgentPolicy(params.amount, "swap"); const result = await runProductionSwap({ amount: params.amount, tokenIn: params.tokenIn || "USDC", tokenOut: params.tokenOut || "EURC", chain, slippageBps: params.slippageBps }); return finalizeVerifiedTransaction(result, chain); }
 export async function executeSend(params: { amount: string; token?: string; chain?: ChainId; recipient: string; recipientLabel?: string; preferLive?: boolean }): Promise<TransactionRecord> { const chain = params.chain || "Arc_Testnet"; await assertAgentPolicy(params.amount, "send", params.recipient); const result = await runSendFlow({ amount: params.amount, token: params.token || "USDC", chain, recipient: params.recipient, recipientLabel: params.recipientLabel, preferLive: params.preferLive ?? true }); return finalizeVerifiedTransaction(result, chain); }
 export async function executeUnifiedDeposit(params: { amount: string; fromChain: ChainId }): Promise<TransactionRecord> { const result = await runUnifiedDeposit(params); return finalizeVerifiedTransaction(result, result.fromChain || params.fromChain); }
 export async function executeUnifiedSpend(params: { amount: string; recipient: string; recipientLabel?: string }): Promise<TransactionRecord> { await assertAgentPolicy(params.amount, "route", params.recipient); const result = await runUnifiedSpend(params); return finalizeVerifiedTransaction(result, result.fromChain || "Arc_Testnet"); }
-export async function executeBridgeRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; token?: string; recipient?: string; failedTx?: TransactionRecord | null; txId?: string }): Promise<TransactionRecord> { await assertAgentPolicy(params.amount, "bridge", params.recipient); if (getActiveWalletMeta()?.uuid === "circle-pw") return runCircleEmailWalletForwardingBridge({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, txId: params.txId }); const result = await runBridgeKitRecovery({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, failedTx: params.failedTx, txId: params.txId }); return finalizeVerifiedTransaction(result, params.toChain); }
-
+export async function executeBridgeRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; token?: string; recipient?: string; failedTx?: TransactionRecord | null; txId?: string }): Promise<TransactionRecord> { const sessionId = startBridgeDebugSession(params.txId, { action: "bridge-recovery", amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient }); recordBridgeDebug("bridge.recovery.entered", { failedTx: params.failedTx }, sessionId, "Bridge recovery handler entered"); try { await assertAgentPolicy(params.amount, "bridge", params.recipient); const meta = getActiveWalletMeta(); const result = meta?.uuid === "circle-pw" ? await runCircleEmailWalletForwardingBridge({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, txId: sessionId }) : await runBridgeKitRecovery({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, failedTx: params.failedTx, txId: sessionId }); const verified = await finalizeVerifiedTransaction(result, params.toChain); recordBridgeDebug(verified.status === "success" ? "bridge.recovery.completed" : "bridge.recovery.waiting", verified, sessionId, verified.status === "success" ? "Bridge recovery completed" : "Bridge recovery still pending"); return verified; } catch (error) { recordBridgeDebug("bridge.recovery.failed", undefined, sessionId, error instanceof Error ? error.message : String(error), { error }); throw error; } }
 export function commandFromPreview(preview: ActionPreview): string { const amount = preview.amount || "50", token = preview.token || "USDC"; switch (preview.type) { case "route": return preview.recipient ? `Move $${amount} to Arc and pay ${preview.recipient}` : `Move $${amount} to Arc — need 0x recipient`; case "bridge": return `Bridge $${amount} from ${preview.fromChain || "Arc_Testnet"} to ${preview.toChain || "Base_Sepolia"}`; case "swap": return `Swap ${amount} ${token} to ${preview.tokenOut || "EURC"}`; case "send": return preview.recipient ? `Send $${amount} ${token} to ${preview.recipient}` : `Send $${amount} ${token} — paste 0x address`; default: return `Show my balances`; } }
