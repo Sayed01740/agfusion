@@ -288,6 +288,22 @@ async function tryLiveAppKitBridge(params: {
     );
   }
 
+  // Defense-in-depth — single universal choke point for EVERY bridge execution
+  // (agent/tool path, UI, and retry/recovery all funnel through here). The mint
+  // recipient is optional and defaults to the connected wallet when omitted; when
+  // one IS supplied it must be a real, non-zero, non-burn, non-demo address,
+  // because the destination mint is the irreversible half of a CCTP transfer.
+  // Fails closed before any burn/mint or network side-effect below.
+  if (params.recipient !== undefined && String(params.recipient).trim() !== "") {
+    const { requireSafeRecipient } = await import("@/lib/balances-empty");
+    params.recipient = requireSafeRecipient(
+      params.recipient,
+      "bridge recipient",
+    );
+  } else {
+    params.recipient = undefined;
+  }
+
   const { installCircleApiProxy } = await import("@/lib/circle-proxy");
   installCircleApiProxy();
 

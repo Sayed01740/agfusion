@@ -538,6 +538,33 @@ export async function executeTool(
         const fromChain = asChain(args.fromChain, "Base_Sepolia");
         const toChain = asChain(args.toChain, "Arc_Testnet");
 
+        // Bridge mint recipient is OPTIONAL — when omitted the SDK mints to the
+        // connected wallet. But when a recipient IS supplied (e.g. via the agent /
+        // tool path, which is the surface most exposed to prompt injection) it must
+        // be validated the same way execute_send/execute_route are: the destination
+        // mint is the irreversible half of a CCTP transfer, so a malformed, zero,
+        // burn, or demo address would mean unrecoverable loss. Fail closed here.
+        let bridgeRecipient: string | undefined;
+        if (
+          args.recipient !== undefined &&
+          args.recipient !== null &&
+          String(args.recipient).trim() !== ""
+        ) {
+          try {
+            bridgeRecipient = requireSafeRecipient(
+              String(args.recipient),
+              args.recipientLabel
+                ? String(args.recipientLabel)
+                : "bridge recipient",
+            );
+          } catch (e) {
+            return {
+              ok: false,
+              summary: e instanceof Error ? e.message : "Invalid recipient",
+            };
+          }
+        }
+
         // Wallet-type routing guard: Circle Email Wallets can only execute Arc ↔ Base.
         try {
           const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
@@ -563,7 +590,7 @@ export async function executeTool(
             fromChain,
             toChain,
             preferLive,
-            recipient: args.recipient ? String(args.recipient) : undefined,
+            recipient: bridgeRecipient,
           });
           return {
             ok: transaction.status === "success",
