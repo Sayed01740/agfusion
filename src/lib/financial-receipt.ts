@@ -10,25 +10,56 @@ function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: stri
   return logs.some((log: any) => { if (normalizeAddress(String(log?.address || "")) !== usdc) return false; if (String(log?.topics?.[0] || "").toLowerCase() !== TRANSFER_TOPIC) return false; if (normalizeAddress(String(log?.topics?.[2] || "")) !== target) return false; if (expected == null || allowNetAmount) return true; try { return BigInt(String(log?.data || "0x0")) === expected; } catch { return false; } });
 }
 function appendStep(record: TransactionRecord, step: TxStep): TxStep[] { return [...(record.steps || []), step]; }
-function isForwardedBridge(record: TransactionRecord): boolean { if (record.type !== "bridge" || !record.bridgeResult || typeof record.bridgeResult !== "object") return false; const steps = Array.isArray((record.bridgeResult as any).steps) ? (record.bridgeResult as any).steps : []; const mint = steps.find((step: any) => String(step?.name || "").toLowerCase().includes("mint")); return Boolean(mint?.forwarded === true); }
+function getForwardedMintHash(record: TransactionRecord): string | undefined {
+  if (record.type !== "bridge" || !record.bridgeResult || typeof record.bridgeResult !== "object") return undefined;
+  const result = record.bridgeResult as any;
+  const steps = Array.isArray(result.steps) ? result.steps : [];
+  const mint = steps.find((step: any) => String(step?.name || "").toLowerCase().includes("mint"));
+  if (result.forwardTxHash && mint?.state === "success") return String(result.forwardTxHash);
+  if (mint?.forwarded === true && result.forwardTxHash) return String(result.forwardTxHash);
+  return undefined;
+}
+function isForwardedBridge(record: TransactionRecord): boolean { return Boolean(getForwardedMintHash(record)); }
 
-/** Final settlement gate. Never upgrades a pending/retryable bridge to success. */
+/** Final settlement gate. Never upgrades an unverified bridge to success. */
 export async function finalizeVerifiedTransaction(record: TransactionRecord, chain: ChainId | undefined): Promise<TransactionRecord> {
   const forwardedBridge = isForwardedBridge(record);
+  const forwardedMintHash = getForwardedMintHash(record);
 
-  // Forwarding Service may have no user-visible destination tx hash, but it is
-  // only a valid success when the Circle SDK itself reported the mint step as
-  // successful. A forwarded flag alone is not proof of settlement.
-  if (forwardedBridge && record.status === "success" && !record.txHash) {
+  // Forwarding Service already verifies the destination transaction before
+  // returning forwardTxHash. Verify that same destination receipt again here.
+  // Do not apply the generic source-chain USDC Transfer-event gate to a
+  // destination mint transaction, because it can use the wrong chain/USDC
+  // configuration and incorrectly downgrade a settled bridge to retryable.
+  if (forwardedBridge && forwardedMintHash && record.txHash && normalizeAddress(forwardedMintHash) === normalizeAddress(record.txHash)) {
+    const destinationChain = record.toChain;
+    const destinationConfig = destinationChain ? getCctpConfig(destinationChain) : null;
+    if (!destinationConfig) {
+      return { ...record, status: "retryable", retryable: true, message: `${record.message || "Bridge"} · Destination settlement chain configuration is unavailable.`, steps: appendStep(record, { name: "Settlement verification", state: "pending", txHash: record.txHash, message: "Forwarded mint hash is present, but the destination chain configuration could not be resolved." }) };
+    }
+
+    const destinationVerified = await verifyReceiptOnChain({ chainKey: destinationConfig.rpcProxyKey, txHash: record.txHash, attempts: 5, delayMs: 1_200 });
+    if (destinationVerified.status === "success") {
+      const recipient = record.recipient || record.bridgeState?.recipient || record.bridgeState?.walletAddress;
+      return {
+        ...record,
+        status: "success",
+        retryable: false,
+        steps: [
+          ...(record.steps || []),
+          { name: "Destination settlement receipt", state: "success", txHash: record.txHash, message: `Circle Forwarding Service destination receipt confirmed on ${destinationChain}.` },
+          { name: "USDC Transfer event", state: "success", txHash: record.txHash, message: recipient ? `Destination mint settlement confirmed to ${recipient} by Circle's forwarded-mint lifecycle.` : "Destination mint settlement confirmed by Circle's forwarded-mint lifecycle." },
+        ],
+        message: `${record.message || "Bridge"} · Destination settlement verified by Circle Forwarding Service.`,
+      };
+    }
+
     return {
       ...record,
-      status: "success",
-      retryable: false,
-      steps: [...(record.steps || []),
-        { name: "Settlement verification", state: "success", message: "Circle Forwarding Service reported the destination mint as successful." },
-        { name: "USDC Transfer event", state: "success", message: "Destination settlement was confirmed by the Circle forwarded-mint lifecycle." },
-      ],
-      message: `${record.message || "Bridge"} · Destination settlement verified by Circle Forwarding Service.`,
+      status: "retryable",
+      retryable: true,
+      message: `${record.message || "Bridge"} · Circle supplied a destination mint hash, but its destination receipt is not yet confirmed.`,
+      steps: appendStep(record, { name: "Destination settlement receipt", state: "pending", txHash: record.txHash, message: destinationVerified.error || "Destination receipt is not yet confirmed; the source burn remains recoverable." }),
     };
   }
 
