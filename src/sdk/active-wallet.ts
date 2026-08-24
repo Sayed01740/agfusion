@@ -47,16 +47,6 @@ function saveMeta(meta: ActiveWalletMeta | null) {
   }
 }
 
-/**
- * Rabby and some other EVM wallets perform nonce/gas RPC calls inside their own
- * confirmation window. Those calls do NOT use AGFusion's viem public client.
- * If the wallet has a built-in/free-plan RPC such as sepolia.drpc.org, the
- * transaction can therefore fail even though /api/rpc is healthy.
- *
- * AGFusion supplies a proxy-sourced nonce before eth_sendTransaction. We never
- * replace the wallet's signing/broadcast method, so the wallet remains the sole
- * authority for user approval and custody.
- */
 function wrapWalletRpcGuard(
   provider: InjectedProvider,
   meta: ActiveWalletMeta,
@@ -118,10 +108,9 @@ function wrapWalletRpcGuard(
     request: async (args: { method: string; params?: unknown[] | Record<string, unknown> }) => {
       if (args.method === "wallet_switchEthereumChain") {
         const first = Array.isArray(args.params) ? args.params[0] : undefined;
-        const chainId =
-          first && typeof first === "object" && "chainId" in first
-            ? String((first as { chainId: string }).chainId).toLowerCase()
-            : "";
+        const chainId = first && typeof first === "object" && "chainId" in first
+          ? String((first as { chainId: string }).chainId).toLowerCase()
+          : "";
         const cfg = chainRpc[chainId];
         if (cfg) {
           try {
@@ -137,11 +126,7 @@ function wrapWalletRpcGuard(
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            try {
-              sessionStorage.setItem(`agfusion_rpc_guard_${chainId}`, msg.slice(0, 240));
-            } catch {
-              /* ignore */
-            }
+            try { sessionStorage.setItem(`agfusion_rpc_guard_${chainId}`, msg.slice(0, 240)); } catch { /* ignore */ }
           }
         }
       }
@@ -150,10 +135,7 @@ function wrapWalletRpcGuard(
         const rawTx = args.params[0];
         if (rawTx && typeof rawTx === "object") {
           const tx = { ...(rawTx as Record<string, unknown>) };
-          const from =
-            typeof tx.from === "string" && tx.from
-              ? tx.from
-              : meta.address || "";
+          const from = typeof tx.from === "string" && tx.from ? tx.from : meta.address || "";
           const hasNonce = tx.nonce !== undefined && tx.nonce !== null && tx.nonce !== "";
           if (from && !hasNonce) {
             const cfg = await currentChainConfig();
@@ -163,20 +145,14 @@ function wrapWalletRpcGuard(
                 tx.nonce = nonce;
                 if (!tx.from) tx.from = from;
                 try {
-                  sessionStorage.setItem(
-                    "agfusion_last_wallet_rpc_guard",
-                    JSON.stringify({ chain: cfg.name, chainKey: cfg.key, method: "eth_getTransactionCount", source: "agfusion-proxy", at: Date.now() }),
-                  );
-                } catch {
-                  /* ignore */
-                }
+                  sessionStorage.setItem("agfusion_last_wallet_rpc_guard", JSON.stringify({ chain: cfg.name, chainKey: cfg.key, method: "eth_getTransactionCount", source: "agfusion-proxy", at: Date.now() }));
+                } catch { /* ignore */ }
               }
             }
           }
           return originalRequest({ ...args, params: [tx, ...args.params.slice(1)] });
         }
       }
-
       return originalRequest(args);
     },
   } as InjectedProvider;
@@ -199,10 +175,7 @@ export function setActiveWallet(
   saveMeta(activeMeta);
 }
 
-export function setActiveProvider(
-  provider: InjectedProvider,
-  meta: ActiveWalletMeta,
-): void {
+export function setActiveProvider(provider: InjectedProvider, meta: ActiveWalletMeta): void {
   activeProvider = wrapWalletRpcGuard(provider, meta);
   activeMeta = meta;
   saveMeta(meta);
@@ -231,7 +204,26 @@ export async function resolveActiveProvider(
 
   const meta = getActiveWalletMeta();
   const wallets = await discover();
-  if (!wallets.length) return null;
+  if (!wallets.length && !meta) {
+    // Circle Email Wallets are intentionally not injected into window.ethereum.
+    // Restore the user-controlled wallet lazily so an Agent command issued
+    // immediately after page load cannot race WalletProvider's async hydration.
+    try {
+      const circle = await import("@/sdk/circle-pw");
+      const restored = await circle.restoreCircleSession();
+      if (restored) {
+        const nextMeta: ActiveWalletMeta = {
+          uuid: "circle-pw",
+          name: "Circle Email Wallet",
+          address: restored.address.toLowerCase(),
+        };
+        setActiveProvider(restored.provider as InjectedProvider, nextMeta);
+        return { provider: activeProvider as InjectedProvider, meta: nextMeta };
+      }
+    } catch {
+      /* continue with normal injected-wallet resolution */
+    }
+  }
 
   if (meta) {
     const hit =
@@ -251,6 +243,26 @@ export async function resolveActiveProvider(
       activeProvider = wrapWalletRpcGuard(hit.provider, nextMeta);
       activeMeta = nextMeta;
       return { provider: activeProvider, meta: activeMeta };
+    }
+
+    // A persisted Circle session may have no injected provider and therefore no
+    // discoverable wallet. Restore it even when the active metadata exists.
+    if (meta.uuid === "circle-pw") {
+      try {
+        const circle = await import("@/sdk/circle-pw");
+        const restored = await circle.restoreCircleSession();
+        if (restored) {
+          const nextMeta: ActiveWalletMeta = {
+            uuid: "circle-pw",
+            name: "Circle Email Wallet",
+            address: restored.address.toLowerCase(),
+          };
+          setActiveProvider(restored.provider as InjectedProvider, nextMeta);
+          return { provider: activeProvider as InjectedProvider, meta: nextMeta };
+        }
+      } catch {
+        /* continue */
+      }
     }
   }
 
