@@ -101,14 +101,14 @@ function classify(text: string): { type: IntentType; confidence: number } {
 }
 
 export function parseIntent(raw: string): ParsedIntent {
-  const { type, confidence } = classify(raw);
+  const classified = classify(raw);
   const amount = extractAmount(raw);
   const { token, tokenOut } = extractTokensPair(raw);
   const { fromChain, toChain } = extractChains(raw);
   const { recipient, recipientLabel } = extractRecipient(raw);
 
   let codeTopic: string | undefined;
-  if (type === "code" || type === "deploy") {
+  if (classified.type === "code" || classified.type === "deploy") {
     if (/bridge/i.test(raw)) codeTopic = "bridge";
     else if (/swap/i.test(raw)) codeTopic = "swap";
     else if (/send|payment/i.test(raw)) codeTopic = "send";
@@ -120,9 +120,30 @@ export function parseIntent(raw: string): ParsedIntent {
 
   let finalTo = toChain;
   let finalFrom = fromChain;
+  let type = classified.type;
+  let confidence = classified.confidence;
+
+  // Financial intents are executable only when every irreversible field is explicit.
+  // The agent must ask for missing information instead of silently defaulting an amount,
+  // route, token pair, or recipient.
+  if (type === "bridge" && (!amount || !finalFrom || !finalTo)) {
+    type = "unknown";
+    confidence = 0.99;
+  }
+  if (type === "swap" && (!amount || !tokenOut)) {
+    type = "unknown";
+    confidence = 0.99;
+  }
+  if (type === "send" && (!amount || !recipient)) {
+    type = "unknown";
+    confidence = 0.99;
+  }
+  if (type === "route" && (!amount || !finalFrom || !recipient)) {
+    type = "unknown";
+    confidence = 0.99;
+  }
 
   // Financial intents must be explicit. Never invent a source, destination, or amount.
-  // This prevents an ambiguous natural-language request from silently becoming a live transaction.
   if (type === "send" && !finalTo) finalTo = undefined;
   if (type === "swap" && !finalTo) finalTo = undefined;
 
