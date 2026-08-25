@@ -1,11 +1,13 @@
 /**
  * Session-sticky active wallet provider.
- * Prevents MetaMask from stealing signatures when the user connected Rabby (or any other wallet).
+ * Keeps Circle Smart Wallet and injected EVM wallets strictly separated so an
+ * installed MetaMask can never steal a Circle signing flow.
  */
 
 import type { DiscoveredWallet, InjectedProvider } from "@/sdk/wallet-adapter";
 
 const STORAGE_KEY = "agfusion_active_wallet_v1";
+const CIRCLE_META_KEY = "agfusion_circle_wallet_meta_v1";
 
 type WalletRpcConfig = {
   name: string;
@@ -37,6 +39,29 @@ function loadMeta(): ActiveWalletMeta | null {
   }
 }
 
+function loadCircleMeta(): ActiveWalletMeta | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CIRCLE_META_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      name?: string;
+      uuid?: string;
+      wallets?: Array<{ address?: string; blockchain?: string }>;
+    };
+    if (parsed?.uuid !== "circle-pw") return null;
+    const arc = parsed.wallets?.find((w) => w.blockchain === "ARC-TESTNET");
+    if (!arc?.address) return null;
+    return {
+      uuid: "circle-pw",
+      name: "Circle Email Wallet",
+      address: arc.address.toLowerCase(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function saveMeta(meta: ActiveWalletMeta | null) {
   if (typeof window === "undefined") return;
   try {
@@ -47,10 +72,22 @@ function saveMeta(meta: ActiveWalletMeta | null) {
   }
 }
 
+function clearCircleSelectionMarker() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(CIRCLE_META_KEY);
+    sessionStorage.removeItem("agfusion_circle_session_v1");
+  } catch {
+    /* ignore */
+  }
+}
+
 function wrapWalletRpcGuard(
   provider: InjectedProvider,
   meta: ActiveWalletMeta,
 ): InjectedProvider {
+  // Circle Smart Wallet is not an injected browser wallet. Never wrap or alter
+  // its provider with EVM wallet RPC guards.
   if (typeof window === "undefined") return provider;
   if (meta.uuid === "circle-pw" || !!meta.smartAccountAddress) return provider;
 
@@ -59,7 +96,7 @@ function wrapWalletRpcGuard(
     "0x4cef52": { name: "Arc Testnet", rpc: `${origin}/api/rpc?chain=arc`, explorer: "https://testnet.arcscan.app", currency: { name: "USDC", symbol: "USDC", decimals: 18 }, key: "arc" },
     "0x14a34": { name: "Base Sepolia", rpc: `${origin}/api/rpc?chain=base`, explorer: "https://sepolia.basescan.org", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "base" },
     "0xaa36a7": { name: "Ethereum Sepolia", rpc: `${origin}/api/rpc?chain=eth`, explorer: "https://sepolia.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "eth" },
-    "0x66eee": { name: "Arbitrum Sepolia", rpc: `${origin}/api/rpc?chain=arb`, explorer: "https://sepolia.arbiscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "arb" },
+    "0x66eee": { name: "Arbitrum Sepolia", rpc: `${origin}/api/rpc?chain=arb`, explorer: "https://sepolia.arbiscan.io", currency: { name: "Ether", symbol: "Ether", decimals: 18 }, key: "arb" },
     "0xaa37dc": { name: "OP Sepolia", rpc: `${origin}/api/rpc?chain=op`, explorer: "https://sepolia-optimism.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "op" },
     "0x13882": { name: "Polygon Amoy", rpc: `${origin}/api/rpc?chain=polygon`, explorer: "https://amoy.polygonscan.com", currency: { name: "MATIC", symbol: "MATIC", decimals: 18 }, key: "polygon" },
     "0xa869": { name: "Avalanche Fuji", rpc: `${origin}/api/rpc?chain=avax`, explorer: "https://testnet.snowtrace.io", currency: { name: "Avalanche", symbol: "AVAX", decimals: 18 }, key: "avax" },
@@ -163,6 +200,8 @@ export function setActiveWallet(
   address?: string,
   smartAccountAddress?: string,
 ): void {
+  // Selecting an injected EVM wallet explicitly ends the Circle selection.
+  clearCircleSelectionMarker();
   const meta: ActiveWalletMeta = {
     uuid: wallet.uuid,
     name: wallet.name,
@@ -189,6 +228,13 @@ export function clearActiveWallet(): void {
 
 export function getActiveWalletMeta(): ActiveWalletMeta | null {
   if (activeMeta) return activeMeta;
+  // Circle's own selection marker is independent of injected-wallet state.
+  // It wins when no in-memory active provider exists.
+  const circleMeta = loadCircleMeta();
+  if (circleMeta) {
+    activeMeta = circleMeta;
+    return activeMeta;
+  }
   activeMeta = loadMeta();
   return activeMeta;
 }
@@ -221,15 +267,14 @@ export async function resolveActiveProvider(
 
   const meta = getActiveWalletMeta();
 
-  // A persisted Circle session represents an explicitly connected Smart Wallet.
-  // Restore it before EIP-6963 discovery so an installed MetaMask/Rabby wallet
-  // cannot hijack Agent execution for a user who connected the Email Wallet.
+  // A persisted Circle selection represents an explicitly selected Smart Wallet.
+  // Restore it before EIP-6963 discovery so MetaMask/Rabby cannot hijack it.
   if (meta?.uuid === "circle-pw") {
     const restored = await restoreCircleActiveWallet();
     if (restored) return restored;
+    return null;
   }
 
-  // For EVM wallets, discover only after honoring the persisted active wallet.
   const wallets = await discover();
 
   if (meta) {
@@ -251,20 +296,12 @@ export async function resolveActiveProvider(
       activeMeta = nextMeta;
       return { provider: activeProvider, meta: activeMeta };
     }
-
-    // Do not silently switch an explicitly connected EVM wallet to another
-    // installed provider. If its provider disappeared, report no active wallet.
     return null;
   }
 
-  // No persisted active EVM wallet. A restored Circle session is still an
-  // explicitly authenticated Smart Wallet and should win over merely-installed
-  // browser extensions.
   const circleRestored = await restoreCircleActiveWallet();
   if (circleRestored) return circleRestored;
 
-  // Finally, accept an actually connected injected EVM wallet. Merely being
-  // installed is not enough: eth_accounts must contain an account.
   for (const w of wallets) {
     try {
       const accounts = (await w.provider.request({ method: "eth_accounts" })) as string[];
