@@ -65,12 +65,22 @@ export async function POST(req: Request) {
   if (!kitKey) return NextResponse.json({ error: "Circle Kit key is not configured on the server." }, { status: 500 });
 
   try {
-    const [{ StablecoinServiceSwapProvider }, { createViemAdapterFromProvider }, { Arc_Testnet }, viem] = await Promise.all([
+    const [{ StablecoinServiceSwapProvider }, { createViemAdapterFromProvider }, { getChainByEnum }, viem] = await Promise.all([
       import("@circle-fin/provider-stablecoin-service-swap"),
       import("@circle-fin/adapter-viem-v2"),
-      import("@circle-fin/app-kit/chains"),
+      import("@circle-fin/swap-kit"),
       import("viem"),
     ]);
+
+    // IMPORTANT: use Circle Swap Kit's canonical ChainDefinition. The previous
+    // implementation imported `Arc_Testnet` from App Kit's /chains entrypoint,
+    // which can resolve to undefined in the server bundle. That produced the
+    // misleading `supportedChains.0: Required` validation error even though the
+    // property existed in source code.
+    const arcChain = getChainByEnum("Arc_Testnet");
+    if (!arcChain || arcChain.chainId !== ARC_CHAIN_ID) {
+      throw new Error("Circle Swap Kit did not provide a valid Arc_Testnet chain definition.");
+    }
 
     const arcViem = viem.defineChain({
       id: ARC_CHAIN_ID,
@@ -89,12 +99,12 @@ export async function POST(req: Request) {
     };
     const adapter = await createViemAdapterFromProvider({
       provider,
-      capabilities: { addressContext: "user-controlled", supportedChains: [Arc_Testnet] },
+      capabilities: { addressContext: "user-controlled", supportedChains: [arcChain] },
     });
 
     const swapProvider = new StablecoinServiceSwapProvider({ kitKey });
     const estimate = await swapProvider.estimate({
-      from: { adapter, chain: Arc_Testnet },
+      from: { adapter, chain: arcChain },
       tokenInAddress: TOKEN_ADDRESSES[tokenIn],
       tokenOutAddress: TOKEN_ADDRESSES[tokenOut],
       amountIn: amount,
