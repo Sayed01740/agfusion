@@ -84,6 +84,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             uuid: "circle-pw",
             name: "Circle Email Wallet",
             address: restored.address.toLowerCase(),
+            smartAccountAddress: restored.address.toLowerCase(),
           });
           setProvider(restored.provider as never);
           setWallet(restored.address, ARC_CHAIN_ID);
@@ -286,13 +287,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setError("Connect a wallet first before enabling Auto-Agent.");
       return;
     }
-    // Security: Circle Email Wallets cannot securely derive an agent signing
-    // key (the mock provider returns a deterministic signature that anyone
-    // could recompute from the public address). Disable Auto-Agent for them.
+    // Circle Email Wallet is already a user-controlled smart wallet.
+    // Do not derive a second local/ZeroDev account from its provider.
+    // The agent must operate on the exact funded Circle wallet address.
     if (usePilotStore.getState().walletType === "circle") {
-      setError(
-        "Auto-Agent is not available for Circle Email Wallets (an agent key cannot be securely derived for this wallet type). Connect a browser wallet such as Rabby to enable Auto-Agent.",
-      );
+      try {
+        setConnecting(true);
+        const address = walletAddress.toLowerCase();
+        setActiveProvider(provider, {
+          uuid: "circle-pw",
+          name: "Circle Email Wallet",
+          address,
+          smartAccountAddress: address,
+        });
+        usePilotStore.getState().setAuthenticated(true);
+        setError(null);
+        alert("Auto-Agent enabled for your Circle Email Wallet. The agent will use this same smart-wallet address for Swap, Send and Bridge.");
+      } catch (e: any) {
+        setError(e?.message || "Failed to enable Circle Email Wallet agent mode.");
+      } finally {
+        setConnecting(false);
+      }
       return;
     }
     try {

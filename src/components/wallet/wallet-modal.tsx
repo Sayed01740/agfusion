@@ -114,6 +114,7 @@ export function WalletModal({
                   uuid: "circle-pw",
                   name: "Circle Email Wallet",
                   address: address.toLowerCase(),
+                  smartAccountAddress: address.toLowerCase(),
                 });
                 usePilotStore.getState().setWalletType("circle");
 
@@ -124,7 +125,7 @@ export function WalletModal({
                 usePilotStore.getState().setWallet(address, 5042002);
                 usePilotStore.getState().setAuthenticated(true);
                 
-                alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on Arc Testnet. Auto-Agent is optional and creates a separate smart-account address when enabled.`);
+                alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on Arc Testnet. This same Circle smart-wallet address can be used by Auto-Agent.`);
                 onClose();
               } catch (err: any) {
                 alert(err.message || "Failed to create Circle Wallet");
