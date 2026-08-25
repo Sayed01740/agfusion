@@ -11,13 +11,22 @@ type ConfirmationPayload = {
   fingerprint: string;
 };
 
+/**
+ * Confirmation tokens must use a stable server-only secret in production.
+ * Prefer AUTH_SECRET/SIWE_SECRET, but keep the transaction confirmation gate
+ * functional on deployments that already have Circle configured and do not
+ * have a separate auth secret yet. CIRCLE_API_KEY never reaches the client.
+ */
 function secret(): string {
-  const value = process.env.AUTH_SECRET?.trim();
+  const value =
+    process.env.AUTH_SECRET?.trim() ||
+    process.env.SIWE_SECRET?.trim() ||
+    process.env.CIRCLE_API_KEY?.trim();
   if (value) return value;
   if (process.env.NODE_ENV !== "production") {
     return "agfusion-local-dev-confirm-secret-change-me";
   }
-  throw new Error("AUTH_SECRET is required for transaction confirmation tokens.");
+  throw new Error("A server confirmation secret is required.");
 }
 
 function encode(value: unknown): string {
