@@ -84,59 +84,58 @@
   .arc-underline::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.2em; height: 1px; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(155,229,100,.6) 50%, transparent); opacity: .55; }
 }
 
-/* Enterprise Fintech component skin. Uses class-token selectors so existing component structure stays intact. */
+/* Enterprise Fintech component skin. Uses CSS-safe class substring selectors. */
 main {
   background: #070a0d !important;
   color: #eef3ee !important;
 }
-main [class~="bg-white"] { background: linear-gradient(145deg, #111713, #0b100d) !important; }
-main [class~="bg-[#f7f9fc]"] { background: #070a0d !important; }
-main [class~="bg-[#f8fafc]"] { background: #0d1410 !important; }
-main [class~="bg-[#eff6ff"]], main [class~="bg-[#eef2ff]"], main [class~="bg-[#f1f5f9]"] { background: #111813 !important; }
-main [class~="bg-amber-50"] { background: rgba(83,67,20,.18) !important; }
-main [class~="bg-amber-200"] { background: rgba(155,229,100,.12) !important; }
-main [class~="text-[#101828]"], main [class~="text-[#172033]"], main [class~="text-[#0b1220]"] { color: #eef3ee !important; }
-main [class~="text-[#64748b]"], main [class~="text-[#5b687a]"], main [class~="text-amber-800"] { color: #8e9a90 !important; }
-main [class~="text-amber-900"] { color: #cdd9ce !important; }
-main [class~="text-[#315bea]"] { color: #9be564 !important; }
-main [class~="border-[#e1e7ef]"], main [class~="border-[#dfe6ef]"], main [class~="border-[#d9e1ec]"], main [class~="border-[#bfdbfe"]] { border-color: rgba(255,255,255,.085) !important; }
-main [class~="border-amber-200"] { border-color: rgba(155,229,100,.15) !important; }
-main [class~="shadow-sm"], main [class*="shadow-[0_24px_70px"]] { box-shadow: 0 18px 50px rgba(0,0,0,.28) !important; }
+main [class*="bg-white"] { background: linear-gradient(145deg, #111713, #0b100d) !important; }
+main [class*="bg-[#f7f9fc"] { background: #070a0d !important; }
+main [class*="bg-[#f8fafc"] { background: #0d1410 !important; }
+main [class*="bg-[#eff6ff"], main [class*="bg-[#eef2ff"], main [class*="bg-[#f1f5f9"] { background: #111813 !important; }
+main [class*="bg-amber-50"] { background: rgba(83,67,20,.18) !important; }
+main [class*="bg-amber-200"] { background: rgba(155,229,100,.12) !important; }
+main [class*="text-[#101828"], main [class*="text-[#172033"], main [class*="text-[#0b1220"] { color: #eef3ee !important; }
+main [class*="text-[#64748b"], main [class*="text-[#5b687a"], main [class*="text-amber-800"] { color: #8e9a90 !important; }
+main [class*="text-amber-900"] { color: #cdd9ce !important; }
+main [class*="text-[#315bea"] { color: #9be564 !important; }
+main [class*="border-[#e1e7ef"], main [class*="border-[#dfe6ef"], main [class*="border-[#d9e1ec"], main [class*="border-[#bfdbfe"] { border-color: rgba(255,255,255,.085) !important; }
+main [class*="border-amber-200"] { border-color: rgba(155,229,100,.15) !important; }
+main [class*="shadow-sm"], main [class*="shadow-[0_24px_70px"] { box-shadow: 0 18px 50px rgba(0,0,0,.28) !important; }
 main [class*="bg-gradient-to-r"] { background-image: linear-gradient(100deg, #20311e, #6eaa42 55%, #9be564) !important; }
-main [class*="from-[#4f46e5]"] { --tw-gradient-from: #304c2b !important; }
-main [class*="via-[#2563eb]"] { --tw-gradient-via: #6eaa42 !important; }
-main [class*="to-[#06b6d4]"] { --tw-gradient-to: #9be564 !important; }
-main [class~="hover:bg-[#eef2ff]"]:hover { background: #182219 !important; }
-main [class~="ring-[#c7d2fe"]] { --tw-ring-color: rgba(155,229,100,.28) !important; }
-main [class~="bg-[#f8fafc]"] input, main [class~="bg-[#f8fafc]"] textarea { background: #0b100d !important; }
+main [class*="from-[#4f46e5"] { --tw-gradient-from: #304c2b !important; }
+main [class*="via-[#2563eb"] { --tw-gradient-via: #6eaa42 !important; }
+main [class*="to-[#06b6d4"] { --tw-gradient-to: #9be564 !important; }
+main [class*="hover:bg-[#eef2ff"]:hover { background: #182219 !important; }
+main [class*="ring-[#c7d2fe"] { --tw-ring-color: rgba(155,229,100,.28) !important; }
+main [class*="bg-[#f8fafc"] input, main [class*="bg-[#f8fafc"] textarea { background: #0b100d !important; }
 main button, main input, main textarea, main select { border-radius: .8rem; }
 main button { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
 main button:hover:not(:disabled) { border-color: rgba(155,229,100,.18); }
 main input, main textarea, main select { background: #0b100d; color: #eef3ee; border-color: rgba(255,255,255,.09); }
 main input::placeholder, main textarea::placeholder { color: #68766b; }
-main [class~="min-h-12"] { min-height: 3rem; }
+main [class*="min-h-12"] { min-height: 3rem; }
 
-/* Premium responsive behavior: desktop keeps density, mobile becomes a single-column command surface. */
 @media (min-width: 1024px) {
   main { max-width: 1540px !important; padding-left: 2rem !important; padding-right: 2rem !important; }
   main section { align-items: start; }
-  main [class~="rounded-[1.6rem]"] { border-radius: 1.5rem !important; }
+  main [class*="rounded-[1.6rem"] { border-radius: 1.5rem !important; }
 }
 
 @media (max-width: 1023px) {
   main { padding: .75rem .75rem calc(1rem + env(safe-area-inset-bottom)) !important; }
-  main [class~="rounded-[1.6rem]"] { border-radius: 1.25rem !important; }
-  main [class~="rounded-2xl"] { border-radius: 1rem !important; }
+  main [class*="rounded-[1.6rem"] { border-radius: 1.25rem !important; }
+  main [class*="rounded-2xl"] { border-radius: 1rem !important; }
 }
 
 @media (max-width: 640px) {
   body { font-size: 14px; }
   main { padding: .65rem .65rem calc(.8rem + env(safe-area-inset-bottom)) !important; }
   main h1 { font-size: clamp(2rem, 12vw, 3.15rem) !important; line-height: .98 !important; }
-  main [class~="grid-cols-2"] { gap: .5rem !important; }
-  main [class~="px-3.5"] { padding-left: .8rem !important; padding-right: .8rem !important; }
-  main [class~="py-3.5"] { padding-top: .8rem !important; padding-bottom: .8rem !important; }
-  main [class~="shadow-sm"] { box-shadow: 0 12px 32px rgba(0,0,0,.24) !important; }
+  main [class*="grid-cols-2"] { gap: .5rem !important; }
+  main [class*="px-3.5"] { padding-left: .8rem !important; padding-right: .8rem !important; }
+  main [class*="py-3.5"] { padding-top: .8rem !important; padding-bottom: .8rem !important; }
+  main [class*="shadow-sm"] { box-shadow: 0 12px 32px rgba(0,0,0,.24) !important; }
   main button { min-height: 2.75rem; }
   main input, main textarea, main select { font-size: 16px !important; }
 }
