@@ -7,6 +7,7 @@ import "./agfusion-calibration.css";
 import "./agfusion-light-system.css";
 import "./agfusion-mobile.css";
 import "./agfusion-web3-premium.css";
+import "./agfusion-reference-lock.css";
 
 const siteUrl = "https://agfusion.vercel.app";
 const siteTitle = "AGFusion — Stablecoin operations on Arc";
@@ -21,12 +22,12 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", site: "@AGfusion_", creator: "@AGfusion_", title: siteTitle, description: siteDescription, images: ["/og.png"] },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, themeColor: "#ffffff" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, themeColor: "#070a0d" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en"><head>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
-  </head><body className="ag-premium-shell antialiased selection:bg-blue-500/15"><AppShell>{children}</AppShell></body></html>;
+  </head><body className="ag-premium-shell antialiased selection:bg-green-400/15"><AppShell>{children}</AppShell></body></html>;
 }
