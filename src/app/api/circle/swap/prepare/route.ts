@@ -98,22 +98,22 @@ export async function POST(req: Request) {
       capabilities: { addressContext: "user-controlled", supportedChains: [arcChain] },
     });
 
-    // Circle's Stablecoin Service provider supports permissionless quote/swap preparation.
-    // Do not pass an empty kitKey: the SDK treats kitKey: "" as an invalid credential.
-    // When a valid Vercel KIT_KEY is available, it is used; otherwise the provider runs
-    // in its documented permissionless mode.
     const swapProvider = kitKey
       ? new StablecoinServiceSwapProvider({ kitKey })
       : new StablecoinServiceSwapProvider();
 
+    // Current Circle provider validation requires the generic tokenIn/tokenOut fields.
+    // Keep the address fields too for provider versions that consume the concrete addresses.
     const estimate = await swapProvider.estimate({
       from: { adapter, chain: arcChain },
+      tokenIn: tokenIn as SupportedToken,
+      tokenOut: tokenOut as SupportedToken,
       tokenInAddress: TOKEN_ADDRESSES[tokenIn],
       tokenOutAddress: TOKEN_ADDRESSES[tokenOut],
       amountIn: amount,
       to: address,
       config: { slippageBps: 100, allowanceStrategy: "approve" },
-    });
+    } as never);
 
     const transactions = collectTransactions(estimate);
     if (!transactions.length) {
