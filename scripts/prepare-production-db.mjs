@@ -1,14 +1,21 @@
 import { spawnSync } from "node:child_process";
 
-const databaseUrl =
-  process.env.POSTGRES_URL_NON_POOLING ||
-  process.env.POSTGRES_PRISMA_URL ||
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_URL;
+function isPostgresUrl(value) {
+  return Boolean(value && /^postgres(?:ql)?:\/\//i.test(value));
+}
+
+const candidates = [
+  process.env.POSTGRES_URL_NON_POOLING,
+  process.env.POSTGRES_PRISMA_URL,
+  process.env.POSTGRES_URL,
+  process.env.DATABASE_URL,
+];
+
+const databaseUrl = candidates.find(isPostgresUrl);
 
 if (!databaseUrl) {
   throw new Error(
-    "Production database is not configured. Connect the existing Postgres database and expose DATABASE_URL (or POSTGRES_PRISMA_URL/POSTGRES_URL).",
+    "Production PostgreSQL database is not configured. Connect the existing Postgres database and expose a postgres:// or postgresql:// connection URL.",
   );
 }
 
