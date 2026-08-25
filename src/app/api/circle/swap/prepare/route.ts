@@ -64,7 +64,6 @@ export async function POST(req: Request) {
   if (chainId !== ARC_CHAIN_ID) return NextResponse.json({ error: "unsupported_swap_chain" }, { status: 400 });
 
   const kitKey = getServerKitKey();
-  if (!kitKey) return NextResponse.json({ error: "Circle Kit key is not configured on the server." }, { status: 500 });
 
   try {
     const [{ StablecoinServiceSwapProvider }, { createViemAdapterFromProvider }, { getChainByEnum }, viem] = await Promise.all([
@@ -99,11 +98,18 @@ export async function POST(req: Request) {
       capabilities: { addressContext: "user-controlled", supportedChains: [arcChain] },
     });
 
-    const swapProvider = new StablecoinServiceSwapProvider({ kitKey });
+    // Circle's Stablecoin Service provider supports permissionless quote/swap preparation.
+    // Do not pass an empty kitKey: the SDK treats kitKey: "" as an invalid credential.
+    // When a valid Vercel KIT_KEY is available, it is used; otherwise the provider runs
+    // in its documented permissionless mode.
+    const swapProvider = kitKey
+      ? new StablecoinServiceSwapProvider({ kitKey })
+      : new StablecoinServiceSwapProvider();
+
     const estimate = await swapProvider.estimate({
       from: { adapter, chain: arcChain },
-      tokenIn: tokenIn as SupportedToken,
-      tokenOut: tokenOut as SupportedToken,
+      tokenInAddress: TOKEN_ADDRESSES[tokenIn],
+      tokenOutAddress: TOKEN_ADDRESSES[tokenOut],
       amountIn: amount,
       to: address,
       config: { slippageBps: 100, allowanceStrategy: "approve" },
