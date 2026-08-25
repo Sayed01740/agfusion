@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, Loader2, Radio, XCircle, ExternalLink } from "lucide-react";
+import { ExternalLink, Loader2, Radio } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePilotStore } from "@/store/pilot-store";
 import { shortenAddress } from "@/lib/utils";
 import { CHAINS } from "@/lib/chains";
+import type { ChainId } from "@/types";
 
-function explorerFor(tx: { fromChain?: keyof typeof CHAINS; toChain?: keyof typeof CHAINS }, hash: string) {
+function explorerFor(tx: { fromChain?: ChainId; toChain?: ChainId }, hash: string) {
   const chain = tx.toChain ?? tx.fromChain;
   const base = chain ? CHAINS[chain]?.explorer : undefined;
   return base ? `${base}/tx/${hash}` : undefined;
