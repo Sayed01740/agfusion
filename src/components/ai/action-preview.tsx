@@ -6,6 +6,8 @@ import type { ActionPreview } from "@/types";
 import { Button } from "@/components/ui/button";
 import { formatUsdc } from "@/lib/fees";
 import { CHAINS } from "@/lib/chains";
+import { useWallet } from "@/providers/wallet-provider";
+import { usePilotStore } from "@/store/pilot-store";
 
 export function ActionPreviewCard({
   preview,
@@ -18,6 +20,9 @@ export function ActionPreviewCard({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { signInSiwe } = useWallet();
+  const walletType = usePilotStore((s) => s.walletType);
+  const walletAddress = usePilotStore((s) => s.walletAddress);
   const done = Boolean(preview.executed);
   const cta = preview.type === "swap"
     ? "Confirm & open wallet to swap"
@@ -27,6 +32,37 @@ export function ActionPreviewCard({
         ? "Confirm & open wallet to transfer"
         : "Confirm & open wallet";
 
+  async function ensureWalletServerSession() {
+    const current = await fetch("/api/auth/me", { cache: "no-store" });
+    const currentData = await current.json().catch(() => ({}));
+    if (currentData?.authenticated === true) return;
+
+    if (walletType === "circle") {
+      if (!walletAddress) throw new Error("Connect your Circle Email Wallet before confirming.");
+      const { getCircleSession } = await import("@/sdk/circle-pw");
+      const circleSession = getCircleSession();
+      if (!circleSession?.userToken) {
+        throw new Error("Your Circle Email Wallet session has expired. Reconnect the wallet and try again.");
+      }
+
+      const sessionResponse = await fetch("/api/circle/pw/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userToken: circleSession.userToken, address: walletAddress }),
+      });
+      const sessionData = await sessionResponse.json().catch(() => ({}));
+      if (!sessionResponse.ok || sessionData?.ok !== true) {
+        throw new Error(sessionData?.message || "Could not authorize the connected Circle Email Wallet.");
+      }
+      return;
+    }
+
+    const signedIn = await signInSiwe();
+    if (!signedIn) {
+      throw new Error("Wallet sign-in was cancelled or failed. Please approve the sign-in message, then try again.");
+    }
+  }
+
   async function confirmAndExecute() {
     if (!preview.canExecute || done || busy || confirming) return;
 
@@ -34,9 +70,12 @@ export function ActionPreviewCard({
     setError(null);
 
     try {
-      // Local agent previews do not have a server capability yet. Ask the
-      // server to issue one for this exact preview, then consume it once.
-      // Server-issued previews already carry a token, so we reuse it.
+      // The confirmation API requires a server session. A normal EVM wallet
+      // establishes it with SIWE; Circle Email Wallet establishes it from its
+      // already-authenticated Circle user token because Circle does not expose
+      // personal_sign in this integration.
+      await ensureWalletServerSession();
+
       let confirmToken = preview.confirmToken;
 
       if (!confirmToken) {
