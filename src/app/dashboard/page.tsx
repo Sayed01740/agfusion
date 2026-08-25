@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChatPanel } from "@/components/ai/chat-panel";
 import { ToolsWorkspace } from "@/components/panels/tools-workspace";
 import { TransactionProgress } from "@/components/tx/transaction-progress";
+import { LiveOperationPanel } from "@/components/tx/live-operation-panel";
 import { UserGuideCard } from "@/components/onboarding/user-guide";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +130,7 @@ export default function DashboardPage() {
         <div className={cn("min-w-0 w-full space-y-4 lg:col-span-5 xl:col-span-4", mobileTab !== "tools" && "hidden lg:block")}>
           <UserGuideCard />
           <div id="tools" className="min-w-0 w-full overflow-hidden"><ToolsWorkspace defaultTab="send" /></div>
+          <LiveOperationPanel />
           {active && <TransactionProgress tx={active} onRetry={active.status === "error" || active.retryable ? () => void retryActive() : undefined} />}
           <Card className="w-full overflow-hidden border-[#e1e7ef] bg-white shadow-sm">
             <CardHeader className="pb-2"><div className="flex items-center justify-between gap-3"><CardTitle className="truncate text-sm text-[#172033]">Activity timeline</CardTitle><a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-[#315bea] hover:bg-[#eef2ff]">Operate <ArrowRight className="h-3 w-3" /></a></div></CardHeader>

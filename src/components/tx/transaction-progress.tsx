@@ -34,15 +34,11 @@ function getStepExplorerUrl(tx: TransactionRecord, stepName: string, txHash: str
 function getTransactionExplorerUrl(tx: TransactionRecord): string | null {
   if (!tx.txHash) return null;
 
-  // A completed bridge's canonical transaction is the destination mint/receive
-  // transaction. The source burn is a separate transaction on the source chain.
   if (tx.type === "bridge") {
     const destinationChain = tx.toChain ?? tx.bridgeState?.toChain;
     const destinationHash = tx.bridgeState?.destinationTxHash ?? tx.txHash;
     const explorer = destinationChain ? CHAINS[destinationChain]?.explorer : undefined;
-    if (explorer && destinationHash) {
-      return `${explorer}/tx/${destinationHash}`;
-    }
+    if (explorer && destinationHash) return `${explorer}/tx/${destinationHash}`;
   }
 
   if (tx.explorerUrl) {
@@ -74,11 +70,7 @@ export function TransactionProgress({
             {tx.tokenOut ? ` → ${tx.tokenOut}` : ""}
           </CardTitle>
           <div className="flex items-center gap-1.5">
-            <Badge
-              variant={
-                tx.executionMode === "live" ? "cyan" : "outline"
-              }
-            >
+            <Badge variant={tx.executionMode === "live" ? "cyan" : "outline"}>
               {tx.executionMode === "live" ? "Live" : "Demo"}
             </Badge>
             <Badge
@@ -100,9 +92,7 @@ export function TransactionProgress({
             {tx.recipient ? ` (${shortenAddress(tx.recipient)})` : ""}
           </p>
         )}
-        {tx.message && (
-          <p className="text-[11px] text-slate-500 mt-0.5">{tx.message}</p>
-        )}
+        {tx.message && <p className="mt-0.5 text-[11px] text-slate-500">{tx.message}</p>}
       </CardHeader>
       <CardContent className="space-y-3">
         <ol className="space-y-2">
@@ -130,9 +120,7 @@ export function TransactionProgress({
                 >
                   {step.name}
                   {step.message && (
-                    <span className="block text-[10px] text-slate-500">
-                      {step.message}
-                    </span>
+                    <span className="block text-[10px] text-slate-500">{step.message}</span>
                   )}
                 </span>
                 {step.txHash && stepExplorerUrl ? (
@@ -140,32 +128,25 @@ export function TransactionProgress({
                     href={stepExplorerUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-mono text-[10px] text-cyan-400/80 hover:text-cyan-300 underline truncate max-w-[120px]"
+                    className="max-w-[120px] truncate font-mono text-[10px] text-cyan-400/80 underline hover:text-cyan-300"
                     title={`${step.name} transaction`}
                   >
                     {shortenAddress(step.txHash, 3)}
                   </a>
                 ) : step.txHash ? (
-                  <span className="font-mono text-[10px] text-slate-500">
-                    {shortenAddress(step.txHash, 3)}
-                  </span>
+                  <span className="font-mono text-[10px] text-slate-500">{shortenAddress(step.txHash, 3)}</span>
                 ) : null}
               </motion.li>
             );
           })}
         </ol>
-        {typeof tx.feeUsd === "number" && (
-          <FeeLineItems quote={feeFromUsd(tx.feeUsd)} compact />
-        )}
-        <div className="text-xs text-muted-foreground border-t border-white/5 pt-3 flex flex-wrap items-center justify-between gap-2">
+        {typeof tx.feeUsd === "number" && <FeeLineItems quote={feeFromUsd(tx.feeUsd)} compact />}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-3 text-xs text-muted-foreground">
           {typeof tx.feeUsd === "number" ? (
             <span className="tabular-nums">
-              Gas line ·{" "}
-              <span className="text-slate-300">{formatUsdc(tx.feeUsd)}</span>
+              Gas line · <span className="text-slate-300">{formatUsdc(tx.feeUsd)}</span>
             </span>
-          ) : (
-            <span />
-          )}
+          ) : <span />}
           <div className="flex gap-2">
             {transactionExplorerUrl && (
               <a
@@ -179,8 +160,7 @@ export function TransactionProgress({
             )}
             {(tx.status === "error" || tx.retryable) && onRetry && (
               <Button size="sm" variant="outline" onClick={onRetry} type="button">
-                <RotateCcw className="h-3 w-3" />
-                Retry
+                <RotateCcw className="h-3 w-3" /> Retry
               </Button>
             )}
           </div>
@@ -191,24 +171,35 @@ export function TransactionProgress({
 }
 
 function StepIcon({ state }: { state: string }) {
-  if (state === "success")
+  if (state === "success") {
     return (
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
         <Check className="h-3.5 w-3.5" />
       </span>
     );
-  if (state === "active")
+  }
+
+  if (state === "active") {
     return (
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-cyan-300">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      </span>
+      <motion.span
+        className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-cyan-300"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 0.85, ease: "linear", repeat: Infinity }}
+        aria-label="In progress"
+      >
+        <Loader2 className="h-3.5 w-3.5" />
+      </motion.span>
     );
-  if (state === "error")
+  }
+
+  if (state === "error") {
     return (
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500/15 text-red-400">
         <X className="h-3.5 w-3.5" />
       </span>
     );
+  }
+
   return (
     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-slate-600">
       <Circle className="h-3 w-3" />
