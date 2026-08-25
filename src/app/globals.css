@@ -84,5 +84,14 @@
   .arc-underline::after { content: ""; position: absolute; left: 0; right: 0; bottom: -.2em; height: 1px; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55) 50%, transparent); opacity: .5; }
 }
 
+/* Transaction/loading indicators must not depend on Framer Motion or icon aliases. */
+@keyframes agfusion-loader-spin { to { transform: rotate(360deg); } }
+.lucide-loader-circle,
+.agfusion-live-loader {
+  animation: agfusion-loader-spin .9s linear infinite !important;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
 .animate-pulse { animation: none !important; }
 [class*="shadow-cyan-"], [class*="shadow-blue-"], [class*="shadow-teal-"] { box-shadow: 0 14px 38px rgba(0,0,0,.28) !important; }
