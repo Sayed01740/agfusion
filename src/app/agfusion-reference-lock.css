@@ -1,0 +1,129 @@
+/* AGFusion reference lock: component-level overrides that enforce the supplied dark reference.
+   This layer intentionally sits after legacy/light theme files so hard-coded component classes cannot leak white UI. */
+
+:root { color-scheme: dark !important; }
+html, body { background:#070a0d !important; color:#eef3ee !important; }
+
+/* Navbar: the existing component contains literal light-theme utility classes. */
+.ag-premium-shell header,
+.ag-premium-shell header[class*="bg-white"],
+.ag-premium-shell header[class*="text-[#172033"]] {
+  background:#0a0f0c !important;
+  color:#eef3ee !important;
+  border-color:#242c27 !important;
+  box-shadow:0 8px 28px rgba(0,0,0,.30) !important;
+  backdrop-filter:blur(14px) !important;
+  -webkit-backdrop-filter:blur(14px) !important;
+}
+
+.ag-premium-shell header [class*="text-[#172033]"],
+.ag-premium-shell header [class*="text-[#64748b]"],
+.ag-premium-shell header [class*="text-[#475569]"] {
+  color:#aab5ad !important;
+}
+.ag-premium-shell header [class*="text-[#172033]"] { color:#eef3ee !important; }
+.ag-premium-shell header [class*="bg-white"],
+.ag-premium-shell header [class*="bg-[#f8fafc]"],
+.ag-premium-shell header [class*="bg-[#f1f5f9]"],
+.ag-premium-shell header [class*="bg-[#eef2ff]"] {
+  background:#111713 !important;
+  color:#eef3ee !important;
+}
+.ag-premium-shell header [class*="border-[#e"],
+.ag-premium-shell header [class*="border-[#c"],
+.ag-premium-shell header [class*="border-[#d"],
+.ag-premium-shell header [class*="border-[#b"] { border-color:#2a342d !important; }
+.ag-premium-shell header [class*="text-[#315bea]"],
+.ag-premium-shell header [class*="text-blue-"] { color:#9be564 !important; }
+.ag-premium-shell header [class*="bg-gradient-to-r"] {
+  background:#9be564 !important;
+  background-image:none !important;
+  color:#071008 !important;
+  box-shadow:0 8px 22px rgba(155,229,100,.12) !important;
+}
+
+/* Mobile bottom navigation. */
+.ag-premium-shell nav.fixed.bottom-0 {
+  background:#0b100d !important;
+  border-color:#242c27 !important;
+  box-shadow:0 -14px 34px rgba(0,0,0,.38) !important;
+  backdrop-filter:blur(18px) !important;
+}
+.ag-premium-shell nav.fixed.bottom-0 a { color:#89958c !important; }
+.ag-premium-shell nav.fixed.bottom-0 a[class*="bg-[#eef2ff]"],
+.ag-premium-shell nav.fixed.bottom-0 a[class*="ring-[#c7d2fe]"] {
+  background:#182316 !important;
+  color:#b4f27b !important;
+  box-shadow:inset 0 0 0 1px rgba(155,229,100,.22) !important;
+}
+
+/* Chat panel itself. */
+.ag-premium-shell [class*="bg-[#0a1120]"],
+.ag-premium-shell [class*="from-[#0c1628]"],
+.ag-premium-shell [class*="to-[#060d18]"] {
+  background:#0a0f0c !important;
+  background-image:none !important;
+}
+.ag-premium-shell [class*="bg-white/[0.01]"],
+.ag-premium-shell [class*="bg-white/["] { background:#0d1210 !important; }
+.ag-premium-shell [class*="bg-gradient-to-tr"],
+.ag-premium-shell [class*="from-cyan-500/20"],
+.ag-premium-shell [class*="to-purple-500/20"],
+.ag-premium-shell [class*="from-cyan-500/20"],
+.ag-premium-shell [class*="to-blue-600/20"] {
+  background:#111713 !important;
+  background-image:none !important;
+}
+.ag-premium-shell [class*="text-cyan-100"],
+.ag-premium-shell [class*="text-cyan-400"],
+.ag-premium-shell [class*="text-cyan-400/80"],
+.ag-premium-shell [class*="text-blue-"] { color:#9be564 !important; }
+.ag-premium-shell [class*="bg-cyan-400"],
+.ag-premium-shell [class*="bg-cyan-500"],
+.ag-premium-shell [class*="bg-cyan-500/20"],
+.ag-premium-shell [class*="bg-blue-600/20"] { background:#9be564 !important; }
+
+/* The light message/response surfaces visible in the screenshot. */
+.ag-premium-shell [class*="bg-white"],
+.ag-premium-shell [class*="bg-gray-50"],
+.ag-premium-shell [class*="bg-slate-50"],
+.ag-premium-shell [class*="bg-slate-100"] {
+  background:#0d1210 !important;
+  color:#eef3ee !important;
+}
+.ag-premium-shell [class*="text-black"],
+.ag-premium-shell [class*="text-gray-900"],
+.ag-premium-shell [class*="text-slate-900"] { color:#eef3ee !important; }
+
+/* Buttons, pills and input area in the agent composer. */
+.ag-premium-shell [class*="border-white"],
+.ag-premium-shell [class*="border-slate-"],
+.ag-premium-shell [class*="border-[#"] { border-color:#2a342d !important; }
+.ag-premium-shell input,
+.ag-premium-shell textarea,
+.ag-premium-shell select {
+  background:#0a0f0c !important;
+  color:#eef3ee !important;
+  border-color:#354039 !important;
+}
+.ag-premium-shell input::placeholder,
+.ag-premium-shell textarea::placeholder { color:#68746b !important; }
+
+/* Preserve functional green status indicators, remove blue/purple treatment. */
+.ag-premium-shell [class*="ring-cyan"],
+.ag-premium-shell [class*="ring-blue"],
+.ag-premium-shell [class*="ring-purple"] { --tw-ring-color:rgba(155,229,100,.24) !important; }
+.ag-premium-shell [class*="shadow-cyan"],
+.ag-premium-shell [class*="shadow-blue"],
+.ag-premium-shell [class*="shadow-purple"] { --tw-shadow-color:rgba(155,229,100,.12) !important; }
+
+/* Force the reference hierarchy on generic rounded panels used by chat/tools. */
+.ag-premium-shell .rounded-2xl,
+.ag-premium-shell .rounded-3xl { border-color:#242c27; }
+
+/* Mobile reference spacing and dark header. */
+@media (max-width:767px) {
+  .ag-premium-shell header { height:56px !important; }
+  .ag-premium-shell header > div { height:56px !important; }
+  .ag-premium-shell nav.fixed.bottom-0 { left:8px !important; right:8px !important; bottom:8px !important; border-radius:17px !important; }
+}
