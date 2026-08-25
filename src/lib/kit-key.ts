@@ -1,182 +1,77 @@
 /**
- * Circle App Kit key for live Swap on Arc Testnet.
- * Free: https://console.circle.com → Keys → Kit keys
+ * Server-only Circle App Kit credential helpers.
  *
- * Circle expects: KIT_KEY:<keyId>:<keySecret>
+ * Kit keys are bearer credentials and must never be stored in browser storage
+ * or exposed through NEXT_PUBLIC_* variables. Live swaps now use the server-side
+ * Circle swap preparation endpoint.
  */
 
 const STORAGE_KEY = "agfusion_kit_key";
 
-/**
- * Normalize pasted keys into Circle's expected format.
- * Strips BOM, quotes, CR/LF, and accidental env labels.
- */
 export function normalizeKitKey(raw: string): string {
   let k = String(raw || "")
     .replace(/^\uFEFF/, "")
     .trim()
     .replace(/^["']|["']$/g, "")
-    // Env/CLI sometimes injects \\n or stray backslashes
     .replace(/\\n/gi, "")
     .replace(/\\r/gi, "")
     .replace(/\\/g, "")
     .replace(/[\r\n\t"']/g, "")
     .trim();
-
-  // Strip accidental env labels (not the KIT_KEY: credential prefix)
   k = k.replace(/^NEXT_PUBLIC_KIT_KEY\s*[:=]\s*/i, "").trim();
   k = k.replace(/^process\.env\.\w+\s*[:=]\s*/i, "").trim();
-
-  // Already full form — force uppercase KIT_KEY prefix
   if (/^KIT_KEY:/i.test(k)) {
     const rest = k.replace(/^KIT_KEY:/i, "").replace(/\s+/g, "");
     return `KIT_KEY:${rest}`;
   }
-
-  // User pasted "KIT_KEY=..." or "KIT_KEY: id:secret" variations
   k = k.replace(/^KIT_KEY\s*[:=]\s*/i, "").replace(/\s+/g, "").trim();
-
-  // id:secret → KIT_KEY:id:secret (required by App Kit docs)
-  if (/^[a-f0-9]{8,}:[a-f0-9]{8,}$/i.test(k)) {
-    return `KIT_KEY:${k}`;
-  }
-
+  if (/^[a-f0-9]{8,}:[a-f0-9]{8,}$/i.test(k)) return `KIT_KEY:${k}`;
   return k;
 }
 
-/** True when key matches Circle SDK apiKeySchema */
 export function isValidKitKeyShape(key: string | null | undefined): boolean {
   if (!key) return false;
-  const n = normalizeKitKey(key);
-  // Same as @circle-fin provider: KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+
-  return /^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(n);
+  return /^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(normalizeKitKey(key));
 }
 
-export function getPublicKitKey(): string | undefined {
-  // 1) User paste (session) — only if shape is valid
-  if (typeof window !== "undefined") {
-    try {
-      const local = sessionStorage.getItem(STORAGE_KEY);
-      if (local) {
-        const n = normalizeKitKey(local);
-        if (isValidKitKeyShape(n)) return n;
-        // Bad cached key — drop it so server/env can take over
-        sessionStorage.removeItem(STORAGE_KEY);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // 2) Build-time public env
-  const env =
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_KIT_KEY?.trim()
-      : undefined;
-  if (env) {
-    const n = normalizeKitKey(env);
-    if (isValidKitKeyShape(n)) return n;
-  }
-
+/** Browser callers intentionally receive no Kit credential. */
+export function getPublicKitKey(): undefined {
   return undefined;
 }
 
-export function setSessionKitKey(key: string | null): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (!key?.trim()) {
-      sessionStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    const n = normalizeKitKey(key);
-    if (!isValidKitKeyShape(n)) {
-      throw new Error(
-        "Invalid kit key format. Expected KIT_KEY:id:secret (hex id and secret).",
-      );
-    }
-    sessionStorage.setItem(STORAGE_KEY, n);
-  } catch (e) {
-    if (e instanceof Error && /Invalid kit key/.test(e.message)) throw e;
-    /* ignore storage errors */
+/** Deprecated: Kit credentials are no longer accepted in browser storage. */
+export function setSessionKitKey(_key: string | null): void {
+  if (typeof window !== "undefined") {
+    try { window.sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
+  throw new Error("Circle Kit keys are server-only. Configure KIT_KEY on Vercel instead of pasting a key into the browser.");
 }
 
 export function clearSessionKitKey(): void {
   if (typeof window === "undefined") return;
-  try {
-    sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+  try { window.sessionStorage.removeItem(STORAGE_KEY); } catch {}
 }
 
-export function hasKitKey(): boolean {
-  return Boolean(getPublicKitKey());
-}
+export function hasKitKey(): boolean { return false; }
 
-/**
- * Ensure a kit key is available for App Kit.
- * Order: valid session paste → NEXT_PUBLIC → server bootstrap (/api/kit).
- */
-export async function ensureKitKey(): Promise<string | undefined> {
-  const local = getPublicKitKey();
-  if (local) return local;
+/** Legacy callers get no browser credential and must use their server-backed flow. */
+export async function ensureKitKey(): Promise<undefined> { return undefined; }
 
-  if (typeof window === "undefined") return undefined;
-
-  try {
-    const res = await fetch("/api/kit", { cache: "no-store" });
-    if (!res.ok) return undefined;
-    const data = (await res.json()) as { kitKey?: string | null };
-    if (data.kitKey && isValidKitKeyShape(data.kitKey)) {
-      const n = normalizeKitKey(data.kitKey);
-      // Cache for this tab so App Kit always has it
-      try {
-        sessionStorage.setItem(STORAGE_KEY, n);
-      } catch {
-        /* ignore */
-      }
-      return n;
-    }
-  } catch {
-    /* ignore */
-  }
-  return undefined;
-}
-
-/** Walk Circle KitError / viem nested causes for the real failure text. */
 function digErrorText(e: unknown, depth = 0): string[] {
   if (e == null || depth > 6) return [];
   if (typeof e === "string") return e.trim() ? [e.trim()] : [];
   if (typeof e !== "object") return [String(e)];
-
   const o = e as Record<string, unknown>;
   const out: string[] = [];
-
-  for (const key of [
-    "shortMessage",
-    "message",
-    "details",
-    "reason",
-    "data",
-  ] as const) {
+  for (const key of ["shortMessage", "message", "details", "reason", "data"] as const) {
     const v = o[key];
     if (typeof v === "string" && v.trim()) out.push(v.trim());
     else if (v && typeof v === "object") {
-      try {
-        out.push(JSON.stringify(v).slice(0, 240));
-      } catch {
-        /* ignore */
-      }
+      try { out.push(JSON.stringify(v).slice(0, 240)); } catch {}
     }
   }
-
   if (o.code != null) out.push(`code=${String(o.code)}`);
-  if (typeof o.name === "string" && o.name && o.name !== "Error") {
-    out.push(o.name);
-  }
-
-  // Circle: cause.trace.rawError | cause.rawError | meta.rawError
+  if (typeof o.name === "string" && o.name && o.name !== "Error") out.push(o.name);
   const cause = o.cause;
   if (cause && typeof cause === "object") {
     const c = cause as Record<string, unknown>;
@@ -191,29 +86,22 @@ function digErrorText(e: unknown, depth = 0): string[] {
   }
   if (o.rawError) out.push(...digErrorText(o.rawError, depth + 1));
   if (o.error) out.push(...digErrorText(o.error, depth + 1));
-
   return out;
 }
 
-/** Extract a human-readable message from Circle Kit / wallet errors */
 export function formatKitError(e: unknown): string {
   if (!e) return "Unknown error";
   if (typeof e === "string") return e;
-
-  const parts = digErrorText(e);
-  // Dedupe while preserving order
   const seen = new Set<string>();
   const unique: string[] = [];
-  for (const p of parts) {
-    const k = p.toLowerCase();
-    if (seen.has(k)) continue;
-    seen.add(k);
-    unique.push(p);
+  for (const part of digErrorText(e)) {
+    const key = part.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(part);
   }
-
-  const joined = unique.join(" · ");
-  return joined || String(e);
+  return unique.join(" · ") || String(e);
 }
 
 export const KIT_KEY_HELP =
-  "Circle Kit key missing or invalid. Site owner: set KIT_KEY on Vercel to a NEW key from console.circle.com → Keys → Kit keys (format KIT_KEY:id:secret), redeploy. End users should not need to paste a key.";
+  "Circle Kit key is server-only. Configure KIT_KEY on Vercel from Circle Console → Keys → Kit keys. Do not use NEXT_PUBLIC_KIT_KEY or paste the key into the browser.";
