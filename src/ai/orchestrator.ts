@@ -14,8 +14,8 @@ import {
   estimateSwapDemo,
   runBridgeFlow,
   runSendFlow,
-  runSwapFlow,
 } from "@/blockchain/appkit-service";
+import { runCircleSafeSwapFlow } from "@/blockchain/circle-safe-swap";
 
 export interface OrchestratorResult {
   message: ChatMessage;
@@ -84,13 +84,10 @@ export async function orchestrateUserMessage(content: string, options?: { execut
     if (intent.type === "bridge" && intent.amount && intent.fromChain && intent.toChain) {
       transaction = await runBridgeFlow({ amount: intent.amount, token: intent.token || "USDC", fromChain: intent.fromChain, toChain: intent.toChain });
     } else if (intent.type === "swap" && intent.amount && intent.token && intent.tokenOut && intent.toChain) {
-      transaction = await runSwapFlow({ amount: intent.amount, tokenIn: intent.token, tokenOut: intent.tokenOut, chain: intent.toChain });
+      transaction = await runCircleSafeSwapFlow({ amount: intent.amount, tokenIn: intent.token, tokenOut: intent.tokenOut, chain: intent.toChain });
     } else if (intent.type === "send" && intent.amount && intent.recipient && intent.toChain && /^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
       transaction = await runSendFlow({ amount: intent.amount, token: intent.token || "USDC", chain: intent.toChain, recipient: intent.recipient, recipientLabel: intent.recipientLabel });
     } else if (intent.type === "route" && intent.amount && intent.fromChain && intent.toChain && intent.recipient && /^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
-      // Intentionally do not use the old unified-route helper here. Its legacy
-      // fallback could send on Arc after a bridge failure. A failed bridge must
-      // stop the operation and surface recovery to the user.
       const bridged = await runBridgeFlow({ amount: intent.amount, token: intent.token || "USDC", fromChain: intent.fromChain, toChain: intent.toChain });
       if (bridged.status === "success") {
         transaction = await runSendFlow({ amount: intent.amount, token: intent.token || "USDC", chain: intent.toChain, recipient: intent.recipient, recipientLabel: intent.recipientLabel, preferLive: true });
