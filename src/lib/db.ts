@@ -3,10 +3,10 @@ import { PrismaClient } from "@prisma/client";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 /**
- * Resolve only real PostgreSQL connection strings.
- * Vercel integrations can expose several variables, and an older
- * DATABASE_URL may contain a non-Postgres value. Prisma must never be
- * initialized with that stale value when a valid Postgres URL is available.
+ * Production database resolution is intentionally limited to the Postgres
+ * variables supplied by the connected Vercel Postgres integration.
+ * A legacy DATABASE_URL is not consulted, so an old SQLite/non-Postgres
+ * value can never override the production database configuration.
  */
 function isPostgresUrl(value: string | undefined): value is string {
   return Boolean(value && /^postgres(?:ql)?:\/\//i.test(value));
@@ -17,7 +17,6 @@ function resolveDatabaseUrl(): string | undefined {
     process.env.POSTGRES_PRISMA_URL,
     process.env.POSTGRES_URL,
     process.env.POSTGRES_URL_NON_POOLING,
-    process.env.DATABASE_URL,
   ];
 
   return candidates.find(isPostgresUrl);
@@ -28,7 +27,7 @@ export function getPrisma(): PrismaClient {
     const url = resolveDatabaseUrl();
     if (!url) {
       throw new Error(
-        "Production PostgreSQL database URL is not configured or is invalid. Expected postgres:// or postgresql://.",
+        "Production PostgreSQL database URL is not configured or is invalid. Expected postgres:// or postgresql:// from the connected Vercel Postgres integration.",
       );
     }
 
