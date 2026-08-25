@@ -3,6 +3,7 @@
  * Always reuses the user-selected wallet (Rabby, MetaMask, …) — never hijacks to MetaMask.
  */
 
+import { ArcTestnet } from "@circle-fin/app-kit/chains";
 import {
   ARC_CHAIN_ID,
   ARC_EXPLORER,
@@ -789,7 +790,10 @@ export async function createAppKitAdapterFromBrowser(opts?: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const adapter = await create({
       provider: proxyProvider,
-      capabilities: { addressContext: "user-controlled" },
+      capabilities: {
+        addressContext: "user-controlled",
+        supportedChains: [ArcTestnet],
+      },
       getPublicClient: (args: {
         chain: {
           id?: number | bigint;
