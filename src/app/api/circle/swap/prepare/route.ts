@@ -11,6 +11,8 @@ const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
   USDC: "0x3600000000000000000000000000000000000000",
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
 };
+const SUPPORTED_TOKENS = ["USDC", "EURC"] as const;
+type SupportedToken = (typeof SUPPORTED_TOKENS)[number];
 
 function jsonSafe(value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
@@ -72,11 +74,6 @@ export async function POST(req: Request) {
       import("viem"),
     ]);
 
-    // IMPORTANT: use Circle Swap Kit's canonical ChainDefinition. The previous
-    // implementation imported `Arc_Testnet` from App Kit's /chains entrypoint,
-    // which can resolve to undefined in the server bundle. That produced the
-    // misleading `supportedChains.0: Required` validation error even though the
-    // property existed in source code.
     const arcChain = getChainByEnum("Arc_Testnet");
     if (!arcChain || arcChain.chainId !== ARC_CHAIN_ID) {
       throw new Error("Circle Swap Kit did not provide a valid Arc_Testnet chain definition.");
@@ -105,8 +102,8 @@ export async function POST(req: Request) {
     const swapProvider = new StablecoinServiceSwapProvider({ kitKey });
     const estimate = await swapProvider.estimate({
       from: { adapter, chain: arcChain },
-      tokenInAddress: TOKEN_ADDRESSES[tokenIn],
-      tokenOutAddress: TOKEN_ADDRESSES[tokenOut],
+      tokenIn: tokenIn as SupportedToken,
+      tokenOut: tokenOut as SupportedToken,
       amountIn: amount,
       to: address,
       config: { slippageBps: 100, allowanceStrategy: "approve" },
