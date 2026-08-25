@@ -197,33 +197,40 @@ export function getActiveProvider(): InjectedProvider | null {
   return activeProvider;
 }
 
+async function restoreCircleActiveWallet(): Promise<{ provider: InjectedProvider; meta: ActiveWalletMeta } | null> {
+  try {
+    const circle = await import("@/sdk/circle-pw");
+    const restored = await circle.restoreCircleSession();
+    if (!restored) return null;
+    const nextMeta: ActiveWalletMeta = {
+      uuid: "circle-pw",
+      name: "Circle Email Wallet",
+      address: restored.address.toLowerCase(),
+    };
+    setActiveProvider(restored.provider as InjectedProvider, nextMeta);
+    return { provider: activeProvider as InjectedProvider, meta: nextMeta };
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveActiveProvider(
   discover: () => Promise<DiscoveredWallet[]>,
 ): Promise<{ provider: InjectedProvider; meta: ActiveWalletMeta } | null> {
   if (activeProvider && activeMeta) return { provider: activeProvider, meta: activeMeta };
 
   const meta = getActiveWalletMeta();
-  const wallets = await discover();
-  if (!wallets.length && !meta) {
-    // Circle Email Wallets are intentionally not injected into window.ethereum.
-    // Restore the user-controlled wallet lazily so an Agent command issued
-    // immediately after page load cannot race WalletProvider's async hydration.
-    try {
-      const circle = await import("@/sdk/circle-pw");
-      const restored = await circle.restoreCircleSession();
-      if (restored) {
-        const nextMeta: ActiveWalletMeta = {
-          uuid: "circle-pw",
-          name: "Circle Email Wallet",
-          address: restored.address.toLowerCase(),
-        };
-        setActiveProvider(restored.provider as InjectedProvider, nextMeta);
-        return { provider: activeProvider as InjectedProvider, meta: nextMeta };
-      }
-    } catch {
-      /* continue with normal injected-wallet resolution */
-    }
+
+  // A persisted Circle session represents an explicitly connected Smart Wallet.
+  // Restore it before EIP-6963 discovery so an installed MetaMask/Rabby wallet
+  // cannot hijack Agent execution for a user who connected the Email Wallet.
+  if (meta?.uuid === "circle-pw") {
+    const restored = await restoreCircleActiveWallet();
+    if (restored) return restored;
   }
+
+  // For EVM wallets, discover only after honoring the persisted active wallet.
+  const wallets = await discover();
 
   if (meta) {
     const hit =
@@ -245,27 +252,19 @@ export async function resolveActiveProvider(
       return { provider: activeProvider, meta: activeMeta };
     }
 
-    // A persisted Circle session may have no injected provider and therefore no
-    // discoverable wallet. Restore it even when the active metadata exists.
-    if (meta.uuid === "circle-pw") {
-      try {
-        const circle = await import("@/sdk/circle-pw");
-        const restored = await circle.restoreCircleSession();
-        if (restored) {
-          const nextMeta: ActiveWalletMeta = {
-            uuid: "circle-pw",
-            name: "Circle Email Wallet",
-            address: restored.address.toLowerCase(),
-          };
-          setActiveProvider(restored.provider as InjectedProvider, nextMeta);
-          return { provider: activeProvider as InjectedProvider, meta: nextMeta };
-        }
-      } catch {
-        /* continue */
-      }
-    }
+    // Do not silently switch an explicitly connected EVM wallet to another
+    // installed provider. If its provider disappeared, report no active wallet.
+    return null;
   }
 
+  // No persisted active EVM wallet. A restored Circle session is still an
+  // explicitly authenticated Smart Wallet and should win over merely-installed
+  // browser extensions.
+  const circleRestored = await restoreCircleActiveWallet();
+  if (circleRestored) return circleRestored;
+
+  // Finally, accept an actually connected injected EVM wallet. Merely being
+  // installed is not enough: eth_accounts must contain an account.
   for (const w of wallets) {
     try {
       const accounts = (await w.provider.request({ method: "eth_accounts" })) as string[];
