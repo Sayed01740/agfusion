@@ -1,7 +1,6 @@
 /* AGFusion FULL REFERENCE LOCK
-   Source of truth: supplied dark fintech reference.
-   This file is intentionally last in the cascade. It covers the complete UI
-   system, not only the visible chat/header surfaces. Functional logic is untouched.
+   Validated CSS-safe reference theme.
+   Visual-only rules. Functional application logic is untouched.
 */
 
 :root {
@@ -33,27 +32,20 @@
   --ag-shadow-soft:0 10px 30px rgba(0,0,0,.22);
 }
 
-html,
-body {
+html,body {
   background:var(--ag-bg) !important;
   color:var(--ag-text) !important;
   color-scheme:dark !important;
 }
-body {
-  -webkit-font-smoothing:antialiased;
-  text-rendering:optimizeLegibility;
-}
+body { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:rgba(155,229,100,.20) !important; color:#f3f7f3 !important; }
 
-/* ================================================================
-   1. GLOBAL ATMOSPHERE
-   ================================================================ */
 .ag-premium-shell,
 .ag-premium-shell main,
 .ag-premium-shell section,
-.ag-premium-shell article {
-  color:var(--ag-text);
-}
+.ag-premium-shell article { color:var(--ag-text); }
+
+/* Global atmosphere */
 .ag-premium-shell .mesh-bg {
   background:
     radial-gradient(900px 520px at 86% -12%,rgba(155,229,100,.075),transparent 62%),
@@ -69,39 +61,7 @@ body {
 }
 .ag-premium-shell .noise-overlay::after { opacity:.025 !important; }
 
-/* Remove accidental page-level pearl/light surfaces. */
-.ag-premium-shell [class*="bg-white"],
-.ag-premium-shell [class*="bg-gray-50"],
-.ag-premium-shell [class*="bg-gray-100"],
-.ag-premium-shell [class*="bg-slate-50"],
-.ag-premium-shell [class*="bg-slate-100"],
-.ag-premium-shell [class*="bg-[#fff"],
-.ag-premium-shell [class*="bg-[#ffffff"],
-.ag-premium-shell [class*="bg-[#f8fafc"],
-.ag-premium-shell [class*="bg-[#f5f8fc"],
-.ag-premium-shell [class*="bg-[#fbfdff"] {
-  background:#0d1210 !important;
-  color:var(--ag-text) !important;
-}
-.ag-premium-shell [class*="bg-slate-950"],
-.ag-premium-shell [class*="bg-slate-900"],
-.ag-premium-shell [class*="bg-slate-800"],
-.ag-premium-shell [class*="bg-black/"] {
-  background:var(--ag-inset) !important;
-  color:var(--ag-text) !important;
-}
-.ag-premium-shell [class*="from-white"],
-.ag-premium-shell [class*="to-white"],
-.ag-premium-shell [class*="from-slate-50"],
-.ag-premium-shell [class*="to-slate-50"],
-.ag-premium-shell [class*="from-gray-50"],
-.ag-premium-shell [class*="to-gray-50"] {
-  background-image:none !important;
-}
-
-/* ================================================================
-   2. SURFACE / CARD SYSTEM
-   ================================================================ */
+/* Surface system */
 .ag-premium-shell .glass,
 .ag-premium-shell .glass-strong,
 .ag-premium-shell .glass-soft,
@@ -124,9 +84,6 @@ body {
   border-color:rgba(155,229,100,.25) !important;
   box-shadow:var(--ag-shadow) !important;
 }
-
-/* Generic cards used across dashboard, agents, analytics, diagnostics,
-   bridge, studio, payments, wallet and transaction views. */
 .ag-premium-shell [class*="card"],
 .ag-premium-shell [class*="panel"],
 .ag-premium-shell [class*="surface"],
@@ -136,12 +93,9 @@ body {
 .ag-premium-shell [class*="transfer"],
 .ag-premium-shell [class*="confirm"],
 .ag-premium-shell [class*="diagnostic"],
-.ag-premium-shell [class*="workspace"] {
-  color:var(--ag-text);
-}
+.ag-premium-shell [class*="workspace"] { color:var(--ag-text); }
 
-/* Keep intentional status fills readable rather than turning every semantic
-   state into the accent. */
+/* Status colors */
 .ag-premium-shell [class*="bg-red-"],
 .ag-premium-shell [class*="bg-rose-"] { background:rgba(255,119,119,.10) !important; }
 .ag-premium-shell [class*="bg-amber-"],
@@ -149,19 +103,14 @@ body {
 .ag-premium-shell [class*="bg-emerald-"],
 .ag-premium-shell [class*="bg-green-"] { background:var(--ag-accent-soft) !important; }
 
-/* ================================================================
-   3. TYPOGRAPHY / ICONS
-   ================================================================ */
+/* Typography and icons */
 .ag-premium-shell [class*="text-white"],
 .ag-premium-shell [class*="text-slate-50"],
 .ag-premium-shell [class*="text-slate-100"],
 .ag-premium-shell [class*="text-slate-200"],
 .ag-premium-shell [class*="text-gray-900"],
 .ag-premium-shell [class*="text-gray-800"],
-.ag-premium-shell [class*="text-black"] {
-  color:var(--ag-text) !important;
-  opacity:1 !important;
-}
+.ag-premium-shell [class*="text-black"] { color:var(--ag-text) !important; opacity:1 !important; }
 .ag-premium-shell [class*="text-slate-300"],
 .ag-premium-shell [class*="text-gray-700"] { color:var(--ag-text-2) !important; opacity:1 !important; }
 .ag-premium-shell [class*="text-slate-400"],
@@ -172,48 +121,28 @@ body {
 .ag-premium-shell [class*="text-cyan-"],
 .ag-premium-shell [class*="text-blue-"],
 .ag-premium-shell [class*="text-sky-"],
-.ag-premium-shell [class*="text-indigo-"] { color:var(--ag-accent) !important; opacity:1 !important; }
+.ag-premium-shell [class*="text-indigo-"],
 .ag-premium-shell [class*="text-emerald-"],
 .ag-premium-shell [class*="text-green-"] { color:var(--ag-accent) !important; opacity:1 !important; }
 .ag-premium-shell [class*="text-red-"],
 .ag-premium-shell [class*="text-rose-"] { color:var(--ag-danger) !important; opacity:1 !important; }
 .ag-premium-shell [class*="text-amber-"],
 .ag-premium-shell [class*="text-yellow-"] { color:var(--ag-warning) !important; opacity:1 !important; }
-
 .ag-premium-shell svg { flex-shrink:0; }
-.ag-premium-shell [class*="text-cyan-"] svg,
-.ag-premium-shell [class*="text-blue-"] svg,
-.ag-premium-shell [class*="text-purple-"] svg,
-.ag-premium-shell [class*="text-indigo-"] svg { color:var(--ag-accent) !important; }
 
-/* ================================================================
-   4. BORDERS / DIVIDERS / FOCUS
-   ================================================================ */
+/* Borders and focus */
 .ag-premium-shell [class*="border-white"],
 .ag-premium-shell [class*="border-slate-"],
-.ag-premium-shell [class*="border-gray-"],
-.ag-premium-shell [class*="border-[#"] {
-  border-color:var(--ag-border) !important;
-}
+.ag-premium-shell [class*="border-gray-"] { border-color:var(--ag-border) !important; }
 .ag-premium-shell [class*="border-cyan-"],
 .ag-premium-shell [class*="border-blue-"],
 .ag-premium-shell [class*="border-indigo-"],
-.ag-premium-shell [class*="border-purple-"] {
-  border-color:rgba(155,229,100,.25) !important;
-}
+.ag-premium-shell [class*="border-purple-"] { border-color:rgba(155,229,100,.25) !important; }
 .ag-premium-shell hr { border-color:var(--ag-border) !important; opacity:1 !important; }
-.ag-premium-shell *:focus-visible {
-  outline:2px solid rgba(155,229,100,.45) !important;
-  outline-offset:2px;
-}
+.ag-premium-shell *:focus-visible { outline:2px solid rgba(155,229,100,.45) !important; outline-offset:2px; }
 
-/* ================================================================
-   5. TOP HEADER / BRAND / WALLET
-   ================================================================ */
-.ag-premium-shell header,
-.ag-premium-shell header[class*="bg-white"],
-.ag-premium-shell header[class*="bg-gradient"],
-.ag-premium-shell header[class*="text-[#172033"]] {
+/* Header */
+.ag-premium-shell header {
   background:#0a0f0c !important;
   background-image:none !important;
   color:var(--ag-text) !important;
@@ -222,38 +151,12 @@ body {
   backdrop-filter:blur(14px) !important;
   -webkit-backdrop-filter:blur(14px) !important;
 }
-.ag-premium-shell header [class*="text-[#172033]"],
-.ag-premium-shell header [class*="text-[#64748b]"],
-.ag-premium-shell header [class*="text-[#475569"] {
-  color:var(--ag-text-3) !important;
-}
-.ag-premium-shell header [class*="text-[#172033]"] { color:var(--ag-text) !important; }
-.ag-premium-shell header [class*="bg-white"],
-.ag-premium-shell header [class*="bg-[#f8fafc"],
-.ag-premium-shell header [class*="bg-[#f1f5f9"],
-.ag-premium-shell header [class*="bg-[#eef2ff"] {
-  background:var(--ag-surface-2) !important;
-  color:var(--ag-text) !important;
-}
-.ag-premium-shell header [class*="text-[#315bea"],
-.ag-premium-shell header [class*="text-blue-"] { color:var(--ag-accent) !important; }
-.ag-premium-shell header [class*="bg-gradient-to-r"] {
-  background:var(--ag-accent) !important;
-  background-image:none !important;
-  color:#071008 !important;
-  border-color:var(--ag-accent) !important;
-  box-shadow:0 8px 22px rgba(155,229,100,.12) !important;
-}
 .ag-premium-shell header button,
-.ag-premium-shell header a {
-  transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease;
-}
+.ag-premium-shell header a { transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease; }
 .ag-premium-shell header button:hover,
 .ag-premium-shell header a:hover { border-color:rgba(155,229,100,.28) !important; }
 
-/* ================================================================
-   6. LANDING / PAGE HERO STRUCTURE
-   ================================================================ */
+/* Page hero */
 .ag-premium-shell main > header > div:first-child,
 .ag-premium-shell main > header[class*="rounded"] {
   background:linear-gradient(180deg,#0d1210,#0a0f0c) !important;
@@ -261,88 +164,25 @@ body {
   box-shadow:var(--ag-shadow-soft) !important;
   color:var(--ag-text) !important;
 }
-.ag-premium-shell main > header h1,
 .ag-premium-shell main h1,
 .ag-premium-shell main h2,
 .ag-premium-shell main h3 { color:var(--ag-text) !important; }
-.ag-premium-shell main > header p,
-.ag-premium-shell main .text-muted-foreground { color:var(--ag-text-2) !important; }
-.ag-premium-shell main > header h1 span {
-  background:linear-gradient(100deg,#9be564,#b4f27b) !important;
-  -webkit-background-clip:text !important;
-  background-clip:text !important;
-  -webkit-text-fill-color:transparent !important;
-}
+.ag-premium-shell main > header p { color:var(--ag-text-2) !important; }
 
-/* ================================================================
-   7. AI OPERATOR / OPERATE / CHAT / AGENT
-   ================================================================ */
-.ag-premium-shell [class*="bg-[#0a1120"],
-.ag-premium-shell [class*="from-[#0c1628"],
-.ag-premium-shell [class*="to-[#060d18"],
-.ag-premium-shell [class*="bg-[#0c1628"],
-.ag-premium-shell [class*="bg-[#060d18"] {
-  background:#0a0f0c !important;
-  background-image:none !important;
-  color:var(--ag-text) !important;
-}
-.ag-premium-shell [class*="bg-white/["],
-.ag-premium-shell [class*="bg-white/0"],
-.ag-premium-shell [class*="bg-white/1"] { background:var(--ag-surface) !important; }
-
-.ag-premium-shell .grid.grid-cols-2.rounded-2xl,
-.ag-premium-shell [role="tablist"] {
-  background:#0a0f0c !important;
-  border:1px solid var(--ag-border) !important;
-  border-radius:14px !important;
-  padding:4px !important;
-}
-.ag-premium-shell [role="tab"],
-.ag-premium-shell [role="tablist"] button {
-  color:var(--ag-text-3) !important;
-  background:transparent !important;
-  border-radius:10px !important;
-}
-.ag-premium-shell [role="tab"][aria-selected="true"],
-.ag-premium-shell [role="tablist"] button[class*="bg-"] {
-  background:var(--ag-accent-soft) !important;
-  color:var(--ag-accent) !important;
-  box-shadow:inset 0 0 0 1px rgba(155,229,100,.12) !important;
-}
-
+/* AI operator / chat */
 .ag-premium-shell [class*="chat"],
 .ag-premium-shell [class*="agent"] { color:var(--ag-text) !important; }
 .ag-premium-shell [class*="chat"] p,
 .ag-premium-shell [class*="agent"] p { color:var(--ag-text-2); }
+.ag-premium-shell [class*="bg-white"] { background:var(--ag-surface) !important; color:var(--ag-text) !important; }
+.ag-premium-shell [class*="bg-gradient-to-tr"],
 .ag-premium-shell [class*="from-cyan-500/20"],
 .ag-premium-shell [class*="to-purple-500/20"],
-.ag-premium-shell [class*="to-blue-600/20"],
-.ag-premium-shell [class*="bg-gradient-to-tr"] {
-  background:#111713 !important;
-  background-image:none !important;
-}
-.ag-premium-shell [class*="text-cyan-100"],
-.ag-premium-shell [class*="text-cyan-400"],
-.ag-premium-shell [class*="text-cyan-400/80"],
-.ag-premium-shell [class*="text-blue-"] { color:var(--ag-accent) !important; }
-
-/* Chat bubbles and response blocks. */
-.ag-premium-shell [class*="rounded-2xl"][class*="bg-white"],
-.ag-premium-shell [class*="rounded-xl"][class*="bg-white"] {
-  background:var(--ag-surface) !important;
-  border-color:var(--ag-border) !important;
-  color:var(--ag-text) !important;
-}
+.ag-premium-shell [class*="to-blue-600/20"] { background:#111713 !important; background-image:none !important; }
 .ag-premium-shell code,
-.ag-premium-shell pre {
-  background:var(--ag-inset-2) !important;
-  color:#c9d7cc !important;
-  border:1px solid var(--ag-border) !important;
-}
+.ag-premium-shell pre { background:var(--ag-inset-2) !important; color:#c9d7cc !important; border:1px solid var(--ag-border) !important; }
 
-/* ================================================================
-   8. INPUTS / COMPOSER / SELECTORS
-   ================================================================ */
+/* Inputs */
 .ag-premium-shell input,
 .ag-premium-shell textarea,
 .ag-premium-shell select {
@@ -358,25 +198,16 @@ body {
 .ag-premium-shell select::placeholder { color:var(--ag-muted) !important; opacity:1 !important; }
 .ag-premium-shell input:focus,
 .ag-premium-shell textarea:focus,
-.ag-premium-shell select:focus {
-  border-color:rgba(155,229,100,.45) !important;
-  box-shadow:0 0 0 3px rgba(155,229,100,.08) !important;
-  outline:none !important;
-}
+.ag-premium-shell select:focus { border-color:rgba(155,229,100,.45) !important; box-shadow:0 0 0 3px rgba(155,229,100,.08) !important; outline:none !important; }
 
-/* ================================================================
-   9. BUTTONS / BADGES / CHIPS / LINKS
-   ================================================================ */
+/* Buttons */
 .ag-premium-shell button,
-.ag-premium-shell a {
-  -webkit-tap-highlight-color:transparent;
-}
+.ag-premium-shell a { -webkit-tap-highlight-color:transparent; }
 .ag-premium-shell button[class*="bg-cyan-"],
 .ag-premium-shell button[class*="from-cyan-"],
 .ag-premium-shell button[class*="from-blue-"],
 .ag-premium-shell button[class*="from-indigo-"],
 .ag-premium-shell button[class*="from-purple-"],
-.ag-premium-shell button[class*="from-[#4f46e5"],
 .ag-premium-shell a[class*="from-cyan-"],
 .ag-premium-shell a[class*="from-blue-"] {
   background:var(--ag-accent) !important;
@@ -385,20 +216,10 @@ body {
   border-color:var(--ag-accent) !important;
   box-shadow:0 8px 22px rgba(155,229,100,.12) !important;
 }
-.ag-premium-shell button[class*="bg-cyan-"] *,
-.ag-premium-shell button[class*="from-cyan-"] *,
-.ag-premium-shell button[class*="from-blue-"] *,
-.ag-premium-shell button[class*="from-indigo-"] *,
-.ag-premium-shell button[class*="from-purple-"] * { color:#071008 !important; }
 .ag-premium-shell button:disabled { opacity:.48 !important; }
 .ag-premium-shell button:hover:not(:disabled) { filter:brightness(1.04); }
-.ag-premium-shell a[href*="explorer"],
-.ag-premium-shell a[href*="testnet"],
-.ag-premium-shell a[href*="scan"] { color:var(--ag-accent) !important; }
 
-/* ================================================================
-   10. TOOLS / MANUAL OPERATOR / FORMS
-   ================================================================ */
+/* Tools */
 .ag-premium-shell #tools {
   background:linear-gradient(180deg,#101611,#0b100d) !important;
   border:1px solid var(--ag-border) !important;
@@ -413,25 +234,14 @@ body {
 .ag-premium-shell #tools textarea,
 .ag-premium-shell #tools select { min-height:46px !important; }
 
-/* ================================================================
-   11. TABLES / DATA / METRICS
-   ================================================================ */
-.ag-premium-shell table {
-  width:100%;
-  color:var(--ag-text) !important;
-  border-color:var(--ag-border) !important;
-  background:transparent !important;
-}
+/* Tables */
+.ag-premium-shell table { width:100%; color:var(--ag-text) !important; border-color:var(--ag-border) !important; background:transparent !important; }
 .ag-premium-shell thead,
 .ag-premium-shell th { background:#0a0f0c !important; color:var(--ag-text-3) !important; border-color:var(--ag-border) !important; }
 .ag-premium-shell td { background:transparent !important; color:var(--ag-text-2) !important; border-color:var(--ag-border) !important; }
 .ag-premium-shell tbody tr:hover { background:rgba(155,229,100,.035) !important; }
-.ag-premium-shell [class*="metric"] [class*="bg-white"],
-.ag-premium-shell [class*="stat"] [class*="bg-white"] { background:var(--ag-surface) !important; }
 
-/* ================================================================
-   12. DIALOGS / DROPDOWNS / POPOVERS / SHEETS / TOASTS
-   ================================================================ */
+/* Dialogs and menus */
 .ag-premium-shell [role="dialog"],
 .ag-premium-shell [data-radix-popper-content-wrapper] > *,
 .ag-premium-shell [data-radix-dialog-content],
@@ -445,33 +255,19 @@ body {
   border:1px solid var(--ag-border) !important;
   box-shadow:var(--ag-shadow) !important;
 }
-.ag-premium-shell [data-radix-dropdown-menu-item],
 .ag-premium-shell [role="menuitem"],
 .ag-premium-shell [role="option"] { color:var(--ag-text-2) !important; }
-.ag-premium-shell [data-radix-dropdown-menu-item]:hover,
 .ag-premium-shell [role="menuitem"]:hover,
 .ag-premium-shell [role="option"]:hover { background:var(--ag-accent-soft) !important; color:var(--ag-text) !important; }
 
-/* ================================================================
-   13. LOADING / LIVE STATES
-   ================================================================ */
+/* Loading states */
 .ag-premium-shell .animate-spin { animation-duration:.85s !important; color:var(--ag-accent) !important; }
 .ag-premium-shell [aria-busy="true"] .animate-spin { color:var(--ag-accent) !important; }
 .ag-premium-shell [class*="animate-pulse"] { animation-duration:1.15s !important; }
 .ag-premium-shell [class*="skeleton"],
 .ag-premium-shell [aria-busy="true"] [class*="bg-"] { background:#151b17 !important; }
-.ag-premium-shell [class*="ring-cyan"],
-.ag-premium-shell [class*="ring-blue"],
-.ag-premium-shell [class*="ring-purple"],
-.ag-premium-shell [class*="ring-indigo"] { --tw-ring-color:rgba(155,229,100,.24) !important; }
-.ag-premium-shell [class*="shadow-cyan"],
-.ag-premium-shell [class*="shadow-blue"],
-.ag-premium-shell [class*="shadow-purple"],
-.ag-premium-shell [class*="shadow-indigo"] { --tw-shadow-color:rgba(155,229,100,.12) !important; }
 
-/* ================================================================
-   14. BOTTOM NAVIGATION
-   ================================================================ */
+/* Bottom navigation */
 .ag-premium-shell nav.fixed.bottom-0 {
   background:rgba(10,15,12,.96) !important;
   border:1px solid var(--ag-border) !important;
@@ -480,36 +276,21 @@ body {
   -webkit-backdrop-filter:blur(18px) !important;
 }
 .ag-premium-shell nav.fixed.bottom-0 a { color:var(--ag-text-3) !important; }
-.ag-premium-shell nav.fixed.bottom-0 a[class*="bg-[#eef2ff]"],
-.ag-premium-shell nav.fixed.bottom-0 a[class*="ring-[#c7d2fe]"],
-.ag-premium-shell nav.fixed.bottom-0 a[class*="bg-blue-"] {
-  background:#182316 !important;
-  color:var(--ag-accent-strong) !important;
-  box-shadow:inset 0 0 0 1px rgba(155,229,100,.22) !important;
-}
 
-/* ================================================================
-   15. SCROLLBARS
-   ================================================================ */
-.ag-premium-shell * { scrollbar-color:#354039 #0a0f0c; scrollbar-width:thin; }
+/* Scrollbars */
+.ag-premium-shell * { scrollbar-color:#354039 #0a0f0c; scrollbar-width:thin; box-sizing:border-box; }
 .ag-premium-shell *::-webkit-scrollbar { width:8px; height:8px; }
 .ag-premium-shell *::-webkit-scrollbar-track { background:#0a0f0c; }
 .ag-premium-shell *::-webkit-scrollbar-thumb { background:#354039; border-radius:99px; }
 .ag-premium-shell *::-webkit-scrollbar-thumb:hover { background:#4b5a50; }
 
-/* ================================================================
-   16. MOBILE: SAME DESIGN SYSTEM, NATIVE COMPOSITION
-   ================================================================ */
-.ag-premium-shell,
-.ag-premium-shell * { box-sizing:border-box; }
-.ag-premium-shell main { min-width:0; overflow-x:clip; }
+/* Mobile */
 @media (max-width:767px) {
   .ag-premium-shell { min-height:100dvh; }
-  .ag-premium-shell main { padding-bottom:82px !important; }
+  .ag-premium-shell main { min-width:0; overflow-x:clip; padding-bottom:82px !important; }
   .ag-premium-shell main.mx-auto { padding-left:12px !important; padding-right:12px !important; }
   .ag-premium-shell header { height:56px !important; }
   .ag-premium-shell header > div { height:56px !important; padding-left:12px !important; padding-right:12px !important; }
-  .ag-premium-shell header a[aria-label="AGFusion home"] img { width:30px !important; height:30px !important; }
   .ag-premium-shell header button { min-height:36px !important; height:36px !important; border-radius:10px !important; }
   .ag-premium-shell .glass,
   .ag-premium-shell .glass-strong,
@@ -524,22 +305,14 @@ body {
   .ag-premium-shell textarea,
   .ag-premium-shell select { min-height:42px !important; font-size:13px !important; }
   .ag-premium-shell button { min-height:42px !important; border-radius:11px !important; }
-  .ag-premium-shell nav.fixed.bottom-0 {
-    left:8px !important;
-    right:8px !important;
-    bottom:8px !important;
-    border-radius:17px !important;
-    padding:4px 4px max(4px,env(safe-area-inset-bottom)) !important;
-  }
+  .ag-premium-shell nav.fixed.bottom-0 { left:8px !important; right:8px !important; bottom:8px !important; border-radius:17px !important; padding:4px 4px max(4px,env(safe-area-inset-bottom)) !important; }
   .ag-premium-shell nav.fixed.bottom-0 a { min-height:48px !important; height:48px !important; border-radius:11px !important; }
   .ag-premium-shell h1 { font-size:clamp(1.65rem,7.5vw,2.25rem) !important; letter-spacing:-.04em !important; }
   .ag-premium-shell h2 { font-size:clamp(1.2rem,5.5vw,1.55rem) !important; }
   .ag-premium-shell pre { overflow-x:auto !important; font-size:10px !important; }
 }
 
-/* ================================================================
-   17. DESKTOP: SPACIOUS, QUIET, ARCHITECTURAL
-   ================================================================ */
+/* Desktop */
 @media (min-width:768px) {
   .ag-premium-shell main { padding-bottom:24px; }
   .ag-premium-shell section.grid { gap:16px; }
