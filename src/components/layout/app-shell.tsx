@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Navbar } from "@/components/layout/navbar";
 import { WalletProvider } from "@/providers/wallet-provider";
+import { ErrorDetector } from "@/components/diagnostics/error-detector";
 import { AGFUSION_X_HANDLE, AGFUSION_X_URL } from "@/lib/social";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </footer>
         </div>
       </div>
+      <ErrorDetector />
     </WalletProvider>
   );
 }
