@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ArrowRight, Check, Clock, Fuel, Route, Wallet } from "lucide-react";
-import { motion } from "framer-motion";
 import type { ActionPreview } from "@/types";
 import { Button } from "@/components/ui/button";
 import { formatUsdc } from "@/lib/fees";
@@ -12,16 +11,14 @@ import { usePilotStore } from "@/store/pilot-store";
 
 function LiveSpinner({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <motion.span
-      className={`inline-flex shrink-0 ${className}`}
-      animate={{ rotate: 360 }}
-      transition={{ duration: 0.9, ease: "linear", repeat: Infinity }}
+    <span
+      className={`agfusion-live-loader inline-flex shrink-0 ${className}`}
       aria-label="Loading"
     >
       <svg viewBox="0 0 24 24" className="h-full w-full" fill="none" stroke="currentColor" strokeWidth="2.5">
         <path d="M12 3a9 9 0 1 0 9 9" strokeLinecap="round" />
       </svg>
-    </motion.span>
+    </span>
   );
 }
 
