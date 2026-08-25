@@ -13,11 +13,15 @@ const TOKENS = {
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`,
   cirBTC: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF" as `0x${string}`,
 } as const;
-const DECIMALS = { USDC: 6, EURC: 6, cirBTC: 8 } as const;
 const ROUTER_DECIMALS = { USDC: 18, EURC: 6, cirBTC: 8 } as const;
 const DEFAULT_SLIPPAGE_BPS = 100;
 const MIN_SLIPPAGE_BPS = 10;
 const MAX_SLIPPAGE_BPS = 500;
+
+// Arc uses USDC as its native gas asset. Circle SCA wallets also have a
+// first-outbound deployment cost, so never attempt to spend the entire native
+// USDC balance in a swap. This is deliberately conservative for testnet.
+const ARC_SCA_GAS_RESERVE = parseUnits("0.015", 18);
 
 type ArcSwapToken = keyof typeof TOKENS;
 type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
@@ -51,9 +55,6 @@ export function normalizeSlippageBps(value: number): number {
 function normalizeAmount(amount: string, token: ArcSwapToken): bigint {
   const n = Number(amount);
   if (!amount || !Number.isFinite(n) || n <= 0) throw new Error("Enter a valid swap amount.");
-  // The Arc router uses WUSDC as the USDC-side asset and WUSDC is 18 decimals.
-  // User-facing USDC remains a 6-decimal token, but router quotes/amounts must
-  // be encoded with the effective asset decimals.
   return parseUnits(amount, ROUTER_DECIMALS[token]);
 }
 
@@ -116,8 +117,6 @@ export async function getArcDexSwapQuote(params: { amount: string; tokenIn: stri
   candidates.sort((x, y) => (x.out > y.out ? -1 : x.out < y.out ? 1 : 0));
   const best = candidates[0];
   return {
-    // Convert router-native output units to the user-facing token amount.
-    // In particular, WUSDC is 18 decimals even though displayed USDC is 6.
     amountOut: formatUnits(best.out, effectiveDecimals(tokenOut)),
     route: best.path.length === 2 ? "APEXISWAP direct" : "APEXISWAP via WUSDC",
     slippageBps: DEFAULT_SLIPPAGE_BPS,
@@ -136,6 +135,44 @@ async function approveIfNeeded(provider: Provider, owner: `0x${string}`, token: 
   const receipt = await verifyReceiptOnChain({ chainKey: "arc", txHash: tx, attempts: 8, delayMs: 750 });
   if (receipt.status !== "success") throw new Error("Token approval was not confirmed on-chain.");
   return tx;
+}
+
+async function getNativeBalance(provider: Provider, owner: `0x${string}`): Promise<bigint> {
+  const raw = await provider.request({ method: "eth_getBalance", params: [owner, "latest"] });
+  return BigInt(String(raw));
+}
+
+function formatNativeUsdc(value: bigint): string {
+  return formatUnits(value, 18);
+}
+
+async function preflightSwap(provider: Provider, owner: `0x${string}`, to: `0x${string}`, data: `0x${string}`, value: `0x${string}`, tokenIn: ArcSwapToken, amountIn: bigint): Promise<void> {
+  if (tokenIn === "USDC") {
+    const balance = await getNativeBalance(provider, owner);
+    const required = amountIn + ARC_SCA_GAS_RESERVE;
+    if (balance < required) {
+      throw new Error(
+        `Insufficient Arc USDC for this Circle Smart Wallet swap. Available: ${formatNativeUsdc(balance)} USDC; swap amount: ${formatNativeUsdc(amountIn)} USDC; reserved gas: ${formatNativeUsdc(ARC_SCA_GAS_RESERVE)} USDC. Get more USDC from the Arc/Circle faucet before swapping.`,
+      );
+    }
+  } else {
+    const balance = await getNativeBalance(provider, owner);
+    if (balance < ARC_SCA_GAS_RESERVE) {
+      throw new Error(
+        `Insufficient Arc USDC for Circle Smart Wallet gas. Available: ${formatNativeUsdc(balance)} USDC; minimum reserve: ${formatNativeUsdc(ARC_SCA_GAS_RESERVE)} USDC.`,
+      );
+    }
+  }
+
+  try {
+    await provider.request({
+      method: "eth_estimateGas",
+      params: [{ from: owner, to, data, value }],
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Arc swap preflight failed before wallet confirmation: ${message || "the router transaction cannot be estimated on-chain."}`);
+  }
 }
 
 export async function runProductionSwap(params: { amount: string; tokenIn: string; tokenOut: string; chain: ChainId; slippageBps?: number; onStep?: (steps: TxStep[]) => void }): Promise<TransactionRecord> {
@@ -181,6 +218,8 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   } else {
     data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactTokensForTokensSupportingFeeOnTransferTokens", args: [amountIn, minOut, quote.path, owner, deadline] });
   }
+
+  await preflightSwap(provider, owner, ROUTER, data, value, tokenIn, amountIn);
 
   let txHash: string;
   try {
