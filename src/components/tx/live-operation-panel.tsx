@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, Loader2, Radio } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,24 @@ export function LiveOperationPanel() {
   const { isThinking, transactions, activeTxId } = usePilotStore();
   const tx = transactions.find((item) => item.id === activeTxId) ?? transactions[0];
 
+  useEffect(() => {
+    // A number of existing loading indicators use lucide Loader2 without an
+    // animation class. Keep the loading contract consistent across the whole
+    // dashboard instead of fixing individual screens one by one.
+    const styleId = "agfusion-live-loader-styles";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @keyframes agfusion-loader-spin { to { transform: rotate(360deg); } }
+      @keyframes agfusion-live-pulse { 0%,100% { opacity:.45; transform:scale(.9); } 50% { opacity:1; transform:scale(1); } }
+      .lucide-loader-2 { animation: agfusion-loader-spin .9s linear infinite !important; transform-origin: center; transform-box: fill-box; }
+      .agfusion-live-pulse { animation: agfusion-live-pulse 1.25s ease-in-out infinite !important; }
+    `;
+    document.head.appendChild(style);
+    return () => document.getElementById(styleId)?.remove();
+  }, []);
+
   if (!isThinking) return null;
 
   const activeStep = tx?.steps?.find((step) => step.state === "active") ?? tx?.steps?.find((step) => step.state === "pending");
@@ -28,18 +47,14 @@ export function LiveOperationPanel() {
     <Card className="overflow-hidden border-cyan-400/25 bg-[#07111f] shadow-[0_12px_40px_rgba(8,145,178,0.12)]">
       <CardContent className="p-3.5 sm:p-4">
         <div className="flex items-center gap-3">
-          <motion.span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/25"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.05, ease: "linear", repeat: Infinity }}
-          >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/25">
             <Loader2 className="h-4 w-4" />
-          </motion.span>
+          </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="text-[12px] font-semibold text-slate-100">Live operation</p>
               <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-cyan-300">
-                <Radio className="h-2.5 w-2.5 animate-pulse" /> Live
+                <Radio className="agfusion-live-pulse h-2.5 w-2.5" /> Live
               </span>
             </div>
             <p className="mt-0.5 truncate text-[11px] text-cyan-200/80">
