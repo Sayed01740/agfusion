@@ -118,30 +118,23 @@ export async function POST(req: Request) {
 
   const kitKey = getServerKitKey();
   if (!kitKey) {
-    console.error("[AGFusion] Circle Swap Kit key is missing from server environment.");
+    console.error("[AGFusion] Circle App Kit key is missing from server environment.");
     return NextResponse.json(
-      { error: "Circle Swap Kit is not configured on the server." },
+      { error: "Circle App Kit is not configured on the server." },
       { status: 503 },
     );
   }
 
   try {
-    // IMPORTANT: Arc Testnet swaps are supported by the official Circle
-    // Swap/App Kit flow. Use the SDK's public SwapKit API rather than the
-    // lower-level StablecoinServiceSwapProvider. The latter was the source of
-    // the previous kitKey/tokenIn/tokenOut validation mismatch.
-    const [{ SwapKit }, { createViemAdapterFromProvider }, { getChainByEnum }, viem] =
-      await Promise.all([
-        import("@circle-fin/swap-kit"),
-        import("@circle-fin/adapter-viem-v2"),
-        import("@circle-fin/swap-kit"),
-        import("viem"),
-      ]);
-
-    const arcChain = getChainByEnum("Arc_Testnet");
-    if (!arcChain || arcChain.chainId !== ARC_CHAIN_ID) {
-      throw new Error("Circle Swap Kit did not provide a valid Arc_Testnet chain definition.");
-    }
+    // AGFusion already installs @circle-fin/app-kit and its Viem adapter.
+    // Use the official App Kit swap API instead of the lower-level
+    // StablecoinServiceSwapProvider. Arc Testnet is an official supported
+    // testnet in the repository's Circle swap skill.
+    const [{ AppKit }, { createViemAdapterFromProvider }, viem] = await Promise.all([
+      import("@circle-fin/app-kit"),
+      import("@circle-fin/adapter-viem-v2"),
+      import("viem"),
+    ]);
 
     const arcViem = viem.defineChain({
       id: ARC_CHAIN_ID,
@@ -163,8 +156,8 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // This adapter is used only to provide the wallet address/chain context
-    // for estimation. Signing remains in the user's wallet in the browser.
+    // This adapter supplies wallet address/chain context for server-side
+    // estimation only. The user's wallet remains the signer for execution.
     const provider = {
       request: async ({ method, params }: { method: string; params?: unknown[] }) => {
         if (method === "eth_accounts") return [address];
@@ -177,12 +170,12 @@ export async function POST(req: Request) {
       provider,
       capabilities: {
         addressContext: "user-controlled",
-        supportedChains: [arcChain],
+        supportedChains: [arcViem],
       },
     });
 
-    const kit = new SwapKit();
-    const estimate = await kit.estimate({
+    const kit = new AppKit();
+    const estimate = await kit.estimateSwap({
       from: {
         adapter,
         chain: "Arc_Testnet",
@@ -201,7 +194,7 @@ export async function POST(req: Request) {
     if (!transactions.length) {
       return NextResponse.json(
         {
-          error: "Circle Swap Kit returned a quote without executable transaction data.",
+          error: "Circle App Kit returned a quote without executable transaction data.",
           estimate: jsonSafe(estimate),
         },
         { status: 502 },
@@ -223,9 +216,9 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[AGFusion] Circle Swap Kit preparation failed", error);
+    console.error("[AGFusion] Circle App Kit swap preparation failed", error);
     return NextResponse.json(
-      { error: message || "Circle Swap Kit could not prepare this swap." },
+      { error: message || "Circle App Kit could not prepare this swap." },
       { status: 502 },
     );
   }
