@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -79,17 +79,17 @@ model Transaction {
 }
 
 model AgentRun {
-  id           String   @id @default(cuid())
-  userId       String?
-  user         User?    @relation(fields: [userId], references: [id])
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
   walletAddress String?
-  message      String
-  execute      Boolean  @default(false)
-  confirmed    Boolean  @default(false)
-  ip           String?
+  message       String
+  execute       Boolean  @default(false)
+  confirmed     Boolean  @default(false)
+  ip            String?
   toolTraceJson String?
   resultSummary String?
-  createdAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
 
   @@index([walletAddress])
   @@index([createdAt])
