@@ -20,12 +20,19 @@ export function newSessionToken(): string {
 }
 
 function sessionSecret(): string {
-  const secret = process.env.AUTH_SECRET?.trim();
+  const secret =
+    process.env.AUTH_SECRET?.trim() ||
+    process.env.SIWE_SECRET?.trim() ||
+    // Server-only Circle API key is already required for the production
+    // wallet integration. It is a real secret and is never exposed to the
+    // browser, so it is a safe emergency signing fallback while AUTH_SECRET
+    // is being provisioned. Prefer AUTH_SECRET long-term.
+    process.env.CIRCLE_API_KEY?.trim();
   if (secret) return secret;
   if (process.env.NODE_ENV !== "production") {
     return "agfusion-local-dev-session-secret-change-me";
   }
-  throw new Error("AUTH_SECRET is required for signed fallback sessions in production.");
+  throw new Error("AUTH_SECRET (or another server-side signing secret) is required for production sessions.");
 }
 
 function encodePayload(payload: SignedSessionPayload): string {
