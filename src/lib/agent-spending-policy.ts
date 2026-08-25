@@ -59,9 +59,6 @@ function startOfUtcMonth(now: Date): Date {
 
 async function sumAgentSpend(walletAddress: string, since: Date): Promise<number> {
   const prisma = getPrisma();
-  // Transaction.amount is stored as String in the current Prisma schema, so
-  // Prisma cannot use _sum on it. Fetch only the required field and aggregate
-  // after validation instead of changing the production data model in-place.
   const rows = await prisma.transaction.findMany({
     where: {
       walletAddress: walletAddress.toLowerCase(),
@@ -79,13 +76,6 @@ async function sumAgentSpend(walletAddress: string, since: Date): Promise<number
   }, 0);
 }
 
-/**
- * Independent pre-broadcast authorization for AI-controlled money movement.
- * Circle's Agent Wallet policies are useful platform guardrails, but Circle's
- * own terms also require applications to maintain independent controls and
- * monitoring. This gate therefore runs before the transaction service and is
- * deliberately fail-closed when production has no usable database.
- */
 export async function enforceAgentSpendingPolicy(params: {
   walletAddress: string;
   amount: string;
@@ -96,22 +86,24 @@ export async function enforceAgentSpendingPolicy(params: {
 }): Promise<AgentPolicyDecision> {
   const policy = getAgentSpendingPolicy();
   const amount = Number(params.amount);
+  const emptySpent = { daily: 0, weekly: 0, monthly: 0 };
+
   if (!params.isAgent) {
-    return {
-      allowed: true,
-      reason: "Not an agent wallet; agent policy gate not applicable.",
-      policy,
-      spent: { daily: 0, weekly: 0, monthly: 0 },
-    };
+    return { allowed: true, reason: "Not an agent wallet; agent policy gate not applicable.", policy, spent: emptySpent };
   }
   if (!params.walletAddress) {
-    return { allowed: false, reason: "Agent wallet address is required.", policy, spent: { daily: 0, weekly: 0, monthly: 0 } };
+    return { allowed: false, reason: "Agent wallet address is required.", policy, spent: emptySpent };
   }
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { allowed: false, reason: "Transaction amount must be a positive USDC value.", policy, spent: { daily: 0, weekly: 0, monthly: 0 } };
+    return { allowed: false, reason: "Transaction amount must be a positive USDC value.", policy, spent: emptySpent };
   }
   if (amount > policy.perTx) {
-    return { allowed: false, reason: `Agent policy blocked ${params.action}: ${amount} USDC exceeds the per-transaction cap of ${policy.perTx} USDC.`, policy, spent: { daily: 0, weekly: 0, monthly: 0 } };
+    return {
+      allowed: false,
+      reason: `Agent policy blocked ${params.action}: ${amount} USDC exceeds the per-transaction cap of ${policy.perTx} USDC.`,
+      policy,
+      spent: emptySpent,
+    };
   }
 
   const now = params.now ?? new Date();
@@ -133,10 +125,25 @@ export async function enforceAgentSpendingPolicy(params: {
     }
     return { allowed: true, reason: "Agent spending policy approved.", policy, spent };
   } catch (error) {
+    console.error("[AGFusion][AgentPolicy] persistent storage check failed", {
+      error,
+      walletAddress: params.walletAddress,
+      action: params.action,
+      dbConfigured: Boolean(process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL),
+    });
     if (policy.failClosedWithoutDb) {
-      return { allowed: false, reason: "Agent policy storage is unavailable; refusing to broadcast an autonomous payment.", policy, spent: { daily: 0, weekly: 0, monthly: 0 } };
+      return {
+        allowed: false,
+        reason: "Agent policy storage is unavailable; refusing to broadcast an autonomous payment.",
+        policy,
+        spent: emptySpent,
+      };
     }
-    console.warn("[AGFusion] agent spending policy storage unavailable", error);
-    return { allowed: true, reason: "Agent policy approved without persistent budget accounting because fail-closed mode is disabled.", policy, spent: { daily: 0, weekly: 0, monthly: 0 } };
+    return {
+      allowed: true,
+      reason: "Agent policy approved without persistent budget accounting because fail-closed mode is disabled.",
+      policy,
+      spent: emptySpent,
+    };
   }
 }
