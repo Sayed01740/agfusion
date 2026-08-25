@@ -4,18 +4,26 @@ function isPostgresUrl(value) {
   return Boolean(value && /^postgres(?:ql)?:\/\//i.test(value));
 }
 
-const candidates = [
-  process.env.POSTGRES_URL_NON_POOLING,
+const pooledCandidates = [
   process.env.POSTGRES_PRISMA_URL,
   process.env.POSTGRES_URL,
   process.env.DATABASE_URL,
+  process.env.POSTGRES_URL_NON_POOLING,
 ];
 
-const databaseUrl = candidates.find(isPostgresUrl);
+const directCandidates = [
+  process.env.POSTGRES_URL_NON_POOLING,
+  process.env.POSTGRES_URL,
+  process.env.DATABASE_URL,
+  process.env.POSTGRES_PRISMA_URL,
+];
 
-if (!databaseUrl) {
+const pooledUrl = pooledCandidates.find(isPostgresUrl);
+const directUrl = directCandidates.find(isPostgresUrl);
+
+if (!pooledUrl || !directUrl) {
   throw new Error(
-    "Production PostgreSQL database is not configured. Connect the existing Postgres database and expose a postgres:// or postgresql:// connection URL.",
+    "Production PostgreSQL database is not configured. A postgres:// or postgresql:// connection URL is required.",
   );
 }
 
@@ -26,7 +34,9 @@ const result = spawnSync(
     stdio: "inherit",
     env: {
       ...process.env,
-      DATABASE_URL: databaseUrl,
+      POSTGRES_PRISMA_URL: pooledUrl,
+      POSTGRES_URL_NON_POOLING: directUrl,
+      DATABASE_URL: pooledUrl,
     },
   },
 );
