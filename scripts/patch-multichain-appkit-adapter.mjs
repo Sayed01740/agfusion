@@ -55,6 +55,15 @@ if (serviceSource.includes(legacyCatch)) {
   serviceSource = serviceSource.replace(legacyCatch, safeCatch);
 }
 
+// Some versions of the App Kit browser adapter declaration expose the adapter
+// factory result as nullable even after the runtime null guard above. Keep the
+// existing runtime guard and make that invariant explicit to strict TypeScript.
+const wiredAccess = "  wiredAdapter = wired.adapter;";
+const safeWiredAccess = "  wiredAdapter = wired!.adapter;";
+if (serviceSource.includes(wiredAccess)) {
+  serviceSource = serviceSource.replace(wiredAccess, safeWiredAccess);
+}
+
 const functionMarker = "async function tryLiveAppKitBridge(params: {";
 const guardMarker = "PERMANENT-CCTP-BRIDGE-GUARD";
 if (!serviceSource.includes(functionMarker)) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() not found.");
