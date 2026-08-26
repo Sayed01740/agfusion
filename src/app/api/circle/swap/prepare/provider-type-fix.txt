@@ -1,1 +1,0 @@
-EIP-1193 provider request return type compatibility fix applied in route.ts.
