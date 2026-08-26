@@ -62,8 +62,11 @@ const functionMarker = "async function tryLiveAppKitBridge(params: {";
 const guardMarker = "PERMANENT-CCTP-BRIDGE-GUARD";
 if (!serviceSource.includes(functionMarker)) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() not found.");
 if (!serviceSource.includes(guardMarker)) {
-  const guard = `  // ${guardMarker}\n  // App Kit must never execute a bridge. Use the direct Circle CCTP v2\n  // Forwarding Service, which validates source/destination explicitly.\n  return runBridgeKitFlow({\n    amount: params.amount,\n    fromChain: params.fromChain,\n    toChain: params.toChain,\n    txId: params.txId,\n    recipient: params.recipient,\n    failedResult: params.previousResult,\n  });\n\n`;
-  serviceSource = serviceSource.replace(functionMarker, `${functionMarker}\n${guard}`);
+  const signatureEnd = serviceSource.indexOf("): Promise<TransactionRecord> {", serviceSource.indexOf(functionMarker));
+  if (signatureEnd < 0) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() signature boundary not found.");
+  const insertionPoint = signatureEnd + "): Promise<TransactionRecord> {".length;
+  const guard = `\n  // ${guardMarker}\n  // App Kit must never execute a bridge. Use the direct Circle CCTP v2\n  // Forwarding Service, which validates source/destination explicitly.\n  return runBridgeKitFlow({\n    amount: params.amount,\n    fromChain: params.fromChain,\n    toChain: params.toChain,\n    txId: params.txId,\n    recipient: params.recipient,\n    failedResult: params.previousResult,\n  });\n`;
+  serviceSource = serviceSource.slice(0, insertionPoint) + guard + serviceSource.slice(insertionPoint);
 }
 
 // Recovery was a second App Kit bridge path. Disable it too, otherwise
