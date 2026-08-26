@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
-import "./agfusion-pearl.css";
-import "./agfusion-readability.css";
-import "./agfusion-calibration.css";
-import "./agfusion-light-system.css";
-import "./agfusion-mobile.css";
-import "./agfusion-web3-premium.css";
-import "./agfusion-reference-lock.css";
 import "./agfusion-final-dark-lock.css";
 
 const siteUrl = "https://agfusion.vercel.app";
