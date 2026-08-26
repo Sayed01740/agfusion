@@ -12,8 +12,7 @@
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.13.0",
@@ -44,6 +43,7 @@
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "eslint": "^10.8.1",
+    "prisma": "^6.10.1",
     "tailwindcss": "^4.1.10",
     "vitest": "^4.1.10"
   },
