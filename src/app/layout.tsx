@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
-import "./agfusion-final-dark-lock.css";
+import "./agfusion-web3-premium.css";
 
 const siteUrl = "https://agfusion.vercel.app";
 const siteTitle = "AGFusion — Stablecoin operations on Arc";
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl), title: siteTitle, description: siteDescription,
   keywords: ["AGFusion", "Arc Network", "Arc House", "USDC", "stablecoin", "Economic OS", "programmable money", "AI finance"],
   applicationName: "AGFusion", authors: [{ name: "AGFusion" }],
-  icons: { icon: [{ url: "/favicon.ico", sizes: "any" }, { url: "/icon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icon-180.png", sizes: "180x180", type: "image/png" }], apple: [{ url: "/apple-icon.png", sizes: "180x180" }], shortcut: ["/favicon.ico"] },
+  icons: { icon: [{ url: "/favicon.ico", sizes: "any" }, { url: "/icon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icon-180.png", sizes: "180x180", type: "image/png" }], apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }], shortcut: ["/favicon.ico"] },
   openGraph: { type: "website", url: siteUrl, siteName: "AGFusion", title: siteTitle, description: siteDescription, images: [{ url: "/og.png", width: 1200, height: 630, alt: "AGFusion — AI-native stablecoin OS on Arc" }] },
   twitter: { card: "summary_large_image", site: "@AGfusion_", creator: "@AGfusion_", title: siteTitle, description: siteDescription, images: ["/og.png"] },
 };
