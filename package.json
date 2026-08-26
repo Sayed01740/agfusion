@@ -5,7 +5,7 @@
   "description": "AI-native crosschain stablecoin operating system on Arc Network",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && node scripts/prepare-production-db.mjs && next build",
+    "build": "prisma generate && node scripts/prepare-production-db.mjs && node scripts/patch-multichain-appkit-adapter.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -29,7 +29,6 @@
     "framer-motion": "^12.18.1",
     "lucide-react": "^0.515.0",
     "next": "^15.3.3",
-    "prisma": "^6.10.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "permissionless": "^0.3.7",
