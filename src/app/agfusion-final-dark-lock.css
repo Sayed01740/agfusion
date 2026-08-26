@@ -1,211 +1,228 @@
 /* AGFusion FINAL DARK LOCK
-   Visual-only override loaded after every legacy theme layer.
-   Purpose: eliminate residual white/light surfaces while preserving functionality.
+   Safe CSS-only override loaded after every legacy theme layer.
+   No arbitrary Tailwind class fragments are used in attribute selectors,
+   so cssnano/PostCSS can parse this file reliably.
 */
 
 html,
 body {
-  background:#070a0d !important;
-  color:#eef3ee !important;
-  color-scheme:dark !important;
+  background: #070a0d !important;
+  color: #eef3ee !important;
+  color-scheme: dark !important;
+}
+
+/* Global shell, header and navigation. */
+body > div,
+body header,
+body nav {
+  color: #eef3ee !important;
+}
+
+body header {
+  background: rgba(10, 15, 12, .96) !important;
+  background-image: none !important;
+  border-color: #242c27 !important;
+}
+
+body header [class*="bg-white"],
+body header [class*="bg-gray-"],
+body header [class*="bg-slate-"],
+body header [class*="bg-blue-"],
+body header [class*="bg-indigo-"] {
+  background: #0d1210 !important;
+  color: #eef3ee !important;
+  border-color: #242c27 !important;
 }
 
 main,
 main[class*="bg-"],
 main[class*="text-"] {
-  background:#070a0d !important;
-  color:#eef3ee !important;
+  background: #070a0d !important;
+  color: #eef3ee !important;
 }
 
-/* Every legacy white/light surface becomes a graphite fintech surface. */
-main [class*="bg-white"],
-main [class*="bg-gray-50"],
-main [class*="bg-gray-100"],
-main [class*="bg-slate-50"],
-main [class*="bg-slate-100"],
-main [class*="bg-[#fff"],
-main [class*="bg-[#ffffff"],
-main [class*="bg-[#f7f9fc"],
-main [class*="bg-[#f8fafc"],
-main [class*="bg-[#fbfdff"],
-main [class*="bg-[#f5f8fc"],
-main [class*="bg-[#f1f5f9"],
-main [class*="bg-[#eef2ff"],
-main [class*="bg-[#eff6ff"] {
-  background:#0d1210 !important;
-  background-image:none !important;
-  color:#eef3ee !important;
-}
-
-/* Cards and large workspace containers. */
-main [class*="rounded-[1.6rem"],
-main [class*="rounded-2xl"],
-main [class*="rounded-xl"],
+/* Convert legacy light surfaces to graphite. */
+main [class*="bg-"],
+main [class*="surface-card"],
 main [class*="card"],
 main [class*="panel"],
 main [class*="workspace"] {
-  border-color:#242c27 !important;
+  background-color: #0d1210 !important;
+  color: #eef3ee !important;
+  border-color: #242c27 !important;
 }
 
-main [class*="shadow-sm"],
-main [class*="shadow-xl"],
-main [class*="shadow-[0_24px_70px"] {
-  box-shadow:0 18px 50px rgba(0,0,0,.28) !important;
+/* Preserve the intentionally dark chat/tool surfaces. */
+main [class*="bg-[#"] {
+  background-color: #0d1210 !important;
 }
 
-/* Header / hero card. */
+main [class*="bg-gradient-"] {
+  background-image: none !important;
+  background-color: #0d1210 !important;
+}
+
+/* Hero/header card. */
 main > header,
 main > header > div,
 main > header > div:first-child {
-  background:linear-gradient(180deg,#0d1210,#0a0f0c) !important;
-  background-image:linear-gradient(180deg,#0d1210,#0a0f0c) !important;
-  border-color:#242c27 !important;
-  color:#eef3ee !important;
+  background: linear-gradient(180deg, #0d1210, #0a0f0c) !important;
+  background-image: linear-gradient(180deg, #0d1210, #0a0f0c) !important;
+  border-color: #242c27 !important;
+  color: #eef3ee !important;
 }
 
-/* Chat panel: no white message canvas, no pale header. */
+/* Chat and agent panels. */
 main [class*="chat"],
 main [class*="agent"] {
-  color:#eef3ee !important;
-}
-main [class*="chat"] [class*="bg-white"],
-main [class*="agent"] [class*="bg-white"] {
-  background:#0d1210 !important;
-  color:#eef3ee !important;
-}
-main [class*="chat"] [class*="bg-[#f"],
-main [class*="agent"] [class*="bg-[#f"] {
-  background:#111713 !important;
-  color:#eef3ee !important;
-}
-main [class*="chat"] [class*="text-slate-"],
-main [class*="agent"] [class*="text-slate-"] {
-  color:#c4cec5 !important;
+  color: #eef3ee !important;
 }
 
-/* Typography from legacy light design. */
-main [class*="text-[#101828"],
-main [class*="text-[#172033"],
-main [class*="text-[#0b1220"],
-main [class*="text-gray-900"],
-main [class*="text-gray-800"],
-main [class*="text-black"] {
-  color:#eef3ee !important;
+main [class*="chat"] [class*="bg-"],
+main [class*="agent"] [class*="bg-"] {
+  background-color: #0d1210 !important;
+  color: #eef3ee !important;
 }
-main [class*="text-[#64748b"],
-main [class*="text-[#5b687a"],
+
+main [class*="chat"] [class*="text-slate-"],
+main [class*="agent"] [class*="text-slate-"] {
+  color: #c4cec5 !important;
+}
+
+/* Typography. */
+main [class*="text-gray-"],
+main [class*="text-black"],
+main [class*="text-[#"] {
+  color: #eef3ee !important;
+}
+
 main [class*="text-slate-400"],
 main [class*="text-slate-500"],
 main [class*="text-gray-500"],
 main [class*="text-gray-600"] {
-  color:#89958c !important;
+  color: #89958c !important;
 }
-main [class*="text-[#315bea"],
+
+/* Accent text. */
 main [class*="text-cyan-"],
 main [class*="text-blue-"],
-main [class*="text-indigo-"] {
-  color:#9be564 !important;
+main [class*="text-indigo-"],
+main [class*="text-purple-"],
+main [class*="text-green-"] {
+  color: #9be564 !important;
 }
 
-/* Borders from the old light palette. */
-main [class*="border-[#d"],
-main [class*="border-[#e"],
-main [class*="border-[#b"],
-main [class*="border-slate-"],
-main [class*="border-gray-"],
-main [class*="border-white"] {
-  border-color:#242c27 !important;
+/* Borders and shadows. */
+main [class*="border-"],
+body header [class*="border-"] {
+  border-color: #242c27 !important;
 }
 
-/* Pale status / tab surfaces. */
-main [class*="bg-amber-50"],
-main [class*="bg-yellow-50"] {
-  background:rgba(231,198,107,.08) !important;
-  color:#e7c66b !important;
-}
-main [class*="bg-[#eef2ff"],
-main [class*="bg-[#f1f5f9"],
-main [class*="bg-[#eff6ff"] {
-  background:#151b17 !important;
+main [class*="shadow-"] {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .28) !important;
 }
 
-/* Buttons and gradients use the AGFusion green accent. */
-main [class*="bg-gradient-to-r"],
-main [class*="from-[#4f46e5"],
-main [class*="from-cyan-"],
-main [class*="from-blue-"],
-main [class*="from-indigo-"],
-main [class*="from-purple-"] {
-  background-image:none !important;
-  background:#9be564 !important;
-  color:#071008 !important;
-  border-color:#9be564 !important;
-}
-main [class*="to-[#06b6d4"],
-main [class*="via-[#2563eb"] {
-  --tw-gradient-to:#9be564 !important;
-  --tw-gradient-via:#6eaa42 !important;
-}
-
-/* Inputs remain deep inset surfaces. */
+/* Inputs. */
 main input,
 main textarea,
 main select {
-  background:#0a0f0c !important;
-  color:#eef3ee !important;
-  border-color:#354039 !important;
+  background: #0a0f0c !important;
+  color: #eef3ee !important;
+  border-color: #354039 !important;
 }
+
 main input::placeholder,
 main textarea::placeholder,
 main select::placeholder {
-  color:#68746b !important;
-  opacity:1 !important;
+  color: #68746b !important;
+  opacity: 1 !important;
 }
 
-/* Tool tabs / mobile switcher. */
-main [role="tablist"],
+/* Tabs and selected states. */
+main [role="tablist"] {
+  background: #080d0a !important;
+  border-color: #242c27 !important;
+}
+
 main [role="tab"],
 main [aria-selected="true"] {
-  border-color:#242c27 !important;
-}
-main [role="tablist"] { background:#080d0a !important; }
-main [role="tab"][aria-selected="true"],
-main [class*="ring-[#c7d2fe"]] {
-  background:rgba(155,229,100,.10) !important;
-  color:#9be564 !important;
-  --tw-ring-color:rgba(155,229,100,.25) !important;
+  border-color: #242c27 !important;
 }
 
-/* Code / diagnostics. */
+main [role="tab"][aria-selected="true"] {
+  background: rgba(155, 229, 100, .10) !important;
+  color: #9be564 !important;
+  --tw-ring-color: rgba(155, 229, 100, .25) !important;
+}
+
+/* Amber diagnostics/status stays amber, but dark. */
+main [class*="bg-amber-"],
+main [class*="bg-yellow-"] {
+  background: rgba(231, 198, 107, .08) !important;
+  color: #e7c66b !important;
+}
+
+/* Primary actions. */
+main button[class*="bg-gradient-"],
+main button[class*="bg-blue-"],
+main button[class*="bg-indigo-"],
+main button[class*="bg-cyan-"] {
+  background: #9be564 !important;
+  background-image: none !important;
+  color: #071008 !important;
+  border-color: #9be564 !important;
+}
+
+/* Keep dark buttons dark when they are explicitly slate/white utility controls. */
+main button[class*="bg-slate-"],
+main button[class*="bg-white"] {
+  background: #111713 !important;
+  color: #eef3ee !important;
+  border-color: #354039 !important;
+}
+
+/* Code/diagnostics. */
 main code,
 main pre {
-  background:#080d0a !important;
-  color:#c9d7cc !important;
-  border-color:#242c27 !important;
+  background: #080d0a !important;
+  color: #c9d7cc !important;
+  border-color: #242c27 !important;
 }
 
-/* Remove accidental light gradient overlays. */
+/* Remove pale gradient overlays. */
 main [class*="from-white"],
 main [class*="to-white"],
 main [class*="from-slate-50"],
 main [class*="to-slate-50"],
 main [class*="from-gray-50"],
 main [class*="to-gray-50"] {
-  --tw-gradient-from:transparent !important;
-  --tw-gradient-to:transparent !important;
-  background-image:none !important;
+  --tw-gradient-from: transparent !important;
+  --tw-gradient-to: transparent !important;
+  background-image: none !important;
 }
 
-/* Footer / bottom navigation. */
-main nav.fixed.bottom-0 {
-  background:rgba(10,15,12,.96) !important;
-  border-color:#242c27 !important;
-  box-shadow:0 -14px 34px rgba(0,0,0,.38) !important;
+/* Mobile bottom navigation. */
+body nav.fixed.bottom-0 {
+  background: rgba(10, 15, 12, .96) !important;
+  border-color: #242c27 !important;
+  box-shadow: 0 -14px 34px rgba(0, 0, 0, .38) !important;
 }
 
-/* Mobile keeps the same dark system. */
-@media (max-width:767px) {
-  main { background:#070a0d !important; }
-  main [class*="rounded-2xl"],
-  main [class*="rounded-xl"] { border-color:#242c27 !important; }
+body nav.fixed.bottom-0 a {
+  color: #89958c !important;
+}
+
+body nav.fixed.bottom-0 a[class*="bg-"] {
+  background: rgba(155, 229, 100, .10) !important;
+  color: #9be564 !important;
+}
+
+@media (max-width: 767px) {
+  main {
+    background: #070a0d !important;
+  }
+
+  main [class*="rounded-"] {
+    border-color: #242c27 !important;
+  }
 }
