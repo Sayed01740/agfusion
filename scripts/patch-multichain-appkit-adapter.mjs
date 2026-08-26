@@ -45,6 +45,16 @@ if (!serviceSource.includes(directImport)) {
   }
 }
 
+// Strict TypeScript builds can reject the catch binding's property access in
+// the legacy App Kit preflight block. The bridge is already permanently routed
+// through the direct CCTP service below, so normalize this dead legacy branch to
+// a string conversion before Next.js type-checking runs.
+const legacyCatch = `      e instanceof Error\n        ? e.message\n        : ` + "`Could not switch the wallet to ${params.fromChain.replace(/_/g, \" \")}.`" + `,`;
+const safeCatch = `      String(e),`;
+if (serviceSource.includes(legacyCatch)) {
+  serviceSource = serviceSource.replace(legacyCatch, safeCatch);
+}
+
 const functionMarker = "async function tryLiveAppKitBridge(params: {";
 const guardMarker = "PERMANENT-CCTP-BRIDGE-GUARD";
 if (!serviceSource.includes(functionMarker)) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() not found.");
