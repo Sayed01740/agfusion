@@ -4,44 +4,34 @@ import path from "node:path";
 const adapterFile = path.resolve("src/sdk/wallet-adapter.ts");
 let adapterSource = fs.readFileSync(adapterFile, "utf8");
 
-// App Kit's adapter capability schema is NOT viem Chain objects. It expects
-// capability descriptors shaped as { type: "evm", chainId: number }.
-// The previous patch inserted viem Chain objects here, which caused the
-// browser error: Invalid createViemAdapterFromProviderParams ... expected "evm";
-// chainId: Required.
-const multichainCapabilities = `capabilities: {
-        addressContext: "user-controlled",
-        supportedChains: [
-          { type: "evm", chainId: 5042002 },
-          { type: "evm", chainId: 84532 },
-          { type: "evm", chainId: 11155111 },
-          { type: "evm", chainId: 421614 },
-          { type: "evm", chainId: 11155420 },
-          { type: "evm", chainId: 80002 },
-          { type: "evm", chainId: 43113 },
-          { type: "evm", chainId: 1301 },
-          { type: "evm", chainId: 59141 },
-          { type: "evm", chainId: 57054 },
-        ],
-      },`;
-
-// Replace any existing supportedChains capability block, regardless of
-// whether the previous build patch inserted Arc-only or viem Chain objects.
+// IMPORTANT: createViemAdapterFromProvider() already accepts a browser
+// EIP-1193 provider and the documented browser integration does not pass a
+// capabilities object. Previous AGFusion patches injected supportedChains
+// into the adapter. That created the runtime schema error shown in the UI
+// and also incorrectly made the adapter itself responsible for chain support.
+// Chain support belongs to the bridge operation + the source-chain switch.
+// Remove ALL generated capability blocks so the adapter stays a plain,
+// provider-backed Viem adapter for every EVM chain.
 const capabilityBlock = /capabilities:\s*\{\s*addressContext:\s*["']user-controlled["'],\s*supportedChains:\s*\[[\s\S]*?\],\s*\},/m;
+const beforeCapabilityRemoval = adapterSource;
 if (capabilityBlock.test(adapterSource)) {
-  adapterSource = adapterSource.replace(capabilityBlock, multichainCapabilities);
-} else {
-  throw new Error("Multichain App Kit patch: supported-chain capability block not found.");
+  adapterSource = adapterSource.replace(capabilityBlock, "");
 }
 
-const requiredChainIds = [5042002,84532,11155111,421614,11155420,80002,43113,1301,59141,57054];
-const hasMultichain = requiredChainIds.every((id) =>
-  adapterSource.includes(`{ type: "evm", chainId: ${id} }`),
-);
-if (!hasMultichain) throw new Error("Multichain App Kit patch incomplete: capability descriptors missing.");
-fs.writeFileSync(adapterFile, adapterSource);
-console.log("[AGFusion] App Kit adapter patched with valid EVM capability descriptors");
+if (/capabilities:\s*\{\s*addressContext:\s*["']user-controlled["'],\s*supportedChains:/m.test(adapterSource)) {
+  throw new Error("Permanent adapter patch failed: supportedChains capability block remains.");
+}
 
+if (adapterSource === beforeCapabilityRemoval && /supportedChains:\s*\[/m.test(adapterSource)) {
+  throw new Error("Permanent adapter patch refused: an unexpected supportedChains block exists and was not removed.");
+}
+
+fs.writeFileSync(adapterFile, adapterSource);
+console.log("[AGFusion] App Kit browser adapter normalized: no unsupported capabilities block");
+
+// Bridge execution is permanently routed through the direct Circle CCTP v2
+// Forwarding Service. This keeps every configured EVM source/destination on
+// the same tested bridge path and avoids App Kit adapter chain-schema issues.
 const serviceFile = path.resolve("src/blockchain/appkit-service.ts");
 let serviceSource = fs.readFileSync(serviceFile, "utf8");
 const directImport = 'import { runBridgeKitFlow, runBridgeKitRecovery } from "@/blockchain/bridge-kit-service";';
@@ -62,12 +52,12 @@ if (!serviceSource.includes(guardMarker)) {
   const signatureEnd = serviceSource.indexOf("): Promise<TransactionRecord> {", serviceSource.indexOf(functionMarker));
   if (signatureEnd < 0) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() signature boundary not found.");
   const insertionPoint = signatureEnd + "): Promise<TransactionRecord> {".length;
-  const guard = `\n  // ${guardMarker}\n  // App Kit must never execute a bridge. Use the direct Circle CCTP v2\n  // Forwarding Service, which validates source/destination explicitly.\n  return runBridgeKitFlow({\n    amount: params.amount,\n    fromChain: params.fromChain,\n    toChain: params.toChain,\n    txId: params.txId,\n    recipient: params.recipient,\n    failedResult: params.previousResult,\n  });\n`;
+  const guard = `\n  // ${guardMarker}\n  // App Kit bridge execution is disabled here. Use the direct Circle CCTP v2\n  // Forwarding Service, which explicitly validates both configured chains.\n  return runBridgeKitFlow({\n    amount: params.amount,\n    fromChain: params.fromChain,\n    toChain: params.toChain,\n    txId: params.txId,\n    recipient: params.recipient,\n    failedResult: params.previousResult,\n  });\n`;
   serviceSource = serviceSource.slice(0, insertionPoint) + guard + serviceSource.slice(insertionPoint);
 }
 
-// Recovery was a second App Kit bridge path. Disable it too, otherwise
-// kit.retryBridge() can still produce the same Invalid chain error.
+// Recovery must use the same direct CCTP implementation so retry never falls
+// back to the broken App Kit adapter path.
 const recoveryMarker = "export async function runBridgeWithRecovery(params: {";
 const recoveryGuard = "PERMANENT-CCTP-RECOVERY-GUARD";
 if (!serviceSource.includes(recoveryMarker)) throw new Error("Permanent bridge patch: runBridgeWithRecovery() not found.");
