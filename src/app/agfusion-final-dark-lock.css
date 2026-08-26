@@ -1,7 +1,5 @@
 /* AGFusion FINAL DARK LOCK
-   Safe CSS-only override loaded after every legacy theme layer.
-   No arbitrary Tailwind class fragments are used in attribute selectors,
-   so cssnano/PostCSS can parse this file reliably.
+   CSS-safe visual override loaded after legacy theme layers.
 */
 
 html,
@@ -11,7 +9,6 @@ body {
   color-scheme: dark !important;
 }
 
-/* Global shell, header and navigation. */
 body > div,
 body header,
 body nav {
@@ -41,25 +38,21 @@ main[class*="text-"] {
   color: #eef3ee !important;
 }
 
-/* Convert legacy light surfaces to graphite. */
-main [class*="bg-"],
+/* Legacy light surfaces. */
+main [class*="bg-white"],
+main [class*="bg-gray-"],
+main [class*="bg-slate-50"],
+main [class*="bg-slate-100"],
+main [class*="bg-amber-50"],
+main [class*="bg-yellow-50"],
 main [class*="surface-card"],
 main [class*="card"],
 main [class*="panel"],
 main [class*="workspace"] {
   background-color: #0d1210 !important;
+  background-image: none !important;
   color: #eef3ee !important;
   border-color: #242c27 !important;
-}
-
-/* Preserve the intentionally dark chat/tool surfaces. */
-main [class*="bg-[#"] {
-  background-color: #0d1210 !important;
-}
-
-main [class*="bg-gradient-"] {
-  background-image: none !important;
-  background-color: #0d1210 !important;
 }
 
 /* Hero/header card. */
@@ -78,9 +71,9 @@ main [class*="agent"] {
   color: #eef3ee !important;
 }
 
-main [class*="chat"] [class*="bg-"],
-main [class*="agent"] [class*="bg-"] {
-  background-color: #0d1210 !important;
+main [class*="chat"] [class*="bg-white"],
+main [class*="agent"] [class*="bg-white"] {
+  background: #0d1210 !important;
   color: #eef3ee !important;
 }
 
@@ -90,9 +83,9 @@ main [class*="agent"] [class*="text-slate-"] {
 }
 
 /* Typography. */
-main [class*="text-gray-"],
-main [class*="text-black"],
-main [class*="text-[#"] {
+main [class*="text-gray-900"],
+main [class*="text-gray-800"],
+main [class*="text-black"] {
   color: #eef3ee !important;
 }
 
@@ -103,7 +96,6 @@ main [class*="text-gray-600"] {
   color: #89958c !important;
 }
 
-/* Accent text. */
 main [class*="text-cyan-"],
 main [class*="text-blue-"],
 main [class*="text-indigo-"],
@@ -155,15 +147,15 @@ main [role="tab"][aria-selected="true"] {
   --tw-ring-color: rgba(155, 229, 100, .25) !important;
 }
 
-/* Amber diagnostics/status stays amber, but dark. */
-main [class*="bg-amber-"],
-main [class*="bg-yellow-"] {
+/* Amber diagnostics/status. */
+main [class*="bg-amber-50"],
+main [class*="bg-yellow-50"] {
   background: rgba(231, 198, 107, .08) !important;
   color: #e7c66b !important;
 }
 
 /* Primary actions. */
-main button[class*="bg-gradient-"],
+main button[class*="bg-gradient-to-r"],
 main button[class*="bg-blue-"],
 main button[class*="bg-indigo-"],
 main button[class*="bg-cyan-"] {
@@ -173,7 +165,6 @@ main button[class*="bg-cyan-"] {
   border-color: #9be564 !important;
 }
 
-/* Keep dark buttons dark when they are explicitly slate/white utility controls. */
 main button[class*="bg-slate-"],
 main button[class*="bg-white"] {
   background: #111713 !important;
