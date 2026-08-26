@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
+import type { EIP1193Provider } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerKitKey } from "@/lib/circle-kit-server";
 
@@ -20,7 +21,7 @@ function jsonSafe(value: unknown): unknown {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) out[key] = jsonSafe(item);
-  return out;
+    return out;
   }
   return value;
 }
@@ -152,23 +153,22 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // Server-side EIP-1193 provider used only for quote/estimate preparation.
-    // The adapter reads the wallet address and Arc chain from these methods;
-    // execution is still performed by the user's connected wallet in the UI.
-    const provider = {
-      request: async ({ method, params }: { method: string; params?: unknown[] }) => {
+    // This route only prepares/estimates a transaction. The connected wallet
+    // remains the signer in the browser. Model the minimal EIP-1193 provider
+    // contract required by the installed Circle/Viem adapter version.
+    let provider: EIP1193Provider;
+    provider = {
+      request: async ({ method, params }) => {
         if (method === "eth_accounts") return [address];
         if (method === "eth_chainId") return "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
       },
-      on: () => undefined,
-      removeListener: () => undefined,
+      on: () => provider,
+      removeListener: () => provider,
     };
 
-    // Do not inject a hand-built capabilities object here. Circle's current
-    // browser-provider factory can infer the active EVM chain from EIP-1193,
-    // while manually supplying a Viem Chain object caused the production
-    // supportedChains schema/runtime errors seen previously.
+    // Keep the adapter configuration compatible with Circle's provider factory.
+    // Do not pass a Viem Chain object through capabilities.supportedChains.
     const adapter = await createViemAdapterFromProvider({ provider });
 
     const kit = new AppKit();
