@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const file = path.resolve("src/sdk/wallet-adapter.ts");
-let source = fs.readFileSync(file, "utf8");
+// ---------------------------------------------------------------------------
+// 1. App Kit must advertise every EVM testnet used by AGFusion.
+// ---------------------------------------------------------------------------
+const adapterFile = path.resolve("src/sdk/wallet-adapter.ts");
+let adapterSource = fs.readFileSync(adapterFile, "utf8");
 
 // App Kit's viem adapter validates bridge source/destination chains against
 // capabilities.supportedChains. The previous Arc-only capability was the
@@ -20,10 +23,8 @@ import {
   lineaSepolia,
 } from "viem/chains";`;
 
-if (source.includes(oldImport)) {
-  source = source.replace(oldImport, multichainImport);
-} else {
-  throw new Error("Multichain App Kit patch: ArcTestnet import not found.");
+if (adapterSource.includes(oldImport) && !adapterSource.includes("baseSepolia")) {
+  adapterSource = adapterSource.replace(oldImport, multichainImport);
 }
 
 const multichainCapabilities = `capabilities: {
@@ -42,35 +43,76 @@ const multichainCapabilities = `capabilities: {
 
 // Replace every Arc-only capability block, including blocks added later.
 const arcOnlyBlock = /capabilities:\s*\{\s*addressContext:\s*["']user-controlled["'],\s*supportedChains:\s*\[\s*ArcTestnet\s*\],\s*\},/g;
-const matches = source.match(arcOnlyBlock)?.length ?? 0;
-if (matches === 0) {
-  // It may already be patched. In that case leave it alone, but validate it
-  // below rather than silently accepting an Arc-only adapter.
-  if (!source.includes("supportedChains: [\n          ArcTestnet,")) {
-    throw new Error("Multichain App Kit patch: no Arc-only capability block found and no multichain block detected.");
-  }
-} else {
-  source = source.replace(arcOnlyBlock, multichainCapabilities);
+const matches = adapterSource.match(arcOnlyBlock)?.length ?? 0;
+if (matches > 0) {
+  adapterSource = adapterSource.replace(arcOnlyBlock, multichainCapabilities);
+} else if (!adapterSource.includes("supportedChains: [\n          ArcTestnet,")) {
+  throw new Error("Multichain App Kit patch: no supported-chain capability block found.");
 }
 
-// Hard build guard. If this fails, Vercel must not publish an adapter that
-// advertises only Arc Testnet.
 const hasMultichain =
-  source.includes("baseSepolia") &&
-  source.includes("arbitrumSepolia") &&
-  source.includes("optimismSepolia") &&
-  source.includes("polygonAmoy") &&
-  source.includes("avalancheFuji") &&
-  source.includes("unichainSepolia") &&
-  source.includes("lineaSepolia") &&
-  source.includes("supportedChains: [\n          ArcTestnet,");
+  adapterSource.includes("baseSepolia") &&
+  adapterSource.includes("arbitrumSepolia") &&
+  adapterSource.includes("optimismSepolia") &&
+  adapterSource.includes("polygonAmoy") &&
+  adapterSource.includes("avalancheFuji") &&
+  adapterSource.includes("unichainSepolia") &&
+  adapterSource.includes("lineaSepolia") &&
+  adapterSource.includes("supportedChains: [\n          ArcTestnet,");
 
-const remainingArcOnly = (source.match(/supportedChains:\s*\[\s*ArcTestnet\s*\]/g) || []).length;
+const remainingArcOnly = (adapterSource.match(/supportedChains:\s*\[\s*ArcTestnet\s*\]/g) || []).length;
 if (!hasMultichain || remainingArcOnly > 0) {
   throw new Error(
     `Multichain App Kit patch incomplete: hasMultichain=${hasMultichain}, remainingArcOnly=${remainingArcOnly}`,
   );
 }
 
-fs.writeFileSync(file, source);
+fs.writeFileSync(adapterFile, adapterSource);
 console.log("[AGFusion] App Kit adapter patched: Arc + Base + Arbitrum + Optimism + Polygon + Avalanche + Unichain + Linea");
+
+// ---------------------------------------------------------------------------
+// 2. Permanent bridge execution guard.
+//
+// The App Kit bridge path has historically produced the fatal empty-chain
+// error even after the adapter advertised all supported chains. AGFusion
+// already has a direct Circle CCTP v2 Forwarding Service implementation in
+// src/blockchain/bridge-kit-service.ts which performs explicit source-chain
+// validation, approval, burn, Iris forwarding and destination receipt
+// verification. It must be the single live bridge execution path.
+//
+// We enforce that at build time so a future App Kit refactor cannot silently
+// re-enable the broken kit.bridge() path.
+// ---------------------------------------------------------------------------
+const serviceFile = path.resolve("src/blockchain/appkit-service.ts");
+let serviceSource = fs.readFileSync(serviceFile, "utf8");
+
+const directImport = 'import { runBridgeKitFlow } from "@/blockchain/bridge-kit-service";';
+if (!serviceSource.includes(directImport)) {
+  const anchor = 'import { liveSendUsdcOnArc } from "@/blockchain/live-send";';
+  if (!serviceSource.includes(anchor)) {
+    throw new Error("Permanent bridge patch: appkit-service import anchor not found.");
+  }
+  serviceSource = serviceSource.replace(anchor, `${anchor}\n${directImport}`);
+}
+
+const functionMarker = "async function tryLiveAppKitBridge(params: {";
+const guardMarker = "  // PERMANENT-CCTP-BRIDGE-GUARD";
+if (!serviceSource.includes(functionMarker)) {
+  throw new Error("Permanent bridge patch: tryLiveAppKitBridge() not found.");
+}
+
+if (!serviceSource.includes(guardMarker)) {
+  const guard = `  ${guardMarker}\n  // Do not call kit.bridge(). The direct CCTP v2 Forwarding Service is the\n  // canonical live bridge path and is independently chain-validated.\n  // This guard prevents the historical \"Invalid chain ''\" App Kit path\n  // from ever reaching a wallet or creating a duplicate burn.\n  return runBridgeKitFlow({\n    amount: params.amount,\n    fromChain: params.fromChain,\n    toChain: params.toChain,\n    txId: params.txId,\n    recipient: params.recipient,\n    failedResult: params.previousResult,\n  });\n\n`;
+  serviceSource = serviceSource.replace(functionMarker, `${functionMarker}\n${guard}`);
+}
+
+const guardCount = (serviceSource.match(/PERMANENT-CCTP-BRIDGE-GUARD/g) || []).length;
+const importCount = (serviceSource.match(/runBridgeKitFlow/g) || []).length;
+if (guardCount !== 1 || importCount < 2) {
+  throw new Error(
+    `Permanent bridge patch incomplete: guardCount=${guardCount}, runBridgeKitFlowReferences=${importCount}`,
+  );
+}
+
+fs.writeFileSync(serviceFile, serviceSource);
+console.log("[AGFusion] Permanent bridge guard installed: appkit-service -> direct Circle CCTP v2");
