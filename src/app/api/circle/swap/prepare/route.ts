@@ -20,7 +20,7 @@ function jsonSafe(value: unknown): unknown {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) out[key] = jsonSafe(item);
-    return out;
+  return out;
   }
   return value;
 }
@@ -126,10 +126,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    // AGFusion already installs @circle-fin/app-kit and its Viem adapter.
-    // Use the official App Kit swap API instead of the lower-level
-    // StablecoinServiceSwapProvider. Arc Testnet is an official supported
-    // testnet in the repository's Circle swap skill.
     const [{ AppKit }, { createViemAdapterFromProvider }, viem] = await Promise.all([
       import("@circle-fin/app-kit"),
       import("@circle-fin/adapter-viem-v2"),
@@ -142,7 +138,7 @@ export async function POST(req: Request) {
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
         default: {
-          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"],
+          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.network"],
         },
       },
       blockExplorers: {
@@ -156,23 +152,24 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // This adapter supplies wallet address/chain context for server-side
-    // estimation only. The user's wallet remains the signer for execution.
+    // Server-side EIP-1193 provider used only for quote/estimate preparation.
+    // The adapter reads the wallet address and Arc chain from these methods;
+    // execution is still performed by the user's connected wallet in the UI.
     const provider = {
       request: async ({ method, params }: { method: string; params?: unknown[] }) => {
         if (method === "eth_accounts") return [address];
         if (method === "eth_chainId") return "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
       },
+      on: () => undefined,
+      removeListener: () => undefined,
     };
 
-    const adapter = await createViemAdapterFromProvider({
-      provider,
-      capabilities: {
-        addressContext: "user-controlled",
-        supportedChains: [arcViem],
-      },
-    });
+    // Do not inject a hand-built capabilities object here. Circle's current
+    // browser-provider factory can infer the active EVM chain from EIP-1193,
+    // while manually supplying a Viem Chain object caused the production
+    // supportedChains schema/runtime errors seen previously.
+    const adapter = await createViemAdapterFromProvider({ provider });
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({
