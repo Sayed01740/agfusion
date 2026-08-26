@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm pack --silent typescript@5.8.3 && mkdir -p node_modules/typescript && tar -xzf typescript-5.8.3.tgz -C node_modules/typescript --strip-components=1 && rm -f typescript-5.8.3.tgz && prisma generate && next build",
+  "buildCommand": "npm pack --silent typescript@5.8.3 && mkdir -p node_modules/typescript && tar -xzf typescript-5.8.3.tgz -C node_modules/typescript --strip-components=1 && rm -f typescript-5.8.3.tgz && prisma generate && node scripts/patch-multichain-appkit-adapter.mjs && next build",
   "installCommand": "npm install --legacy-peer-deps --include=dev"
 }
