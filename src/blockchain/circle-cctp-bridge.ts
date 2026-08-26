@@ -2,8 +2,8 @@
 
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getAppKit } from "@/sdk/appkit-client";
-import { createAppKitAdapterFromBrowser, switchToChainId } from "@/sdk/wallet-adapter";
-import { getCctpConfig } from "@/lib/cctp-chains";
+import { createAppKitAdapterFromBrowser, getChainId, switchToChainId } from "@/sdk/wallet-adapter";
+import { cctpConfigByChainId, getCctpConfig } from "@/lib/cctp-chains";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import { recordBridgeDebug } from "@/lib/bridge-debug";
@@ -22,18 +22,33 @@ export async function executeCircleCctpBridge(params: {
   if (!kit) throw new Error("Circle App Kit is not available. Refresh the page and reconnect the wallet.");
 
   const meta = getActiveWalletMeta();
-  const sourceConfig = getCctpConfig(params.fromChain);
+  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+  if (!wired) throw new Error("Could not create the connected wallet adapter.");
+
+  // App Kit expects a BridgeChain identifier such as Base_Sepolia. Some older
+  // UI/agent paths could hand this layer an empty source-chain value. In that
+  // case infer the chain from the wallet's actual connected EVM chain instead
+  // of sending an empty string into kit.bridge().
+  let fromChain: ChainId = params.fromChain;
+  if (!fromChain || !String(fromChain).trim()) {
+    const currentChainId = await getChainId(wired.provider);
+    const inferred = cctpConfigByChainId(currentChainId);
+    if (!inferred) {
+      throw new Error(`Could not resolve bridge source chain from wallet chainId=${currentChainId}. Select a supported source chain and try again.`);
+    }
+    fromChain = inferred.appKitName;
+  }
+
+  const sourceConfig = getCctpConfig(fromChain);
   const destinationConfig = getCctpConfig(params.toChain);
   if (!sourceConfig || !destinationConfig) throw new Error("Selected chains are not configured for Circle CCTP.");
 
-  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
-  if (!wired) throw new Error("Could not create the connected wallet adapter.");
-  await switchToChainId(wired.provider, params.fromChain);
+  await switchToChainId(wired.provider, fromChain);
 
   const recipient = params.recipient || meta?.address;
   if (!recipient || !/^0x[a-fA-F0-9]{40}$/.test(recipient)) throw new Error("A valid destination wallet address is required.");
 
-  recordBridgeDebug("cctp.sdk.start", { amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient, wallet: meta?.address, architecture: "Circle-App-Kit-CCTPv2-Forwarding-Service", completionGate: "destination-receipt+USDC-transfer" }, debugId, "Starting Circle CCTP bridge; SDK success alone cannot complete it");
+  recordBridgeDebug("cctp.sdk.start", { amount: params.amount, fromChain, toChain: params.toChain, recipient, wallet: meta?.address, architecture: "Circle-App-Kit-CCTPv2-Forwarding-Service", completionGate: "destination-receipt+USDC-transfer" }, debugId, "Starting Circle CCTP bridge; SDK success alone cannot complete it");
 
   const steps: TxStep[] = [];
   const eventHandler = (payload: any) => {
@@ -57,7 +72,12 @@ export async function executeCircleCctpBridge(params: {
 
   kit.on("*", eventHandler);
   try {
-    const bridgeParams: any = { from: { adapter: wired.adapter, chain: params.fromChain }, to: { recipientAddress: recipient, chain: params.toChain, useForwarder: true }, amount: params.amount, token: "USDC" };
+    const bridgeParams: any = {
+      from: { adapter: wired.adapter, chain: fromChain },
+      to: { recipientAddress: recipient, chain: params.toChain, useForwarder: true },
+      amount: params.amount,
+      token: "USDC",
+    };
     recordBridgeDebug("cctp.sdk.request", bridgeParams, debugId, "Calling Circle App Kit kit.bridge() with useForwarder=true");
     let result: any = await kit.bridge(bridgeParams);
     recordBridgeDebug("cctp.sdk.result", { state: result?.state, provider: result?.provider, steps: result?.steps, source: result?.source, destination: result?.destination }, debugId, `Circle App Kit returned state=${result?.state}`);
@@ -94,13 +114,11 @@ export async function executeCircleCctpBridge(params: {
     const approvalStep = steps.find((s) => /approve/i.test(s.name || "") && !!s.txHash);
 
     if (!destinationStep?.txHash) {
-      const partial: TransactionRecord = { id: debugId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient, steps, txHash: burnStep?.txHash, explorerUrl: burnStep?.txHash ? explorerTxUrl(burnStep.txHash) : destinationConfig.explorer, createdAt: new Date().toISOString(), message: "Source bridge step completed, but Circle has not exposed a destination settlement hash yet. Recovery will resume without another burn.", executionMode: "live", bridgeResult: result };
+      const partial: TransactionRecord = { id: debugId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain, toChain: params.toChain, recipient, steps, txHash: burnStep?.txHash, explorerUrl: burnStep?.txHash ? explorerTxUrl(burnStep.txHash) : destinationConfig.explorer, createdAt: new Date().toISOString(), message: "Source bridge step completed, but Circle has not exposed a destination settlement hash yet. Recovery will resume without another burn.", executionMode: "live", bridgeResult: result };
       recordBridgeDebug("cctp.sdk.pending", { result, steps }, debugId, "Bridge pending: destination settlement hash is not available");
       return partial;
     }
 
-    // Circle SDK success is evidence of forwarding, not the final AGFusion success gate.
-    // Build a pending record first, then prove the destination transaction and USDC event.
     const candidate: TransactionRecord = {
       id: debugId,
       type: "bridge",
@@ -108,7 +126,7 @@ export async function executeCircleCctpBridge(params: {
       retryable: true,
       amount: params.amount,
       token: "USDC",
-      fromChain: params.fromChain,
+      fromChain,
       toChain: params.toChain,
       recipient,
       steps,
