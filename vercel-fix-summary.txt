@@ -1,0 +1,1 @@
+Deployment build fixes: remove deprecated TypeScript baseUrl and resolve EIP-1193 provider request type mismatch in Circle swap preparation route.
