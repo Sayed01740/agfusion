@@ -76,5 +76,16 @@ const recoveryGuardCount = (serviceSource.match(/PERMANENT-CCTP-RECOVERY-GUARD/g
 if (guardCount !== 1 || recoveryGuardCount !== 1 || !serviceSource.includes("runBridgeKitFlow") || !serviceSource.includes("runBridgeKitRecovery")) {
   throw new Error(`Permanent bridge patch incomplete: bridge=${guardCount}, recovery=${recoveryGuardCount}`);
 }
+
+// TypeScript 5.8 correctly narrows a local const across the guarded call,
+// while the older property-access form can remain string | undefined here.
+const legacyStateRestore = /if \(!bState && params\.txId\) \{\s*bState = loadBridgeState\(params\.txId\);\s*\}/m;
+if (legacyStateRestore.test(serviceSource)) {
+  serviceSource = serviceSource.replace(
+    legacyStateRestore,
+    'const persistedTxId = params.txId;\n    if (!bState && persistedTxId) {\n      bState = loadBridgeState(persistedTxId);\n    }',
+  );
+}
+
 fs.writeFileSync(serviceFile, serviceSource);
 console.log("[AGFusion] All bridge and bridge-recovery execution locked to direct Circle CCTP v2");
