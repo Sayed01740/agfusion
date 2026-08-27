@@ -158,11 +158,11 @@ export async function POST(req: Request) {
     // contract required by the installed Circle/Viem adapter version.
     let provider: EIP1193Provider;
     provider = {
-      request: async ({ method, params }) => {
+      request: (async ({ method, params }) => {
         if (method === "eth_accounts") return [address];
         if (method === "eth_chainId") return "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
-      },
+      }) as EIP1193Provider["request"],
       on: () => provider,
       removeListener: () => provider,
     };
