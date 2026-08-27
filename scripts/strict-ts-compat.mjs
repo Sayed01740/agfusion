@@ -41,6 +41,14 @@ patchFile("src/blockchain/appkit-service.ts", (source) => {
   // bridge helper functions run before the active-wallet metadata is declared.
   // The optional recipient is already valid at those call sites.
 
+  // The bridge state initializer is stricter in the PR merge workspace.
+  // Normalize the optional recipient to the connected wallet when available,
+  // with an empty fallback only for the persisted state type boundary.
+  source = source.replace(
+    /recipient: params\.recipient,\n      \}\);/g,
+    'recipient: params.recipient ?? meta?.address ?? "",\n      });',
+  );
+
   // explorerTxUrl requires a concrete hash even though the transaction record
   // deliberately allows txHash to be absent while a bridge is pending.
   source = source.replace(
