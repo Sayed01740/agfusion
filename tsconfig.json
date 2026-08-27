@@ -16,6 +16,8 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/blockchain/appkit-service": ["./src/blockchain/appkit-service-safe"],
+      "@/lib/cctp-chains": ["./src/lib/cctp-chains.ts"],
+      "@/lib/bridge-debug": ["./src/lib/bridge-debug.ts"],
       "@/*": ["./src/*"]
     }
   },
