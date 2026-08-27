@@ -161,19 +161,20 @@ async function runAnthropicAgentLoop(input: {
           activeModel = model;
           response = result;
           break;
+        } else {
+          lastErr = `${result.status} ${result.body}`;
+          console.warn(
+            `[agent-llm] anthropic model=${model}`,
+            result.status,
+            result.body,
+          );
+          if (result.status === 401) return null;
+          if (!shouldTryNextModel(result.status) && round > 0) break;
+          onEvent?.({
+            type: "status",
+            message: `Model ${model} unavailable (${result.status}) — trying next…`,
+          });
         }
-        lastErr = `${result.status} ${result.body}`;
-        console.warn(
-          `[agent-llm] anthropic model=${model}`,
-          result.status,
-          result.body,
-        );
-        if (result.status === 401) return null;
-        if (!shouldTryNextModel(result.status) && round > 0) break;
-        onEvent?.({
-          type: "status",
-          message: `Model ${model} unavailable (${result.status}) — trying next…`,
-        });
       }
 
       if (!response || !response.ok) {
@@ -351,21 +352,22 @@ async function runOpenAiCompatAgentLoop(input: {
           activeModel = model;
           choice = result.message;
           break;
+        } else {
+          lastErr = `${result.status} ${result.body}`;
+          console.warn(
+            `[agent-llm] ${llm.provider} model=${model} error`,
+            result.status,
+            result.body,
+          );
+          if (result.status === 401) return null;
+          if (!shouldTryNextModel(result.status) && result.status !== 504) {
+            break;
+          }
+          onEvent?.({
+            type: "status",
+            message: `Model ${model} unavailable (${result.status}) — trying next…`,
+          });
         }
-        lastErr = `${result.status} ${result.body}`;
-        console.warn(
-          `[agent-llm] ${llm.provider} model=${model} error`,
-          result.status,
-          result.body,
-        );
-        if (result.status === 401) return null;
-        if (!shouldTryNextModel(result.status) && result.status !== 504) {
-          break;
-        }
-        onEvent?.({
-          type: "status",
-          message: `Model ${model} unavailable (${result.status}) — trying next…`,
-        });
       }
 
       if (!choice) {
