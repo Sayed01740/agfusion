@@ -46,21 +46,11 @@ function loadCircleMeta(): ActiveWalletMeta | null {
   try {
     const raw = sessionStorage.getItem(CIRCLE_META_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
-      name?: string;
-      uuid?: string;
-      wallets?: Array<{ address?: string; blockchain?: string }>;
-    };
+    const parsed = JSON.parse(raw) as { name?: string; uuid?: string; wallets?: Array<{ address?: string; blockchain?: string }> };
     if (parsed?.uuid !== "circle-pw") return null;
     const arc = parsed.wallets?.find((w) => w.blockchain === "ARC-TESTNET");
     if (!arc?.address) return null;
-    return {
-      uuid: "circle-pw",
-      name: "Circle Email Wallet",
-      address: arc.address.toLowerCase(),
-      walletType: "circle",
-      chainId: "Arc_Testnet",
-    };
+    return { uuid: "circle-pw", name: "Circle Email Wallet", address: arc.address.toLowerCase(), walletType: "circle", chainId: "Arc_Testnet" };
   } catch {
     return null;
   }
@@ -71,9 +61,7 @@ function saveMeta(meta: ActiveWalletMeta | null) {
   try {
     if (!meta) sessionStorage.removeItem(STORAGE_KEY);
     else sessionStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
 }
 
 function clearCircleSelectionMarker() {
@@ -81,15 +69,12 @@ function clearCircleSelectionMarker() {
   try {
     sessionStorage.removeItem(CIRCLE_META_KEY);
     sessionStorage.removeItem("agfusion_circle_session_v1");
-  } catch {
-    /* ignore */
-  }
+  } catch { /* ignore */ }
 }
 
 function wrapWalletRpcGuard(provider: InjectedProvider, meta: ActiveWalletMeta): InjectedProvider {
   if (typeof window === "undefined") return provider;
   if (meta.uuid === "circle-pw" || !!meta.smartAccountAddress) return provider;
-
   const origin = window.location.origin;
   const chainRpc: Record<string, WalletRpcConfig> = {
     "0x4cef52": { name: "Arc Testnet", rpc: `${origin}/api/rpc?chain=arc`, explorer: "https://testnet.arcscan.app", currency: { name: "USDC", symbol: "USDC", decimals: 18 }, key: "arc" },
@@ -99,18 +84,12 @@ function wrapWalletRpcGuard(provider: InjectedProvider, meta: ActiveWalletMeta):
     "0xaa37dc": { name: "OP Sepolia", rpc: `${origin}/api/rpc?chain=op`, explorer: "https://sepolia-optimism.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "op" },
     "0x13882": { name: "Polygon Amoy", rpc: `${origin}/api/rpc?chain=polygon`, explorer: "https://amoy.polygonscan.com", currency: { name: "MATIC", symbol: "MATIC", decimals: 18 }, key: "polygon" },
     "0xa869": { name: "Avalanche Fuji", rpc: `${origin}/api/rpc?chain=avax`, explorer: "https://testnet.snowtrace.io", currency: { name: "Avalanche", symbol: "AVAX", decimals: 18 }, key: "avax" },
-    "0x515": { name: "Unichain Sepolia", rpc: `${origin}/api/rpc?chain=unichain", explorer: "https://sepolia.uniscan.xyz", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "unichain" },
+    "0x515": { name: "Unichain Sepolia", rpc: `${origin}/api/rpc?chain=unichain`, explorer: "https://sepolia.uniscan.xyz", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "unichain" },
     "0xe705": { name: "Linea Sepolia", rpc: `${origin}/api/rpc?chain=linea`, explorer: "https://sepolia.lineascan.build", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "linea" },
   };
-
   const originalRequest = provider.request.bind(provider);
   const currentChainConfig = async (): Promise<WalletRpcConfig | null> => {
-    try {
-      const raw = await originalRequest({ method: "eth_chainId" });
-      return chainRpc[String(raw ?? "").toLowerCase()] ?? null;
-    } catch {
-      return null;
-    }
+    try { return chainRpc[String(await originalRequest({ method: "eth_chainId" }) ?? "").toLowerCase()] ?? null; } catch { return null; }
   };
   const proxyNonce = async (cfg: WalletRpcConfig, address: string): Promise<string | null> => {
     try {
@@ -118,9 +97,7 @@ function wrapWalletRpcGuard(provider: InjectedProvider, meta: ActiveWalletMeta):
       if (!response.ok) return null;
       const json = (await response.json()) as { result?: unknown; error?: unknown };
       return typeof json.result === "string" ? json.result : null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   };
   return {
     ...provider,
@@ -130,12 +107,8 @@ function wrapWalletRpcGuard(provider: InjectedProvider, meta: ActiveWalletMeta):
         const chainId = first && typeof first === "object" && "chainId" in first ? String((first as { chainId: string }).chainId).toLowerCase() : "";
         const cfg = chainRpc[chainId];
         if (cfg) {
-          try {
-            await originalRequest({ method: "wallet_addEthereumChain", params: [{ chainId, chainName: cfg.name, rpcUrls: [cfg.rpc], nativeCurrency: cfg.currency, blockExplorerUrls: [cfg.explorer] }] });
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            try { sessionStorage.setItem(`agfusion_rpc_guard_${chainId}`, msg.slice(0, 240)); } catch { /* ignore */ }
-          }
+          try { await originalRequest({ method: "wallet_addEthereumChain", params: [{ chainId, chainName: cfg.name, rpcUrls: [cfg.rpc], nativeCurrency: cfg.currency, blockExplorerUrls: [cfg.explorer] }] }); }
+          catch (e) { const msg = e instanceof Error ? e.message : String(e); try { sessionStorage.setItem(`agfusion_rpc_guard_${chainId}`, msg.slice(0, 240)); } catch { /* ignore */ } }
         }
       }
       if (args.method === "eth_sendTransaction" && Array.isArray(args.params)) {
@@ -165,20 +138,14 @@ function wrapWalletRpcGuard(provider: InjectedProvider, meta: ActiveWalletMeta):
 
 export function setActiveWallet(wallet: DiscoveredWallet, address?: string, smartAccountAddress?: string): void {
   clearCircleSelectionMarker();
-  const meta: ActiveWalletMeta = { uuid: wallet.uuid, name: wallet.name, rdns: wallet.rdns, address: address?.toLowerCase(), smartAccountAddress: smartAccountAddress?.toLowerCase(), walletType: wallet.name, chainId: undefined };
+  const meta: ActiveWalletMeta = { uuid: wallet.uuid, name: wallet.name, rdns: wallet.rdns, address: address?.toLowerCase(), smartAccountAddress: smartAccountAddress?.toLowerCase(), walletType: wallet.name };
   activeProvider = wrapWalletRpcGuard(wallet.provider, meta);
   activeMeta = meta;
   saveMeta(activeMeta);
 }
 
-export function setActiveProvider(provider: InjectedProvider, meta: ActiveWalletMeta): void {
-  activeProvider = wrapWalletRpcGuard(provider, meta);
-  activeMeta = meta;
-  saveMeta(meta);
-}
-
+export function setActiveProvider(provider: InjectedProvider, meta: ActiveWalletMeta): void { activeProvider = wrapWalletRpcGuard(provider, meta); activeMeta = meta; saveMeta(meta); }
 export function clearActiveWallet(): void { activeProvider = null; activeMeta = null; saveMeta(null); }
-
 export function getActiveWalletMeta(): ActiveWalletMeta | null {
   if (activeMeta) return activeMeta;
   const circleMeta = loadCircleMeta();
@@ -186,7 +153,6 @@ export function getActiveWalletMeta(): ActiveWalletMeta | null {
   activeMeta = loadMeta();
   return activeMeta;
 }
-
 export function getActiveProvider(): InjectedProvider | null { return activeProvider; }
 
 async function restoreCircleActiveWallet(): Promise<{ provider: InjectedProvider; meta: ActiveWalletMeta } | null> {
@@ -197,9 +163,7 @@ async function restoreCircleActiveWallet(): Promise<{ provider: InjectedProvider
     const nextMeta: ActiveWalletMeta = { uuid: "circle-pw", name: "Circle Email Wallet", address: restored.address.toLowerCase(), walletType: "circle", chainId: "Arc_Testnet" };
     setActiveProvider(restored.provider as InjectedProvider, nextMeta);
     return { provider: activeProvider as InjectedProvider, meta: nextMeta };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export async function resolveActiveProvider(discover: () => Promise<DiscoveredWallet[]>): Promise<{ provider: InjectedProvider; meta: ActiveWalletMeta } | null> {
@@ -227,7 +191,7 @@ export async function resolveActiveProvider(discover: () => Promise<DiscoveredWa
     try {
       const accounts = (await w.provider.request({ method: "eth_accounts" })) as string[];
       if (accounts?.length) {
-        const m: ActiveWalletMeta = { uuid: w.uuid, name: w.name, rdns: w.rdns, address: accounts[0].toLowerCase(), walletType: w.name, chainId: undefined };
+        const m: ActiveWalletMeta = { uuid: w.uuid, name: w.name, rdns: w.rdns, address: accounts[0].toLowerCase(), walletType: w.name };
         setActiveProvider(w.provider, m);
         return { provider: activeProvider as InjectedProvider, meta: m };
       }
