@@ -37,9 +37,19 @@ patchFile("src/blockchain/appkit-service.ts", (source) => {
     'kit!.off?.("*", onBridgeEvent!)',
   );
 
+  // The state-machine and SDK bridge params both require a concrete recipient.
+  // The UI makes recipient optional, so normalize it once at every typed
+  // boundary rather than relying on strict-mode control-flow inference.
   source = source.replace(
-    /amount: String\(params\.amount\),\n        recipient: params\.recipient,\n      \}\);/g,
-    'amount: String(params.amount),\n        recipient: params.recipient ?? meta?.address ?? "",\n      });',
+    /recipient:\s*params\.recipient\s*,/g,
+    'recipient: params.recipient ?? meta?.address ?? "",',
+  );
+
+  // explorerTxUrl requires a concrete hash even though the transaction record
+  // deliberately allows txHash to be absent while a bridge is pending.
+  source = source.replace(
+    /explorerTxUrl\(destHash\)/g,
+    'explorerTxUrl(destHash ?? "")',
   );
 
   source = source.replace(/txHash: destHash,/g, 'txHash: destHash ?? "",');
