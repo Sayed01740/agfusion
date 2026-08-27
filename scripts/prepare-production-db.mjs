@@ -21,10 +21,15 @@ const directCandidates = [
 const pooledUrl = pooledCandidates.find(isPostgresUrl);
 const directUrl = directCandidates.find(isPostgresUrl);
 
+// Database schema synchronization is a deployment-time concern. A Vercel build
+// must remain reproducible even when database integration variables are not
+// exposed to the build environment. Runtime database access still requires the
+// application's configured DATABASE_URL/POSTGRES_* variables.
 if (!pooledUrl || !directUrl) {
-  throw new Error(
-    "Production PostgreSQL database is not configured. A postgres:// or postgresql:// connection URL is required.",
+  console.warn(
+    "[AGFusion] PostgreSQL build-time schema sync skipped: no POSTGRES_PRISMA_URL/POSTGRES_URL/DATABASE_URL connection URL is configured for this build.",
   );
+  process.exit(0);
 }
 
 const result = spawnSync(
