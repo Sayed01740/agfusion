@@ -13,7 +13,7 @@
     "vercel-build": "npm pack --silent typescript@5.8.3 && mkdir -p node_modules/typescript && tar -xzf typescript-5.8.3.tgz -C node_modules/typescript --strip-components=1 && rm -f typescript-5.8.3.tgz && npm run build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node scripts/patch-multichain-appkit-adapter.mjs && tsc --noEmit",
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -44,7 +44,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.10",
+    "@tailwindcss/postcss": "^0.1.0",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.0",
