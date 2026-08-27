@@ -94,7 +94,7 @@ export async function executeCircleCctpBridge(params: {
     const approvalStep = steps.find((s) => /approve/i.test(s.name || "") && !!s.txHash);
 
     if (!destinationStep?.txHash) {
-      const partial: TransactionRecord = { id: debugId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient, steps, txHash: burnStep?.txHash, explorerUrl: burnStep?.txHash ? explorerTxUrl(burnStep.txHash) : destinationConfig.explorer, createdAt: new Date().toISOString(), message: "Source bridge step completed, but Circle has not exposed a destination settlement hash yet. Recovery will resume without another burn.", executionMode: "live", bridgeResult: result };
+      const partial: TransactionRecord = { id: debugId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient, steps, txHash: burnStep?.txHash, explorerUrl: burnStep?.txHash ? explorerTxUrl(burnStep.txHash) : destinationConfig.explorerUrl, createdAt: new Date().toISOString(), message: "Source bridge step completed, but Circle has not exposed a destination settlement hash yet. Recovery will resume without another burn.", executionMode: "live", bridgeResult: result };
       recordBridgeDebug("cctp.sdk.pending", { result, steps }, debugId, "Bridge pending: destination settlement hash is not available");
       return partial;
     }
@@ -113,7 +113,7 @@ export async function executeCircleCctpBridge(params: {
       recipient,
       steps,
       txHash: destinationStep.txHash,
-      explorerUrl: destinationConfig.explorer ? destinationConfig.explorer.replace("{hash}", destinationStep.txHash) : explorerTxUrl(destinationStep.txHash),
+      explorerUrl: destinationConfig.explorerUrl ? destinationConfig.explorerUrl.replace("{hash}", destinationStep.txHash) : explorerTxUrl(destinationStep.txHash),
       createdAt: new Date().toISOString(),
       message: `Circle reported destination mint for ${params.amount} USDC. Verifying destination settlement on-chain.`,
       executionMode: "live",

@@ -1086,7 +1086,7 @@ export async function runSwapFlow(params: {
   } = await import("@/lib/kit-key");
 
   // Clear bad session keys and load valid key (session → NEXT_PUBLIC → /api/kit)
-  let kitKey = (await ensureKitKey()) || getPublicKitKey();
+  let kitKey: string | undefined = (await ensureKitKey()) || getPublicKitKey();
   if (kitKey) kitKey = normalizeKitKey(kitKey);
 
   if (!kitKey || !/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(kitKey)) {
@@ -1133,7 +1133,7 @@ export async function runSwapFlow(params: {
     console.warn("[AGFusion] kit health check skipped", e);
   }
 
-  console.info("[AGFusion] kit key ready", "shape=OK", "len=", kitKey.length);
+  console.info("[AGFusion] kit key ready", "shape=OK", "len=", String(kitKey).length);
 
   const kit = await getAppKit();
   if (!kit) {
@@ -1447,7 +1447,7 @@ export async function runUnifiedDeposit(params: {
   const { ensureKitKey, normalizeKitKey, formatKitError } = await import(
     "@/lib/kit-key"
   );
-  let kitKey = await ensureKitKey();
+  let kitKey: string | undefined = await ensureKitKey();
   if (kitKey) kitKey = normalizeKitKey(kitKey);
 
   const { switchToChainId, getInjectedProvider, requestAccounts } =
@@ -1573,7 +1573,7 @@ export async function runUnifiedSpend(params: {
   const { ensureKitKey, normalizeKitKey, formatKitError } = await import(
     "@/lib/kit-key"
   );
-  let kitKey = await ensureKitKey();
+  let kitKey: string | undefined = await ensureKitKey();
   if (kitKey) kitKey = normalizeKitKey(kitKey);
 
   const kit = await getAppKit();

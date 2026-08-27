@@ -169,7 +169,7 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   if (!EVM_CHAIN_PARAMS[params.fromChain]) throw new Error(`Unsupported EVM source chain ${params.fromChain}.`);
 
   const provider = await getInjectedProvider();
-  attachBridgeProviderDiagnostics(provider, "cctp-v2-forwarder", debugId);
+  attachBridgeProviderDiagnostics(provider as any, "cctp-v2-forwarder", debugId);
   const meta = getActiveWalletMeta();
   const accounts = (await rpc(provider, "eth_accounts")) as string[];
   const address = String(accounts?.[0] || meta?.address || "");
