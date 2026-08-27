@@ -2,34 +2,34 @@
 > agfusion@1.0.0 typecheck
 > tsc --noEmit
 
-src/ai/tools.ts(572,21): error TS2339: Property 'CIRCLE_BRIDGE_CHAINS' does not exist on type '{ default: typeof import("@/lib/cctp-chains"); }'.
-src/app/bridge-diagnostics/page.tsx(4,10): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'clearBridgeDebugEvents'.
-src/app/bridge-diagnostics/page.tsx(4,34): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'downloadBridgeDebugLog'.
-src/app/bridge-diagnostics/page.tsx(4,58): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'getBridgeDebugEvents'.
-src/app/bridge-diagnostics/page.tsx(4,85): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'BridgeDebugEvent'.
-src/app/dashboard/page.tsx(17,10): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'clearBridgeDebugEvents'.
-src/app/dashboard/page.tsx(17,34): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'downloadBridgeDebugLog'.
-src/app/dashboard/page.tsx(17,58): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'getBridgeDebugEvents'.
-src/blockchain/appkit-service.ts(13,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
-src/blockchain/appkit-service.ts(13,32): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'getCctpConfig'.
-src/blockchain/appkit-service.ts(717,17): error TS2339: Property 'getCctpConfig' does not exist on type '{ default: typeof import("@/lib/cctp-chains"); }'.
-src/blockchain/appkit-service.ts(813,13): error TS2339: Property 'getCctpConfig' does not exist on type '{ default: typeof import("@/lib/cctp-chains"); }'.
-src/blockchain/appkit-service.ts(1304,17): error TS2339: Property 'getCctpConfig' does not exist on type '{ default: typeof import("@/lib/cctp-chains"); }'.
-src/blockchain/bridge-kit-service.ts(13,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'getCctpConfig'.
-src/blockchain/bridge-kit-service.ts(18,43): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'recordBridgeDebug'.
-src/blockchain/circle-cctp-bridge.ts(6,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'getCctpConfig'.
-src/blockchain/circle-cctp-bridge.ts(9,10): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'recordBridgeDebug'.
-src/components/panels/action-panels.tsx(18,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'EVM_BRIDGE_CHAINS'.
-src/components/panels/action-panels.tsx(18,29): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
-src/lib/bridge-state.ts(13,10): error TS2724: '"@/lib/cctp-chains"' has no exported member named 'CCTP_CHAIN_CONFIG'. Did you mean 'CctpChainConfig'?
-src/lib/circle-forwarding-bridge.ts(2,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
-src/lib/circle-forwarding-bridge.ts(6,43): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'installBridgeGlobalDiagnostics'.
-src/lib/circle-forwarding-bridge.ts(6,75): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'recordBridgeDebug'.
-src/lib/circle-forwarding-bridge.ts(6,94): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'startBridgeDebugSession'.
-src/lib/client-actions.ts(8,10): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'recordBridgeDebug'.
-src/lib/client-actions.ts(8,29): error TS2305: Module '"@/lib/bridge-debug"' has no exported member 'startBridgeDebugSession'.
-src/lib/financial-receipt.ts(2,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'getCctpConfig'.
-src/sdk/circle-pw.ts(3,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
-src/sdk/circle-pw.ts(4,10): error TS2305: Module '"@/lib/cctp-chains"' has no exported member 'cctpConfigByChainId'.
+src/ai/tools.ts(572,21): error TS2339: Property 'CIRCLE_BRIDGE_CHAINS' does not exist on type '{ default: typeof import("@/lib/cctp-config"); }'.
+src/app/bridge-diagnostics/page.tsx(4,10): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'clearBridgeDebugEvents'.
+src/app/bridge-diagnostics/page.tsx(4,34): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'downloadBridgeDebugLog'.
+src/app/bridge-diagnostics/page.tsx(4,58): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'getBridgeDebugEvents'.
+src/app/bridge-diagnostics/page.tsx(4,85): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'BridgeDebugEvent'.
+src/app/dashboard/page.tsx(17,10): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'clearBridgeDebugEvents'.
+src/app/dashboard/page.tsx(17,34): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'downloadBridgeDebugLog'.
+src/app/dashboard/page.tsx(17,58): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'getBridgeDebugEvents'.
+src/blockchain/appkit-service.ts(13,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
+src/blockchain/appkit-service.ts(13,32): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'getCctpConfig'.
+src/blockchain/appkit-service.ts(717,17): error TS2339: Property 'getCctpConfig' does not exist on type '{ default: typeof import("@/lib/cctp-config"); }'.
+src/blockchain/appkit-service.ts(813,13): error TS2339: Property 'getCctpConfig' does not exist on type '{ default: typeof import("@/lib/cctp-config"); }'.
+src/blockchain/appkit-service.ts(1304,17): error TS2339: Property 'getCctpConfig' does not exist on type '{ default: typeof import("@/lib/cctp-config"); }'.
+src/blockchain/bridge-kit-service.ts(13,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'getCctpConfig'.
+src/blockchain/bridge-kit-service.ts(18,43): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'recordBridgeDebug'.
+src/blockchain/circle-cctp-bridge.ts(6,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'getCctpConfig'.
+src/blockchain/circle-cctp-bridge.ts(9,10): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'recordBridgeDebug'.
+src/components/panels/action-panels.tsx(18,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'EVM_BRIDGE_CHAINS'.
+src/components/panels/action-panels.tsx(18,29): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
+src/lib/bridge-state.ts(13,10): error TS2724: '"@/lib/cctp-config"' has no exported member named 'CCTP_CHAIN_CONFIG'. Did you mean 'CctpChainConfig'?
+src/lib/circle-forwarding-bridge.ts(2,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
+src/lib/circle-forwarding-bridge.ts(6,43): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'installBridgeGlobalDiagnostics'.
+src/lib/circle-forwarding-bridge.ts(6,75): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'recordBridgeDebug'.
+src/lib/circle-forwarding-bridge.ts(6,94): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'startBridgeDebugSession'.
+src/lib/client-actions.ts(8,10): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'recordBridgeDebug'.
+src/lib/client-actions.ts(8,29): error TS2305: Module '"@/lib/bridge-debug-v5"' has no exported member 'startBridgeDebugSession'.
+src/lib/financial-receipt.ts(2,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'getCctpConfig'.
+src/sdk/circle-pw.ts(3,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'CIRCLE_BRIDGE_CHAINS'.
+src/sdk/circle-pw.ts(4,10): error TS2305: Module '"@/lib/cctp-config"' has no exported member 'cctpConfigByChainId'.
 src/sdk/circle-pw.ts(178,6): error TS7006: Parameter 'c' implicitly has an 'any' type.
 \nEXIT_CODE=1
