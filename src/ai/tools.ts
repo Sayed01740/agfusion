@@ -569,7 +569,7 @@ export async function executeTool(
         try {
           const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
           if (getActiveWalletMeta()?.uuid === "circle-pw") {
-            const { CIRCLE_BRIDGE_CHAINS } = await import("@/lib/cctp-chains");
+            const { CIRCLE_BRIDGE_CHAINS } = await import("@/lib/cctp-config");
             if (
               !CIRCLE_BRIDGE_CHAINS.includes(fromChain) ||
               !CIRCLE_BRIDGE_CHAINS.includes(toChain)

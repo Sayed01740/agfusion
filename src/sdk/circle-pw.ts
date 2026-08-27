@@ -1,7 +1,7 @@
 import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
 import { type Address } from "viem";
-import { CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
-import { cctpConfigByChainId } from "@/lib/cctp-chains";
+import { CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-config";
+import { cctpConfigByChainId } from "@/lib/cctp-config";
 
 let circleSdk: W3SSdk | null = null;
 let circleSdkAppId: string | null = null;

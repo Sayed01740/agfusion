@@ -3,10 +3,10 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getAppKit } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, switchToChainId } from "@/sdk/wallet-adapter";
-import { getCctpConfig } from "@/lib/cctp-chains";
+import { getCctpConfig } from "@/lib/cctp-config";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
-import { recordBridgeDebug } from "@/lib/bridge-debug";
+import { recordBridgeDebug } from "@/lib/bridge-debug-v5";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { uid } from "@/lib/utils";
 

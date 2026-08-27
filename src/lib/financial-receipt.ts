@@ -1,5 +1,5 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getCctpConfig } from "@/lib/cctp-chains";
+import { getCctpConfig } from "@/lib/cctp-config";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";

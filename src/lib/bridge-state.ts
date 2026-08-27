@@ -10,7 +10,7 @@
  */
 
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { CCTP_CHAIN_CONFIG } from "@/lib/cctp-chains";
+import { CCTP_CHAIN_CONFIG } from "@/lib/cctp-config";
 
 export type BridgeStateName =
   | "INIT"

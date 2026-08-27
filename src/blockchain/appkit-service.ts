@@ -10,7 +10,7 @@ import type {
   TxStep,
 } from "@/types";
 import { CHAINS } from "@/lib/chains";
-import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-chains";
+import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-config";
 import { uid } from "@/lib/utils";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getAppKit, getAppKitLoadError } from "@/sdk/appkit-client";
@@ -714,7 +714,7 @@ async function tryLiveAppKitSend(params: {
     if (result.txHash) {
       try {
         const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
-        const { getCctpConfig } = await import("@/lib/cctp-chains");
+        const { getCctpConfig } = await import("@/lib/cctp-config");
         const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
         const v = await verifyReceiptOnChain({
           chainKey,
@@ -810,7 +810,7 @@ async function verifyBurnReceipt(
 ): Promise<{ status: "success" | "reverted" } | null> {
   if (typeof window === "undefined") return null;
   try {
-    const { getCctpConfig } = await import("@/lib/cctp-chains");
+    const { getCctpConfig } = await import("@/lib/cctp-config");
     const cfg = getCctpConfig(fromChain);
     if (!cfg) return null;
     const res = await fetch(`/api/rpc?chain=${cfg.rpcProxyKey}`, {
@@ -1301,7 +1301,7 @@ export async function runSwapFlow(params: {
     if (result.txHash) {
       try {
         const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
-        const { getCctpConfig } = await import("@/lib/cctp-chains");
+        const { getCctpConfig } = await import("@/lib/cctp-config");
         const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
         const v = await verifyReceiptOnChain({
           chainKey,

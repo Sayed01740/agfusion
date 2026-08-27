@@ -1,10 +1,10 @@
-declare module "@/lib/cctp-chains" {
+declare module "@/lib/cctp-config" {
   interface CctpChainConfig {
     explorer?: string;
   }
 }
 
-declare module "@/lib/bridge-debug" {
+declare module "@/lib/bridge-debug-v5" {
   export function attachBridgeProviderDiagnostics(
     provider: {
       request: (args: {

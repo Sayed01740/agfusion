@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { clearBridgeDebugEvents, downloadBridgeDebugLog, getBridgeDebugEvents, type BridgeDebugEvent } from "@/lib/bridge-debug";
+import { clearBridgeDebugEvents, downloadBridgeDebugLog, getBridgeDebugEvents, type BridgeDebugEvent } from "@/lib/bridge-debug-v5";
 
 type ServerEvent = { id: string; sessionId: string; createdAt: string; walletAddress?: string | null; event: BridgeDebugEvent | null };
 

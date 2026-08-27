@@ -14,7 +14,7 @@ import { formatUsdc } from "@/lib/fees";
 import { Activity, ArrowRight, MessageSquare, Wrench, Download, Trash2, Bug, ExternalLink } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
-import { clearBridgeDebugEvents, downloadBridgeDebugLog, getBridgeDebugEvents } from "@/lib/bridge-debug";
+import { clearBridgeDebugEvents, downloadBridgeDebugLog, getBridgeDebugEvents } from "@/lib/bridge-debug-v5";
 import type { TransactionRecord, TxStep } from "@/types";
 
 function getActivityError(tx: TransactionRecord): { step?: string; message?: string } {

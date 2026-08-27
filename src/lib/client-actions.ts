@@ -5,7 +5,7 @@ import { executeCircleCctpBridge } from "@/blockchain/circle-cctp-bridge";
 import { runProductionSwap } from "@/blockchain/production-swap";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
-import { recordBridgeDebug, startBridgeDebugSession } from "@/lib/bridge-debug";
+import { recordBridgeDebug, startBridgeDebugSession } from "@/lib/bridge-debug-v5";
 import type { ActionPreview, ChainId, ChatMessage, TransactionRecord } from "@/types";
 function withTimeout(ms: number): AbortSignal | undefined { try { if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) return AbortSignal.timeout(ms); } catch {} return undefined; }
 async function assertAgentPolicy(amount: string, action: "bridge" | "swap" | "send" | "route", recipient?: string): Promise<void> { const meta = getActiveWalletMeta(); if (!meta?.smartAccountAddress || meta.uuid === "circle-pw") return; const res = await fetch("/api/agent/policy/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount, action, recipient, smartAccountAddress: meta.smartAccountAddress }), signal: withTimeout(10_000) }); const data = await res.json().catch(() => ({})); if (!res.ok || data?.allowed !== true) throw new Error(data?.reason || "Agent spending policy blocked this transaction."); }

@@ -10,12 +10,12 @@
  * without submitting another burn.
  */
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getCctpConfig } from "@/lib/cctp-chains";
+import { getCctpConfig } from "@/lib/cctp-config";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { uid } from "@/lib/utils";
 import { getInjectedProvider, getChainId, switchToChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
-import { attachBridgeProviderDiagnostics, recordBridgeDebug } from "@/lib/bridge-debug";
+import { attachBridgeProviderDiagnostics, recordBridgeDebug } from "@/lib/bridge-debug-v5";
 import { encodeFunctionData, decodeFunctionResult, pad } from "viem";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
