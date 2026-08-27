@@ -7,13 +7,13 @@
     "dev": "next dev --turbopack",
     "build": "prisma generate && node scripts/prepare-production-db.mjs && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "db:studio": "prisma studio"
+    ,"postinstall": "prisma generate"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.13.0",
