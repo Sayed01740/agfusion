@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      # Keep CI's compiler identical to the compiler used by Vercel production builds.
+      - run: npm pack --silent typescript@5.8.3 && mkdir -p node_modules/typescript && tar -xzf typescript-5.8.3.tgz -C node_modules/typescript --strip-components=1 && rm -f typescript-5.8.3.tgz
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
