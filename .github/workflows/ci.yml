@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -22,75 +22,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - name: Apply CI type compatibility fixes
-        shell: python
-        run: |
-          from pathlib import Path
-          import subprocess
-
-          def edit(path, fn):
-              p = Path(path)
-              s = p.read_text()
-              n = fn(s)
-              if n != s:
-                  p.write_text(n)
-                  print(f'updated {path}')
-
-          edit('src/app/api/circle/swap/prepare/route.ts', lambda s: s.replace(
-              '      request: async ({ method, params }) => {\n'
-              '        if (method === "eth_accounts") return [address];\n'
-              '        if (method === "eth_chainId") return "0x4cef52";\n'
-              '        return publicClient.request({ method: method as never, params: params as never });\n'
-              '      },',
-              '      request: (async ({ method, params }) => {\n'
-              '        if (method === "eth_accounts") return [address];\n'
-              '        if (method === "eth_chainId") return "0x4cef52";\n'
-              '        return publicClient.request({ method: method as never, params: params as never });\n'
-              '      }) as EIP1193Provider["request"],'
-          ))
-
-          Path('src/css.d.ts').write_text('declare module "*.css" {}\n')
-
-          edit('src/blockchain/appkit-service.ts', lambda s: s
-              .replace('  let kitKey = (await ensureKitKey()) || getPublicKitKey();', '  let kitKey: string | undefined = (await ensureKitKey()) || getPublicKitKey();')
-              .replace('  let kitKey = await ensureKitKey();', '  let kitKey: string | undefined = await ensureKitKey();')
-              .replace('kitKey.length', 'String(kitKey).length')
-          )
-
-          edit('src/blockchain/bridge-kit-service.ts', lambda s: s.replace(
-              'attachBridgeProviderDiagnostics(provider, "cctp-v2-forwarder", debugId);',
-              'attachBridgeProviderDiagnostics(provider as any, "cctp-v2-forwarder", debugId);'
-          ))
-
-          edit('src/blockchain/circle-cctp-bridge.ts', lambda s: s.replace(
-              'destinationConfig.explorer',
-              '(destinationConfig as CctpChainConfig & { explorer?: string }).explorer'
-          ))
-
-          edit('src/blockchain/production-swap.ts', lambda s: s.replace(
-              'quote.path, owner, deadline',
-              'quote.path, owner as `0x${string}`, deadline'
-          ))
-
-          edit('src/lib/circle-forwarding-bridge.ts', lambda s: s.replace(
-              'const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address, walletType: meta?.walletType, chainId: meta?.chainId });',
-              'const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address });'
-          ))
-
-          edit('src/lib/client-actions.ts', lambda s: s.replace(', { txHash: result.txHash })', ')'))
-
-          edit('src/lib/financial-receipt.ts', lambda s: s.replace(
-              'message: verified.error || "Receipt was not confirmed with status 0x1.",',
-              'message: "Receipt was not confirmed with status 0x1.",'
-          ))
-
-          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
-          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-          subprocess.run(['git', 'add', 'src'], check=True)
-          if subprocess.run(['git', 'diff', '--cached', '--quiet']).returncode != 0:
-              subprocess.run(['git', 'commit', '-m', 'fix: resolve current CI typecheck blockers [ci-repair]'], check=True)
-              subprocess.run(['git', 'push', 'origin', 'HEAD:restore/last-known-green'], check=True)
-
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
