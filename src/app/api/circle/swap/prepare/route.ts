@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAddress } from "viem";
+import type { EIP1193Provider } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerKitKey } from "@/lib/circle-kit-server";
 
@@ -126,10 +127,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    // AGFusion already installs @circle-fin/app-kit and its Viem adapter.
-    // Use the official App Kit swap API instead of the lower-level
-    // StablecoinServiceSwapProvider. Arc Testnet is an official supported
-    // testnet in the repository's Circle swap skill.
     const [{ AppKit }, { createViemAdapterFromProvider }, viem] = await Promise.all([
       import("@circle-fin/app-kit"),
       import("@circle-fin/adapter-viem-v2"),
@@ -142,7 +139,7 @@ export async function POST(req: Request) {
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
         default: {
-          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"],
+          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.network"],
         },
       },
       blockExplorers: {
@@ -156,23 +153,26 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // This adapter supplies wallet address/chain context for server-side
-    // estimation only. The user's wallet remains the signer for execution.
+    // Circle's adapter accepts an EIP-1193 provider, while the Viem client's
+    // generic request method is intentionally wider/narrower depending on the
+    // inferred chain. Keep this adapter boundary explicit instead of forcing
+    // the Viem generic into EIP-1193's method/return-type union.
     const provider = {
       request: async ({ method, params }: { method: string; params?: unknown[] }) => {
         if (method === "eth_accounts") return [address];
         if (method === "eth_chainId") return "0x4cef52";
-        return publicClient.request({ method: method as never, params: params as never });
+        return publicClient.request({
+          method: method as never,
+          params: params as never,
+        });
       },
-    };
+      on: () => provider,
+      removeListener: () => provider,
+    } as unknown as EIP1193Provider;
 
-    const adapter = await createViemAdapterFromProvider({
-      provider,
-      capabilities: {
-        addressContext: "user-controlled",
-        supportedChains: [arcViem],
-      },
-    });
+    // Keep the adapter configuration compatible with Circle's provider factory.
+    // Do not pass a Viem Chain object through capabilities.supportedChains.
+    const adapter = await createViemAdapterFromProvider({ provider });
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({

@@ -5,6 +5,7 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -14,7 +15,6 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "baseUrl": ".",
     "paths": {
       "@/blockchain/appkit-service": ["./src/blockchain/appkit-service-safe"],
       "@/*": ["./src/*"]
