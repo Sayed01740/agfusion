@@ -4,13 +4,6 @@ declare module "@/lib/cctp-chains" {
   }
 }
 
-declare module "@/sdk/active-wallet" {
-  interface ActiveWalletMeta {
-    walletType?: string;
-    chainId?: number;
-  }
-}
-
 declare module "@/lib/bridge-debug" {
   export function attachBridgeProviderDiagnostics(
     provider: {
