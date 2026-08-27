@@ -4,8 +4,19 @@ import { createAppKitAdapterFromBrowser } from "@/sdk/wallet-adapter";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { rpcKeyForChain } from "./appkit-service";
 import { runBridgeFlow, runSendFlow } from "./appkit-service";
+import { runCircleSafeSwapFlow } from "./circle-safe-swap";
 
 export * from "./appkit-service";
+
+/**
+ * Swap is deliberately overridden here. Circle's managed swap service is
+ * prepared on the server so the Kit key never reaches the browser. The final
+ * transaction is still signed by the user's selected wallet, including a
+ * Circle Email Wallet via its user-controlled-wallet challenge flow.
+ */
+export async function runSwapFlow(params: Parameters<typeof runCircleSafeSwapFlow>[0]): Promise<TransactionRecord> {
+  return runCircleSafeSwapFlow(params);
+}
 
 function assertPositiveAmount(amount: string, context: string): void {
   const n = Number(amount);

@@ -10,12 +10,12 @@
  * without submitting another burn.
  */
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getCctpConfig } from "@/lib/cctp-config";
+import { getCctpConfig } from "@/lib/cctp-chains";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { uid } from "@/lib/utils";
 import { getInjectedProvider, getChainId, switchToChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
-import { attachBridgeProviderDiagnostics, recordBridgeDebug } from "@/lib/bridge-debug-v5";
+import { attachBridgeProviderDiagnostics, recordBridgeDebug } from "@/lib/bridge-debug";
 import { encodeFunctionData, decodeFunctionResult, pad } from "viem";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
@@ -169,7 +169,7 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   if (!EVM_CHAIN_PARAMS[params.fromChain]) throw new Error(`Unsupported EVM source chain ${params.fromChain}.`);
 
   const provider = await getInjectedProvider();
-  attachBridgeProviderDiagnostics(provider as any, "cctp-v2-forwarder", debugId);
+  attachBridgeProviderDiagnostics(provider, "cctp-v2-forwarder", debugId);
   const meta = getActiveWalletMeta();
   const accounts = (await rpc(provider, "eth_accounts")) as string[];
   const address = String(accounts?.[0] || meta?.address || "");

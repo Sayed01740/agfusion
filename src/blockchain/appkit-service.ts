@@ -10,7 +10,7 @@ import type {
   TxStep,
 } from "@/types";
 import { CHAINS } from "@/lib/chains";
-import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-config";
+import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-chains";
 import { uid } from "@/lib/utils";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getAppKit, getAppKitLoadError } from "@/sdk/appkit-client";
@@ -714,7 +714,7 @@ async function tryLiveAppKitSend(params: {
     if (result.txHash) {
       try {
         const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
-        const { getCctpConfig } = await import("@/lib/cctp-config");
+        const { getCctpConfig } = await import("@/lib/cctp-chains");
         const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
         const v = await verifyReceiptOnChain({
           chainKey,
@@ -810,7 +810,7 @@ async function verifyBurnReceipt(
 ): Promise<{ status: "success" | "reverted" } | null> {
   if (typeof window === "undefined") return null;
   try {
-    const { getCctpConfig } = await import("@/lib/cctp-config");
+    const { getCctpConfig } = await import("@/lib/cctp-chains");
     const cfg = getCctpConfig(fromChain);
     if (!cfg) return null;
     const res = await fetch(`/api/rpc?chain=${cfg.rpcProxyKey}`, {
@@ -1086,7 +1086,7 @@ export async function runSwapFlow(params: {
   } = await import("@/lib/kit-key");
 
   // Clear bad session keys and load valid key (session → NEXT_PUBLIC → /api/kit)
-  let kitKey: string | undefined = (await ensureKitKey()) || getPublicKitKey();
+  let kitKey = (await ensureKitKey()) || getPublicKitKey();
   if (kitKey) kitKey = normalizeKitKey(kitKey);
 
   if (!kitKey || !/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(kitKey)) {
@@ -1133,7 +1133,7 @@ export async function runSwapFlow(params: {
     console.warn("[AGFusion] kit health check skipped", e);
   }
 
-  console.info("[AGFusion] kit key ready", "shape=OK", "len=", String(kitKey).length);
+  console.info("[AGFusion] kit key ready", "shape=OK", "len=", kitKey.length);
 
   const kit = await getAppKit();
   if (!kit) {
@@ -1301,7 +1301,7 @@ export async function runSwapFlow(params: {
     if (result.txHash) {
       try {
         const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
-        const { getCctpConfig } = await import("@/lib/cctp-config");
+        const { getCctpConfig } = await import("@/lib/cctp-chains");
         const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
         const v = await verifyReceiptOnChain({
           chainKey,
@@ -1447,7 +1447,7 @@ export async function runUnifiedDeposit(params: {
   const { ensureKitKey, normalizeKitKey, formatKitError } = await import(
     "@/lib/kit-key"
   );
-  let kitKey: string | undefined = await ensureKitKey();
+  let kitKey = await ensureKitKey();
   if (kitKey) kitKey = normalizeKitKey(kitKey);
 
   const { switchToChainId, getInjectedProvider, requestAccounts } =
@@ -1573,7 +1573,7 @@ export async function runUnifiedSpend(params: {
   const { ensureKitKey, normalizeKitKey, formatKitError } = await import(
     "@/lib/kit-key"
   );
-  let kitKey: string | undefined = await ensureKitKey();
+  let kitKey = await ensureKitKey();
   if (kitKey) kitKey = normalizeKitKey(kitKey);
 
   const kit = await getAppKit();

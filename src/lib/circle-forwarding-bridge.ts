@@ -1,9 +1,9 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-config";
+import { CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
 import { getAppKit } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getInjectedProvider, switchToChainId, getChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
-import { attachBridgeProviderDiagnostics, installBridgeGlobalDiagnostics, recordBridgeDebug, startBridgeDebugSession } from "@/lib/bridge-debug-v5";
+import { attachBridgeProviderDiagnostics, installBridgeGlobalDiagnostics, recordBridgeDebug, startBridgeDebugSession } from "@/lib/bridge-debug";
 import { initBridgeState, loadBridgeState, saveBridgeState, type BridgeState } from "@/lib/bridge-state";
 
 type SdkStep = { name?: string; state?: string; txHash?: string; errorMessage?: string; error?: unknown; forwarded?: boolean; explorerUrl?: string; data?: unknown; [key: string]: unknown };
@@ -28,7 +28,7 @@ export async function runCircleEmailWalletForwardingBridge(params: { amount: str
     log("bridge.start", { params, diagnosticVersion: 5 });
     if (typeof window === "undefined") throw new Error("Circle bridge must run in the browser.");
     assertRoute(params.fromChain, params.toChain);
-    const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address });
+    const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address, walletType: meta?.walletType, chainId: meta?.chainId });
     if (meta?.uuid !== "circle-pw") throw new Error("Circle Email Wallet bridge path requires the active Circle Email Wallet.");
     const walletAddress = meta.address || ""; assertAddress(walletAddress); const recipient = params.recipient || walletAddress; assertAddress(recipient);
     kit = await getAppKit(); log("appkit.loaded", { loaded: !!kit, bridgeType: typeof kit?.bridge, retryBridgeType: typeof kit?.retryBridge, keys: kit ? Object.keys(kit as object) : [] });

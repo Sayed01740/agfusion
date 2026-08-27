@@ -15,7 +15,7 @@ import {
   executeUnifiedDeposit,
 } from "@/lib/client-actions";
 import type { ChainId, TransactionRecord } from "@/types";
-import { EVM_BRIDGE_CHAINS, CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-config";
+import { EVM_BRIDGE_CHAINS, CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
 import {
   bridgeStateToSteps,
   loadBridgeState,
