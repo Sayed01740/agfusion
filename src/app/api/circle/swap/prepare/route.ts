@@ -153,19 +153,22 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // This route only prepares/estimates a transaction. The connected wallet
-    // remains the signer in the browser. Model the minimal EIP-1193 provider
-    // contract required by the installed Circle/Viem adapter version.
-    let provider: EIP1193Provider;
-    provider = {
-      request: async ({ method, params }) => {
+    // Circle's adapter accepts an EIP-1193 provider, while the Viem client's
+    // generic request method is intentionally wider/narrower depending on the
+    // inferred chain. Keep this adapter boundary explicit instead of forcing
+    // the Viem generic into EIP-1193's method/return-type union.
+    const provider = {
+      request: async ({ method, params }: { method: string; params?: unknown[] }) => {
         if (method === "eth_accounts") return [address];
         if (method === "eth_chainId") return "0x4cef52";
-        return publicClient.request({ method: method as never, params: params as never });
+        return publicClient.request({
+          method: method as never,
+          params: params as never,
+        });
       },
       on: () => provider,
       removeListener: () => provider,
-    };
+    } as unknown as EIP1193Provider;
 
     // Keep the adapter configuration compatible with Circle's provider factory.
     // Do not pass a Viem Chain object through capabilities.supportedChains.
