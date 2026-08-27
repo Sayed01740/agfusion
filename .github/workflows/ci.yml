@@ -23,10 +23,10 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - name: Apply CI type compatibility fixes
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         shell: python
         run: |
           from pathlib import Path
+          import subprocess
 
           def edit(path, fn):
               p = Path(path)
@@ -49,7 +49,6 @@ jobs:
               '      }) as EIP1193Provider["request"],'
           ))
 
-          edit('src/app/layout.tsx', lambda s: s)
           Path('src/css.d.ts').write_text('declare module "*.css" {}\n')
 
           edit('src/blockchain/appkit-service.ts', lambda s: s
@@ -85,7 +84,6 @@ jobs:
               'message: "Receipt was not confirmed with status 0x1.",'
           ))
 
-          import subprocess
           subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
           subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
           subprocess.run(['git', 'add', 'src'], check=True)
