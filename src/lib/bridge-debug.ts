@@ -10,6 +10,7 @@ export type BridgeDebugEvent = {
   durationMs?: number;
   data?: unknown;
   error?: unknown;
+  txHash?: string;
 };
 
 export type BridgeDebugSession = {
@@ -47,10 +48,7 @@ function safe(value: unknown, depth = 0): unknown {
 function newId() { return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 function readEvents(): BridgeDebugEvent[] {
   if (typeof window === "undefined") return [];
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch { return []; }
+  try { const parsed = JSON.parse(window.localStorage.getItem(KEY) || "[]"); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
 }
 function persist(events: BridgeDebugEvent[]) {
   if (typeof window === "undefined") return;
@@ -61,9 +59,7 @@ function persist(events: BridgeDebugEvent[]) {
 function sendToServer(event: BridgeDebugEvent, sessionId?: string) {
   if (typeof window === "undefined") return;
   const body = JSON.stringify({ diagnosticVersion: 5, sessionId, app: "AGFusion", purpose: "Circle CCTP bridge diagnostic log", event });
-  try {
-    if (typeof navigator.sendBeacon === "function" && body.length < 60_000 && navigator.sendBeacon(SERVER_ENDPOINT, new Blob([body], { type: "application/json" }))) return;
-  } catch {}
+  try { if (typeof navigator.sendBeacon === "function" && body.length < 60_000 && navigator.sendBeacon(SERVER_ENDPOINT, new Blob([body], { type: "application/json" }))) return; } catch {}
   void fetch(SERVER_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
 }
 
@@ -77,22 +73,18 @@ export function startBridgeDebugSession(txId?: string, context: Record<string, u
   return activeSessionId;
 }
 
-export function recordBridgeDebug(stage: string, data?: unknown, txId?: string, message?: string, extra: { method?: string; chainId?: string | number; durationMs?: number; error?: unknown } = {}): void {
+export function recordBridgeDebug(stage: string, data?: unknown, txId?: string, message?: string, extra: { method?: string; chainId?: string | number; durationMs?: number; error?: unknown; txHash?: string } = {}): void {
   if (typeof window === "undefined") return;
   const sessionId = txId || activeSessionId || newId();
   activeSessionId = sessionId;
   const current = readEvents();
-  const event: BridgeDebugEvent = {
-    id: newId(), sequence: current.length + 1, at: new Date().toISOString(), txId: sessionId,
-    stage, message, method: extra.method, chainId: extra.chainId === undefined ? undefined : String(extra.chainId),
-    durationMs: extra.durationMs, data: safe(data), error: extra.error === undefined ? undefined : safe(extra.error),
-  };
+  const event: BridgeDebugEvent = { id: newId(), sequence: current.length + 1, at: new Date().toISOString(), txId: sessionId, stage, message, method: extra.method, chainId: extra.chainId === undefined ? undefined : String(extra.chainId), durationMs: extra.durationMs, data: safe(data), error: extra.error === undefined ? undefined : safe(extra.error), txHash: extra.txHash };
   current.push(event); persist(current);
   try { console.debug("[AGFusion Bridge]", event); } catch {}
   sendToServer(event, sessionId);
 }
 
-export function attachBridgeProviderDiagnostics(provider: { request: (args: { method: string; params?: unknown }) => Promise<unknown> }, label: string, txId?: string): void {
+export function attachBridgeProviderDiagnostics(provider: { request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown> }, label: string, txId?: string): void {
   if (!provider || typeof provider.request !== "function") return;
   const p = provider as unknown as Record<string, unknown>;
   const marker = "__agfusionBridgeDebugWrappedV5";
