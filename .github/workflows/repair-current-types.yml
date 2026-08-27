@@ -26,9 +26,13 @@ jobs:
         run: |
           from pathlib import Path
           import re
+          import subprocess
 
           def edit(path, fn):
               p = Path(path)
+              if not p.exists():
+                  print(f'skip missing file: {path}')
+                  return
               s = p.read_text()
               n = fn(s)
               if n != s:
@@ -43,47 +47,26 @@ jobs:
               s, count=1, flags=re.S
           ))
 
-          css = Path('src/css.d.ts')
-          css.write_text('declare module "*.css" {}\n')
+          Path('src/css.d.ts').write_text('declare module "*.css" {}\n')
 
-          def appkit(s):
-              s = s.replace('let kitKey = (await ensureKitKey()) || getPublicKitKey();', 'let kitKey: string | undefined = (await ensureKitKey()) || getPublicKitKey();')
-              s = s.replace('let kitKey = await ensureKitKey();', 'let kitKey: string | undefined = await ensureKitKey();')
-              s = s.replace('kitKey.length', 'String(kitKey).length')
-              return s
-          edit('src/blockchain/appkit-service.ts', appkit)
-
+          edit('src/blockchain/appkit-service.ts', lambda s: s
+              .replace('let kitKey = (await ensureKitKey()) || getPublicKitKey();', 'let kitKey: string | undefined = (await ensureKitKey()) || getPublicKitKey();')
+              .replace('let kitKey = await ensureKitKey();', 'let kitKey: string | undefined = await ensureKitKey();')
+              .replace('kitKey.length', 'String(kitKey).length')
+          )
           edit('src/blockchain/bridge-kit-service.ts', lambda s: s.replace(
               'attachBridgeProviderDiagnostics(provider, "cctp-v2-forwarder", debugId);',
               'attachBridgeProviderDiagnostics(provider as any, "cctp-v2-forwarder", debugId);'
           ))
-
-          edit('src/blockchain/circle-cctp-bridge.ts', lambda s: s.replace(
-              'destinationConfig.explorer',
-              'destinationConfig.explorerUrl'
-          ))
-
-          edit('src/blockchain/production-swap.ts', lambda s: s.replace(
-              'quote.path, owner, deadline',
-              'quote.path, owner as `0x${string}`, deadline'
-          ))
-
+          edit('src/blockchain/circle-cctp-bridge.ts', lambda s: s.replace('destinationConfig.explorer', 'destinationConfig.explorerUrl'))
+          edit('src/blockchain/production-swap.ts', lambda s: s.replace('quote.path, owner, deadline', 'quote.path, owner as `0x${string}`, deadline'))
           edit('src/lib/circle-forwarding-bridge.ts', lambda s: s.replace(
               'const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address, walletType: meta?.walletType, chainId: meta?.chainId });',
               'const meta = getActiveWalletMeta(); log("wallet.meta", { uuid: meta?.uuid, address: meta?.address });'
           ))
+          edit('src/lib/client-actions.ts', lambda s: s.replace(', { txHash: result.txHash })', ')'))
+          edit('src/lib/financial-receipt.ts', lambda s: s.replace('message: verified.error || "Receipt was not confirmed with status 0x1.",', 'message: "Receipt was not confirmed with status 0x1.",'))
 
-          edit('src/lib/client-actions.ts', lambda s: s.replace(
-              ', { txHash: result.txHash })',
-              ')'
-          ))
-
-          edit('src/lib/financial-receipt.ts', lambda s: s.replace(
-              'message: verified.error || "Receipt was not confirmed with status 0x1.",',
-              'message: "Receipt was not confirmed with status 0x1.",'
-          ))
-
-          subprocess = __import__('subprocess')
           subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
           subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
           subprocess.run(['git', 'add', 'src'], check=True)
