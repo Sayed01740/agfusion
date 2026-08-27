@@ -3,21 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "description": "AI-native crosschain stablecoin operating system on Arc Network",
-  "engines": {
-    "node": ">=22 <23",
-    "npm": ">=10"
-  },
+  "engines": { "node": ">=22 <23", "npm": ">=10" },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "prisma generate && node scripts/patch-multichain-appkit-adapter.mjs && next build",
-    "vercel-build": "npm pack --silent typescript@5.8.3 && mkdir -p node_modules/typescript && tar -xzf typescript-5.8.3.tgz -C node_modules/typescript --strip-components=1 && rm -f typescript-5.8.3.tgz && npm run build",
+    "vercel-build": "npm run build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.13.0",
@@ -33,12 +31,11 @@
     "framer-motion": "^12.18.1",
     "lucide-react": "^0.515.0",
     "next": "^15.3.3",
+    "permissionless": "^0.3.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "permissionless": "^0.3.7",
     "recharts": "^2.15.3",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss": "^4.1.10",
     "viem": "^2.31.0",
     "zod": "^3.25.67",
     "zustand": "^5.0.5"
@@ -47,12 +44,12 @@
     "@tailwindcss/postcss": "^4.1.10",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
-    "@types/react-dom": "^19.1.0",
+    "@types/react-dom": "^19.1.6",
     "eslint": "^10.8.1",
     "prisma": "^6.10.1",
+    "tailwindcss": "^4.1.10",
+    "typescript": "^5.8.3",
     "vitest": "^4.1.10"
   },
-  "optionalDependencies": {
-    "lightningcss-win32-x64-msvc": "^1.32.0"
-  }
+  "optionalDependencies": { "lightningcss-win32-x64-msvc": "^1.32.0" }
 }
