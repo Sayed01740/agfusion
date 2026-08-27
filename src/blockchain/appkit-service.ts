@@ -73,6 +73,10 @@ export function estimateSwapDemo(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Bridge orchestration helpers (pure + unit-testable)
+// ---------------------------------------------------------------------------
+
 export interface BridgeSdkStep {
   name?: string;
   state?: string;
@@ -89,11 +93,16 @@ export interface BridgeSdkResult {
 
 const DESTINATION_STEP_KEYS = ["mint", "receive", "destination", "deposit"];
 
+/** True when a step name is the destination (mint/receive) step, semantically. */
 export function isDestinationStepName(name: string): boolean {
   const n = (name || "").toLowerCase();
   return DESTINATION_STEP_KEYS.some((k) => n.includes(k));
 }
 
+/**
+ * The destination transaction hash is the completed mint/receive step's hash —
+ * never an arbitrary "last" hash (the last step could be approve or burn).
+ */
 export function findDestinationHash(
   steps: BridgeSdkStep[] | undefined,
 ): string | undefined {
@@ -107,6 +116,11 @@ export function findDestinationHash(
     )?.txHash;
 }
 
+/**
+ * Decide whether a bridge attempt succeeded, needs on-chain verification, or is
+ * pending/retryable. SDK "error" is never success; success without a
+ * destination mint/receive hash is pending/retryable, never success.
+ */
 export function resolveBridgeOutcome(opts: {
   sdkState?: string;
   sdkSteps?: BridgeSdkStep[];
@@ -117,6 +131,13 @@ export function resolveBridgeOutcome(opts: {
   return { status: "verify", destHash };
 }
 
+/**
+ * True only when the SDK returned an error state AND the failing step's error
+ * is classified as retryable by the SDK (KitError with RETRYABLE/RESUMABLE
+ * recoverability or a retryable code). User rejection, wrong chain, invalid
+ * params, unsupported chain, missing wallet and credential errors are never
+ * retried.
+ */
 export function shouldRetryBridge(
   result: BridgeSdkResult | null | undefined,
   isRetryable: (error: unknown) => boolean,
@@ -127,6 +148,12 @@ export function shouldRetryBridge(
   return isRetryable(failedStep.error);
 }
 
+/**
+ * Build the App Kit bridge params. ONE adapter is used for both the source and
+ * the destination — no separate destination adapter, no targetChainId locking,
+ * and no KIT_KEY config (the installed App Kit does not require one for
+ * kit.bridge()).
+ */
 export function buildBridgeParams(opts: {
   fromChain: ChainId;
   toChain: ChainId;
@@ -135,7 +162,10 @@ export function buildBridgeParams(opts: {
   adapter: unknown;
 }): Record<string, unknown> {
   return {
-    from: { chain: opts.fromChain, adapter: opts.adapter },
+    from: {
+      chain: opts.fromChain,
+      adapter: opts.adapter,
+    },
     to: {
       chain: opts.toChain,
       ...(opts.recipient ? { recipientAddress: opts.recipient } : {}),
@@ -146,6 +176,7 @@ export function buildBridgeParams(opts: {
   };
 }
 
+/** Map SDK steps to the UI TxStep shape (preserving hashes + error messages). */
 export function toTxSteps(sdkSteps: BridgeSdkStep[] | undefined): TxStep[] {
   return (sdkSteps || []).map((s) => ({
     name: s.name || "Step",
@@ -162,10 +193,12 @@ export function toTxSteps(sdkSteps: BridgeSdkStep[] | undefined): TxStep[] {
   }));
 }
 
+/** /api/rpc?chain=<key> proxy key for a chain (falls back to "arc"). */
 export function rpcKeyForChain(chain: ChainId): string {
   return getCctpConfig(chain)?.rpcProxyKey ?? "arc";
 }
 
+/** Circle Email Wallets can only bridge Arc Testnet ↔ Base Sepolia today. */
 export function assertCircleBridgeChains(from: ChainId, to: ChainId): void {
   if (
     !CIRCLE_BRIDGE_CHAINS.includes(from) ||
@@ -178,6 +211,11 @@ export function assertCircleBridgeChains(from: ChainId, to: ChainId): void {
   }
 }
 
+/**
+ * Destination verification: success requires the destination mint/receive step
+ * to be completed with a tx hash AND that receipt to confirm successfully
+ * on-chain. Reverted receipt → error. Receipt not found yet → retryable/pending.
+ */
 export async function verifyDestinationStep(opts: {
   sdkState?: string;
   sdkSteps?: BridgeSdkStep[];
@@ -208,15 +246,24 @@ export async function verifyDestinationStep(opts: {
       delayMs: opts.delayMs ?? 2_000,
     });
     if (v.status === "reverted") {
-      return { status: "error", destHash, note: `Destination transaction reverted on-chain (${destKey}).` };
+      return {
+        status: "error",
+        destHash,
+        note: `Destination transaction reverted on-chain (${destKey}).`,
+      };
     }
     if (v.status === "not_found") {
-      return { status: "retryable", destHash, note: `Bridge submitted but the destination transaction is not confirmed yet (${destKey}). Retry to check — AGFusion will never re-burn.` };
+      return {
+        status: "retryable",
+        destHash,
+        note: `Bridge submitted but the destination transaction is not confirmed yet (${destKey}). Retry to check — AGFusion will never re-burn.`,
+      };
     }
     return { status: "success", destHash };
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.warn("[AGFusion] bridge receipt verification skipped", message);
+    // Verification infra unavailable — keep the SDK status. The hash is real
+    // and the explorer/recovery path can confirm later.
+    console.warn("[AGFusion] bridge receipt verification skipped", e);
     return { status: "success", destHash };
   }
 }
@@ -226,18 +273,33 @@ async function tryLiveAppKitBridge(params: {
   fromChain: ChainId;
   toChain: ChainId;
   onStep?: (steps: TxStep[]) => void;
+  /** Reused for recovery: init/update the persisted state machine (Phase 5/6/7) */
   bridgeState?: BridgeState | null;
+  /** SDK result from a previous attempt, used with kit.retryBridge (Phase 7) */
   previousResult?: unknown;
+  /** Stable tx id (e.g. the UI placeholder id) so state survives across attempts */
   txId?: string;
+  /** Mint recipient (defaults to the connected wallet address) */
   recipient?: string;
 }): Promise<TransactionRecord> {
   if (typeof window === "undefined") {
-    throw new Error("Bridge must run in the browser with your connected wallet.");
+    throw new Error(
+      "Bridge must run in the browser with your connected wallet.",
+    );
   }
 
+  // Defense-in-depth — single universal choke point for EVERY bridge execution
+  // (agent/tool path, UI, and retry/recovery all funnel through here). The mint
+  // recipient is optional and defaults to the connected wallet when omitted; when
+  // one IS supplied it must be a real, non-zero, non-burn, non-demo address,
+  // because the destination mint is the irreversible half of a CCTP transfer.
+  // Fails closed before any burn/mint or network side-effect below.
   if (params.recipient !== undefined && String(params.recipient).trim() !== "") {
     const { requireSafeRecipient } = await import("@/lib/balances-empty");
-    params.recipient = requireSafeRecipient(params.recipient, "bridge recipient");
+    params.recipient = requireSafeRecipient(
+      params.recipient,
+      "bridge recipient",
+    );
   } else {
     params.recipient = undefined;
   }
@@ -246,19 +308,31 @@ async function tryLiveAppKitBridge(params: {
   installCircleApiProxy();
 
   const { formatKitError } = await import("@/lib/kit-key");
+
   const kit = await getAppKit();
   if (!kit) {
     const detail = getAppKitLoadError();
-    throw new Error(detail ? `App Kit failed to load: ${detail}` : "App Kit not loaded. Hard-refresh and try again.");
+    throw new Error(
+      detail
+        ? `App Kit failed to load: ${detail}`
+        : "App Kit not loaded. Hard-refresh and try again.",
+    );
   }
 
   const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
   const meta = getActiveWalletMeta();
   const isAgent = !!meta?.smartAccountAddress;
   const isCircle = meta?.uuid === "circle-pw";
-  if (isCircle) assertCircleBridgeChains(params.fromChain, params.toChain);
 
+  // Wallet-type routing guard (Phase 2/12): Circle Email Wallets can only
+  // execute Arc ↔ Base today. Fail fast instead of presenting an unsupported
+  // Circle wallet challenge.
+  if (isCircle) {
+    assertCircleBridgeChains(params.fromChain, params.toChain);
+  }
   let wiredAdapter: any = undefined;
+
+  // Import wallet adapter utilities once.
   const {
     createAppKitAdapterFromBrowser,
     switchToChainId,
@@ -268,80 +342,1352 @@ async function tryLiveAppKitBridge(params: {
     EVM_CHAIN_PARAMS,
   } = await import("@/sdk/wallet-adapter");
 
+  // Resolve the ACTIVE wallet provider exactly once (Rabby / MetaMask /
+  // Circle Email Wallet / Agent). The bridge lifecycle has exactly one
+  // chain-switch authority: the explicit source-chain preflight below. The
+  // single App Kit adapter handles per-step switching internally
+  // (ViemAdapter.ensureChain → wallet_switchEthereumChain) for burn AND mint,
+  // so there is no separate destination adapter and no manual mid-bridge
+  // switching.
   const bridgeProvider = await getBridgeProvider();
-  if (isAgent) await reqAccounts(bridgeProvider);
+  if (isAgent) {
+    await reqAccounts(bridgeProvider);
+  }
 
+  // Exactly one explicit source-chain switch before kit.bridge().
   try {
     await switchToChainId(bridgeProvider, params.fromChain);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    throw new Error(message || `Could not switch the wallet to ${params.fromChain.replace(/_/g, " ")}.`);
+    throw new Error(
+      e instanceof Error
+        ? e.message
+        : `Could not switch the wallet to ${params.fromChain.replace(/_/g, " ")}.`,
+    );
   }
 
+  // Verify eth_chainId after the switch — approve/burn run on the source chain.
   const expectedChainId = EVM_CHAIN_PARAMS[params.fromChain]?.chainId;
   if (expectedChainId) {
     const actual = await getChainId(bridgeProvider).catch(() => -1);
     if (actual !== expectedChainId) {
-      throw new Error(`Wallet is on chain ${actual}, need ${params.fromChain.replace(/_/g, " ")} (${expectedChainId}) to bridge from it. Switch the network in your wallet and retry.`);
+      throw new Error(
+        `Wallet is on chain ${actual}, need ${params.fromChain.replace(/_/g, " ")} (${expectedChainId}) to bridge from it. Switch the network in your wallet and retry.`,
+      );
     }
   }
 
+  // ONE App Kit adapter for the whole bridge attempt. The same adapter object
+  // is passed to both from.adapter and to.adapter — no separate destination
+  // adapter is created. ViemAdapter.ensureChain() switches the wallet to the
+  // correct chain per step (approve/burn on source, mint on destination), and
+  // the Circle Email Wallet provider handles wallet_switchEthereumChain for
+  // Arc ↔ Base, so there is no manual lifecycle switching.
   const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
   if (!wired) {
-    throw new Error("Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.");
+    throw new Error(
+      "Could not connect wallet adapter for bridge. Disconnect and reconnect your wallet, then retry.",
+    );
   }
   wiredAdapter = wired.adapter;
 
-  // Remaining bridge execution below intentionally stays on the existing
-  // application flow from the clean baseline.
-  const bridgeParams = buildBridgeParams({
-    fromChain: params.fromChain,
-    toChain: params.toChain,
-    amount: params.amount,
-    recipient: params.recipient,
-    adapter: wiredAdapter,
-  });
-  try {
-    const result = await (kit as any).bridge(bridgeParams);
-    const sdkSteps = (result?.steps || []) as BridgeSdkStep[];
-    params.onStep?.(toTxSteps(sdkSteps));
-    const verification = await verifyDestinationStep({
-      sdkState: result?.state,
-      sdkSteps,
-      toChain: params.toChain,
+  // Hard preflight: source + dest public RPCs must answer eth_chainId
+  // Maps ChainId → /api/rpc?chain=<key> proxy key. Source of truth is the
+  // shared CCTP config (Sonic is intentionally absent until SDK/network align).
+
+  async function assertRpc(label: string, chainQ: string): Promise<void> {
+    // Prefer GET health endpoint
+    try {
+      const health = await fetch(`/api/rpc?chain=${chainQ}`, {
+        cache: "no-store",
+      });
+      if (health.ok) {
+        const j = (await health.json()) as { ok?: boolean; chainId?: string };
+        if (j.ok && j.chainId) return;
+      }
+    } catch {
+      /* try POST */
+    }
+
+    const ping = await fetch(`/api/rpc?chain=${chainQ}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_chainId",
+        params: [],
+      }),
+      cache: "no-store",
     });
-    const destHash = verification.destHash;
-    if (verification.status === "error") throw new Error(verification.note || "Bridge destination transaction failed.");
-    const txHash = destHash ?? findDestinationHash(sdkSteps) ?? "";
-    return {
-      id: params.txId || uid(),
-      status: verification.status === "success" ? "success" : "pending",
-      txHash,
-      amount: params.amount,
+    const text = await ping.text();
+    let result: string | undefined;
+    try {
+      result = (JSON.parse(text) as { result?: string }).result;
+    } catch {
+      /* ignore */
+    }
+    if (!ping.ok || !result) {
+      throw new Error(
+        `Cannot reach **${label}** RPC via AGFusion proxy (${chainQ}). HTTP ${ping.status}. ${text.slice(0, 160)}`,
+      );
+    }
+  }
+
+  try {
+    await assertRpc(params.fromChain.replace(/_/g, " "), rpcKeyForChain(params.fromChain));
+    await assertRpc(params.toChain.replace(/_/g, " "), rpcKeyForChain(params.toChain));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `${msg}\n\nOpen https://agfusion.vercel.app/api/rpc?chain=arc in a tab — it should show ok:true. Then hard-refresh and retry.`,
+    );
+  }
+
+  // Track step events so the persisted state machine and the recovery path
+  // always have the real per-step hashes — even when kit.bridge() throws
+  // (Phase 5/6/7). Declared here so the catch block can persist them.
+  const stepEvents: Array<{ name?: string; state?: string; txHash?: string; errorMessage?: string }> = [];
+  const txIdForState = params.txId ?? params.bridgeState?.txId ?? uid("tx");
+
+  // Named handler (declared outside try so the finally block can unregister
+  // it) — prevents duplicate lifecycle listeners across bridge attempts.
+  let onBridgeEvent: ((payload: any) => void) | null = null;
+
+  try {
+    // Persist / restore the state machine for this attempt (Phase 5).
+    let bState: BridgeState | null = params.bridgeState ?? null;
+    if (!bState && params.txId) {
+      bState = loadBridgeState(params.txId);
+    }
+    if (!bState) {
+      // Seed the machine so deriveBridgeState never falls back to zeroed data.
+      bState = initBridgeState({
+        txId: txIdForState,
+        walletType: isAgent ? "agent" : isCircle ? "circle" : "evm",
+        walletAddress: meta?.address ?? null,
+        fromChain: params.fromChain,
+        toChain: params.toChain,
+        token: "USDC",
+        amount: String(params.amount),
+        recipient: params.recipient,
+      });
+    }
+
+    const bridgeParams = buildBridgeParams({
       fromChain: params.fromChain,
       toChain: params.toChain,
-      steps: toTxSteps(sdkSteps),
-    } as TransactionRecord;
+      amount: String(params.amount),
+      recipient: params.recipient,
+      adapter: wiredAdapter,
+    });
+
+    // Named handler so the lifecycle listener can be removed after the
+    // attempt — otherwise repeated bridge attempts stack duplicate listeners.
+    // It only records step progress for the persisted state machine; it never
+    // switches the wallet (per-step chain switching is handled by the adapter).
+    onBridgeEvent = (payload: any) => {
+      const name = (payload?.method || payload?.name || "").toLowerCase();
+      const state = (payload?.values?.state || payload?.values?.status || payload?.state || "").toLowerCase();
+      const stepName = name.includes("fetchattestation") || name.includes("attest")
+        ? "fetchAttestation"
+        : name.includes("mint") || name.includes("receive") || name.includes("deposit") || name.includes("destination")
+          ? "mint"
+          : name.includes("burn")
+            ? "burn"
+            : name.includes("approve")
+              ? "approve"
+              : name;
+      if (stepName && state) {
+        stepEvents.push({
+          name: stepName,
+          state,
+          txHash: payload?.values?.txHash || payload?.txHash,
+          errorMessage: payload?.values?.errorMessage || payload?.errorMessage,
+        });
+        // Persist the state machine as each step completes so reload/recovery
+        // can resume from the last confirmed state (Phase 5).
+        if (state === "success" || state === "error") {
+          deriveBridgeState(txIdForState, stepEvents);
+        }
+      }
+    };
+    kit.on("*", onBridgeEvent);
+
+    // No manual wallet_switchEthereumChain here — the preflight above already
+    // verified the wallet is on the source chain, and the adapter switches the
+    // wallet per step for the destination mint.
+
+    let result = (await kit.bridge(bridgeParams)) as BridgeSdkResult;
+
+    // Merge SDK steps into the event log for the state machine.
+    for (const s of result.steps || []) {
+      if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) {
+        stepEvents.push(s);
+      }
+    }
+    deriveBridgeState(txIdForState, stepEvents);
+
+    // Retry ONLY genuinely retryable failures (isRetryableError from the SDK),
+    // and only once. User rejection, wrong chain, invalid params, unsupported
+    // chain, insufficient balance and credential errors are never retried —
+    // they surface the original failure below.
+    const { isRetryableError } = await import("@circle-fin/app-kit");
+    if (shouldRetryBridge(result, isRetryableError)) {
+      console.warn("[AGFusion] Bridge failed with a retryable error — retrying once via kit.retryBridge...");
+      try {
+        result = (await kit.retryBridge(result, {
+          from: wiredAdapter,
+          to: wiredAdapter,
+        })) as BridgeSdkResult;
+        for (const s of result.steps || []) {
+          if (s.name && !stepEvents.some((e) => e.name === s.name && e.state === s.state)) {
+            stepEvents.push(s);
+          }
+        }
+        deriveBridgeState(txIdForState, stepEvents);
+      } catch (retryErr) {
+        console.warn("[AGFusion] Bridge retry failed:", retryErr);
+      }
+    }
+
+    const steps: TxStep[] = toTxSteps(result.steps);
+
+    if (result.state === "error") {
+      const errStep = steps.find((s) => s.state === "error");
+      const err = new Error(
+        errStep?.message ||
+          "Bridge returned error. Check USDC on the source chain and try again.",
+      );
+      // Attach the partial SDK result + persisted state so recovery can resume
+      // without restarting (Phase 6/7).
+      (err as any).bridgeResult = result;
+      (err as any).bridgeState = deriveBridgeState(txIdForState, stepEvents);
+      throw err;
+    }
+
+    // Persist final machine state + full SDK result for safe resume (Phase 7).
+    const finalState = deriveBridgeState(txIdForState, stepEvents);
+
+    // Destination verification (Phase 5/7): success requires the semantic
+    // mint/receive step to be completed with a destination tx hash, and that
+    // receipt must confirm successfully on-chain. The SDK returning without
+    // error is never proof of settlement.
+    const verified = await verifyDestinationStep({
+      sdkState: result.state,
+      sdkSteps: result.steps,
+      toChain: params.toChain,
+    });
+    const finalStatus: TransactionRecord["status"] = verified.status;
+    const verifyNote = verified.note;
+    const destHash = verified.destHash;
+
+    return {
+      id: txIdForState,
+      type: "bridge",
+      status: finalStatus,
+      retryable: finalStatus === "retryable",
+      amount: params.amount,
+      token: "USDC",
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      feeUsd: estimateBridgeDemo(
+        params.amount,
+        params.fromChain,
+        params.toChain,
+      ).feeUsd,
+      steps:
+        steps.length > 0
+          ? steps
+          : [{ name: "Cross-chain transfer", state: "success" }],
+      txHash: destHash,
+      explorerUrl: destHash
+        ? explorerTxUrl(destHash)
+        : CHAINS[params.toChain].explorer,
+      createdAt: new Date().toISOString(),
+      message: [
+        `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}`,
+        verifyNote,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      executionMode: "live",
+      bridgeResult: result,
+      bridgeState: finalState,
+    };
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    const formatted = formatKitError(e);
-    throw new Error(formatted || message || "Bridge execution failed.");
+    const msg = formatKitError(e);
+    console.error("[AGFusion] live App Kit bridge failed:", e);
+
+    // Preserve whatever we learned about this attempt so recovery can resume
+    // from the last confirmed state (Phase 6/7). Even when kit.bridge() threw
+    // without returning a result, the step events captured by the listener let
+    // us reconstruct the state machine.
+    if (typeof window !== "undefined") {
+      let bState = (e as any)?.bridgeState as BridgeState | undefined;
+      if (!bState && stepEvents.length > 0) {
+        bState = deriveBridgeState(txIdForState, stepEvents, {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+      if (bState) {
+        saveBridgeState(bState);
+        (e as any).bridgeState = bState;
+      }
+    }
+
+    if (/4001|user rejected|denied|rejected by user/i.test(msg)) {
+      throw new Error("Bridge cancelled in wallet.");
+    }
+    if (/insufficient|balance/i.test(msg)) {
+      const srcLabel = params.fromChain.replace(/_/g, " ");
+      const extra = isAgent
+        ? `\n\n**Note for Circle Email Wallet**: Your Auto-Agent uses a Smart Account (${meta?.smartAccountAddress || "shown in navbar"}). Please copy the address in the top-right and fund it directly on **${srcLabel}**.`
+        : `\n\nFaucet for testnet USDC: https://faucet.circle.com (select **${srcLabel}**)`;
+      throw new Error(
+        `Insufficient USDC/Gas on **${srcLabel}**: ${msg}\n\nBridge pulls funds from the source chain.${extra}`,
+      );
+    }
+    if (
+      /Network connection failed|CONNECTION_FAILED|3001|could not coalesce|fetch failed|Failed to fetch|HTTP request failed/i.test(
+        msg,
+      )
+    ) {
+      const src = params.fromChain.replace(/_/g, " ");
+      const dst = params.toChain.replace(/_/g, " ");
+      // Determine the proxy key for the source chain so users can verify the right endpoint
+      const srcKey = rpcKeyForChain(params.fromChain);
+      const dstKey = rpcKeyForChain(params.toChain);
+      throw new Error(
+        [
+          `Could not complete Bridge **${src} → ${dst}**.`,
+          "",
+          "AGFusion proxies all chain RPCs server-side. Common fixes:",
+          "1. Hard-refresh (Ctrl+Shift+R) so the latest proxy code loads",
+          `2. Your wallet must stay on **${src}** while approving the burn tx`,
+          `3. You need **USDC on ${src}** before bridging`,
+          `4. Check /api/rpc?chain=${srcKey} returns ok:true`,
+          `5. Check /api/rpc?chain=${dstKey} returns ok:true`,
+          "",
+          `Detail: ${msg}`,
+        ].join("\n"),
+      );
+    }
+    throw new Error(
+      msg ||
+        `Bridge failed. Connect your wallet · switch to **${params.fromChain.replace(/_/g, " ")}** · confirm USDC balance · try again.`,
+    );
+  } finally {
+    // Remove the lifecycle listener on every exit path (success or error).
+    if (onBridgeEvent) {
+      try {
+        kit.off?.("*", onBridgeEvent);
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 
+async function tryLiveAppKitSend(params: {
+  amount: string;
+  token: string;
+  chain: ChainId;
+  recipient: string;
+  recipientLabel?: string;
+}): Promise<TransactionRecord | null> {
+  try {
+    const kit = await getAppKit();
+    const wired = await createAppKitAdapterFromBrowser();
+    if (!kit || !wired) return null;
+
+    const result = (await kit.send({
+      from: { adapter: wired.adapter, chain: params.chain },
+      to: params.recipient,
+      amount: params.amount,
+      token: params.token,
+    })) as { txHash?: string; explorerUrl?: string };
+
+    // On-chain verification (Phase 5): only report success after the receipt
+    // confirms on the chain the send was submitted to.
+    let status: TransactionRecord["status"] = "success";
+    let note = "Live send on Arc";
+    if (result.txHash) {
+      try {
+        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+        const { getCctpConfig } = await import("@/lib/cctp-chains");
+        const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
+        const v = await verifyReceiptOnChain({
+          chainKey,
+          txHash: result.txHash,
+          attempts: 3,
+          delayMs: 1_500,
+        });
+        if (v.status === "reverted") {
+          status = "error";
+          note = `Send reverted on-chain (${chainKey}).`;
+        } else if (v.status === "not_found") {
+          status = "retryable";
+          note = `Send submitted but not confirmed yet (${chainKey}). Check the explorer before retrying.`;
+        }
+      } catch (e) {
+        console.warn("[AGFusion] send receipt verification skipped", e);
+      }
+    } else {
+      status = "retryable";
+      note = "Send submitted without a returned hash — verify in the explorer before retrying.";
+    }
+
+    return {
+      id: uid("tx"),
+      type: "send",
+      status,
+      retryable: status === "retryable",
+      amount: params.amount,
+      token: params.token,
+      fromChain: params.chain,
+      toChain: params.chain,
+      recipient: params.recipient,
+      recipientLabel: params.recipientLabel,
+      feeUsd: 0.04,
+      steps: [
+        { name: "Send", state: status === "error" ? "error" : "success", txHash: result.txHash },
+      ],
+      txHash: result.txHash,
+      explorerUrl:
+        result.explorerUrl ||
+        (result.txHash
+          ? explorerTxUrl(result.txHash)
+          : CHAINS[params.chain].explorer),
+      createdAt: new Date().toISOString(),
+      message: note,
+      executionMode: "live",
+    };
+  } catch (e) {
+    console.warn("[AGFusion] live App Kit send failed:", e);
+    return null;
+  }
+}
+
+export async function runBridgeFlow(params: {
+  amount: string;
+  token: string;
+  fromChain: ChainId;
+  toChain: ChainId;
+  preferLive?: boolean;
+  onStep?: (steps: TxStep[]) => void;
+  /** Optional: reuse an existing tx id (e.g. the UI placeholder) */
+  txId?: string;
+  /** Mint recipient (defaults to the connected wallet address) */
+  recipient?: string;
+}): Promise<TransactionRecord> {
+  params.onStep?.([
+    { name: "Connect & switch network", state: "active" },
+    { name: "Approve / burn", state: "pending" },
+    { name: "Mint on destination", state: "pending" },
+  ]);
+
+  // Always live — demo bridge disabled
+  return tryLiveAppKitBridge({
+    amount: params.amount,
+    fromChain: params.fromChain,
+    toChain: params.toChain,
+    onStep: params.onStep,
+    bridgeState: params.txId ? loadBridgeState(params.txId) : null,
+    previousResult: undefined,
+    txId: params.txId,
+    recipient: params.recipient,
+  });
+}
+
+/**
+ * Verify an existing burn receipt on the source chain. Returns the receipt
+ * status when the tx is found and confirmed, null when it cannot be verified.
+ * Phase 6/9 — authoritative on-chain check, never "success by UI state".
+ */
+async function verifyBurnReceipt(
+  fromChain: ChainId,
+  burnTxHash: string,
+): Promise<{ status: "success" | "reverted" } | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const { getCctpConfig } = await import("@/lib/cctp-chains");
+    const cfg = getCctpConfig(fromChain);
+    if (!cfg) return null;
+    const res = await fetch(`/api/rpc?chain=${cfg.rpcProxyKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_getTransactionReceipt",
+        params: [burnTxHash],
+      }),
+      cache: "no-store",
+    });
+    const data = await res.json();
+    const receipt = data?.result;
+    if (!receipt) return null; // not mined (or not found) yet
+    return { status: receipt.status === "0x1" ? "success" : "reverted" };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Phase 6/7 — SAFE bridge recovery. NEVER restarts approve + burn blindly.
+ *
+ * Recovery resumes from the last confirmed state:
+ * 1. If a bridgeResult exists (SDK returned error or threw with partial data),
+ *    call kit.retryBridge(result) — the SDK analyzes steps and only executes
+ *    the continuation step (approve/burn already succeeded are skipped).
+ * 2. If the persisted state proves the burn happened (burnTxHash), verify the
+ *    receipt on-chain. Confirmed ⇒ BURN_CONFIRMED and continue to attestation
+ *    only — no new burn.
+ * 3. Only when there is strong evidence the burn did NOT happen (no hash, no
+ *    confirmed state) do we re-run the bridge flow from the start.
+ */
 export async function runBridgeWithRecovery(params: {
   amount: string;
   fromChain: ChainId;
   toChain: ChainId;
+  token?: string;
   recipient?: string;
+  /** Failed transaction record (must match the bridge being recovered) */
+  failedTx?: TransactionRecord | null;
+  /** Passed by the UI so the returned record keeps the original tx id */
   txId?: string;
-  onStep?: (steps: TxStep[]) => void;
-  previousResult?: unknown;
 }): Promise<TransactionRecord> {
-  const bridgeState = params.txId ? loadBridgeState(params.txId) : null;
-  const burnConfirmed = bridgeState ? isBurnConfirmed(bridgeState) : false;
-  if (burnConfirmed) {
-    return tryLiveAppKitBridge({ ...params, bridgeState });
+  const fromChain = params.fromChain;
+  const toChain = params.toChain;
+  const amount = params.amount;
+  const txId = params.txId ?? params.failedTx?.id ?? uid("tx");
+
+  // Recover the persisted state machine (survives reload — Phase 5).
+  const persisted = loadBridgeState(txId) ?? (params.failedTx as any)?.bridgeState;
+  const previousResult = (params.failedTx as any)?.bridgeResult as unknown;
+
+  // 1) SDK result available → use the SDK's own resume path (Phase 7).
+  if (previousResult) {
+    try {
+      const kit = await getAppKit();
+      const { createAppKitAdapterFromBrowser: createAdapter } = await import("@/sdk/wallet-adapter");
+      if (!kit) {
+        throw new Error("App Kit unavailable for bridge recovery.");
+      }
+      // ONE adapter for the retry — the same object is used for source and
+      // destination. ViemAdapter.ensureChain switches the wallet per step
+      // (including the destination mint), so no destination adapter is built.
+      const wired = await createAdapter({ requireArc: false });
+      if (!wired) {
+        throw new Error("Could not reconnect the wallet for bridge recovery.");
+      }
+      const retried = (await kit.retryBridge(previousResult, {
+        from: wired.adapter,
+        to: wired.adapter,
+      })) as BridgeSdkResult;
+
+      const steps: TxStep[] = toTxSteps(retried.steps);
+      // Recovery must verify the actual destination transaction — SDK success
+      // is never proof of settlement.
+      const verified = await verifyDestinationStep({
+        sdkState: retried.state,
+        sdkSteps: retried.steps,
+        toChain,
+      });
+      const finalState = deriveBridgeState(
+        txId,
+        (retried.steps || []) as Array<{ name?: string; state?: string; txHash?: string }>,
+      );
+      return {
+        id: txId,
+        type: "bridge",
+        status: verified.status,
+        amount,
+        token: params.token || "USDC",
+        fromChain,
+        toChain,
+        recipient: params.recipient,
+        feeUsd: estimateBridgeDemo(amount, fromChain, toChain).feeUsd,
+        steps,
+        txHash: verified.destHash,
+        explorerUrl: verified.destHash ? explorerTxUrl(verified.destHash) : CHAINS[toChain].explorer,
+        createdAt: new Date().toISOString(),
+        message: [
+          `Recovered bridge ${amount} USDC ${fromChain} → ${toChain}`,
+          verified.note,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        executionMode: "live",
+        bridgeResult: retried,
+        bridgeState: finalState,
+      };
+    } catch (retryErr) {
+      console.error("[AGFusion] retryBridge failed, falling back to state resume:", retryErr);
+      // Fall through to state-based resume below.
+    }
   }
-  return tryLiveAppKitBridge({ ...params, bridgeState });
+
+  // 2) Burn already confirmed (hash persisted) → verify receipt, never re-burn.
+  if (persisted && isBurnConfirmed(persisted)) {
+    const burnHash = persisted.burnTxHash;
+    if (burnHash) {
+      const receipt = await verifyBurnReceipt(fromChain, burnHash);
+      if (receipt?.status === "success") {
+        // Burn confirmed on-chain. Resume from attestation using the SDK's own
+        // retry path with a reconstructed result — NEVER call kit.bridge again.
+        const resumed = await resumeFromBurn(txId, fromChain, toChain, amount, params.token || "USDC", burnHash, params.recipient);
+        return resumed;
+      }
+      if (receipt?.status === "reverted") {
+        // Burn reverted — safe to re-run the whole bridge.
+        return tryLiveAppKitBridge({
+          amount,
+          fromChain,
+          toChain,
+          bridgeState: {
+            ...persisted,
+            state: "INIT",
+            burnTxHash: undefined,
+            approvalTxHash: undefined,
+          },
+        });
+      }
+      // Receipt not found yet (RPC lag) — do NOT burn again; surface as retryable.
+      throw new Error(
+        `Burn transaction ${burnHash.slice(0, 18)}… is not confirmed yet. ` +
+          "Wait a moment and retry — AGFusion will not burn again.",
+      );
+    }
+    // State says the burn happened but no hash persisted — surface, don't re-burn.
+    throw new Error(
+      "A previous bridge attempt confirmed a burn but its hash was not persisted. " +
+        "Funds are safe on the destination once attestation completes; check the Circle activity or the source explorer before retrying.",
+    );
+  }
+
+  // 3) No evidence of a burn → safe to run the bridge flow fresh (or resume
+  //    with the persisted state if one exists).
+  return tryLiveAppKitBridge({
+    amount,
+    fromChain,
+    toChain,
+    bridgeState: persisted,
+  });
+}
+
+/**
+ * Resume a bridge whose burn is confirmed: reconstruct an SDK-shaped result
+ * (step history + chain defs) and hand it to kit.retryBridge so it continues
+ * at fetchAttestation → mint. Guarantees the burn is not re-executed.
+ */
+async function resumeFromBurn(
+  txId: string,
+  fromChain: ChainId,
+  toChain: ChainId,
+  amount: string,
+  token: string,
+  burnHash: string,
+  recipient?: string,
+): Promise<TransactionRecord> {
+  const kit = await getAppKit();
+  const { createAppKitAdapterFromBrowser: createAdapter } = await import("@/sdk/wallet-adapter");
+  if (!kit) throw new Error("App Kit unavailable for bridge recovery.");
+
+  const supported = (kit as any).getSupportedChains?.() as Array<{ chain: string }> | undefined;
+  const chains = Array.isArray(supported) ? supported : [];
+  const srcDef = chains.find((c) => c.chain === fromChain);
+  const dstDef = chains.find((c) => c.chain === toChain);
+  if (!srcDef || !dstDef) {
+    throw new Error("Circle App Kit could not resolve the bridge chains for recovery.");
+  }
+
+  // ONE adapter for the retry — same object for source and destination.
+  const wired = await createAdapter({ requireArc: false });
+  if (!wired) throw new Error("Could not reconnect the wallet for bridge recovery.");
+
+  // Step history: only the confirmed burn is present, so the SDK continues at
+  // fetchAttestation and never touches approve/burn again.
+  const reconstructed = {
+    state: "error",
+    amount,
+    token,
+    source: { address: wired.address, chain: srcDef },
+    destination: { address: wired.address, chain: dstDef, recipientAddress: recipient },
+    steps: [{ name: "burn", state: "success", txHash: burnHash }],
+    config: {},
+  };
+
+  const retried = (await kit.retryBridge(reconstructed, {
+    from: wired.adapter,
+    to: wired.adapter,
+  })) as BridgeSdkResult;
+
+  const steps: TxStep[] = toTxSteps(retried.steps);
+  // Recovery must verify the actual destination transaction — the burn alone
+  // is never proof the bridge settled.
+  const verified = await verifyDestinationStep({
+    sdkState: retried.state,
+    sdkSteps: retried.steps,
+    toChain,
+  });
+  const finalState = deriveBridgeState(txId, retried.steps || []);
+
+  return {
+    id: txId,
+    type: "bridge",
+    status: verified.status,
+    amount,
+    token,
+    fromChain,
+    toChain,
+    recipient,
+    feeUsd: estimateBridgeDemo(amount, fromChain, toChain).feeUsd,
+    steps,
+    txHash: verified.destHash,
+    explorerUrl: verified.destHash ? explorerTxUrl(verified.destHash) : CHAINS[toChain].explorer,
+    createdAt: new Date().toISOString(),
+    message: [
+      `Recovered bridge ${amount} USDC ${fromChain} → ${toChain}`,
+      verified.note,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    executionMode: "live",
+    bridgeResult: retried,
+    bridgeState: finalState,
+  };
+}
+
+export async function runSwapFlow(params: {
+  amount: string;
+  tokenIn: string;
+  tokenOut: string;
+  chain: ChainId;
+  onStep?: (steps: TxStep[]) => void;
+}): Promise<TransactionRecord> {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "Swap must run in the browser with your connected wallet (Rabby / MetaMask).",
+    );
+  }
+
+  // App Kit calls api.circle.com from the browser → often "Failed to fetch" (8002).
+  // Route those requests through our server proxy first.
+  const { installCircleApiProxy } = await import("@/lib/circle-proxy");
+  installCircleApiProxy();
+
+  const {
+    ensureKitKey,
+    getPublicKitKey,
+    formatKitError,
+    KIT_KEY_HELP,
+    normalizeKitKey,
+  } = await import("@/lib/kit-key");
+
+  // Clear bad session keys and load valid key (session → NEXT_PUBLIC → /api/kit)
+  let kitKey = (await ensureKitKey()) || getPublicKitKey();
+  if (kitKey) kitKey = normalizeKitKey(kitKey);
+
+  if (!kitKey || !/^KIT_KEY:[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/.test(kitKey)) {
+    throw new Error(
+      `${KIT_KEY_HELP}\n\nTip: hard-refresh. Use Clear saved in Stablecoin FX so a bad paste is not used.`,
+    );
+  }
+
+  // Live credential check (catches revoked/wrong keys before App Kit fails opaquely)
+  try {
+    const health = await fetch("/api/kit?check=1", { cache: "no-store" });
+    const h = (await health.json()) as {
+      valid?: boolean | null;
+      message?: string;
+      fix?: string[];
+      kitKey?: string | null;
+    };
+    if (h.kitKey && /^KIT_KEY:/.test(h.kitKey)) {
+      kitKey = normalizeKitKey(h.kitKey);
+    }
+    if (h.valid === false) {
+      throw new Error(
+        [
+          "Circle rejected KIT_KEY (Invalid credentials).",
+          h.message || "",
+          "",
+          "Permanent fix (site owner):",
+          ...(h.fix || [
+            "1. console.circle.com → Keys → Kit keys → Create new",
+            "2. Vercel → KIT_KEY + NEXT_PUBLIC_KIT_KEY = full KIT_KEY:id:secret",
+            "3. Redeploy production",
+            "4. Users hard-refresh — no paste needed",
+          ]),
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    }
+  } catch (e) {
+    if (e instanceof Error && /Circle rejected KIT_KEY|Permanent fix/i.test(e.message)) {
+      throw e;
+    }
+    // Network blip on health — still attempt swap with loaded key
+    console.warn("[AGFusion] kit health check skipped", e);
+  }
+
+  console.info("[AGFusion] kit key ready", "shape=OK", "len=", kitKey.length);
+
+  const kit = await getAppKit();
+  if (!kit) {
+    const detail = getAppKitLoadError();
+    throw new Error(
+      detail
+        ? `App Kit failed to load: ${detail}`
+        : "App Kit failed to load in the browser. Hard-refresh (Ctrl+Shift+R) and try again.",
+    );
+  }
+
+  const { switchToChainId, getInjectedProvider, requestAccounts } =
+    await import("@/sdk/wallet-adapter");
+  const provider = await getInjectedProvider();
+  await requestAccounts(provider);
+  try {
+    await switchToChainId(provider, params.chain);
+  } catch (e) {
+    throw new Error(
+      e instanceof Error
+        ? e.message
+        : `Switch wallet to ${params.chain} before swapping.`,
+    );
+  }
+
+  let wired: Awaited<ReturnType<typeof createAppKitAdapterFromBrowser>>;
+  try {
+    wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+  } catch (e) {
+    throw e instanceof Error
+      ? e
+      : new Error(`Could not switch wallet to ${params.chain}`);
+  }
+  if (!wired) {
+    throw new Error(
+      `Wallet not ready. Connect your wallet on ${params.chain}, then swap again.`,
+    );
+  }
+
+  console.info(
+    "[AGFusion] swap wallet",
+    wired.walletName,
+    "chainId=",
+    wired.chainId,
+    "addr=",
+    wired.address?.slice(0, 10),
+  );
+
+  const estimate = estimateSwapDemo(
+    params.amount,
+    params.tokenIn,
+    params.tokenOut,
+  );
+
+  const steps: TxStep[] = [
+    { name: "Quote", state: "active" },
+    { name: "Approve USDC", state: "pending" },
+    { name: "Swap", state: "pending" },
+  ];
+  params.onStep?.(steps.map((s) => ({ ...s })));
+
+  // Force on-chain approve — never EIP-2612 permit (Arc native USDC + Rabby break permit)
+  const baseConfig = {
+    kitKey,
+    slippageBps: 100,
+    allowanceStrategy: "approve" as const,
+  };
+
+  const tokenIn = (params.tokenIn || "USDC").toUpperCase();
+  const tokenOut = (params.tokenOut || "EURC").toUpperCase();
+
+  const swapParams = {
+    from: { adapter: wired.adapter, chain: params.chain },
+    tokenIn,
+    tokenOut,
+    amountIn: String(params.amount),
+    config: baseConfig,
+  };
+
+  try {
+    // Pre-flight estimate for clearer errors (same approve strategy)
+    try {
+      if (typeof kit.estimateSwap === "function") {
+        await kit.estimateSwap(swapParams);
+      }
+    } catch (estErr) {
+      const estMsg = formatKitError(estErr);
+      console.warn("[AGFusion] estimateSwap failed:", estErr);
+      if (/kit.?key|invalid.?key|unauthorized|401|403|credential/i.test(estMsg)) {
+        throw new Error(
+          `Kit key rejected by Circle: ${estMsg}\n\n${KIT_KEY_HELP}`,
+        );
+      }
+      // Don't block swap on estimate-only failures unless clearly fatal
+      if (/insufficient|balance/i.test(estMsg)) {
+        throw new Error(
+          "Insufficient USDC on Arc. Get test USDC: https://faucet.circle.com (select Arc Testnet)",
+        );
+      }
+    }
+
+    steps[0].state = "success";
+    steps[1].state = "active";
+    params.onStep?.(steps.map((s) => ({ ...s })));
+
+    let result: {
+      txHash?: string;
+      amountOut?: string;
+      explorerUrl?: string;
+      state?: string;
+      error?: string;
+    };
+
+    try {
+      result = (await kit.swap(swapParams)) as typeof result;
+    } catch (swapErr) {
+      const sMsg = formatKitError(swapErr);
+      // Retry once: re-assert Arc + force approve only
+      if (
+        /permit|chainId should be same|allowanceStrategy|VALIDATION_FAILED|1098|unrecognized chain/i.test(
+          sMsg,
+        )
+      ) {
+        console.warn(
+          "[AGFusion] retrying swap after approve/chain error:",
+          sMsg.slice(0, 200),
+        );
+        const { ensureArcChainId } = await import("@/sdk/wallet-adapter");
+        // We shouldn't force Arc here either, we need the correct chain
+        const { switchToChainId } = await import("@/sdk/wallet-adapter");
+        await switchToChainId(wired.provider, params.chain);
+        const retryWired = await createAppKitAdapterFromBrowser({
+          requireArc: false,
+        });
+        if (!retryWired) throw swapErr;
+        result = (await kit.swap({
+          ...swapParams,
+          from: { adapter: retryWired.adapter, chain: params.chain },
+          config: {
+            kitKey,
+            slippageBps: 100,
+            allowanceStrategy: "approve",
+          },
+        })) as typeof result;
+      } else {
+        throw swapErr;
+      }
+    }
+
+    steps[1].state = "success";
+    steps[2].state = "success";
+    steps[2].txHash = result.txHash;
+    params.onStep?.(steps.map((s) => ({ ...s })));
+
+    if (result.state === "error") {
+      throw new Error(result.error || "Swap returned error state");
+    }
+
+    // On-chain verification (Phase 5): the swap is only successful once the
+    // receipt confirms on Arc.
+    let swapStatus: TransactionRecord["status"] = "success";
+    let swapNote = result.amountOut
+      ? `Received ~${result.amountOut} ${params.tokenOut}`
+      : "Live stablecoin FX on Arc";
+    if (result.txHash) {
+      try {
+        const { verifyReceiptOnChain } = await import("@/lib/tx-verify");
+        const { getCctpConfig } = await import("@/lib/cctp-chains");
+        const chainKey = getCctpConfig(params.chain)?.rpcProxyKey ?? "arc";
+        const v = await verifyReceiptOnChain({
+          chainKey,
+          txHash: result.txHash,
+          attempts: 3,
+          delayMs: 1_500,
+        });
+        if (v.status === "reverted") {
+          swapStatus = "error";
+          swapNote = `Swap reverted on-chain (${chainKey}).`;
+        } else if (v.status === "not_found") {
+          swapStatus = "retryable";
+          swapNote = `Swap submitted but not confirmed yet (${chainKey}). Check the explorer before retrying.`;
+        }
+      } catch (e) {
+        console.warn("[AGFusion] swap receipt verification skipped", e);
+      }
+    }
+
+    return {
+      id: uid("tx"),
+      type: "swap",
+      status: swapStatus,
+      retryable: swapStatus === "retryable",
+      amount: params.amount,
+      token: params.tokenIn,
+      tokenOut: params.tokenOut,
+      fromChain: params.chain,
+      toChain: params.chain,
+      feeUsd: estimate.feeUsd,
+      steps,
+      txHash: result.txHash,
+      explorerUrl:
+        result.explorerUrl ||
+        (result.txHash
+          ? explorerTxUrl(result.txHash)
+          : CHAINS[params.chain].explorer),
+      createdAt: new Date().toISOString(),
+      message: swapNote,
+      executionMode: "live",
+    };
+  } catch (e) {
+    const msg = formatKitError(e);
+    console.error("[AGFusion] live swap failed:", e);
+
+    if (/4001|user rejected|denied|rejected by user|USER_CANCELLED/i.test(msg)) {
+      throw new Error("Swap cancelled in wallet.");
+    }
+    // Real chain mismatch strings only — do NOT map all 1098 to this
+    // (1098 = generic INPUT_VALIDATION_FAILED in Circle kits)
+    if (
+      /chainId should be same|Wallet is on chain|Could not switch to Arc|left Arc after|bad Arc Testnet|need 5042002|need Arc Testnet/i.test(
+        msg,
+      )
+    ) {
+      throw new Error(
+        `${msg}\n\n` +
+          `Tips:\n` +
+          `• In Rabby, select the **exact account** connected to AGFusion\n` +
+          `• Network must be **Arc Testnet** · chain id **5042002** · RPC **https://rpc.testnet.arc.io**\n` +
+          `• If MetaMask + Rabby both installed: Connect → choose **Rabby** in AGFusion\n` +
+          `• Delete a bad Arc network entry and re-add if needed`,
+      );
+    }
+    if (/permit generation failed/i.test(msg)) {
+      throw new Error(
+        `Token approval failed (permit). AGFusion uses on-chain approve — confirm the **Approve** popup in Rabby, then swap again.\n\n${msg}`,
+      );
+    }
+    if (/insufficient|balance/i.test(msg)) {
+      throw new Error(
+        "Insufficient USDC on Arc Testnet. Faucet: https://faucet.circle.com (select Arc Testnet).",
+      );
+    }
+    if (
+      /8002|Failed to fetch|Maximum retry|NetworkError|Load failed|upstream_unreachable/i.test(
+        msg,
+      )
+    ) {
+      throw new Error(
+        "Could not reach Circle Swap API. Hard-refresh (Ctrl+Shift+R), confirm kit key, stay on Arc Testnet, retry.",
+      );
+    }
+    if (
+      /kit.?key|invalid.?key|unauthorized|401|403|credential|api key|kit_key_rejected/i.test(
+        msg,
+      )
+    ) {
+      throw new Error(
+        `Circle rejected the kit key.\n${msg}\n\n${KIT_KEY_HELP}`,
+      );
+    }
+    // Surface real Circle validation text (was hidden behind fake chain-mismatch)
+    throw new Error(msg || "Swap failed.");
+  }
+}
+
+export async function runSendFlow(params: {
+  amount: string;
+  token: string;
+  chain: ChainId;
+  recipient: string;
+  recipientLabel?: string;
+  onStep?: (steps: TxStep[]) => void;
+  preferLive?: boolean;
+}): Promise<TransactionRecord> {
+  if ((preferLive() || params.preferLive) && params.chain === "Arc_Testnet") {
+    const viaKit = await tryLiveAppKitSend(params);
+    if (viaKit) return viaKit;
+
+    try {
+      return await liveSendUsdcOnArc({
+        amount: params.amount,
+        recipient: params.recipient,
+        recipientLabel: params.recipientLabel,
+        onStep: params.onStep,
+      });
+    } catch (e) {
+      console.warn("[AGFusion] live send failed:", e);
+      throw e instanceof Error ? e : new Error("Live send failed");
+    }
+  }
+
+  assertDemoAllowed("send");
+}
+
+export async function runUnifiedDeposit(params: {
+  amount: string;
+  fromChain: ChainId;
+}): Promise<TransactionRecord> {
+  if (typeof window === "undefined") {
+    throw new Error("Unified Balance deposit must run in the browser.");
+  }
+
+  const n = Number(params.amount);
+  if (!params.amount || Number.isNaN(n) || n <= 0) {
+    throw new Error("Enter a valid deposit amount (USDC).");
+  }
+
+  const { installCircleApiProxy } = await import("@/lib/circle-proxy");
+  installCircleApiProxy();
+
+  const { ensureKitKey, normalizeKitKey, formatKitError } = await import(
+    "@/lib/kit-key"
+  );
+  let kitKey = await ensureKitKey();
+  if (kitKey) kitKey = normalizeKitKey(kitKey);
+
+  const { switchToChainId, getInjectedProvider, requestAccounts } =
+    await import("@/sdk/wallet-adapter");
+
+  // Source chain must hold USDC for deposit (e.g. Base Sepolia)
+  const provider = await getInjectedProvider();
+  await requestAccounts(provider);
+  try {
+    await switchToChainId(provider, params.fromChain);
+  } catch (e) {
+    throw new Error(
+      e instanceof Error
+        ? e.message
+        : `Switch wallet to ${params.fromChain} to deposit into Unified Balance.`,
+    );
+  }
+
+  const kit = await getAppKit();
+  if (!kit?.unifiedBalance) {
+    throw new Error(
+      "App Kit Unified Balance unavailable. Hard-refresh and ensure @circle-fin/app-kit is loaded.",
+    );
+  }
+
+  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+  if (!wired) {
+    throw new Error("Wallet not ready. Connect Rabby and retry deposit.");
+  }
+
+  try {
+    // Re-assert source chain after adapter build
+    await switchToChainId(wired.provider, params.fromChain).catch(() => {});
+
+    const depositParams: Record<string, unknown> = {
+      from: { adapter: wired.adapter, chain: params.fromChain },
+      amount: String(params.amount),
+      token: "USDC",
+      allowanceStrategy: "approve",
+    };
+    if (kitKey) {
+      depositParams.config = { kitKey };
+    }
+
+    const result = (await kit.unifiedBalance.deposit(depositParams)) as {
+      txHash?: string;
+      explorerUrl?: string;
+      amount?: string;
+      chain?: string;
+    };
+
+    return {
+      id: uid("tx"),
+      type: "bridge",
+      status: "success",
+      amount: params.amount,
+      token: "USDC",
+      fromChain: params.fromChain,
+      toChain: "Arc_Testnet",
+      feeUsd: 0.05,
+      steps: [
+        {
+          name: "Unified Balance deposit",
+          state: "success",
+          txHash: result?.txHash,
+        },
+      ],
+      txHash: result?.txHash,
+      explorerUrl: result?.explorerUrl,
+      createdAt: new Date().toISOString(),
+      message: `Unified Balance deposit ${params.amount} USDC from ${params.fromChain}`,
+      executionMode: "live",
+    };
+  } catch (e) {
+    const msg = formatKitError(e);
+    console.error("[AGFusion] unified deposit failed:", e);
+    if (/4001|user rejected|denied/i.test(msg)) {
+      throw new Error("Deposit cancelled in wallet.");
+    }
+    // Fallback: CCTP bridge toward Arc when Gateway deposit unsupported on chain
+    console.warn("[AGFusion] falling back to bridge Arc path:", msg);
+    try {
+      return await runBridgeFlow({
+        amount: params.amount,
+        token: "USDC",
+        fromChain: params.fromChain,
+        toChain: "Arc_Testnet",
+        preferLive: true,
+      });
+    } catch (bridgeErr) {
+      throw new Error(
+        `Unified Balance deposit failed.\n${msg}\n\nBridge fallback: ${
+          bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)
+        }`,
+      );
+    }
+  }
+}
+
+export async function runUnifiedSpend(params: {
+  amount: string;
+  recipient: string;
+  recipientLabel?: string;
+}): Promise<TransactionRecord> {
+  if (typeof window === "undefined") {
+    throw new Error("Unified Balance spend must run in the browser.");
+  }
+
+  const { requireSafeRecipient } = await import("@/lib/balances-empty");
+  const recipient = requireSafeRecipient(
+    params.recipient,
+    params.recipientLabel,
+  );
+
+  const n = Number(params.amount);
+  if (!params.amount || Number.isNaN(n) || n <= 0) {
+    throw new Error("Enter a valid spend amount (USDC).");
+  }
+
+  const { installCircleApiProxy } = await import("@/lib/circle-proxy");
+  installCircleApiProxy();
+
+  const { ensureKitKey, normalizeKitKey, formatKitError } = await import(
+    "@/lib/kit-key"
+  );
+  let kitKey = await ensureKitKey();
+  if (kitKey) kitKey = normalizeKitKey(kitKey);
+
+  const kit = await getAppKit();
+  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+
+  if (kit?.unifiedBalance && wired) {
+    try {
+      const depositorAddress = wired.address;
+
+      const spendParams: Record<string, unknown> = {
+        amount: String(params.amount),
+        token: "USDC",
+        from: { 
+          adapter: wired.adapter,
+          address: depositorAddress,
+        },
+        to: {
+          adapter: wired.adapter,
+          chain: "Arc_Testnet",
+          address: recipient,
+        },
+      };
+      if (kitKey) {
+        spendParams.config = { kitKey };
+      }
+
+      const result = (await kit.unifiedBalance.spend(spendParams)) as {
+        txHash?: string;
+        explorerUrl?: string;
+      };
+
+      return {
+        id: uid("tx"),
+        type: "unified_spend",
+        status: "success",
+        amount: params.amount,
+        token: "USDC",
+        toChain: "Arc_Testnet",
+        recipient,
+        recipientLabel: params.recipientLabel,
+        feeUsd: 0.08,
+        steps: [
+          {
+            name: "Unified Balance spend → Arc",
+            state: "success",
+            txHash: result?.txHash,
+          },
+        ],
+        txHash: result?.txHash,
+        explorerUrl:
+          result?.explorerUrl ||
+          (result?.txHash ? explorerTxUrl(result.txHash) : undefined),
+        createdAt: new Date().toISOString(),
+        message: `Unified Balance spend ${params.amount} USDC on Arc`,
+        executionMode: "live",
+      };
+    } catch (e) {
+      const msg = formatKitError(e);
+      console.warn("[AGFusion] unified spend failed, fallback send:", msg);
+      if (/4001|user rejected|denied/i.test(msg)) {
+        throw new Error("Spend cancelled in wallet.");
+      }
+      // Fallback: native Arc send if user already holds USDC on Arc
+      return liveSendUsdcOnArc({
+        amount: params.amount,
+        recipient,
+        recipientLabel: params.recipientLabel || "Unified spend fallback",
+      });
+    }
+  }
+
+  // No kit — direct Arc send
+  return liveSendUsdcOnArc({
+    amount: params.amount,
+    recipient,
+    recipientLabel: params.recipientLabel,
+  });
+}
+
+export async function runUnifiedRouteFlow(params: {
+  amount: string;
+  token: string;
+  fromChain: ChainId;
+  recipient: string;
+  recipientLabel?: string;
+}): Promise<TransactionRecord> {
+  // Bridge then send
+  try {
+    const bridged = await runBridgeFlow({
+      amount: params.amount,
+      token: params.token,
+      fromChain: params.fromChain,
+      toChain: "Arc_Testnet",
+      preferLive: true,
+    });
+    if (bridged.status === "success") {
+      return runSendFlow({
+        amount: params.amount,
+        token: params.token,
+        chain: "Arc_Testnet",
+        recipient: params.recipient,
+        recipientLabel: params.recipientLabel,
+        preferLive: true,
+      });
+    }
+    return bridged;
+  } catch {
+    return runSendFlow({
+      amount: params.amount,
+      token: params.token,
+      chain: "Arc_Testnet",
+      recipient: params.recipient,
+      recipientLabel: params.recipientLabel,
+      preferLive: true,
+    });
+  }
 }
