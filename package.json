@@ -13,7 +13,7 @@
     "vercel-build": "npm pack --silent typescript@5.8.3 && mkdir -p node_modules/typescript && tar -xzf typescript-5.8.3.tgz -C node_modules/typescript --strip-components=1 && rm -f typescript-5.8.3.tgz && npm run build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm exec --yes --package=typescript@5.8.3 -- tsc --noEmit",
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
