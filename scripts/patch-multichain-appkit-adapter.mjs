@@ -78,3 +78,111 @@ if (guardCount !== 1 || recoveryGuardCount !== 1 || !serviceSource.includes("run
 }
 fs.writeFileSync(serviceFile, serviceSource);
 console.log("[AGFusion] All bridge and bridge-recovery execution locked to direct Circle CCTP v2");
+
+// ---------------------------------------------------------------------------
+// Production type/build compatibility checks
+// ---------------------------------------------------------------------------
+// TypeScript 5.8+ removed compilerOptions.baseUrl. Remove the obsolete option
+// in the build workspace so both CI typecheck and Vercel use the same config.
+const tsconfigFile = path.resolve("tsconfig.json");
+if (fs.existsSync(tsconfigFile)) {
+  let tsconfig = fs.readFileSync(tsconfigFile, "utf8");
+  const beforeTsconfig = tsconfig;
+  tsconfig = tsconfig.replace(/^\s*"baseUrl"\s*:\s*"\."\s*,\s*\r?\n/m, "");
+  if (tsconfig !== beforeTsconfig) {
+    fs.writeFileSync(tsconfigFile, tsconfig);
+    console.log("[AGFusion] Removed obsolete TypeScript baseUrl option");
+  }
+}
+
+// Next.js global CSS side-effect imports are valid application imports. Declare
+// them explicitly for strict TypeScript so typecheck does not treat styles as
+// missing modules.
+const cssTypesFile = path.resolve("src/style-modules.d.ts");
+if (!fs.existsSync(cssTypesFile)) {
+  fs.writeFileSync(cssTypesFile, 'declare module "*.css";\n');
+  console.log("[AGFusion] Added strict TypeScript CSS module declarations");
+}
+
+// The legacy browser-only paths are still typechecked by tsc even though the
+// current production bridge is routed through the direct CCTP implementation.
+// Keep their existing runtime behavior but make the legacy helper signatures
+// reflect their nullable credentials and EIP-1193 provider contracts.
+const kitKeyFile = path.resolve("src/lib/kit-key.ts");
+if (fs.existsSync(kitKeyFile)) {
+  let source = fs.readFileSync(kitKeyFile, "utf8");
+  source = source.replace(
+    /export function getPublicKitKey\(\): undefined \{/,
+    "export function getPublicKitKey(): string | undefined {",
+  );
+  source = source.replace(
+    /export async function ensureKitKey\(\): Promise<undefined> \{ return undefined; \}/,
+    "export async function ensureKitKey(): Promise<string | undefined> { return undefined; }",
+  );
+  fs.writeFileSync(kitKeyFile, source);
+}
+
+const bridgeDebugFile = path.resolve("src/lib/bridge-debug.ts");
+if (fs.existsSync(bridgeDebugFile)) {
+  let source = fs.readFileSync(bridgeDebugFile, "utf8");
+  source = source.replace(
+    "extra: { method?: string; chainId?: string | number; durationMs?: number; error?: unknown } = {}",
+    "extra: { method?: string; chainId?: string | number; durationMs?: number; error?: unknown; txHash?: string } = {}",
+  );
+  source = source.replace(
+    "durationMs?: number; data?: unknown; error?: unknown;",
+    "durationMs?: number; data?: unknown; error?: unknown; txHash?: string;",
+  );
+  fs.writeFileSync(bridgeDebugFile, source);
+}
+
+const activeWalletFile = path.resolve("src/sdk/active-wallet.ts");
+if (fs.existsSync(activeWalletFile)) {
+  let source = fs.readFileSync(activeWalletFile, "utf8");
+  source = source.replace(
+    "smartAccountAddress?: string;\n};",
+    "smartAccountAddress?: string;\n  walletType?: string;\n  chainId?: number;\n};",
+  );
+  fs.writeFileSync(activeWalletFile, source);
+}
+
+const cctpBridgeFile = path.resolve("src/blockchain/circle-cctp-bridge.ts");
+if (fs.existsSync(cctpBridgeFile)) {
+  let source = fs.readFileSync(cctpBridgeFile, "utf8");
+  source = source.replace(/destinationConfig\.explorer(?!Url)/g, "destinationConfig.explorerUrl");
+  fs.writeFileSync(cctpBridgeFile, source);
+}
+
+const productionSwapFile = path.resolve("src/blockchain/production-swap.ts");
+if (fs.existsSync(productionSwapFile)) {
+  let source = fs.readFileSync(productionSwapFile, "utf8");
+  source = source.replace(
+    'const value = tokenIn === "USDC" ? `0x${amountIn.toString(16)}` : "0x0";',
+    'const value: `0x${string}` = tokenIn === "USDC" ? (`0x${amountIn.toString(16)}` as `0x${string}`) : "0x0";',
+  );
+  fs.writeFileSync(productionSwapFile, source);
+}
+
+const financialReceiptFile = path.resolve("src/lib/financial-receipt.ts");
+if (fs.existsSync(financialReceiptFile)) {
+  let source = fs.readFileSync(financialReceiptFile, "utf8");
+  source = source.replace(
+    'Promise<{ status: ReceiptStatus; receipt: unknown }>',
+    'Promise<{ status: ReceiptStatus; receipt: unknown; error?: string }>',
+  );
+  fs.writeFileSync(financialReceiptFile, source);
+}
+
+// The installed wallet provider accepts array-or-record params. Align the
+// diagnostics wrapper to that same EIP-1193 shape instead of requiring an
+// incompatible `unknown` parameter type.
+if (fs.existsSync(bridgeDebugFile)) {
+  let source = fs.readFileSync(bridgeDebugFile, "utf8");
+  source = source.replace(
+    'provider: { request: (args: { method: string; params?: unknown }) => Promise<unknown> },',
+    'provider: { request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown> },',
+  );
+  fs.writeFileSync(bridgeDebugFile, source);
+}
+
+console.log("[AGFusion] Production build compatibility audit applied");
