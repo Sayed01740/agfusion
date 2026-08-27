@@ -37,13 +37,9 @@ patchFile("src/blockchain/appkit-service.ts", (source) => {
     'kit!.off?.("*", onBridgeEvent!)',
   );
 
-  // The state-machine and SDK bridge params both require a concrete recipient.
-  // The UI makes recipient optional, so normalize it once at every typed
-  // boundary rather than relying on strict-mode control-flow inference.
-  source = source.replace(
-    /recipient:\s*params\.recipient\s*,/g,
-    'recipient: params.recipient ?? meta?.address ?? "",',
-  );
+  // Do not globally inject `meta` into optional recipient fields. Several
+  // bridge helper functions run before the active-wallet metadata is declared.
+  // The optional recipient is already valid at those call sites.
 
   // explorerTxUrl requires a concrete hash even though the transaction record
   // deliberately allows txHash to be absent while a bridge is pending.
