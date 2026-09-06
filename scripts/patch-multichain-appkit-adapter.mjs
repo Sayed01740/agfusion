@@ -53,6 +53,16 @@ serviceSource = serviceSource.replace(
   'String(e) || `Could not switch the wallet to ${params.fromChain.replace(/_/g, " ")}.`,',
 );
 
+// TypeScript narrows the nullable return at the guard above in source builds,
+// but the generated bridge path can still be re-read as nullable after the
+// build-time transformations. Optional chaining is safe here because the
+// branch has already rejected a missing adapter, and it keeps the patch
+// compatible with strictNullChecks.
+serviceSource = serviceSource.replace(
+  "  wiredAdapter = wired.adapter;",
+  "  wiredAdapter = wired?.adapter;",
+);
+
 const functionMarker = "async function tryLiveAppKitBridge(params: {";
 const guardMarker = "PERMANENT-CCTP-BRIDGE-GUARD";
 if (!serviceSource.includes(functionMarker)) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() not found.");
