@@ -33,7 +33,24 @@ export async function POST(req: Request) {
   const ip = clientIp(req); const limits = agentRateLimitConfig();
   let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
   const parsed = agentRequestSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  const body = parsed.data; const session = await getSessionUser(); const wallet = { ...body.wallet, address: session?.address || body.wallet?.address || null };
+  const body = parsed.data;
+  const session = await getSessionUser();
+
+  // The browser may describe a smart-account address, but it cannot establish
+  // ownership of that address. For execution, bind the identity to the
+  // authenticated SIWE session and reject a mismatching client-supplied smart
+  // account rather than applying a budget to one wallet while spending from
+  // another. A trusted server-side wallet mapping can be added later without
+  // weakening this fail-closed behavior.
+  if (body.execute) {
+    if (!session) return NextResponse.json({ error: "authentication_required", message: "An authenticated wallet session is required to execute agent payments." }, { status: 401 });
+    const claimedSmartAccount = body.wallet?.smartAccountAddress?.toLowerCase();
+    if (claimedSmartAccount && claimedSmartAccount !== session.address.toLowerCase()) {
+      return NextResponse.json({ error: "wallet_identity_mismatch", message: "The execution wallet must match the authenticated wallet session." }, { status: 403 });
+    }
+  }
+
+  const wallet = { ...body.wallet, address: session?.address || body.wallet?.address || null, smartAccountAddress: session?.address || body.wallet?.smartAccountAddress || null };
   let policyReservationId: string | undefined;
 
   if (body.execute) {
@@ -41,8 +58,8 @@ export async function POST(req: Request) {
     const valid = consumeConfirmationToken({ token: body.confirmToken, wallet: wallet.address, action: { preview: previewAction(body.confirmationPreview) } });
     if (!valid) return NextResponse.json({ error: "confirmation_mismatch", message: "Confirmation expired or does not match the reviewed action. Re-plan and confirm again." }, { status: 403 });
     const policyAction = previewPolicyAction(body.confirmationPreview);
-    if (policyAction && body.wallet?.smartAccountAddress) {
-      const decision = await enforceAgentSpendingPolicy({ walletAddress: body.wallet.smartAccountAddress, amount: String(body.confirmationPreview?.amount || ""), action: policyAction, recipient: body.confirmationPreview?.recipient ? String(body.confirmationPreview.recipient) : undefined, isAgent: true, operationId: body.confirmToken });
+    if (policyAction) {
+      const decision = await enforceAgentSpendingPolicy({ walletAddress: session!.address, amount: String(body.confirmationPreview?.amount || ""), action: policyAction, recipient: body.confirmationPreview?.recipient ? String(body.confirmationPreview.recipient) : undefined, isAgent: true, operationId: body.confirmToken });
       if (!decision.allowed) return NextResponse.json({ error: "agent_policy_blocked", reason: decision.reason, policy: decision.policy, spent: decision.spent }, { status: 403 });
       policyReservationId = decision.reservationId;
     }
