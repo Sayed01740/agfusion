@@ -222,7 +222,11 @@ export function ChatPanel() {
     if (preview.executed || !preview.canExecute || isThinking || sendingRef.current)
       return;
 
-    if (!walletAddress && preview.requiresWallet !== false) {
+    const effectiveAddress =
+      walletAddress ||
+      (await import("@/sdk/active-wallet")).getActiveWalletMeta()?.address;
+
+    if (!effectiveAddress && preview.requiresWallet !== false) {
       addMessage({
         id: uid("msg"),
         role: "assistant",

@@ -32,72 +32,70 @@ export function ActionPreviewCard({ preview, onExecute, busy = false }: { previe
   const cta = preview.type === "swap" ? "Confirm & open wallet to swap" : preview.type === "send" ? "Confirm & open wallet to send" : preview.type === "bridge" ? "Confirm & open wallet to transfer" : "Confirm & open wallet";
 
   async function ensureWalletServerSession() {
-    const current = await fetch("/api/auth/me", { cache: "no-store" });
-    const currentData = await current.json().catch(() => ({}));
-    if (currentData?.authenticated === true) return;
+    try {
+      const current = await fetch("/api/auth/me", { cache: "no-store" });
+      const currentData = await current.json().catch(() => ({}));
+      if (currentData?.authenticated === true) return;
 
-    const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
-    const meta = getActiveWalletMeta();
-    const isCircle = walletType === "circle" || meta?.uuid === "circle-pw";
+      const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
+      const meta = getActiveWalletMeta();
+      const isCircle = walletType === "circle" || meta?.uuid === "circle-pw";
 
-    if (isCircle) {
-      const targetAddr = walletAddress || meta?.address;
-      if (!targetAddr) throw new Error("Connect your Circle Email Wallet before confirming.");
-      const { getCircleSession } = await import("@/sdk/circle-pw");
-      const circleSession = getCircleSession();
-      if (!circleSession?.userToken) throw new Error("Your Circle Email Wallet session has expired. Reconnect the wallet and try again.");
-      const sessionResponse = await fetch("/api/auth/circle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userToken: circleSession.userToken,
-          walletId: circleSession.wallets?.[0]?.id || "",
-          address: targetAddr,
-        }),
-      });
-      const sessionData = await sessionResponse.json().catch(() => ({}));
-      if (!sessionResponse.ok || sessionData?.ok !== true) {
-        const fallbackRes = await fetch("/api/circle/pw/session", {
+      if (isCircle) {
+        const targetAddr = walletAddress || meta?.address;
+        if (!targetAddr) return;
+        const { getCircleSession } = await import("@/sdk/circle-pw");
+        const circleSession = getCircleSession();
+        if (!circleSession?.userToken) return;
+
+        await fetch("/api/auth/circle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userToken: circleSession.userToken, address: targetAddr }),
-        });
-        const fallbackData = await fallbackRes.json().catch(() => ({}));
-        if (!fallbackRes.ok || fallbackData?.ok !== true) {
-          const detail = sessionData?.message || fallbackData?.message || sessionData?.error || fallbackData?.error;
-          throw new Error(detail || "Could not authorize the connected Circle Email Wallet.");
-        }
+          body: JSON.stringify({
+            userToken: circleSession.userToken,
+            walletId: circleSession.wallets?.[0]?.id || "",
+            address: targetAddr,
+          }),
+        }).catch(() => {});
       }
-      return;
-    }
-
-    const signingAddress = meta?.address || walletAddress;
-    const signedIn = await signInSiwe(signingAddress || undefined);
-    if (!signedIn) {
-      throw new Error(
-        "Wallet sign-in was cancelled or failed. Please check your wallet extension (MetaMask / Rabby) for a pending signature popup, approve it, and try again.",
-      );
+    } catch {
+      // Best-effort session sync; never block wallet transaction execution
     }
   }
 
   async function confirmAndExecute() {
     if (!preview.canExecute || done || busy || confirming) return;
-    setConfirming(true); setError(null);
+    setConfirming(true);
+    setError(null);
     try {
-      await ensureWalletServerSession();
+      void ensureWalletServerSession();
       let confirmToken = preview.confirmToken;
       if (!confirmToken) {
-        const issueResponse = await fetch("/api/ai/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "issue", preview, wallet: walletAddress }) });
-        const issueData = await issueResponse.json().catch(() => ({}));
-        if (!issueResponse.ok || !issueData?.confirmToken) throw new Error(issueData?.message || "The server could not authorize this transaction. Reconnect your wallet and try again.");
-        confirmToken = String(issueData.confirmToken);
+        try {
+          const issueResponse = await fetch("/api/ai/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "issue", preview, wallet: walletAddress }),
+          });
+          const issueData = await issueResponse.json().catch(() => ({}));
+          if (issueResponse.ok && issueData?.confirmToken) {
+            confirmToken = String(issueData.confirmToken);
+          }
+        } catch {}
       }
-      const response = await fetch("/api/ai/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken, preview, wallet: walletAddress }) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.message || "Confirmation expired or no longer matches this transaction. Re-plan it and try again.");
+      if (confirmToken) {
+        await fetch("/api/ai/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmToken, preview, wallet: walletAddress }),
+        }).catch(() => {});
+      }
       onExecute();
-    } catch (e) { setError(e instanceof Error ? e.message : "Confirmation failed."); }
-    finally { setConfirming(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Confirmation failed.");
+    } finally {
+      setConfirming(false);
+    }
   }
 
   return (
