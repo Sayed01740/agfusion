@@ -130,16 +130,10 @@ export async function POST(req: Request) {
     // Use the official App Kit swap API instead of the lower-level
     // StablecoinServiceSwapProvider. Arc Testnet is an official supported
     // testnet in the repository's Circle swap skill.
-    const [
-      { AppKit },
-      { createViemAdapterFromProvider },
-      viem,
-      { Arc_Testnet },
-    ] = await Promise.all([
+    const [{ AppKit }, { createViemAdapterFromProvider }, viem] = await Promise.all([
       import("@circle-fin/app-kit"),
       import("@circle-fin/adapter-viem-v2"),
       import("viem"),
-      import("@circle-fin/app-kit/chains"),
     ]);
 
     const arcViem = viem.defineChain({
@@ -173,13 +167,11 @@ export async function POST(req: Request) {
       },
     } as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
 
-    const adapter = await createViemAdapterFromProvider({
-      provider,
-      capabilities: {
-        addressContext: "user-controlled",
-        supportedChains: [Arc_Testnet],
-      },
-    });
+    // Chain is supplied to App Kit as the official chain identifier below.
+    // Capabilities are intentionally omitted here because older App Kit
+    // versions bundled in this project do not export typed ChainDefinition
+    // objects from @circle-fin/app-kit/chains.
+    const adapter = await createViemAdapterFromProvider({ provider });
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({
