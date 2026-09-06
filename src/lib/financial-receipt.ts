@@ -4,6 +4,8 @@ import { verifyReceiptOnChain } from "@/lib/tx-verify";
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const MINT_AND_WITHDRAW_TOPIC = "0x1b2a7ff080b8cb6ff436ce0372e399692bbfb6d4ae5766fd8d58a7b8cc6142e6";
+// CCTP v2 MintAndWithdraw includes feeCollected as a fourth field.
+const MINT_AND_WITHDRAW_V2_TOPIC = "0x50c55e915134d457debfa58eb6f4342956f8b0616d51a89a3659360178e1ab63";
 const MINT_TOPIC = "0x0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885";
 
 function normalizeAddress(value: string): string {
@@ -63,7 +65,7 @@ function hasCctpMintAndWithdraw(receipt: any, recipient: string, expectedAmount:
     const addr = normalizeAddress(String(log?.address || ""));
     if (addr !== messenger && addr !== usdc) return false;
     const topic0 = String(log?.topics?.[0] || "").toLowerCase();
-    if (topic0 !== MINT_AND_WITHDRAW_TOPIC && topic0 !== MINT_TOPIC && topic0 !== TRANSFER_TOPIC) return false;
+    if (topic0 !== MINT_AND_WITHDRAW_TOPIC && topic0 !== MINT_AND_WITHDRAW_V2_TOPIC && topic0 !== MINT_TOPIC && topic0 !== TRANSFER_TOPIC) return false;
     const topics: string[] = (log?.topics || []).map((t: any) => normalizeAddress(String(t || "")));
     if (!topics.some((t) => t === target)) return false;
     return exactAmount(eventAmount(log), expected);
