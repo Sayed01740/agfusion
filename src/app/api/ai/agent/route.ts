@@ -8,7 +8,7 @@ import { getSessionUser } from "@/lib/session";
 import { consumeConfirmationToken, issueConfirmationToken } from "@/lib/confirmation-token";
 import { persistTransaction, logAgentRun } from "@/lib/tx-store";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
-import { enforceAgentSpendingPolicy, type AgentSpendAction } from "@/lib/agent-spending-policy";
+import { enforceAgentSpendingPolicy, releaseAgentSpendReservation, type AgentSpendAction } from "@/lib/agent-spending-policy";
 import { agentRequestSchema } from "@/lib/validation";
 import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
   let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
   const parsed = agentRequestSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   const body = parsed.data; const session = await getSessionUser(); const wallet = { ...body.wallet, address: session?.address || body.wallet?.address || null };
+  let policyReservationId: string | undefined;
 
   if (body.execute) {
     if (!body.confirmed || !body.confirmToken || !body.confirmationPreview) return NextResponse.json({ error: "confirm_required", message: "A fresh confirmation capability and action preview are required." }, { status: 403 });
@@ -41,12 +42,13 @@ export async function POST(req: Request) {
     if (!valid) return NextResponse.json({ error: "confirmation_mismatch", message: "Confirmation expired or does not match the reviewed action. Re-plan and confirm again." }, { status: 403 });
     const policyAction = previewPolicyAction(body.confirmationPreview);
     if (policyAction && body.wallet?.smartAccountAddress) {
-      const decision = await enforceAgentSpendingPolicy({ walletAddress: body.wallet.smartAccountAddress, amount: String(body.confirmationPreview?.amount || ""), action: policyAction, recipient: body.confirmationPreview?.recipient ? String(body.confirmationPreview.recipient) : undefined, isAgent: true });
+      const decision = await enforceAgentSpendingPolicy({ walletAddress: body.wallet.smartAccountAddress, amount: String(body.confirmationPreview?.amount || ""), action: policyAction, recipient: body.confirmationPreview?.recipient ? String(body.confirmationPreview.recipient) : undefined, isAgent: true, operationId: body.confirmToken });
       if (!decision.allowed) return NextResponse.json({ error: "agent_policy_blocked", reason: decision.reason, policy: decision.policy, spent: decision.spent }, { status: 403 });
+      policyReservationId = decision.reservationId;
     }
   }
 
-  const rlKey = body.execute ? `agent-exec:${ip}` : `agent:${ip}`; const rlMax = body.execute ? limits.maxExecute : limits.maxRequests; const rl = rateLimit(rlKey, { windowMs: limits.windowMs, max: rlMax }); if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  const rlKey = body.execute ? `agent-exec:${ip}` : `agent:${ip}`; const rlMax = body.execute ? limits.maxExecute : limits.maxRequests; const rl = rateLimit(rlKey, { windowMs: limits.windowMs, max: rlMax }); if (!rl.ok) { if (policyReservationId) await releaseAgentSpendReservation(policyReservationId); return NextResponse.json({ error: "rate_limited" }, { status: 429 }); }
   let confirmationToken = body.execute ? body.confirmToken! : ""; const wantStream = body.stream !== false;
 
   const scrubResult = (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
@@ -67,13 +69,26 @@ export async function POST(req: Request) {
   const accountingWallet = wallet.smartAccountAddress || wallet.address || undefined;
   const persistAndLog = async (result: Awaited<ReturnType<typeof runSmartAgent>>) => {
     await finalizeResult(result);
-    if (result.transaction) await persistTransaction(result.transaction, { userId: session?.id !== "ephemeral" ? session?.id : undefined, walletAddress: accountingWallet });
+    if (result.transaction) {
+      const persistedId = await persistTransaction(result.transaction, { userId: session?.id !== "ephemeral" ? session?.id : undefined, walletAddress: accountingWallet });
+      // A successfully persisted live transaction now owns the spend record, so
+      // release the short-lived reservation. If persistence fails, keep the
+      // reservation until TTL so the budget remains fail-safe rather than
+      // allowing a second concurrent spend through an accounting gap.
+      if (policyReservationId && (result.transaction.executionMode !== "live" || Boolean(persistedId))) {
+        await releaseAgentSpendReservation(policyReservationId);
+        policyReservationId = undefined;
+      }
+    } else if (policyReservationId) {
+      await releaseAgentSpendReservation(policyReservationId);
+      policyReservationId = undefined;
+    }
     await logAgentRun({ message: body.message.slice(0, 200), execute: body.execute, confirmed: body.confirmed, ip, walletAddress: accountingWallet, userId: session?.id !== "ephemeral" ? session?.id : undefined, toolTrace: result.toolTrace?.map((t) => t.name), resultSummary: result.transaction?.message });
   };
 
   if (!wantStream) {
     try { const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet }); await persistAndLog(result); return Response.json(scrubResult(result)); }
-    catch { return NextResponse.json({ error: "agent_failed" }, { status: 500 }); }
+    catch { if (policyReservationId) await releaseAgentSpendReservation(policyReservationId); return NextResponse.json({ error: "agent_failed" }, { status: 500 }); }
   }
 
   const encoder = new TextEncoder();
@@ -90,7 +105,7 @@ export async function POST(req: Request) {
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(out)}\n\n`));
     };
     try { send({ type: "status", message: "Working…" }); const result = await runSmartAgent({ message: body.message, execute: body.execute && body.confirmed, wallet, onEvent: (e) => send(e) }); await persistAndLog(result); if (result.transaction) send({ type: "transaction", transaction: result.transaction }); }
-    catch { send({ type: "error", message: "Something went wrong." }); }
+    catch { if (policyReservationId) await releaseAgentSpendReservation(policyReservationId); send({ type: "error", message: "Something went wrong." }); }
     finally { controller.close(); }
   }});
   return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" } });
