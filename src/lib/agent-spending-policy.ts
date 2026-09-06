@@ -15,7 +15,10 @@ export type AgentPolicyDecision = {
   reason: string;
   policy: AgentSpendingPolicy;
   spent: { daily: number; weekly: number; monthly: number };
+  reservationId?: string;
 };
+
+const RESERVATION_TTL_MS = 15 * 60 * 1000;
 
 function positiveEnv(name: string, fallback: number): number {
   const value = Number(process.env[name]);
@@ -57,9 +60,12 @@ function startOfUtcMonth(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
-async function sumAgentSpend(walletAddress: string, since: Date): Promise<number> {
-  const prisma = getPrisma();
-  const rows = await prisma.transaction.findMany({
+async function sumAgentSpend(
+  db: Awaited<ReturnType<typeof getPrisma>>,
+  walletAddress: string,
+  since: Date,
+): Promise<number> {
+  const rows = await db.transaction.findMany({
     where: {
       walletAddress: walletAddress.toLowerCase(),
       executionMode: "live",
@@ -76,12 +82,47 @@ async function sumAgentSpend(walletAddress: string, since: Date): Promise<number
   }, 0);
 }
 
+async function sumActiveReservations(
+  db: Awaited<ReturnType<typeof getPrisma>>,
+  walletAddress: string,
+  since: Date,
+  operationId: string,
+): Promise<number> {
+  const rows = await db.$queryRaw<Array<{ amount: string }>>`
+    SELECT "amount"
+    FROM "AgentSpendReservation"
+    WHERE "walletAddress" = ${walletAddress.toLowerCase()}
+      AND "expiresAt" > ${new Date()}
+      AND "createdAt" >= ${since}
+      AND "operationId" <> ${operationId}
+  `;
+
+  return rows.reduce((total, row) => {
+    const amount = Number(row.amount);
+    return Number.isFinite(amount) && amount > 0 ? total + amount : total;
+  }, 0);
+}
+
+export async function releaseAgentSpendReservation(operationId: string): Promise<void> {
+  if (!operationId) return;
+  try {
+    const prisma = getPrisma();
+    await prisma.$executeRaw`
+      DELETE FROM "AgentSpendReservation"
+      WHERE "operationId" = ${operationId}
+    `;
+  } catch (error) {
+    console.warn("[AGFusion][AgentPolicy] reservation release failed", { error, operationId });
+  }
+}
+
 export async function enforceAgentSpendingPolicy(params: {
   walletAddress: string;
   amount: string;
   action: AgentSpendAction;
   recipient?: string;
   isAgent: boolean;
+  operationId?: string;
   now?: Date;
 }): Promise<AgentPolicyDecision> {
   const policy = getAgentSpendingPolicy();
@@ -105,29 +146,113 @@ export async function enforceAgentSpendingPolicy(params: {
       spent: emptySpent,
     };
   }
+  if (!params.operationId) {
+    return {
+      allowed: false,
+      reason: "Agent policy operation identity is required for atomic spending protection.",
+      policy,
+      spent: emptySpent,
+    };
+  }
 
   const now = params.now ?? new Date();
+  const walletAddress = params.walletAddress.toLowerCase();
+  const operationId = params.operationId;
+
   try {
-    const [daily, weekly, monthly] = await Promise.all([
-      sumAgentSpend(params.walletAddress, startOfUtcDay(now)),
-      sumAgentSpend(params.walletAddress, startOfUtcWeek(now)),
-      sumAgentSpend(params.walletAddress, startOfUtcMonth(now)),
-    ]);
-    const spent = { daily, weekly, monthly };
-    if (daily + amount > policy.daily) {
-      return { allowed: false, reason: `Agent policy blocked ${params.action}: daily cap ${policy.daily} USDC would be exceeded.`, policy, spent };
-    }
-    if (weekly + amount > policy.weekly) {
-      return { allowed: false, reason: `Agent policy blocked ${params.action}: weekly cap ${policy.weekly} USDC would be exceeded.`, policy, spent };
-    }
-    if (monthly + amount > policy.monthly) {
-      return { allowed: false, reason: `Agent policy blocked ${params.action}: monthly cap ${policy.monthly} USDC would be exceeded.`, policy, spent };
-    }
-    return { allowed: true, reason: "Agent spending policy approved.", policy, spent };
+    const prisma = getPrisma();
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        CREATE TABLE IF NOT EXISTS "AgentSpendReservation" (
+          "id" TEXT PRIMARY KEY,
+          "operationId" TEXT NOT NULL UNIQUE,
+          "walletAddress" TEXT NOT NULL,
+          "amount" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "expiresAt" TIMESTAMP(3) NOT NULL
+        )
+      `;
+
+      // Serialize budget checks per wallet. The reservation is inserted in the
+      // same transaction, so concurrent requests cannot both observe the same
+      // remaining budget and then pass independently.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${walletAddress}))`;
+
+      await tx.$executeRaw`
+        DELETE FROM "AgentSpendReservation"
+        WHERE "expiresAt" <= ${now}
+      `;
+
+      const existing = await tx.$queryRaw<Array<{ amount: string; expiresAt: Date }>>`
+        SELECT "amount", "expiresAt"
+        FROM "AgentSpendReservation"
+        WHERE "operationId" = ${operationId}
+        LIMIT 1
+      `;
+      if (existing.length > 0 && existing[0].expiresAt > now) {
+        const [daily, weekly, monthly] = await Promise.all([
+          sumAgentSpend(tx, walletAddress, startOfUtcDay(now)),
+          sumAgentSpend(tx, walletAddress, startOfUtcWeek(now)),
+          sumAgentSpend(tx, walletAddress, startOfUtcMonth(now)),
+        ]);
+        const reservedDaily = await sumActiveReservations(tx, walletAddress, startOfUtcDay(now), operationId);
+        const reservedWeekly = await sumActiveReservations(tx, walletAddress, startOfUtcWeek(now), operationId);
+        const reservedMonthly = await sumActiveReservations(tx, walletAddress, startOfUtcMonth(now), operationId);
+        return {
+          allowed: true,
+          reason: "Agent spending policy already reserved this operation.",
+          policy,
+          spent: {
+            daily: daily + reservedDaily + Number(existing[0].amount),
+            weekly: weekly + reservedWeekly + Number(existing[0].amount),
+            monthly: monthly + reservedMonthly + Number(existing[0].amount),
+          },
+          reservationId: operationId,
+        };
+      }
+
+      const [daily, weekly, monthly] = await Promise.all([
+        sumAgentSpend(tx, walletAddress, startOfUtcDay(now)),
+        sumAgentSpend(tx, walletAddress, startOfUtcWeek(now)),
+        sumAgentSpend(tx, walletAddress, startOfUtcMonth(now)),
+      ]);
+      const reservedDaily = await sumActiveReservations(tx, walletAddress, startOfUtcDay(now), operationId);
+      const reservedWeekly = await sumActiveReservations(tx, walletAddress, startOfUtcWeek(now), operationId);
+      const reservedMonthly = await sumActiveReservations(tx, walletAddress, startOfUtcMonth(now), operationId);
+      const spent = {
+        daily: daily + reservedDaily,
+        weekly: weekly + reservedWeekly,
+        monthly: monthly + reservedMonthly,
+      };
+
+      if (spent.daily + amount > policy.daily) {
+        return { allowed: false, reason: `Agent policy blocked ${params.action}: daily cap ${policy.daily} USDC would be exceeded.`, policy, spent };
+      }
+      if (spent.weekly + amount > policy.weekly) {
+        return { allowed: false, reason: `Agent policy blocked ${params.action}: weekly cap ${policy.weekly} USDC would be exceeded.`, policy, spent };
+      }
+      if (spent.monthly + amount > policy.monthly) {
+        return { allowed: false, reason: `Agent policy blocked ${params.action}: monthly cap ${policy.monthly} USDC would be exceeded.`, policy, spent };
+      }
+
+      const reservationId = `agent-${operationId}`;
+      await tx.$executeRaw`
+        INSERT INTO "AgentSpendReservation" ("id", "operationId", "walletAddress", "amount", "createdAt", "expiresAt")
+        VALUES (${reservationId}, ${operationId}, ${walletAddress}, ${String(amount)}, ${now}, ${new Date(now.getTime() + RESERVATION_TTL_MS)})
+      `;
+
+      return {
+        allowed: true,
+        reason: "Agent spending policy approved and budget reserved atomically.",
+        policy,
+        spent: { daily: spent.daily + amount, weekly: spent.weekly + amount, monthly: spent.monthly + amount },
+        reservationId,
+      };
+    });
   } catch (error) {
     console.error("[AGFusion][AgentPolicy] persistent storage check failed", {
       error,
-      walletAddress: params.walletAddress,
+      walletAddress,
       action: params.action,
       dbConfigured: Boolean(process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL),
     });
