@@ -2,26 +2,20 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { verifyMessage } from "viem";
 import { getPrisma, isDbConfigured } from "@/lib/db";
 
-/**
- * EIP-4361 (SIWE) helpers.
- * Nonces are HMAC-signed so they work on Vercel serverless even when
- * SQLite/Postgres is missing or misconfigured (was causing /api/auth/nonce 500).
- */
+/** EIP-4361 (SIWE) helpers. */
 
 const CHAIN_ID = Number(process.env.NEXT_PUBLIC_SIWE_CHAIN_ID || 5042002);
 
-/** Safe statement — MetaMask-recommended phrasing: not a tx, no fees */
 export const SIWE_STATEMENT =
   "Sign in to AGFusion. This request will not trigger a blockchain transaction or cost any fees.";
 
+const NONCE_TTL_MS = 10 * 60_000;
+const MAX_CLOCK_SKEW_MS = 60_000;
 const memNonces = new Map<string, { address: string; expiresAt: Date }>();
-/** Replay protection within a single instance */
 const usedNonces = new Map<string, number>();
 
 export type SiweOrigin = {
-  /** Host only, no protocol — e.g. agfusion.vercel.app */
   domain: string;
-  /** Full origin — e.g. https://agfusion.vercel.app */
   uri: string;
 };
 
@@ -32,13 +26,10 @@ function authSecret(): string {
     process.env.AUTH_SECRET?.trim() || process.env.SIWE_SECRET?.trim();
   if (explicit) return explicit;
 
-  // Production must FAIL CLOSED: without a real AUTH_SECRET/SIWE_SECRET the
-  // HMAC nonce would be predictable from weaker fallbacks or a public literal.
   if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
     throw new Error("AUTH_SECRET is not configured in production");
   }
 
-  // Development convenience only.
   return (
     process.env.BAZAARLINK_API_KEY?.trim() ||
     process.env.KIT_KEY?.trim() ||
@@ -58,10 +49,6 @@ function safeEqualHex(a: string, b: string): boolean {
   }
 }
 
-/**
- * Resolve domain/URI from the incoming request so the SIWE message
- * always matches the page the user is on (avoids domain-mismatch risk UI).
- */
 export function resolveSiweOrigin(req: Request): SiweOrigin {
   const headers = req.headers;
   const forwardedHost = headers.get("x-forwarded-host")?.split(",")[0]?.trim();
@@ -77,9 +64,9 @@ export function resolveSiweOrigin(req: Request): SiweOrigin {
     (host.includes("localhost") || host.startsWith("127.") ? "http" : "https");
 
   const domain = host;
-
   const envUri = process.env.NEXT_PUBLIC_APP_URL?.trim();
   let uri = `${proto}://${host}`;
+
   if (envUri) {
     try {
       const u = new URL(envUri);
@@ -87,14 +74,13 @@ export function resolveSiweOrigin(req: Request): SiweOrigin {
         uri = envUri.replace(/\/$/, "");
       }
     } catch {
-      /* keep derived uri */
+      // Keep the request-derived URI.
     }
   }
 
   return { domain, uri };
 }
 
-/** Allowed domains for SIWE verification (anti-phishing). */
 export function isAllowedSiweDomain(domain: string): boolean {
   const d = domain.toLowerCase().split(":")[0];
   const allowed = new Set<string>([
@@ -103,13 +89,9 @@ export function isAllowedSiweDomain(domain: string): boolean {
     "agfusion.vercel.app",
   ]);
   const envDomain = process.env.NEXT_PUBLIC_APP_DOMAIN?.toLowerCase().trim();
-  if (envDomain) {
-    allowed.add(envDomain.split(":")[0]);
-  }
-  // Preview deployments: *.vercel.app under same project name
-  if (d.endsWith(".vercel.app") && d.includes("agfusion")) {
-    return true;
-  }
+  if (envDomain) allowed.add(envDomain.split(":")[0]);
+
+  if (d.endsWith(".vercel.app") && d.includes("agfusion")) return true;
   return allowed.has(d);
 }
 
@@ -125,18 +107,17 @@ export function buildSiweMessage(params: {
   const issuedAt = params.issuedAt || new Date().toISOString();
   const expirationTime =
     params.expirationTime ||
-    new Date(Date.now() + 10 * 60_000).toISOString();
+    new Date(Date.now() + NONCE_TTL_MS).toISOString();
   const chainId = params.chainId ?? CHAIN_ID;
-  const address = params.address;
 
   return [
     `${params.domain} wants you to sign in with your Ethereum account:`,
-    address,
+    params.address,
     "",
     SIWE_STATEMENT,
     "",
     `URI: ${params.uri}`,
-    `Version: 1`,
+    "Version: 1",
     `Chain ID: ${chainId}`,
     `Nonce: ${params.nonce}`,
     `Issued At: ${issuedAt}`,
@@ -144,46 +125,48 @@ export function buildSiweMessage(params: {
   ].join("\n");
 }
 
-/**
- * Issue a signed nonce that validates without a database.
- * Format: <ts36>_<rand>_<hmac24>
- */
+/** Issue a cryptographically random, HMAC-bound, one-time SIWE nonce. */
 export async function issueNonce(address: string): Promise<string> {
   const addr = address.toLowerCase();
-  const ts = Date.now().toString(36);
-  const rand = randomBytes(8).toString("hex");
+  const nonce = `${Date.now().toString(36)}_${randomBytes(8).toString("hex")}_${randomBytes(16).toString("hex")}`;
+  const [ts, rand] = nonce.split("_");
   const payload = `${addr}.${ts}.${rand}`;
   const sig = createHmac("sha256", authSecret())
     .update(payload)
     .digest("hex")
     .slice(0, 24);
-  const nonce = `${ts}_${rand}_${sig}`;
-  const expiresAt = new Date(Date.now() + 10 * 60_000);
+  const signedNonce = `${ts}_${rand}_${sig}`;
+  const expiresAt = new Date(Date.now() + NONCE_TTL_MS);
 
-  // Best-effort persist (never fail the request if DB is broken)
-  memNonces.set(nonce, { address: addr, expiresAt });
   if (isDbConfigured()) {
     try {
       const prisma = getPrisma();
       await prisma.authNonce.create({
-        data: { address: addr, nonce, expiresAt },
+        data: { address: addr, nonce: signedNonce, expiresAt },
       });
-    } catch (e) {
-      console.warn("[siwe] DB nonce store skipped", e);
+    } catch (error) {
+      if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+        throw new Error("Could not persist SIWE nonce");
+      }
+      console.warn("[siwe] DB nonce store skipped", error);
     }
+  } else if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+    throw new Error("Database is required for production SIWE replay protection");
   }
 
-  return nonce;
+  memNonces.set(signedNonce, { address: addr, expiresAt });
+  return signedNonce;
 }
 
-function verifySignedNonce(address: string, nonce: string): boolean {
+function verifySignedNonceFormat(address: string, nonce: string): boolean {
   const parts = nonce.split("_");
   if (parts.length !== 3) return false;
   const [ts, rand, sig] = parts;
-  if (!ts || !rand || !sig || sig.length !== 24) return false;
+  if (!/^[a-z0-9]+$/.test(ts)) return false;
+  if (!/^[a-f0-9]{16}$/.test(rand)) return false;
+  if (!/^[a-f0-9]{24}$/.test(sig)) return false;
 
-  const addr = address.toLowerCase();
-  const payload = `${addr}.${ts}.${rand}`;
+  const payload = `${address.toLowerCase()}.${ts}.${rand}`;
   const expected = createHmac("sha256", authSecret())
     .update(payload)
     .digest("hex")
@@ -192,63 +175,50 @@ function verifySignedNonce(address: string, nonce: string): boolean {
 
   const issued = parseInt(ts, 36);
   if (!Number.isFinite(issued)) return false;
-  if (Date.now() - issued > 10 * 60_000) return false;
-  if (issued > Date.now() + 60_000) return false; // clock skew
-
-  // In-instance replay protection
-  if (usedNonces.has(nonce)) return false;
-  usedNonces.set(nonce, Date.now());
-  // prune old
-  if (usedNonces.size > 5000) {
-    const cutoff = Date.now() - 15 * 60_000;
-    for (const [k, t] of usedNonces) {
-      if (t < cutoff) usedNonces.delete(k);
-    }
-  }
+  const now = Date.now();
+  if (issued < now - NONCE_TTL_MS || issued > now + MAX_CLOCK_SKEW_MS) return false;
   return true;
 }
 
-export async function consumeNonce(
-  address: string,
-  nonce: string,
-): Promise<boolean> {
+/** Atomically consume a nonce. Production uses the database as the source of truth. */
+export async function consumeNonce(address: string, nonce: string): Promise<boolean> {
   const addr = address.toLowerCase();
+  if (!verifySignedNonceFormat(addr, nonce)) return false;
 
-  // Prefer HMAC verification (works across serverless instances)
-  if (nonce.includes("_") && nonce.split("_").length === 3) {
-    const ok = verifySignedNonce(addr, nonce);
-    if (!ok) return false;
-    // Best-effort DB delete
-    if (isDbConfigured()) {
-      try {
-        const prisma = getPrisma();
-        await prisma.authNonce.deleteMany({ where: { address: addr, nonce } });
-      } catch {
-        /* ignore */
-      }
-    }
-    memNonces.delete(nonce);
-    return true;
-  }
-
-  // Legacy mem / DB nonces
   if (isDbConfigured()) {
     try {
       const prisma = getPrisma();
-      const row = await prisma.authNonce.findFirst({
-        where: { address: addr, nonce },
+      const result = await prisma.authNonce.deleteMany({
+        where: {
+          address: addr,
+          nonce,
+          expiresAt: { gt: new Date() },
+        },
       });
-      if (!row || row.expiresAt < new Date()) return false;
-      await prisma.authNonce.delete({ where: { id: row.id } });
-      return true;
-    } catch (e) {
-      console.warn("[siwe] DB consume failed", e);
+      return result.count === 1;
+    } catch (error) {
+      console.error("[siwe] atomic nonce consume failed", error);
+      return false;
     }
   }
 
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+    return false;
+  }
+
+  if (usedNonces.has(nonce)) return false;
   const mem = memNonces.get(nonce);
   if (!mem || mem.address !== addr || mem.expiresAt < new Date()) return false;
+
+  usedNonces.set(nonce, Date.now());
   memNonces.delete(nonce);
+
+  if (usedNonces.size > 5000) {
+    const cutoff = Date.now() - 15 * 60_000;
+    for (const [key, time] of usedNonces) {
+      if (time < cutoff) usedNonces.delete(key);
+    }
+  }
   return true;
 }
 
@@ -279,11 +249,23 @@ export function extractExpirationFromMessage(message: string): string | null {
   return m?.[1]?.trim() || null;
 }
 
+export function extractIssuedAtFromMessage(message: string): string | null {
+  const m = message.match(/^Issued At:\s*(.+)\s*$/m);
+  return m?.[1]?.trim() || null;
+}
+
+export function extractChainIdFromMessage(message: string): number | null {
+  const m = message.match(/^Chain ID:\s*(\d+)\s*$/m);
+  if (!m) return null;
+  const chainId = Number(m[1]);
+  return Number.isSafeInteger(chainId) ? chainId : null;
+}
+
 export async function verifySiwe(params: {
   message: string;
   signature: `0x${string}`;
-  /** Live request origin — must match message domain */
   expectedDomain?: string;
+  expectedUri?: string;
 }): Promise<{ ok: true; address: string } | { ok: false; error: string }> {
   const address = extractAddressFromMessage(params.message);
   if (!address) return { ok: false, error: "No address in message" };
@@ -304,19 +286,32 @@ export async function verifySiwe(params: {
     }
   }
 
-  const exp = extractExpirationFromMessage(params.message);
-  if (exp) {
-    const t = Date.parse(exp);
-    if (Number.isFinite(t) && t < Date.now()) {
-      return { ok: false, error: "Sign-in message expired" };
-    }
+  const uri = extractUriFromMessage(params.message);
+  if (!uri) return { ok: false, error: "No URI in message" };
+  if (params.expectedUri && uri !== params.expectedUri) {
+    return { ok: false, error: "URI mismatch" };
+  }
+
+  const chainId = extractChainIdFromMessage(params.message);
+  if (chainId !== CHAIN_ID) return { ok: false, error: "Chain ID mismatch" };
+
+  const issuedAt = extractIssuedAtFromMessage(params.message);
+  if (!issuedAt || !Number.isFinite(Date.parse(issuedAt))) {
+    return { ok: false, error: "Invalid issued-at time" };
+  }
+  if (Date.parse(issuedAt) > Date.now() + MAX_CLOCK_SKEW_MS) {
+    return { ok: false, error: "Sign-in message issued in the future" };
+  }
+
+  const expiration = extractExpirationFromMessage(params.message);
+  if (!expiration) return { ok: false, error: "No expiration time" };
+  const expiresAt = Date.parse(expiration);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    return { ok: false, error: "Sign-in message expired" };
   }
 
   const nonce = extractNonceFromMessage(params.message);
   if (!nonce) return { ok: false, error: "No nonce in message" };
-
-  const nonceOk = await consumeNonce(address, nonce);
-  if (!nonceOk) return { ok: false, error: "Invalid or expired nonce" };
 
   try {
     const valid = await verifyMessage({
@@ -325,22 +320,27 @@ export async function verifySiwe(params: {
       signature: params.signature,
     });
     if (!valid) return { ok: false, error: "Invalid signature" };
-    return { ok: true, address: address.toLowerCase() };
-  } catch (e) {
+  } catch (error) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Verification failed",
+      error: error instanceof Error ? error.message : "Verification failed",
     };
   }
+
+  // Consume only after signature verification so an attacker cannot burn a
+  // legitimate user's nonce with an invalid signature.
+  const nonceOk = await consumeNonce(address, nonce);
+  if (!nonceOk) return { ok: false, error: "Invalid or already-used nonce" };
+
+  return { ok: true, address: address.toLowerCase() };
 }
 
 export async function upsertUser(
   address: string,
 ): Promise<{ id: string; address: string }> {
   const addr = address.toLowerCase();
-  if (!isDbConfigured()) {
-    return { id: `mem_${addr}`, address: addr };
-  }
+  if (!isDbConfigured()) return { id: `mem_${addr}`, address: addr };
+
   try {
     const prisma = getPrisma();
     const user = await prisma.user.upsert({
@@ -349,8 +349,8 @@ export async function upsertUser(
       update: {},
     });
     return { id: user.id, address: user.address };
-  } catch (e) {
-    console.warn("[siwe] upsertUser DB failed, memory user", e);
+  } catch (error) {
+    console.warn("[siwe] upsertUser DB failed, memory user", error);
     return { id: `mem_${addr}`, address: addr };
   }
 }
