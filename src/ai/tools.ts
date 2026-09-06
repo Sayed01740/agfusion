@@ -248,7 +248,7 @@ export const AGENT_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "retry_bridge",
-      description: "Recover a failed cross-chain transfer step, resuming from the last confirmed step. Never re-burns confirmed funds.",
+      description: "Recover a failed cross-chain transfer step after the user has confirmed recovery in the app UI. The `confirmed` field is set by the application, never by you.",
       parameters: {
         type: "object",
         properties: {
@@ -256,6 +256,7 @@ export const AGENT_TOOL_DEFINITIONS = [
             type: "string",
             description: "Optional id of the failed bridge transaction to recover (defaults to the most recent failed bridge).",
           },
+          confirmed: { type: "boolean", description: "Managed by the application. Ignore this field; you cannot set it." },
         },
         required: [],
       },
@@ -358,6 +359,7 @@ const MONEY_TOOLS = new Set([
   "execute_swap",
   "execute_send",
   "execute_route",
+  "retry_bridge",
   "register_erc8004_agent",
 ]);
 
@@ -537,13 +539,6 @@ export async function executeTool(
         const amount = String(args.amount || "50");
         const fromChain = asChain(args.fromChain, "Base_Sepolia");
         const toChain = asChain(args.toChain, "Arc_Testnet");
-
-        // Bridge mint recipient is OPTIONAL — when omitted the SDK mints to the
-        // connected wallet. But when a recipient IS supplied (e.g. via the agent /
-        // tool path, which is the surface most exposed to prompt injection) it must
-        // be validated the same way execute_send/execute_route are: the destination
-        // mint is the irreversible half of a CCTP transfer, so a malformed, zero,
-        // burn, or demo address would mean unrecoverable loss. Fail closed here.
         let bridgeRecipient: string | undefined;
         if (
           args.recipient !== undefined &&
@@ -564,8 +559,6 @@ export async function executeTool(
             };
           }
         }
-
-        // Wallet-type routing guard: Circle Email Wallets can only execute Arc ↔ Base.
         try {
           const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
           if (getActiveWalletMeta()?.uuid === "circle-pw") {
@@ -692,6 +685,9 @@ export async function executeTool(
       }
 
       case "retry_bridge": {
+        if (!gateMoney(args, ctx.userConfirmed)) {
+          return blockedMoney("retry_bridge", args);
+        }
         // Recover the REAL failed bridge — never a hardcoded 50 USDC Base→Arc.
         let failedTx: (TransactionRecord & { bridgeResult?: unknown }) | undefined;
         try {
@@ -801,15 +797,11 @@ export async function executeTool(
       }
 
       case "get_transaction_status": {
-        // Real verification only (Phase 13) — never fabricate success.
         const txHash = String(args.txHash || "");
         if (!txHash.startsWith("0x") || txHash.length !== 66) {
           return { ok: false, summary: "Invalid transaction hash provided. Must be a 66-character hex string starting with 0x." };
         }
         try {
-          // This tool runs both server-side (agent route) and in the browser —
-          // a relative /api/rpc URL only works client-side, so build an
-          // absolute URL from the deployment origin when on the server.
           const res = await fetch(absoluteApiUrl("/api/rpc?chain=arc"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -850,9 +842,6 @@ export async function executeTool(
         }
         const name = String(args.name || "MyAgent");
         const description = String(args.description || "An automated AI agent on Arc");
-
-        // Real on-chain ERC-8004 IdentityRegistry.register(metadataURI) on Arc
-        // Testnet — never fabricate a tx hash or success status.
         if (typeof window === "undefined") {
           return {
             ok: false,
@@ -980,7 +969,6 @@ function buildPreviewFromKind(p: {
     const est = estimateBridgeDemo(p.amount, p.fromChain, p.toChain);
     return {
       type: "bridge",
-      // Explicit direction in title so UI never looks "always Base→Arc"
       title: `Bridge ${from.short} → ${to.short}`,
       summary: `Move ${p.amount} USDC from ${from.label} to ${to.label}`,
       amount: p.amount,
@@ -1056,7 +1044,6 @@ function buildPreviewFromKind(p: {
     };
   }
 
-  // send default
   return {
     type: "send",
     title: p.recipientLabel ? `Pay ${p.recipientLabel}` : "Send USDC",
