@@ -210,7 +210,7 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   }
 
   let data: `0x${string}`;
-  const value = tokenIn === "USDC" ? `0x${amountIn.toString(16)}` : "0x0";
+  const value = (tokenIn === "USDC" ? `0x${amountIn.toString(16)}` : "0x0") as `0x${string}`;
   if (tokenIn === "USDC") {
     data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens", args: [minOut, quote.path, owner, deadline] });
   } else if (tokenOut === "USDC") {

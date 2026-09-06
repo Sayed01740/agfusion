@@ -35,7 +35,7 @@ export function isValidKitKeyShape(key: string | null | undefined): boolean {
 }
 
 /** Browser callers intentionally receive no Kit credential. */
-export function getPublicKitKey(): undefined {
+export function getPublicKitKey(): string | undefined {
   return undefined;
 }
 
@@ -55,7 +55,7 @@ export function clearSessionKitKey(): void {
 export function hasKitKey(): boolean { return false; }
 
 /** Legacy callers get no browser credential and must use their server-backed flow. */
-export async function ensureKitKey(): Promise<undefined> { return undefined; }
+export async function ensureKitKey(): Promise<string | undefined> { return undefined; }
 
 function digErrorText(e: unknown, depth = 0): string[] {
   if (e == null || depth > 6) return [];

@@ -21,7 +21,7 @@ import {
   type DiscoveredWallet,
   type InjectedProvider,
 } from "@/sdk/wallet-adapter";
-import { setActiveProvider } from "@/sdk/active-wallet";
+import { getActiveWalletMeta, setActiveProvider } from "@/sdk/active-wallet";
 import { usePilotStore } from "@/store/pilot-store";
 import { isAppKitInstalled } from "@/sdk/appkit-client";
 import { WalletModal } from "@/components/wallet/wallet-modal";
@@ -41,7 +41,7 @@ type WalletContextValue = {
   disconnect: () => void;
   switchToArc: () => Promise<void>;
   refreshBalance: () => Promise<void>;
-  signInSiwe: () => Promise<boolean>;
+  signInSiwe: (explicitAddress?: string) => Promise<boolean>;
   error: string | null;
   clearError: () => void;
   enableAgentMode: () => Promise<void>;

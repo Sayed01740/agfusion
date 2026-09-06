@@ -77,7 +77,7 @@ export function startBridgeDebugSession(txId?: string, context: Record<string, u
   return activeSessionId;
 }
 
-export function recordBridgeDebug(stage: string, data?: unknown, txId?: string, message?: string, extra: { method?: string; chainId?: string | number; durationMs?: number; error?: unknown } = {}): void {
+export function recordBridgeDebug(stage: string, data?: unknown, txId?: string, message?: string, extra: { method?: string; chainId?: string | number; durationMs?: number; error?: unknown; txHash?: string } = {}): void {
   if (typeof window === "undefined") return;
   const sessionId = txId || activeSessionId || newId();
   activeSessionId = sessionId;
@@ -92,14 +92,14 @@ export function recordBridgeDebug(stage: string, data?: unknown, txId?: string, 
   sendToServer(event, sessionId);
 }
 
-export function attachBridgeProviderDiagnostics(provider: { request: (args: { method: string; params?: unknown }) => Promise<unknown> }, label: string, txId?: string): void {
+export function attachBridgeProviderDiagnostics(provider: any, label: string, txId?: string): void {
   if (!provider || typeof provider.request !== "function") return;
   const p = provider as unknown as Record<string, unknown>;
   const marker = "__agfusionBridgeDebugWrappedV5";
   if (p[marker]) return;
   p[marker] = true;
   const original = provider.request.bind(provider);
-  provider.request = async (args) => {
+  provider.request = async (args: any) => {
     const started = performance.now();
     recordBridgeDebug("wallet.request", { label, params: args.params }, txId, `Wallet/provider request: ${args.method}`, { method: args.method });
     try {

@@ -113,7 +113,7 @@ export async function finalizeVerifiedTransaction(record: TransactionRecord, cha
 
   const verified = await verifyReceiptOnChain({ chainKey: config.rpcProxyKey, txHash: record.txHash, attempts: forwardedBridge ? 10 : 5, delayMs: forwardedBridge ? 2_000 : 1_000 });
   if (verified.status !== "success") {
-    return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination transaction is not confirmed on-chain.`, steps: appendStep(record, { name: forwardedBridge ? "Destination settlement receipt" : "Settlement receipt", state: "pending", txHash: record.txHash, message: verified.error || "Receipt was not confirmed with status 0x1." }) };
+    return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination transaction is not confirmed on-chain.`, steps: appendStep(record, { name: forwardedBridge ? "Destination settlement receipt" : "Settlement receipt", state: "pending", txHash: record.txHash, message: "Receipt was not confirmed with status 0x1." }) };
   }
 
   const needsTransferEvent = record.token === "USDC" && (record.type === "send" || record.type === "bridge" || record.type === "unified_spend");
