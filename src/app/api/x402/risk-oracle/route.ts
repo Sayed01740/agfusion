@@ -5,7 +5,8 @@
  * POST without payment → 402 + accepts[]
  * POST with paymentTxHash → verify USDC micropayment on Arc → return risk assessment
  *
- * Aligns with Circle agent nanopayments / x402 narrative on Arc.
+ * Payments are persisted server-side and bound to the exact resource so a
+ * confirmed transaction hash cannot be replayed for another assessment.
  */
 
 import { NextResponse } from "next/server";
@@ -16,6 +17,7 @@ import { resolveChain } from "@/lib/chains";
 import { AGFUSION_DEPLOYER } from "@/lib/onchain";
 import { ARC_TESTNET_RPC } from "@/lib/arc-chain";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getPrisma, isDbConfigured } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,7 +106,7 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
       return { ok: false, reason: "paymentTxHash from address ≠ payer" };
     }
 
-    // Receipt success
+    // A transaction is not a payment until its receipt exists and succeeds.
     const rc = await fetch(ARC_TESTNET_RPC, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -119,8 +121,13 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
     const rcData = (await rc.json()) as {
       result?: { status?: string } | null;
     };
-    if (rcData.result?.status && rcData.result.status !== "0x1") {
-      return { ok: false, reason: "Payment transaction failed on-chain" };
+    if (!rcData.result || rcData.result.status !== "0x1") {
+      return {
+        ok: false,
+        reason: rcData.result
+          ? "Payment transaction failed on-chain"
+          : "Payment transaction is not confirmed yet",
+      };
     }
 
     return {
@@ -133,6 +140,55 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
       ok: false,
       reason: e instanceof Error ? e.message : "RPC verify failed",
     };
+  }
+}
+
+/**
+ * Atomically reserve a verified payment hash. The table is created lazily so
+ * this security fix works with existing Postgres deployments without relying
+ * on a separate migration runner. The unique tx_hash constraint closes the
+ * replay race when two requests arrive concurrently.
+ */
+async function consumePayment(opts: {
+  txHash: string;
+  resource: string;
+  payer?: string;
+  amountWei: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  if (!isDbConfigured()) {
+    return { ok: false, reason: "Payment replay protection requires the database to be configured." };
+  }
+
+  try {
+    const prisma = getPrisma();
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "X402Payment" (
+        "id" TEXT PRIMARY KEY,
+        "txHash" TEXT NOT NULL UNIQUE,
+        "resource" TEXT NOT NULL,
+        "payer" TEXT,
+        "amountWei" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const id = `x402_${crypto.randomUUID()}`;
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "X402Payment" ("id", "txHash", "resource", "payer", "amountWei") VALUES ($1, $2, $3, $4, $5)`,
+      id,
+      opts.txHash.toLowerCase(),
+      opts.resource,
+      opts.payer?.toLowerCase() || null,
+      opts.amountWei,
+    );
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (/unique|duplicate/i.test(message)) {
+      return { ok: false, reason: "This payment transaction has already been consumed." };
+    }
+    console.warn("[x402-risk] payment consume failed", e);
+    return { ok: false, reason: "Could not persist payment replay protection." };
   }
 }
 
@@ -189,6 +245,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // Consume only after cryptographic/on-chain verification. The unique hash
+  // constraint makes this atomic against replay/concurrent duplicate requests.
+  const consumed = await consumePayment({
+    txHash: paymentTxHash,
+    resource,
+    payer: verified.from,
+    amountWei: verified.value || PRICE_WEI.toString(),
+  });
+  if (!consumed.ok) {
+    return NextResponse.json(
+      { error: "payment_replayed", message: consumed.reason },
+      { status: 409 },
+    );
+  }
+
   const bridgeQuote = estimateBridgeDemo(amount, fromChain, toChain);
   const risk = assessRouteRisk({ fromChain, toChain, amount });
   risk.factors = [
@@ -196,6 +267,7 @@ export async function POST(req: Request) {
     `Est. bridge fee ~$${bridgeQuote.feeUsd.toFixed(3)} + gas ~$${bridgeQuote.gasUsd.toFixed(3)}`,
     `ETA ${bridgeQuote.eta} · route ${bridgeQuote.route}`,
     `x402 paid ${PRICE_USDC} USDC · tx ${paymentTxHash.slice(0, 12)}…`,
+    `Resource bound ${resource}`,
   ];
   risk.recommendation = `${risk.recommendation} Quoted path: ${bridgeQuote.route} in ${bridgeQuote.eta}.`;
 
