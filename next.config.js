@@ -5,8 +5,6 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
   outputFileTracingRoot: path.join(__dirname),
   transpilePackages: [
     "@circle-fin/app-kit",
