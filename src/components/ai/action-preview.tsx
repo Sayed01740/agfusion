@@ -35,18 +35,48 @@ export function ActionPreviewCard({ preview, onExecute, busy = false }: { previe
     const current = await fetch("/api/auth/me", { cache: "no-store" });
     const currentData = await current.json().catch(() => ({}));
     if (currentData?.authenticated === true) return;
-    if (walletType === "circle") {
-      if (!walletAddress) throw new Error("Connect your Circle Email Wallet before confirming.");
+
+    const { getActiveWalletMeta } = await import("@/sdk/active-wallet");
+    const meta = getActiveWalletMeta();
+    const isCircle = walletType === "circle" || meta?.uuid === "circle-pw";
+
+    if (isCircle) {
+      const targetAddr = walletAddress || meta?.address;
+      if (!targetAddr) throw new Error("Connect your Circle Email Wallet before confirming.");
       const { getCircleSession } = await import("@/sdk/circle-pw");
       const circleSession = getCircleSession();
       if (!circleSession?.userToken) throw new Error("Your Circle Email Wallet session has expired. Reconnect the wallet and try again.");
-      const sessionResponse = await fetch("/api/circle/pw/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userToken: circleSession.userToken, address: walletAddress }) });
+      const sessionResponse = await fetch("/api/auth/circle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userToken: circleSession.userToken,
+          walletId: circleSession.wallets?.[0]?.id || "",
+          address: targetAddr,
+        }),
+      });
       const sessionData = await sessionResponse.json().catch(() => ({}));
-      if (!sessionResponse.ok || sessionData?.ok !== true) throw new Error(sessionData?.message || "Could not authorize the connected Circle Email Wallet.");
+      if (!sessionResponse.ok || sessionData?.ok !== true) {
+        const fallbackRes = await fetch("/api/circle/pw/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userToken: circleSession.userToken, address: targetAddr }),
+        });
+        const fallbackData = await fallbackRes.json().catch(() => ({}));
+        if (!fallbackRes.ok || fallbackData?.ok !== true) {
+          throw new Error(sessionData?.message || fallbackData?.message || "Could not authorize the connected Circle Email Wallet.");
+        }
+      }
       return;
     }
-    const signedIn = await signInSiwe();
-    if (!signedIn) throw new Error("Wallet sign-in was cancelled or failed. Please approve the sign-in message, then try again.");
+
+    const signingAddress = meta?.address || walletAddress;
+    const signedIn = await signInSiwe(signingAddress || undefined);
+    if (!signedIn) {
+      throw new Error(
+        "Wallet sign-in was cancelled or failed. Please check your wallet extension (MetaMask / Rabby) for a pending signature popup, approve it, and try again.",
+      );
+    }
   }
 
   async function confirmAndExecute() {

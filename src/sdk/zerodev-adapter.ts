@@ -99,8 +99,15 @@ export function createEIP1193ProviderProxy(
           });
         }
         
-        case "personal_sign":
-          return await currentAgentClient.signMessage({ message: args.params[0] });
+        case "personal_sign": {
+          const rawMsg = args.params?.[0];
+          if (typeof rawMsg === "string" && rawMsg.startsWith("0x")) {
+            return await currentAgentClient.signMessage({
+              message: { raw: rawMsg as `0x${string}` },
+            });
+          }
+          return await currentAgentClient.signMessage({ message: rawMsg });
+        }
           
         case "eth_signTypedData_v4":
           return await currentAgentClient.signTypedData(JSON.parse(args.params[1]));

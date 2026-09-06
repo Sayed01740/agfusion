@@ -270,12 +270,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           credentials: "same-origin",
           body: JSON.stringify({ message, signature }),
         });
-        if (!verifyRes.ok) return false;
+        if (!verifyRes.ok) {
+          const d = await verifyRes.json().catch(() => ({}));
+          console.warn("[AGFusion] SIWE verification failed:", verifyRes.status, d);
+          return false;
+        }
         setAuthLocal(true);
         setAuthenticated(true);
         await loadServerTransactions(address);
         return true;
-      } catch {
+      } catch (err) {
+        console.warn("[AGFusion] SIWE signing cancelled or failed:", err);
         return false;
       }
     },
@@ -387,29 +392,34 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setModalOpen(true);
   }, [connectWith]);
 
-  const signInSiwe = useCallback(async (): Promise<boolean> => {
-    if (!walletAddress) {
-      setError("Connect wallet first");
-      return false;
-    }
-    setSigningIn(true);
-    setError(null);
-    try {
-      const p = provider || (await getInjectedProvider());
-      const ok = await trySiwe(walletAddress, p);
-      if (!ok) {
-        throw new Error(
-          "Sign-in cancelled or failed. You only sign a login message — no funds move.",
-        );
+  const signInSiwe = useCallback(
+    async (explicitAddress?: string): Promise<boolean> => {
+      const meta = getActiveWalletMeta();
+      const targetAddress = explicitAddress || meta?.address || walletAddress;
+      if (!targetAddress) {
+        setError("Connect wallet first");
+        return false;
       }
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in failed");
-      return false;
-    } finally {
-      setSigningIn(false);
-    }
-  }, [walletAddress, provider, trySiwe]);
+      setSigningIn(true);
+      setError(null);
+      try {
+        const p = provider || (await getInjectedProvider());
+        const ok = await trySiwe(targetAddress, p);
+        if (!ok) {
+          throw new Error(
+            "Sign-in cancelled or failed. You only sign a login message — no funds move.",
+          );
+        }
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Sign-in failed");
+        return false;
+      } finally {
+        setSigningIn(false);
+      }
+    },
+    [walletAddress, provider, trySiwe],
+  );
 
   const disconnect = useCallback(() => {
     void fetch("/api/auth/logout", { method: "POST" });
