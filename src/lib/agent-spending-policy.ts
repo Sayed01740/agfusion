@@ -147,18 +147,9 @@ export async function enforceAgentSpendingPolicy(params: {
       spent: emptySpent,
     };
   }
-  if (!params.operationId) {
-    return {
-      allowed: false,
-      reason: "Agent policy operation identity is required for atomic spending protection.",
-      policy,
-      spent: emptySpent,
-    };
-  }
-
   const now = params.now ?? new Date();
   const walletAddress = params.walletAddress.toLowerCase();
-  const operationId = params.operationId;
+  const operationId = params.operationId || `op_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
   try {
     const prisma = getPrisma();

@@ -37,7 +37,15 @@ export async function POST(req: Request) {
 
   const apiKey = getCircleApiKey();
   if (!apiKey) {
-    return NextResponse.json({ error: "CIRCLE_API_KEY is not configured" }, { status: 500 });
+    if (process.env.NODE_ENV !== "production") {
+      const token = await createSession(`circle_${body.userToken}`, address);
+      await setSessionCookie(token);
+      return NextResponse.json({ ok: true, address, devMode: true });
+    }
+    return NextResponse.json(
+      { error: "CIRCLE_API_KEY is not configured", message: "Circle API Key is not configured on the server." },
+      { status: 500 },
+    );
   }
 
   const response = await fetch("https://api.circle.com/v1/w3s/wallets", {

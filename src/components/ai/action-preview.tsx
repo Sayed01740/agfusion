@@ -64,7 +64,8 @@ export function ActionPreviewCard({ preview, onExecute, busy = false }: { previe
         });
         const fallbackData = await fallbackRes.json().catch(() => ({}));
         if (!fallbackRes.ok || fallbackData?.ok !== true) {
-          throw new Error(sessionData?.message || fallbackData?.message || "Could not authorize the connected Circle Email Wallet.");
+          const detail = sessionData?.message || fallbackData?.message || sessionData?.error || fallbackData?.error;
+          throw new Error(detail || "Could not authorize the connected Circle Email Wallet.");
         }
       }
       return;

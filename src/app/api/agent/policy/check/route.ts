@@ -14,13 +14,15 @@ export async function POST(req: Request) {
     if (!ACTIONS.has(action)) return NextResponse.json({ allowed: false, reason: "Unsupported agent spending action." }, { status: 400 });
 
     const walletAddress = String(body?.smartAccountAddress || "");
-    const isAgent = Boolean(walletAddress);
+    const isAgent = Boolean(body?.smartAccountAddress);
+    const operationId = String(body?.operationId || `check_${walletAddress}_${Date.now()}`);
     const decision = await enforceAgentSpendingPolicy({
       walletAddress,
       amount,
       action,
       recipient: body?.recipient ? String(body.recipient) : undefined,
       isAgent,
+      operationId,
     });
 
     return NextResponse.json(decision, { status: decision.allowed ? 200 : 403 });
