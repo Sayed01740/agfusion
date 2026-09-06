@@ -101,7 +101,16 @@ async function getFees(sourceDomain: number, destinationDomain: number, debugId:
 
 async function sendTx(provider: Eip1193, from: string, to: string, data: string, debugId: string, stage: string): Promise<string> {
   recordBridgeDebug(`${stage}.request`, { from, to, data }, debugId, `Submitting ${stage}`);
-  const hash = String(await rpc(provider, "eth_sendTransaction", [{ from, to, data }]));
+  let chainId: number | null = null;
+  try {
+    const rawChain = await rpc(provider, "eth_chainId");
+    chainId = Number.parseInt(String(rawChain), 16);
+  } catch {}
+  const txPayload: Record<string, unknown> = { from, to, data };
+  if (chainId === 5042002) {
+    txPayload.gas = stage.includes("burn") ? "0x7a120" : "0x30d40";
+  }
+  const hash = String(await rpc(provider, "eth_sendTransaction", [txPayload]));
   recordBridgeDebug(`${stage}.submitted`, { txHash: hash }, debugId, `${stage} submitted`, { method: "eth_sendTransaction" });
   return hash;
 }

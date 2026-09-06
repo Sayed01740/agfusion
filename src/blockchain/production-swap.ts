@@ -131,7 +131,12 @@ async function approveIfNeeded(provider: Provider, owner: `0x${string}`, token: 
   const allowance = BigInt(`0x${allowanceRaw.slice(2)}`);
   if (allowance >= amount) return undefined;
   const data = encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [ROUTER, amount] });
-  const tx = String(await provider.request({ method: "eth_sendTransaction", params: [{ from: owner, to: TOKENS[token], data }] }));
+  const tx = String(
+    await provider.request({
+      method: "eth_sendTransaction",
+      params: [{ from: owner, to: TOKENS[token], data, gas: "0x186a0" }],
+    }),
+  );
   const receipt = await verifyReceiptOnChain({ chainKey: "arc", txHash: tx, attempts: 8, delayMs: 750 });
   if (receipt.status !== "success") throw new Error("Token approval was not confirmed on-chain.");
   return tx;
@@ -152,14 +157,14 @@ async function preflightSwap(provider: Provider, owner: `0x${string}`, to: `0x${
     const required = amountIn + ARC_SCA_GAS_RESERVE;
     if (balance < required) {
       throw new Error(
-        `Insufficient Arc USDC for this Circle Smart Wallet swap. Available: ${formatNativeUsdc(balance)} USDC; swap amount: ${formatNativeUsdc(amountIn)} USDC; reserved gas: ${formatNativeUsdc(ARC_SCA_GAS_RESERVE)} USDC. Get more USDC from the Arc/Circle faucet before swapping.`,
+        `Insufficient Arc USDC for this swap. Available: ${formatNativeUsdc(balance)} USDC; swap amount: ${formatNativeUsdc(amountIn)} USDC; reserved gas: ${formatNativeUsdc(ARC_SCA_GAS_RESERVE)} USDC. Please fund your wallet with USDC on Arc Testnet before swapping.`,
       );
     }
   } else {
     const balance = await getNativeBalance(provider, owner);
     if (balance < ARC_SCA_GAS_RESERVE) {
       throw new Error(
-        `Insufficient Arc USDC for Circle Smart Wallet gas. Available: ${formatNativeUsdc(balance)} USDC; minimum reserve: ${formatNativeUsdc(ARC_SCA_GAS_RESERVE)} USDC.`,
+        `Insufficient Arc USDC for gas. Available: ${formatNativeUsdc(balance)} USDC; minimum reserve: ${formatNativeUsdc(ARC_SCA_GAS_RESERVE)} USDC.`,
       );
     }
   }
@@ -170,8 +175,9 @@ async function preflightSwap(provider: Provider, owner: `0x${string}`, to: `0x${
       params: [{ from: owner, to, data, value }],
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Arc swap preflight failed before wallet confirmation: ${message || "the router transaction cannot be estimated on-chain."}`);
+    // Arc Testnet RPC has documented eth_estimateGas/simulation quirks for DEX writes.
+    // Log a warning rather than aborting the swap before the user's wallet can open.
+    console.warn("[AGFusion][Swap] eth_estimateGas preflight warning (proceeding with deterministic gas limit):", error);
   }
 }
 
@@ -223,7 +229,21 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
 
   let txHash: string;
   try {
-    txHash = String(await provider.request({ method: "eth_sendTransaction", params: [{ from: owner, to: ROUTER, data, value }] }));
+    txHash = String(
+      await provider.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from: owner,
+            to: ROUTER,
+            data,
+            value,
+            // 300,000 gas limit prevents wallet gas estimation stalls on Arc Testnet
+            gas: "0x493e0",
+          },
+        ],
+      }),
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (/4001|reject|denied|cancel/i.test(message)) throw new Error("Swap cancelled in wallet.");

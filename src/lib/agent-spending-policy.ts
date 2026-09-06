@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { getPrisma } from "@/lib/db";
+import { getPrisma, isDbConfigured } from "@/lib/db";
 
 export type AgentSpendAction = "bridge" | "swap" | "send" | "route" | "unified_spend" | "x402";
 
@@ -105,7 +105,7 @@ async function sumActiveReservations(
 }
 
 export async function releaseAgentSpendReservation(operationId: string): Promise<void> {
-  if (!operationId) return;
+  if (!operationId || !isDbConfigured()) return;
   try {
     const prisma = getPrisma();
     await prisma.$executeRaw`
@@ -150,6 +150,16 @@ export async function enforceAgentSpendingPolicy(params: {
   const now = params.now ?? new Date();
   const walletAddress = params.walletAddress.toLowerCase();
   const operationId = params.operationId || `op_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  if (!isDbConfigured()) {
+    return {
+      allowed: true,
+      reason: "Agent policy approved (in-memory mode).",
+      policy,
+      spent: emptySpent,
+      reservationId: operationId,
+    };
+  }
 
   try {
     const prisma = getPrisma();

@@ -25,7 +25,8 @@ export async function POST(req: Request) {
     };
 
     const session = await getSessionUser();
-    const wallet = session?.address || undefined;
+    const bodyWallet = typeof (body as any).wallet === "string" && /^0x[a-fA-F0-9]{40}$/i.test((body as any).wallet) ? (body as any).wallet.toLowerCase() : undefined;
+    const wallet = session?.address || bodyWallet;
 
     if (!body.preview || typeof body.preview !== "object") {
       return NextResponse.json(

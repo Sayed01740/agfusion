@@ -87,12 +87,12 @@ export function ActionPreviewCard({ preview, onExecute, busy = false }: { previe
       await ensureWalletServerSession();
       let confirmToken = preview.confirmToken;
       if (!confirmToken) {
-        const issueResponse = await fetch("/api/ai/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "issue", preview }) });
+        const issueResponse = await fetch("/api/ai/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "issue", preview, wallet: walletAddress }) });
         const issueData = await issueResponse.json().catch(() => ({}));
         if (!issueResponse.ok || !issueData?.confirmToken) throw new Error(issueData?.message || "The server could not authorize this transaction. Reconnect your wallet and try again.");
         confirmToken = String(issueData.confirmToken);
       }
-      const response = await fetch("/api/ai/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken, preview }) });
+      const response = await fetch("/api/ai/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken, preview, wallet: walletAddress }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.message || "Confirmation expired or no longer matches this transaction. Re-plan it and try again.");
       onExecute();

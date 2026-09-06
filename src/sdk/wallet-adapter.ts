@@ -187,10 +187,14 @@ export async function getInjectedProvider(
   if (wallets.length === 1) return wallets[0].provider;
 
   if (wallets.length > 1) {
-    const names = wallets.map((w) => w.name).join(", ");
-    throw new Error(
-      `Multiple wallets found (${names}). Connect one from the AGFusion Connect button first so we use the correct wallet.`,
-    );
+    for (const w of wallets) {
+      try {
+        const accs = (await w.provider.request({ method: "eth_accounts" })) as string[];
+        if (accs && accs.length > 0) return w.provider;
+      } catch {}
+    }
+    if (typeof window !== "undefined" && window.ethereum) return window.ethereum;
+    return wallets[0].provider;
   }
 
   throw new Error(
