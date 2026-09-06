@@ -1,6 +1,7 @@
 /**
- * Proxy Circle Stablecoin Service so browser App Kit never hits api.circle.com CORS/8002.
- * ALWAYS authenticates with server KIT_KEY (never trust client Authorization).
+ * Server-side proxy for the one Circle Stablecoin Kit operation AGFusion
+ * currently uses. Never expose the server Kit key or an arbitrary Circle API
+ * surface to the browser.
  */
 
 import { NextResponse } from "next/server";
@@ -10,12 +11,14 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_PREFIX = "/v1/stablecoinKits/";
+const CIRCLE_API_ORIGIN = "https://api.circle.com";
+const SWAP_PATH = "/v1/stablecoinKits/swap";
+const MAX_BODY_BYTES = 64 * 1024;
 
 function assertRateLimit(req: Request): Response | null {
   const rl = rateLimit(`circle-proxy:${clientIp(req)}`, {
     windowMs: 60_000,
-    max: 300,
+    max: 60,
   });
   if (!rl.ok) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
@@ -23,22 +26,26 @@ function assertRateLimit(req: Request): Response | null {
   return null;
 }
 
-function resolvePath(req: Request): string | null {
+function isAllowedRequest(req: Request): boolean {
   const url = new URL(req.url);
   const path = url.searchParams.get("path");
-  if (!path || !path.startsWith(ALLOWED_PREFIX)) return null;
-  if (path.includes("..")) return null;
-  return path;
+  return req.method.toUpperCase() === "POST" && path === SWAP_PATH;
 }
 
 async function proxy(req: Request): Promise<Response> {
   const limited = assertRateLimit(req);
   if (limited) return limited;
-  const path = resolvePath(req);
-  if (!path) {
+
+  // IMPORTANT: do not turn this route into a generic Circle API proxy.
+  // A client-controlled path + server Kit key is effectively a privileged
+  // API gateway. Keep the allowlist exact and method-specific.
+  if (!isAllowedRequest(req)) {
     return NextResponse.json(
-      { error: "invalid_path", message: "Only /v1/stablecoinKits/* is allowed" },
-      { status: 400 },
+      {
+        error: "endpoint_not_allowed",
+        message: "Only POST /v1/stablecoinKits/swap is available through this proxy.",
+      },
+      { status: 403 },
     );
   }
 
@@ -47,30 +54,39 @@ async function proxy(req: Request): Promise<Response> {
     return NextResponse.json(
       {
         error: "missing_kit_key",
-        message:
-          "KIT_KEY not set on server. Add KIT_KEY on Vercel and redeploy.",
+        message: "Circle Kit key is not configured on the server.",
       },
-      { status: 401 },
+      { status: 503 },
     );
   }
 
-  const target = `https://api.circle.com${path}`;
-  const method = req.method.toUpperCase();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${bearer}`,
-    Accept: "application/json",
-  };
+  const body = await req.text();
+  if (new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: "payload_too_large" },
+      { status: 413 },
+    );
+  }
 
-  let body: string | undefined;
-  if (method !== "GET" && method !== "HEAD") {
-    body = await req.text();
+  // Require JSON so callers cannot use this endpoint as an arbitrary byte
+  // forwarder. Circle validates the actual swap schema upstream.
+  try {
+    JSON.parse(body || "{}");
+  } catch {
+    return NextResponse.json(
+      { error: "invalid_json" },
+      { status: 400 },
+    );
   }
 
   try {
-    const upstream = await fetch(target, {
-      method,
-      headers,
+    const upstream = await fetch(`${CIRCLE_API_ORIGIN}${SWAP_PATH}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${bearer}`,
+        Accept: "application/json",
+      },
       body,
       cache: "no-store",
     });
@@ -87,13 +103,14 @@ async function proxy(req: Request): Promise<Response> {
       } catch {
         /* keep */
       }
-      console.warn("[circle-proxy] 401/403", message?.slice?.(0, 160));
+      console.warn("[circle-proxy] Circle rejected server Kit key", {
+        status: upstream.status,
+        message: message?.slice?.(0, 160),
+      });
       return NextResponse.json(
         {
           error: "kit_key_rejected",
-          message:
-            "Circle rejected KIT_KEY (Invalid credentials). The key on Vercel is wrong, revoked, or not a Kit key. Create a new one at console.circle.com → Keys → Kit keys, update KIT_KEY + NEXT_PUBLIC_KIT_KEY, redeploy.",
-          circleMessage: message || undefined,
+          message: "Circle rejected the server Kit key.",
           status: upstream.status,
         },
         { status: upstream.status },
@@ -108,29 +125,35 @@ async function proxy(req: Request): Promise<Response> {
       },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
       {
         error: "upstream_unreachable",
-        message: `Could not reach api.circle.com: ${msg}`,
+        message:
+          e instanceof Error
+            ? e.message
+            : "Could not reach Circle Stablecoin Kit API",
       },
       { status: 502 },
     );
   }
 }
 
-export async function GET(req: Request) {
-  return proxy(req);
-}
 export async function POST(req: Request) {
   return proxy(req);
 }
+
+export async function GET(req: Request) {
+  return proxy(req);
+}
+
 export async function PUT(req: Request) {
   return proxy(req);
 }
+
 export async function PATCH(req: Request) {
   return proxy(req);
 }
+
 export async function DELETE(req: Request) {
   return proxy(req);
 }
