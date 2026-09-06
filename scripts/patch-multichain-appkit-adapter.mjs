@@ -45,6 +45,14 @@ if (!serviceSource.includes(directImport)) {
   }
 }
 
+// Keep the build fail-closed under TypeScript's unknown catch variables.
+// The source file historically accessed e.message directly; normalize that
+// narrow error-handling branch before Next.js type-checks the patched source.
+serviceSource = serviceSource.replace(
+  /e instanceof Error\s*\?\s*e\.message\s*:\s*`Could not switch the wallet to \$\{params\.fromChain\.replace\(\/\_\/g, " "\)\}\.`,/,
+  'String(e) || `Could not switch the wallet to ${params.fromChain.replace(/_/g, " ")}.`,',
+);
+
 const functionMarker = "async function tryLiveAppKitBridge(params: {";
 const guardMarker = "PERMANENT-CCTP-BRIDGE-GUARD";
 if (!serviceSource.includes(functionMarker)) throw new Error("Permanent bridge patch: tryLiveAppKitBridge() not found.");
