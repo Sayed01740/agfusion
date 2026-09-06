@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db";
 
 export type AgentSpendAction = "bridge" | "swap" | "send" | "route" | "unified_spend" | "x402";
@@ -61,7 +62,7 @@ function startOfUtcMonth(now: Date): Date {
 }
 
 async function sumAgentSpend(
-  db: Awaited<ReturnType<typeof getPrisma>>,
+  db: Prisma.TransactionClient,
   walletAddress: string,
   since: Date,
 ): Promise<number> {
@@ -83,7 +84,7 @@ async function sumAgentSpend(
 }
 
 async function sumActiveReservations(
-  db: Awaited<ReturnType<typeof getPrisma>>,
+  db: Prisma.TransactionClient,
   walletAddress: string,
   since: Date,
   operationId: string,
