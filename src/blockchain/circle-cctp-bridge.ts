@@ -4,6 +4,7 @@ import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getAppKit } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getChainId, switchToChainId } from "@/sdk/wallet-adapter";
 import { cctpConfigByChainId, getCctpConfig } from "@/lib/cctp-chains";
+import { runBridgeKitFlow } from "@/blockchain/bridge-kit-service";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import { recordBridgeDebug } from "@/lib/bridge-debug";
@@ -18,8 +19,29 @@ export async function executeCircleCctpBridge(params: {
   txId?: string;
 }): Promise<TransactionRecord> {
   const debugId = params.txId || uid("bridge");
+
+  // Circle App Kit SDK does not support Arc Testnet. Route Arc bridges directly through
+  // our CCTP v2 Forwarding service.
+  if (params.fromChain === "Arc_Testnet" || params.toChain === "Arc_Testnet") {
+    return runBridgeKitFlow({
+      amount: params.amount,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      recipient: params.recipient,
+      txId: debugId,
+    });
+  }
+
   const kit = await getAppKit();
-  if (!kit) throw new Error("Circle App Kit is not available. Refresh the page and reconnect the wallet.");
+  if (!kit) {
+    return runBridgeKitFlow({
+      amount: params.amount,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      recipient: params.recipient,
+      txId: debugId,
+    });
+  }
 
   const meta = getActiveWalletMeta();
   const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
@@ -114,7 +136,7 @@ export async function executeCircleCctpBridge(params: {
     const approvalStep = steps.find((s) => /approve/i.test(s.name || "") && !!s.txHash);
 
     if (!destinationStep?.txHash) {
-      const partial: TransactionRecord = { id: debugId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain, toChain: params.toChain, recipient, steps, txHash: burnStep?.txHash, explorerUrl: burnStep?.txHash ? explorerTxUrl(burnStep.txHash) : destinationConfig.explorer, createdAt: new Date().toISOString(), message: "Source bridge step completed, but Circle has not exposed a destination settlement hash yet. Recovery will resume without another burn.", executionMode: "live", bridgeResult: result };
+      const partial: TransactionRecord = { id: debugId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain, toChain: params.toChain, recipient, steps, txHash: burnStep?.txHash, explorerUrl: burnStep?.txHash ? explorerTxUrl(burnStep.txHash) : destinationConfig.explorerUrl, createdAt: new Date().toISOString(), message: "Source bridge step completed, but Circle has not exposed a destination settlement hash yet. Recovery will resume without another burn.", executionMode: "live", bridgeResult: result };
       recordBridgeDebug("cctp.sdk.pending", { result, steps }, debugId, "Bridge pending: destination settlement hash is not available");
       return partial;
     }
@@ -131,7 +153,7 @@ export async function executeCircleCctpBridge(params: {
       recipient,
       steps,
       txHash: destinationStep.txHash,
-      explorerUrl: destinationConfig.explorer ? destinationConfig.explorer.replace("{hash}", destinationStep.txHash) : explorerTxUrl(destinationStep.txHash),
+      explorerUrl: destinationConfig.explorerUrl ? `${destinationConfig.explorerUrl}/tx/${destinationStep.txHash}` : explorerTxUrl(destinationStep.txHash),
       createdAt: new Date().toISOString(),
       message: `Circle reported destination mint for ${params.amount} USDC. Verifying destination settlement on-chain.`,
       executionMode: "live",

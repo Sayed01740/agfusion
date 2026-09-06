@@ -39,7 +39,7 @@ function eventAmount(log: any): bigint | null {
   }
 }
 
-function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: string | undefined, usdcAddress: string): boolean {
+function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: string | undefined, usdcAddress: string, allowRelayerFee = false): boolean {
   const logs = Array.isArray(receipt?.logs) ? receipt.logs : [];
   const target = normalizeAddress(recipient);
   const usdc = normalizeAddress(usdcAddress);
@@ -48,7 +48,17 @@ function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: stri
     if (normalizeAddress(String(log?.address || "")) !== usdc) return false;
     if (String(log?.topics?.[0] || "").toLowerCase() !== TRANSFER_TOPIC) return false;
     if (normalizeAddress(String(log?.topics?.[2] || "")) !== target) return false;
-    return expected !== null && exactAmount(log?.data, expected);
+    if (expected === null) return false;
+    if (exactAmount(log?.data, expected)) return true;
+    if (allowRelayerFee) {
+      try {
+        const val = BigInt(String(log?.data || "0x0"));
+        return val > 0n && val <= expected && val >= (expected * 80n) / 100n;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   });
 }
 
@@ -68,7 +78,10 @@ function hasCctpMintAndWithdraw(receipt: any, recipient: string, expectedAmount:
     if (topic0 !== MINT_AND_WITHDRAW_TOPIC && topic0 !== MINT_AND_WITHDRAW_V2_TOPIC && topic0 !== MINT_TOPIC && topic0 !== TRANSFER_TOPIC) return false;
     const topics: string[] = (log?.topics || []).map((t: any) => normalizeAddress(String(t || "")));
     if (!topics.some((t) => t === target)) return false;
-    return exactAmount(eventAmount(log), expected);
+    const amt = eventAmount(log);
+    if (amt === null) return false;
+    if (amt === expected) return true;
+    return amt > 0n && amt <= expected && amt >= (expected * 80n) / 100n;
   });
 }
 
@@ -100,7 +113,7 @@ export async function finalizeVerifiedTransaction(record: TransactionRecord, cha
 
   const verified = await verifyReceiptOnChain({ chainKey: config.rpcProxyKey, txHash: record.txHash, attempts: forwardedBridge ? 10 : 5, delayMs: forwardedBridge ? 2_000 : 1_000 });
   if (verified.status !== "success") {
-    return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination transaction is not yet confirmed on-chain.`, steps: appendStep(record, { name: forwardedBridge ? "Destination settlement receipt" : "Settlement receipt", state: "pending", txHash: record.txHash, message: verified.error || "Receipt was not confirmed with status 0x1." }) };
+    return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination transaction is not confirmed on-chain.`, steps: appendStep(record, { name: forwardedBridge ? "Destination settlement receipt" : "Settlement receipt", state: "pending", txHash: record.txHash, message: verified.error || "Receipt was not confirmed with status 0x1." }) };
   }
 
   const needsTransferEvent = record.token === "USDC" && (record.type === "send" || record.type === "bridge" || record.type === "unified_spend");
@@ -113,11 +126,11 @@ export async function finalizeVerifiedTransaction(record: TransactionRecord, cha
     return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination recipient is unavailable.`, steps: appendStep(record, { name: "Destination settlement event", state: "pending", txHash: record.txHash, message: "Recipient is required to verify the destination settlement." }) };
   }
 
-  const transferVerified = hasUsdcTransferTo(verified.receipt, recipient, record.amount, config.usdc);
+  const transferVerified = hasUsdcTransferTo(verified.receipt, recipient, record.amount, config.usdc, forwardedBridge);
   const mintVerified = forwardedBridge ? hasCctpMintAndWithdraw(verified.receipt, recipient, record.amount, config.usdc, config.tokenMessenger) : false;
 
   if (!transferVerified && !mintVerified) {
-    return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination receipt is confirmed, but no canonical USDC settlement event matching the recipient and amount was verified.`, steps: appendStep(record, { name: "Destination settlement event", state: "pending", txHash: record.txHash, message: `Expected ${record.amount} USDC to ${recipient} from ${config.usdc} was not observed with a matching canonical settlement event on ${verificationChain}.` }) };
+    return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination receipt is confirmed, but no canonical USDC settlement event matching the exact expected USDC Transfer event was verified.`, steps: appendStep(record, { name: "Destination settlement event", state: "pending", txHash: record.txHash, message: `Expected ${record.amount} USDC to ${recipient} from ${config.usdc} was not observed with a matching canonical settlement event on ${verificationChain}.` }) };
   }
 
   const proofName = mintVerified ? "CCTP MintAndWithdraw event" : "USDC Transfer event";

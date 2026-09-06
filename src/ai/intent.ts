@@ -134,7 +134,7 @@ export function parseIntent(raw: string): ParsedIntent {
     type = "unknown";
     confidence = 0.99;
   }
-  if (type === "send" && (!amount || !recipient)) {
+  if (type === "send" && (!amount || (!recipient && !recipientLabel))) {
     type = "unknown";
     confidence = 0.99;
   }

@@ -122,12 +122,14 @@ export function resolveChain(value: string | null | undefined): ChainId | undefi
   const normalized = value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
   if (!normalized) return undefined;
 
+  if (CHAIN_ALIASES[normalized]) return CHAIN_ALIASES[normalized];
+
   const direct = Object.keys(CHAINS).find(
     (id) => id.toLowerCase().replace(/_/g, " ") === normalized,
   ) as ChainId | undefined;
   if (direct) return direct;
 
-  return CHAIN_ALIASES[normalized];
+  return undefined;
 }
 
 export { ARC_CHAIN_ID, ARC_TESTNET_RPC, ARC_CURRENCY_DECIMALS, ARC_CURRENCY_NAME, ARC_CURRENCY_SYMBOL };

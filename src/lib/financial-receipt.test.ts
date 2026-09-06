@@ -16,7 +16,7 @@ function transferLog(amountUsdc: string, recipient = RECIPIENT, address = USDC) 
   return {
     address,
     topics: [
-      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a7e7b5d8a4",
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
       `0x${"00".repeat(32)}`,
       `0x${"0".repeat(24)}${recipient.slice(2)}`,
     ],

@@ -790,10 +790,7 @@ export async function createAppKitAdapterFromBrowser(opts?: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const adapter = await create({
       provider: proxyProvider,
-      capabilities: {
-        addressContext: "user-controlled",
-        supportedChains: [ArcTestnet],
-      },
+      
       getPublicClient: (args: {
         chain: {
           id?: number | bigint;

@@ -224,16 +224,16 @@ export function deriveBridgeState(
   steps: Array<{ name?: string; state?: string; txHash?: string; message?: string }>,
   opts?: { error?: string },
 ): BridgeState {
-  const existing = loadBridgeState(txId);
+  let existing = loadBridgeState(txId);
   if (!existing) {
-    return initBridgeState({
+    existing = initBridgeState({
       txId,
       walletType: "evm",
       walletAddress: null,
       fromChain: "Arc_Testnet",
       toChain: "Base_Sepolia",
       token: "USDC",
-      amount: "0",
+      amount: "1",
     });
   }
 
