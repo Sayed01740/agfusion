@@ -156,15 +156,16 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // This adapter supplies wallet address/chain context for server-side
-    // estimation only. The user's wallet remains the signer for execution.
+    // The Circle adapter expects a full EIP-1193 request signature with
+    // overloads/generics. Keep the small server-side shim isolated at this
+    // boundary because only the adapter consumes it.
     const provider = {
-      request: async ({ method, params }: { method: string; params?: unknown[] }) => {
+      request: async ({ method, params }: { method: string; params?: readonly unknown[] }) => {
         if (method === "eth_accounts") return [address];
         if (method === "eth_chainId") return "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
       },
-    };
+    } as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
 
     const adapter = await createViemAdapterFromProvider({
       provider,
