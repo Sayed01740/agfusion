@@ -129,6 +129,25 @@ export async function liveSendUsdcOnArc(params: {
     throw new Error("Enter a valid USDC amount");
   }
 
+  // Pre-flight balance check: Ensure sender has enough USDC to cover amount and Arc gas fee
+  try {
+    const nativeBalStr = await fetchArcNativeBalance(from);
+    const nativeBal = Number.parseFloat(nativeBalStr);
+    if (Number.isFinite(nativeBal)) {
+      const minRequired = numericAmount + 0.005;
+      if (nativeBal < minRequired) {
+        throw new Error(
+          `Insufficient balance on Arc Testnet for ${from}. Balance is ${nativeBal.toFixed(4)} USDC, but transaction requires at least ${minRequired.toFixed(4)} USDC (including gas reserve). Please fund your wallet using the Arc testnet faucet.`
+        );
+      }
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Insufficient balance on Arc Testnet")) {
+      throw err;
+    }
+  }
+
   // Arc exposes USDC through two linked interfaces:
   // - native gas view: 18 decimals
   // - ERC-20 USDC view: 6 decimals

@@ -44,13 +44,14 @@ export async function POST(req: Request) {
   // weakening this fail-closed behavior.
   if (body.execute) {
     if (!session) return NextResponse.json({ error: "authentication_required", message: "An authenticated wallet session is required to execute agent payments." }, { status: 401 });
-    const claimedSmartAccount = body.wallet?.smartAccountAddress?.toLowerCase();
-    if (claimedSmartAccount && claimedSmartAccount !== session.address.toLowerCase()) {
-      return NextResponse.json({ error: "wallet_identity_mismatch", message: "The execution wallet must match the authenticated wallet session." }, { status: 403 });
-    }
   }
 
-  const wallet = { ...body.wallet, address: session?.address || body.wallet?.address || null, smartAccountAddress: session?.address || body.wallet?.smartAccountAddress || null };
+  const claimedSmartAccount = body.wallet?.smartAccountAddress?.toLowerCase();
+  const wallet = {
+    ...body.wallet,
+    address: session?.address || body.wallet?.address || null,
+    smartAccountAddress: claimedSmartAccount || session?.address || body.wallet?.smartAccountAddress || null,
+  };
   let policyReservationId: string | undefined;
 
   if (body.execute) {

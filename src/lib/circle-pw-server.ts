@@ -74,7 +74,7 @@ export function isValidUserToken(v: unknown): v is string {
   return typeof v === "string" && v.length >= 8 && v.length <= 4000;
 }
 
-type OwnedWallet = { id: string; blockchain: string };
+type OwnedWallet = { id: string; blockchain: string; address?: string };
 
 /**
  * Verify that `walletId` belongs to the Circle user authenticated by
@@ -105,7 +105,7 @@ export async function fetchOwnedWallet(
     );
     const data = (await res.json().catch(() => null)) as {
       message?: string;
-      data?: { wallets?: Array<{ id?: string; blockchain?: string }> };
+      data?: { wallets?: Array<{ id?: string; blockchain?: string; address?: string }> };
     } | null;
     if (!res.ok) {
       return {
@@ -125,7 +125,11 @@ export async function fetchOwnedWallet(
     }
     return {
       ok: true,
-      wallet: { id: owned.id, blockchain: owned.blockchain || "" },
+      wallet: {
+        id: owned.id,
+        blockchain: owned.blockchain || "",
+        address: owned.address,
+      },
     };
   } catch (e) {
     return {

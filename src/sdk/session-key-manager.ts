@@ -5,6 +5,7 @@ import { createKernelAccountClient } from "@zerodev/sdk";
 // Note: We use viem and zerodev/permissions to manage the local session key.
 
 const SESSION_KEY_STORAGE_KEY = "agfusion_agent_session_key";
+const SERIALIZED_SESSION_ACCOUNT_KEY = "agfusion_agent_serialized_account";
 
 /**
  * Gets or creates the Agent's local private key.

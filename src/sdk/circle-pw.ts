@@ -201,7 +201,24 @@ export async function authenticateWithCircleEmail(
     preparedAt: Date.now(),
     supportedBlockchains: wanted,
   });
+
+  await syncCircleAuthServer(data.userToken, arcWallet.id, arcWallet.address);
+
   return { address: arcWallet.address, wallets };
+}
+
+async function syncCircleAuthServer(
+  userToken: string,
+  walletId: string,
+  address: string,
+): Promise<void> {
+  try {
+    await fetch("/api/auth/circle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userToken, walletId, address }),
+    });
+  } catch {}
 }
 
 function circleBlockchainForChainId(chainId: number): string | null {
@@ -335,6 +352,7 @@ export async function restoreCircleSession(): Promise<{
   sdk.setAuthentication({ userToken, encryptionKey });
   const chainIdRef = { value: "0x4cef52" };
   const { provider } = createCircleMockProvider({ address: arcWallet.address, chainIdRef });
+  void syncCircleAuthServer(userToken, arcWallet.id, arcWallet.address);
   return { address: arcWallet.address, wallets: session.wallets, provider };
 }
 

@@ -576,6 +576,16 @@ export async function executeTool(
         } catch {
           /* gate is best-effort; the service layer enforces it too */
         }
+        if (fromChain === "Arc_Testnet" && ctx.wallet.liveBalanceUsdc) {
+          const liveBal = Number(String(ctx.wallet.liveBalanceUsdc).replace(/,/g, ""));
+          const req = Number(amount);
+          if (Number.isFinite(req) && Number.isFinite(liveBal) && liveBal < req + 0.01) {
+            return {
+              ok: false,
+              summary: `Insufficient balance on Arc Testnet: wallet has ${liveBal.toFixed(4)} USDC, but bridging requires ${req} USDC plus network fees. Fund your wallet before proceeding.`,
+            };
+          }
+        }
         try {
           const transaction = await runBridgeFlow({
             amount,
@@ -606,6 +616,16 @@ export async function executeTool(
         if (!gateMoney(args, ctx.userConfirmed)) {
           return blockedMoney("execute_swap", args);
         }
+        const swapAmount = Number(args.amount || "50");
+        if (ctx.wallet.liveBalanceUsdc) {
+          const liveBal = Number(String(ctx.wallet.liveBalanceUsdc).replace(/,/g, ""));
+          if (Number.isFinite(swapAmount) && Number.isFinite(liveBal) && liveBal < swapAmount + 0.005) {
+            return {
+              ok: false,
+              summary: `Insufficient balance on Arc Testnet: wallet has ${liveBal.toFixed(4)} USDC, but swapping requires ${swapAmount} USDC plus gas fees.`,
+            };
+          }
+        }
         const transaction = await runSwapFlow({
           amount: String(args.amount || "50"),
           tokenIn: String(args.tokenIn || "USDC"),
@@ -622,6 +642,16 @@ export async function executeTool(
       case "execute_send": {
         if (!gateMoney(args, ctx.userConfirmed)) {
           return blockedMoney("execute_send", args);
+        }
+        const sendAmount = Number(args.amount || "25");
+        if (ctx.wallet.liveBalanceUsdc) {
+          const liveBal = Number(String(ctx.wallet.liveBalanceUsdc).replace(/,/g, ""));
+          if (Number.isFinite(sendAmount) && Number.isFinite(liveBal) && liveBal < sendAmount + 0.005) {
+            return {
+              ok: false,
+              summary: `Insufficient balance on Arc Testnet: wallet has ${liveBal.toFixed(4)} USDC, but sending requires ${sendAmount} USDC plus gas fees.`,
+            };
+          }
         }
         let safeRecipient: string;
         try {

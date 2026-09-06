@@ -72,3 +72,4 @@ next-env.d.ts
 /parsed_docs.md
 /.tmp-agent-out.txt
 /.tmp-help-out.txt
+.agents/
