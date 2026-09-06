@@ -17,8 +17,8 @@ const addressQuery = z
   .optional();
 
 /**
- * List transactions for session user and/or ?address=0x…
- * Falls back to [] when DB unavailable (client still has localStorage).
+ * List transactions belonging to the authenticated session only.
+ * An arbitrary ?address= / ?wallet= must never select another wallet's history.
  */
 export async function GET(req: Request) {
   const rl = rateLimit(`txget:${clientIp(req)}`, {
@@ -29,12 +29,33 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
+  const user = await getSessionUser();
+  if (!user || user.id === "ephemeral" || user.id.startsWith("mem_")) {
+    return NextResponse.json(
+      { error: "authentication_required", message: "Sign in to access server transaction history." },
+      { status: 401 },
+    );
+  }
+
   const url = new URL(req.url);
   const addrRaw = url.searchParams.get("address") || url.searchParams.get("wallet");
   const addrParsed = addressQuery.safeParse(addrRaw || undefined);
-  const queryAddress = addrParsed.success ? addrParsed.data : undefined;
+  if (!addrParsed.success) {
+    return NextResponse.json({ error: "invalid_address" }, { status: 400 });
+  }
 
-  const user = await getSessionUser();
+  // Session identity is authoritative. If an address filter is supplied, it
+  // may only match the authenticated user's own wallet address.
+  const queryAddress = addrParsed.data;
+  if (
+    queryAddress &&
+    queryAddress.toLowerCase() !== (user.address || "").toLowerCase()
+  ) {
+    return NextResponse.json(
+      { error: "forbidden", message: "You can only access your own transaction history." },
+      { status: 403 },
+    );
+  }
 
   if (!isDbConfigured()) {
     return NextResponse.json({
@@ -45,11 +66,8 @@ export async function GET(req: Request) {
   }
 
   const transactions = await listTransactions({
-    userId:
-      user && user.id !== "ephemeral" && !user.id.startsWith("mem_")
-        ? user.id
-        : undefined,
-    walletAddress: queryAddress || user?.address,
+    userId: user.id,
+    walletAddress: queryAddress || user.address,
     limit: 50,
   });
 
@@ -93,7 +111,6 @@ export async function POST(req: Request) {
 
   const walletAddress = user?.address || walletFromBody;
   if (!walletAddress && !user) {
-    // Client still has localStorage — don't hard-fail the UI
     return NextResponse.json({
       ok: true,
       saved: false,
