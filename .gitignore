@@ -21,6 +21,7 @@
 # misc
 .DS_Store
 *.pem
+*.key
 
 # debug
 npm-debug.log*
@@ -28,12 +29,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — never commit secrets
+# env files - never commit secrets
 .env
-.env*
+.env.*
 !.env.example
 !.env.staging.example
-!.env.llm.snippet
 
 # database
 prisma/dev.db
@@ -45,7 +45,7 @@ prisma/dev.db-journal
 next-env.d.ts
 
 # vercel
-.vercel
+.vercel/
 .vercel.env*
 
 # contracts (separate repo)
@@ -54,7 +54,7 @@ next-env.d.ts
 # personal ops scripts that embed credentials
 /scripts/update-vercel.ps1
 
-# scratch / one-off files (were accidentally left at repo root)
+# scratch / one-off files
 /extract.js
 /parse.py
 /old-appkit.ts
@@ -72,6 +72,8 @@ next-env.d.ts
 /parsed_docs.md
 /.tmp-agent-out.txt
 /.tmp-help-out.txt
+
+# local AI/editor tooling
 .agents/
 .augment/
 .claude/
