@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   MoreHorizontal,
@@ -124,30 +124,35 @@ export function ToolsWorkspace({
   defaultTab?: TabId;
 }) {
   const [tab, setTab] = useState<TabId>(defaultTab);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const active = TABS.find((t) => t.id === tab) || TABS[0];
 
   return (
     <section
       id="tools"
-      className="glow-border scroll-mt-24 overflow-hidden rounded-2xl border border-cyan-400/10 bg-gradient-to-b from-[#0c1526]/95 via-[#0a1220]/96 to-[#060d18] shadow-2xl shadow-black/30"
+      tabIndex={-1}
+      aria-labelledby="tools-heading"
+      className="glow-border scroll-mt-24 overflow-hidden rounded-3xl border border-border glass-cockpit shadow-2xl focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
     >
       <TransactionAmountResetter />
-      <div className="border-b border-white/[0.06] px-4 pt-4 pb-3 sm:px-5">
+      <div className="border-b border-border/80 px-4 pt-5 pb-4 sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="section-label mb-1">Money tools</p>
-            <h2 className="font-display text-base font-semibold tracking-tight text-slate-50">
-              Manual forms
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-accent flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              Direct Operator Tools
+            </p>
+            <h2 id="tools-heading" className="font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
+              Execution Terminal
             </h2>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-400">
-              Same actions as chat — use buttons if you prefer. Nothing moves
-              until you <strong className="font-semibold text-slate-200">Confirm</strong> in your wallet.
+            <p className="mt-1 text-xs sm:text-sm leading-relaxed text-muted-foreground">
+              Direct smart contract actions. Every operation requires a cryptographically verified wallet signature.
             </p>
           </div>
         </div>
 
-        <div role="tablist" aria-label="Money tools" className="mt-4 grid grid-cols-4 gap-1 rounded-xl bg-[#040a14]/80 p-1 ring-1 ring-white/[0.07]">
-          {TABS.map((t) => {
+        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-4 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted/80 p-1.5 ring-1 ring-border/80 backdrop-blur-md">
+          {TABS.map((t, index) => {
             const Icon = t.icon;
             const on = tab === t.id;
             return (
@@ -155,33 +160,56 @@ export function ToolsWorkspace({
                 key={t.id}
                 type="button"
                 role="tab"
+                id={`tools-tab-${t.id}`}
+                aria-controls={`tools-panel-${t.id}`}
                 aria-selected={on}
+                tabIndex={on ? 0 : -1}
+                ref={(node) => { tabRefs.current[index] = node; }}
                 onClick={() => setTab(t.id)}
+                onKeyDown={(event) => {
+                  let nextIndex: number;
+                  switch (event.key) {
+                    case "ArrowRight": nextIndex = (index + 1) % TABS.length; break;
+                    case "ArrowLeft": nextIndex = (index - 1 + TABS.length) % TABS.length; break;
+                    case "Home": nextIndex = 0; break;
+                    case "End": nextIndex = TABS.length - 1; break;
+                    default: return;
+                  }
+                  event.preventDefault();
+                  setTab(TABS[nextIndex].id);
+                  tabRefs.current[nextIndex]?.focus();
+                }}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 rounded-lg px-1 py-2.5 text-center transition",
-                  on ? "bg-gradient-to-b from-cyan-400/18 to-teal-500/10 text-cyan-50 shadow-sm ring-1 ring-cyan-400/35" : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200",
+                  "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center transition-all duration-200 active:scale-[0.97] motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+                  on
+                    ? "bg-card text-accent ring-1 ring-accent/40 shadow-sm font-semibold"
+                    : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
                 )}
               >
-                <Icon className={cn("h-4 w-4", on ? "text-teal-300" : "text-slate-500")} />
-                <span className="text-[11px] font-semibold leading-none tracking-tight">{t.label}</span>
-                <span className={cn("hidden text-[9px] leading-none sm:block", on ? "text-cyan-200/75" : "text-slate-600")}>{t.short}</span>
+                <Icon aria-hidden="true" className={cn("h-4 w-4", on ? "text-accent" : "text-muted-foreground")} />
+                <span className="text-xs font-semibold leading-snug">{t.label}</span>
+                <span className="hidden text-[10px] leading-snug text-muted-foreground sm:block">{t.short}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      <div className="border-b border-white/[0.05] bg-gradient-to-r from-teal-500/[0.04] via-transparent to-sky-500/[0.04] px-4 py-3 sm:px-5">
-        <p className="text-[13px] font-medium leading-snug text-slate-200">{active.blurb}</p>
-        <p className="mt-1.5 font-mono text-[10px] tracking-wide text-slate-500">{active.step}</p>
+      <div className="border-b border-border/80 bg-muted/50 px-4 py-3 sm:px-6 backdrop-blur-sm">
+        <p className="text-xs sm:text-sm font-medium leading-relaxed text-foreground">{active.blurb}</p>
+
+        <p id="tools-instructions" className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{active.step}</p>
       </div>
 
-      <div className="p-4 sm:p-5" role="tabpanel">
-        {tab === "send" && <SendPanelBody />}
-        {tab === "swap" && <ProductionSwapPanel />}
-        {tab === "bridge" && <BridgePanelBody />}
-        {tab === "more" && <MoreTools />}
-      </div>
+      {TABS.map((t) => (
+        <div key={t.id} id={`tools-panel-${t.id}`} role="tabpanel" aria-labelledby={`tools-tab-${t.id}`} aria-describedby={tab === t.id ? "tools-instructions" : undefined} hidden={tab !== t.id} tabIndex={0} className="p-4 sm:p-5 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset">
+          {tab === t.id && (
+            t.id === "send" ? <SendPanelBody /> :
+            t.id === "swap" ? <ProductionSwapPanel /> :
+            t.id === "bridge" ? <BridgePanelBody /> : <MoreTools />
+          )}
+        </div>
+      ))}
     </section>
   );
 }
@@ -189,8 +217,8 @@ export function ToolsWorkspace({
 function MoreTools() {
   return (
     <div className="space-y-3">
-      <p className="text-[12px] leading-relaxed text-slate-400">
-        Advanced options. Most first-time users only need <strong className="text-slate-300">Send</strong>, <strong className="text-slate-300">Swap</strong>, or <strong className="text-slate-300">Bridge</strong>.
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Advanced options. Most first-time users only need <strong className="text-foreground">Send</strong>, <strong className="text-foreground">Swap</strong>, or <strong className="text-foreground">Bridge</strong>.
       </p>
 
       <Accordion icon={QrCode} title="QR / payment link" plain="Create a link or QR so someone can pay you test USDC.">
@@ -228,23 +256,26 @@ function Accordion({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const contentId = useId();
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-slate-950/40">
+    <div className="overflow-hidden rounded-xl border border-border bg-muted">
       <button
         type="button"
+        aria-expanded={open}
+        aria-controls={contentId}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.03]"
+        className="flex min-h-11 w-full items-start gap-3 px-3.5 py-3 text-left transition-colors motion-reduce:transition-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
       >
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-white/[0.06]">
-          <Icon className="h-4 w-4 text-cyan-400/90" />
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card ring-1 ring-border">
+          <Icon aria-hidden="true" className="h-4 w-4 text-accent" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-semibold text-slate-100">{title}</span>
-          <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{plain}</span>
+          <span className="block text-sm font-semibold text-foreground">{title}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{plain}</span>
         </span>
-        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-slate-500 transition", open && "rotate-180 text-cyan-400")} />
+        <ChevronDown aria-hidden="true" className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none", open && "rotate-180 text-accent")} />
       </button>
-      {open && <div className="border-t border-white/[0.05] px-3 pb-3 pt-3">{children}</div>}
+      <div id={contentId} hidden={!open} className="border-t border-border px-3 pb-3 pt-3">{open && children}</div>
     </div>
   );
 }

@@ -1,18 +1,29 @@
 "use client";
 
 import Image from "next/image";
+import { MotionConfig } from "framer-motion";
 import { Navbar } from "@/components/layout/navbar";
 import { WalletProvider } from "@/providers/wallet-provider";
 import { AGFUSION_X_HANDLE, AGFUSION_X_URL } from "@/lib/social";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <WalletProvider>
+    <MotionConfig reducedMotion="user"><WalletProvider>
       <div className="ag-premium-shell min-h-screen mesh-bg noise-overlay overflow-hidden relative">
+        {/* Cosmic Horizon Ambient Glow */}
+        <div className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 h-[420px] w-full max-w-6xl cosmic-horizon opacity-90 blur-3xl z-0" />
+
+        {/* Ambient Aurora Orbs */}
+        <div className="pointer-events-none fixed -top-40 right-[-10%] h-[550px] w-[550px] rounded-full bg-emerald-500/12 blur-[130px] animate-float z-0" style={{ animationDuration: "14s" }} />
+        <div className="pointer-events-none fixed top-[25%] -left-40 h-[500px] w-[500px] rounded-full bg-indigo-500/09 blur-[140px] animate-float z-0" style={{ animationDuration: "16s", animationDelay: "-5s" }} />
+        <div className="pointer-events-none fixed -bottom-32 left-[25%] h-[450px] w-[550px] rounded-full bg-emerald-600/08 blur-[140px] z-0" />
         <div className="pointer-events-none fixed inset-0 grid-bg opacity-35 z-0" />
+        <div className="pointer-events-none fixed inset-0 dot-matrix opacity-25 z-0" />
         <div className="relative z-[1]">
+
+          <a href="#main-content" className="skip-link">Skip to content</a>
           <Navbar />
-          <main className="pb-24 md:pb-10">{children}</main>
+          <main id="main-content" tabIndex={-1} className="app-content">{children}</main>
           <footer className="hidden md:block mt-10 border-t border-white/[0.06]">
             <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-7 text-[11px] text-slate-500 sm:flex-row sm:px-6">
               <span className="inline-flex items-center gap-2.5">
@@ -29,6 +40,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </footer>
         </div>
       </div>
-    </WalletProvider>
+    </WalletProvider></MotionConfig>
   );
 }

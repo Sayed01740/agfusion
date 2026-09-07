@@ -21,25 +21,25 @@ const USE_CASES = [
   {
     title: "Send money (USDC)",
     plain: "Pay a friend or another wallet on Arc — like a bank transfer, but on-chain.",
-    where: "Right → Money tools → Send tab",
-    try: "Paste a full 0x address · amount 0.05 · Confirm · sign in wallet",
+    where: "Operate → Money tools → Send (right column on desktop)",
+    try: "Paste a full 0x address · amount 0.05 · Continue / Confirm send · approve in wallet",
   },
   {
     title: "Swap dollars ↔ euros (stablecoins)",
     plain: "Change USDC into EURC (or back) without leaving Arc.",
-    where: "Right → Money tools → Swap tab",
-    try: "Stay on Arc Testnet · small amount · Confirm",
+    where: "Operate → Money tools → Swap (right column on desktop)",
+    try: "Choose tokens and amount · Get live quote · review slippage · Continue / Confirm swap",
   },
   {
     title: "Move USDC between networks",
     plain: "Bridge value from Arc to Base (or reverse) so funds sit on the chain you need.",
-    where: "Right → Money tools → Bridge tab",
-    try: "Have USDC on the *from* network · Confirm each wallet step",
+    where: "Operate → Money tools → Bridge (right column on desktop)",
+    try: "Have test USDC and gas on the source network · review the route · approve each wallet step",
   },
   {
     title: "Ask in plain English",
-    plain: "Type what you want; the agent plans it. Nothing moves until you press Confirm.",
-    where: "Left side → chat box",
+    plain: "Ask a question or request a plan. Review any action preview before confirming execution.",
+    where: "AI Operator (left column on desktop) → message box",
     try: "“Show my balances” or “Swap 1 USDC to EURC”",
   },
 ];
@@ -47,13 +47,13 @@ const USE_CASES = [
 const UI_MAP = [
   {
     icon: MessageSquare,
-    name: "Chat (left)",
-    role: "Talk to the AI agent. It only plans — you confirm money moves.",
+    name: "AI Operator",
+    role: "Ask questions and prepare actions. Review the plan and wallet request before approving.",
   },
   {
     icon: Wallet,
     name: "Connect + faucet",
-    role: "Top-right Connect → Arc Testnet → free test USDC (Circle faucet).",
+    role: "Connect your wallet from the header, then fund its Arc Testnet address at the Circle faucet.",
   },
   {
     icon: Send,
@@ -68,15 +68,14 @@ const UI_MAP = [
   {
     icon: Bot,
     name: "Money tools → More",
-    role: "QR pay, payroll, risk check, unified balance (advanced).",
+    role: "QR / payment link, batch payroll, route risk check, unified balance, and stuck transfer recovery.",
   },
 ];
 
 /**
  * Plain-language guide for first-time users who find crypto UI confusing.
  */
-export function UserGuideCard() {
-  const [open, setOpen] = useState(false);
+export function UserGuideCard({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [helpQ, setHelpQ] = useState("");
   const [helpA, setHelpA] = useState<string | null>(null);
   const [helpBusy, setHelpBusy] = useState(false);
@@ -125,53 +124,59 @@ export function UserGuideCard() {
   }
 
   return (
-    <Card className="border-amber-500/25 bg-gradient-to-br from-amber-500/[0.06] to-transparent">
+    <Card className="border-border bg-card">
       <CardHeader className="pb-2">
-        <button
-          type="button"
-          className="flex w-full items-start justify-between gap-2 text-left"
-          onClick={() => setOpen((v) => !v)}
-        >
-          <CardTitle className="text-sm flex items-center gap-2">
-            <HelpCircle className="h-4 w-4 text-amber-400" />
-            New here? What is this app?
-          </CardTitle>
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 text-slate-500 transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </button>
+        <CardTitle className="text-sm text-foreground">
+          <button
+            id="guide"
+            type="button"
+            aria-expanded={open}
+            aria-controls="guide-content"
+            className="flex min-h-11 w-full scroll-mt-24 items-center justify-between gap-2 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-accent"
+            onClick={() => onOpenChange(!open)}
+          >
+            <span className="flex items-center gap-2">
+              <HelpCircle aria-hidden="true" className="h-4 w-4 shrink-0 text-accent" />
+              New here? What is this app?
+            </span>
+            <ChevronDown
+              aria-hidden="true"
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        </CardTitle>
       </CardHeader>
-      {open && (
-        <CardContent className="space-y-4 text-xs text-slate-400">
-          <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 space-y-2">
-            <p className="text-sm text-slate-200 font-medium leading-snug">
-              AGFusion helps you <span className="text-cyan-300">send</span>,{" "}
-              <span className="text-cyan-300">swap</span>, and{" "}
-              <span className="text-cyan-300">move</span> digital dollars (USDC)
+        <CardContent id="guide-content" role="region" hidden={!open} aria-labelledby="guide" className="space-y-4 text-sm text-muted-foreground">
+          <div className="rounded-xl border border-border bg-muted p-3 space-y-2">
+            <p className="text-sm text-foreground font-medium leading-snug">
+              AGFusion helps you <span className="text-accent">send</span>,{" "}
+              <span className="text-accent">swap</span>, and{" "}
+              <span className="text-accent">move</span> digital dollars (USDC)
               on Arc — with an AI helper that explains the plan first.
             </p>
             <p className="leading-relaxed">
-              Think of it as a <strong className="text-slate-300">control panel for
+              Think of it as a <strong className="text-foreground">control panel for
               money</strong>, not a bank account. Your wallet holds the funds. This
-              app only prepares actions; you always approve in Rabby/MetaMask.
+              app helps prepare and submit actions. Review transaction details and
+              any wallet permissions before approving.
             </p>
           </div>
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-amber-400/90 mb-2 font-medium">
+            <div className="text-xs uppercase tracking-wider text-accent mb-2 font-medium">
               3 steps to try it (test money)
             </div>
-            <ol className="space-y-2 text-slate-300">
+            <ol className="space-y-2 text-foreground">
               <li className="flex gap-2">
                 <Badge variant="outline" className="h-5 shrink-0 font-mono text-[10px]">
                   1
                 </Badge>
                 <span>
-                  Click <strong className="text-white">Connect</strong> (top right) →
-                  pick Rabby → choose <strong className="text-white">Arc Testnet</strong>
+                  Use <strong>Connect wallet</strong> in the header, choose an
+                  available wallet, and switch to <strong>Arc Testnet</strong>.
                 </span>
               </li>
               <li className="flex gap-2">
@@ -184,7 +189,7 @@ export function UserGuideCard() {
                     href="https://faucet.circle.com"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-cyan-400 hover:underline"
+                    className="inline-flex min-h-11 items-center rounded text-accent underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     faucet.circle.com
                   </a>{" "}
@@ -196,33 +201,33 @@ export function UserGuideCard() {
                   3
                 </Badge>
                 <span>
-                  Use <strong className="text-white">Payment Engine</strong> to send{" "}
-                  <strong className="text-white">0.05 USDC</strong> to an address you
-                  control — or type in chat: “Show my balances”
+                  Open <strong>Operate → Money tools → Send</strong> (right column
+                  on desktop) to send <strong>0.05 USDC</strong> to an address you
+                  control, or ask <strong>AI Operator</strong>: “Show my balances”.
                 </span>
               </li>
             </ol>
           </div>
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-amber-400/90 mb-2 font-medium">
+            <div className="text-xs uppercase tracking-wider text-accent mb-2 font-medium">
               What can I use it for?
             </div>
             <div className="space-y-2">
               {USE_CASES.map((u) => (
                 <div
                   key={u.title}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5"
+                  className="rounded-lg border border-border bg-muted p-3"
                 >
-                  <div className="text-slate-200 font-medium text-[12px]">
+                  <div className="text-foreground font-medium text-sm">
                     {u.title}
                   </div>
-                  <p className="mt-0.5 text-slate-400 leading-relaxed">{u.plain}</p>
-                  <p className="mt-1 text-[10px] text-slate-500">
-                    <span className="text-cyan-500/90">Where:</span> {u.where}
+                  <p className="mt-0.5 text-muted-foreground leading-relaxed">{u.plain}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    <span className="text-accent">Where:</span> {u.where}
                   </p>
-                  <p className="text-[10px] text-slate-500">
-                    <span className="text-cyan-500/90">Try:</span> {u.try}
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    <span className="text-accent">Try:</span> {u.try}
                   </p>
                 </div>
               ))}
@@ -230,7 +235,7 @@ export function UserGuideCard() {
           </div>
 
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-amber-400/90 mb-2 font-medium">
+            <div className="text-xs uppercase tracking-wider text-accent mb-2 font-medium">
               What is each part of the screen?
             </div>
             <ul className="space-y-2">
@@ -238,12 +243,12 @@ export function UserGuideCard() {
                 const Icon = item.icon;
                 return (
                   <li key={item.name} className="flex gap-2.5">
-                    <Icon className="h-3.5 w-3.5 text-cyan-400/90 mt-0.5 shrink-0" />
+                    <Icon aria-hidden="true" className="h-4 w-4 text-accent mt-0.5 shrink-0" />
                     <div>
-                      <div className="text-slate-200 font-medium text-[12px]">
+                      <div className="text-foreground font-medium text-sm">
                         {item.name}
                       </div>
-                      <p className="text-slate-500 leading-relaxed">{item.role}</p>
+                      <p className="text-muted-foreground leading-relaxed">{item.role}</p>
                     </div>
                   </li>
                 );
@@ -251,16 +256,16 @@ export function UserGuideCard() {
             </ul>
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-500 leading-relaxed">
-            <strong className="text-slate-400">Important:</strong> This is{" "}
+          <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground leading-relaxed">
+            <strong className="text-foreground">Important:</strong> This is{" "}
             <em>testnet</em> practice money (not real cash). Never share seed
-            phrases. Wallet popups that move funds will always ask you to Confirm —
-            cancel if you did not start an action.
+            phrases. Check the network, recipient, amount, and permissions in each
+            wallet request. Cancel requests you did not start.
           </div>
 
-          <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-2">
-            <div className="text-[10px] uppercase tracking-wider text-cyan-400/90 font-medium">
-              Ask AI help (Claude when configured)
+          <div className="rounded-xl border border-border bg-muted p-3 space-y-2">
+            <div className="text-xs uppercase tracking-wider text-accent font-medium">
+              Ask AI help
             </div>
             <div className="flex flex-wrap gap-1.5">
               {[
@@ -273,7 +278,7 @@ export function UserGuideCard() {
                   size="sm"
                   variant="outline"
                   type="button"
-                  className="h-7 text-[10px] px-2"
+                  className="h-auto min-h-11 whitespace-normal text-left text-xs px-3 py-2 focus-visible:ring-accent"
                   disabled={helpBusy}
                   onClick={() => void askHelp(q)}
                 >
@@ -281,9 +286,12 @@ export function UserGuideCard() {
                 </Button>
               ))}
             </div>
+            <label htmlFor="guide-help-question" className="block text-sm font-medium text-foreground">Your question</label>
             <div className="flex gap-2">
               <Input
-                className="h-9 text-xs"
+                id="guide-help-question"
+                className="h-11 min-w-0 text-base sm:text-sm"
+                aria-describedby={helpErr ? "guide-help-error" : undefined}
                 value={helpQ}
                 onChange={(e) => setHelpQ(e.target.value)}
                 placeholder="Ask anything about using AGFusion…"
@@ -295,34 +303,35 @@ export function UserGuideCard() {
               <Button
                 size="sm"
                 type="button"
-                className="shrink-0 h-9"
+                className="shrink-0 h-11 min-w-11"
+                aria-label={helpBusy ? "Asking for help" : "Ask for help"}
                 disabled={helpBusy || !helpQ.trim()}
                 onClick={() => void askHelp()}
               >
                 {helpBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 ) : (
                   "Ask"
                 )}
               </Button>
             </div>
             {helpErr && (
-              <p className="text-[11px] text-red-400">{helpErr}</p>
+              <p id="guide-help-error" role="alert" className="text-sm text-danger">{helpErr}</p>
             )}
+            <p role="status" aria-atomic="true" className="sr-only">{helpBusy ? "Getting help..." : helpA ? "Help answer ready below." : ""}</p>
             {helpA && (
-              <div className="rounded-lg border border-white/10 bg-slate-950/60 p-2.5 text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed">
+              <div className="rounded-lg border border-border bg-card p-3 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                 {helpA}
               </div>
             )}
           </div>
 
-          <Button asChild size="sm" variant="outline" className="w-full">
+          <Button asChild size="sm" variant="outline" className="h-auto min-h-11 w-full whitespace-normal py-2">
             <a href="https://faucet.circle.com" target="_blank" rel="noreferrer">
               Open free test USDC faucet
             </a>
           </Button>
         </CardContent>
-      )}
     </Card>
   );
 }

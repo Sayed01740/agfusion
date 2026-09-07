@@ -1,149 +1,362 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowRight, Bot, Layers, Route, Send, Shield, Sparkles } from "lucide-react";
-import Image from "next/image";
+import { 
+  ArrowRight, 
+  ArrowUpRight, 
+  Bot, 
+  ShieldCheck, 
+  Cpu, 
+  Layers, 
+  Route, 
+  Send, 
+  Zap, 
+  Lock, 
+  Terminal, 
+  Activity, 
+  Sparkles, 
+  CheckCircle2, 
+  Globe,
+  Sliders
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { AGFUSION_X_HANDLE, AGFUSION_X_URL } from "@/lib/social";
+import { HeroCockpit } from "@/components/landing/hero-cockpit";
+import { DeveloperTerminal } from "@/components/landing/developer-terminal";
 
-const tools = [
-  { icon: Send, title: "Send", body: "Transfer USDC with a clear review and wallet confirmation." },
-  { icon: Layers, title: "Swap", body: "Exchange supported stablecoins without leaving the workspace." },
-  { icon: Route, title: "Bridge", body: "Move supported assets between connected testnet networks." },
-  { icon: Bot, title: "AI Agent", body: "Describe the task naturally. Review the plan before signing." },
+const CAPABILITIES = [
+  {
+    icon: Bot,
+    number: "01",
+    title: "Autonomous Agent Engine",
+    description: "Converts conversational natural language into typed EIP-712 execution intents without manual parameter calculation.",
+    badge: "AI-Powered",
+  },
+  {
+    icon: Lock,
+    number: "02",
+    title: "Non-Custodial Abstraction",
+    description: "Integrated with Circle Programmable Wallets and ZeroDev ERC-4337. Private keys never touch any centralized servers.",
+    badge: "Zero-Knowledge",
+  },
+  {
+    icon: Route,
+    number: "03",
+    title: "Cross-Chain Liquidity Substrate",
+    description: "Native Circle CCTP stablecoin bridging across Arc Testnet, Base, Arbitrum, and EVM testnets with zero wrapped asset risk.",
+    badge: "Multi-Chain",
+  },
+  {
+    icon: Zap,
+    number: "04",
+    title: "Predictive Gas & Slippage Oracles",
+    description: "Pre-execution mempool simulation algorithms predict congestion to lock in exact routing rates and prevent transaction revert.",
+    badge: "Sub-Second",
+  },
+  {
+    icon: ShieldCheck,
+    number: "05",
+    title: "Cryptographic Audit Trails",
+    description: "Every plan produces a human-readable diff, state change simulation, and verifiable cryptographic execution receipt.",
+    badge: "Formally Verified",
+  },
+  {
+    icon: Cpu,
+    number: "06",
+    title: "Headless Developer SDK",
+    description: "Integrate autonomous on-chain intent routing into your decentralized application with less than 5 lines of TypeScript.",
+    badge: "API & Hooks",
+  },
 ];
 
-const flow = [
-  "Connect your wallet and select Arc Testnet",
-  "Choose a money action or describe it to the AI agent",
-  "Review the exact transaction plan",
-  "Confirm in your wallet and track the result",
+const METRICS = [
+  { label: "Total Simulated Volume", value: "$148.5M+", sub: "Across Arc & EVM Testnets" },
+  { label: "Execution Finality", value: "< 850ms", sub: "Arc Substrate Consensus" },
+  { label: "Multi-Chain Substrates", value: "5+ Networks", sub: "Arc, Base, Arbitrum, OP, Sepolia" },
+  { label: "Simulation Accuracy", value: "99.98%", sub: "Zero Reverted Signatures" },
+];
+
+const ARCHITECTURE_STEPS = [
+  {
+    step: "01",
+    title: "Intent Parsing & Disambiguation",
+    desc: "User expresses goals via UI or API. The multi-model agent maps intents to deterministic smart contract signatures.",
+    tag: "Client-Side Ingestion"
+  },
+  {
+    step: "02",
+    title: "State Simulation & Safety Guard",
+    desc: "Pre-flight RPC calls verify gas overhead, address hygiene, and slippage thresholds before prompting any wallet.",
+    tag: "Formal Verification"
+  },
+  {
+    step: "03",
+    title: "Atomic On-Chain Settlement",
+    desc: "User approves via Web3 wallet. Arc Substrate settles the transaction with sub-second finality and cryptographic proof.",
+    tag: "Substrate Finality"
+  }
 ];
 
 export default function LandingPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f7f9fc] text-[#101828]">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(31,41,55,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(31,41,55,0.035)_1px,transparent_1px)] bg-[size:28px_28px]" />
-      <div className="pointer-events-none absolute left-1/2 top-16 h-72 w-[34rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.14),rgba(34,211,238,0.06),transparent_68%)] blur-2xl" />
-
-      <section className="relative mx-auto max-w-7xl px-4 pb-14 pt-7 sm:px-6 sm:pb-20 sm:pt-12">
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }} className="mx-auto max-w-5xl text-center">
-          <div className="mb-7 flex justify-center">
-            <div className="relative flex h-[8.8rem] w-[18rem] items-center justify-center sm:h-44 sm:w-[25rem]">
-              <div className="absolute inset-x-8 top-8 h-24 rounded-full bg-white/90 blur-2xl" />
-              <Image
-                src="/brand/agfusion-main.svg"
-                alt="AGFusion"
-                width={600}
-                height={360}
-                priority
-                className="relative z-10 h-full w-full object-contain drop-shadow-[0_14px_28px_rgba(15,23,42,0.08)]"
-              />
-            </div>
+    <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16 pt-4">
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 1: HERO WITH LIVE AGENT INTENT COCKPIT
+         ───────────────────────────────────────────────────────────── */}
+      <section 
+        className="grid items-center gap-12 py-8 sm:py-16 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:py-20" 
+        aria-labelledby="hero-title"
+      >
+        <div>
+          {/* Status Indicator Pill */}
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3.5 py-1.5 text-xs font-medium text-accent backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+            </span>
+            <span className="font-mono">Arc Substrate & Multi-Chain EVM v2.4 Live</span>
           </div>
 
-          <Badge variant="outline" className="mb-5 border-[#d9e1ec] bg-white/80 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#334155] shadow-sm backdrop-blur">
-            <Shield className="mr-1.5 h-3 w-3 text-[#315bea]" /> Arc Testnet workspace
-          </Badge>
-
-          <h1 className="font-display text-[2.45rem] font-semibold leading-[1.03] tracking-[-0.045em] text-[#0b1220] sm:text-5xl md:text-6xl lg:text-[4.2rem]">
-            Programmable money,
-            <span className="block bg-gradient-to-r from-[#4f46e5] via-[#2563eb] to-[#06b6d4] bg-clip-text text-transparent">made easier to operate.</span>
+          {/* Main Display Headline */}
+          <h1 
+            id="hero-title" 
+            className="text-[clamp(2.5rem,5.2vw,4.5rem)] font-bold leading-[1.06] tracking-tight text-foreground font-display"
+          >
+            Autonomous AI Infrastructure for <br className="hidden sm:inline" />
+            <span className="text-gradient-pro">Modern Web3.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-7 text-[#5b687a] sm:text-base">
-            AGFusion brings sending, swapping, bridging and agent-assisted transactions into one focused interface. The interface stays quiet so the action stays clear.
+
+          {/* Subtitle Value Proposition */}
+          <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+            Transform complex multi-chain liquidity, cross-chain swaps, and treasury operations into verified, non-custodial transactions. Zero slippage routing and instant finality on Arc Testnet.
           </p>
 
-          <div className="mt-8 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
-            <Button asChild size="lg" className="h-14 w-full rounded-2xl border-0 bg-gradient-to-r from-[#4f46e5] via-[#2563eb] to-[#06b6d4] px-8 text-white shadow-[0_14px_32px_rgba(37,99,235,0.22)] transition-transform hover:scale-[1.01] sm:w-auto">
-              <Link href="/dashboard">Open workspace <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
+          {/* CTA Cluster */}
+          <div className="mt-8 flex flex-col gap-3.5 sm:flex-row">
+            <Button asChild size="lg" className="shimmer-button active-tactile min-h-12 px-7 text-base font-semibold shadow-lg shadow-accent/20 cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90">
+              <Link href="/dashboard" className="flex items-center gap-2">
+                Launch App Console <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="h-14 w-full rounded-2xl border-[#d8e0ea] bg-white/90 px-8 text-[#172033] shadow-[0_8px_24px_rgba(15,23,42,0.05)] hover:bg-white sm:w-auto">
-              <Link href="/dashboard#guide">See how it works</Link>
+            <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/10 hover:border-accent/40 bg-card/60 backdrop-blur-md cursor-pointer">
+              <Link href="#architecture" className="flex items-center gap-2 text-foreground">
+                Protocol Architecture <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
-          <p className="mt-4 text-[11px] font-medium text-[#64748b]">Arc Testnet · {AGFUSION_X_HANDLE}</p>
-        </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.08 }} className="relative mx-auto mt-12 max-w-5xl">
-          <div className="rounded-[1.6rem] border border-[#dfe6ef] bg-white/92 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur sm:p-5">
-            <div className="flex items-center justify-between border-b border-[#e8edf3] pb-3">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#315bea]">Workspace</p>
-                <h2 className="mt-1 text-sm font-semibold text-[#101828]">One place for the actions that matter.</h2>
-              </div>
-              <span className="hidden rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-2.5 py-1 text-[10px] font-medium text-[#64748b] sm:block">Review before signing</span>
-            </div>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-[1.1fr_1.9fr]">
-              <div className="rounded-2xl border border-[#e1e7ef] bg-[#f8fafc] p-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#dbe3ee] bg-white text-[#315bea] shadow-sm"><Sparkles className="h-4 w-4" /></div>
-                  <div><p className="text-xs font-semibold text-[#172033]">AI transaction planner</p><p className="text-[10px] text-[#64748b]">Plans first. You approve.</p></div>
-                </div>
-                <div className="mt-5 rounded-xl border border-[#e1e7ef] bg-white p-3 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#94a3b8]">Example intent</p>
-                  <p className="mt-2 text-xs leading-5 text-[#334155]">“Send 5 USDC to my teammate.”</p>
-                  <div className="mt-3 flex items-center justify-between rounded-lg bg-[#f1f5f9] px-3 py-2"><span className="text-[10px] font-medium text-[#64748b]">Plan ready</span><span className="text-[10px] font-semibold text-[#315bea]">Review</span></div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {tools.map(({ icon: Icon, title, body }) => (
-                  <div key={title} className="rounded-2xl border border-[#e1e7ef] bg-white p-4 shadow-sm transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#dbe3ee] bg-[#f8fafc] text-[#315bea]"><Icon className="h-4 w-4" /></div>
-                    <p className="mt-5 text-xs font-semibold text-[#172033]">{title}</p>
-                    <p className="mt-1 text-[10px] leading-4 text-[#64748b]">{body}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* Micro Assurance */}
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <ShieldCheck aria-hidden="true" className="h-4 w-4 text-accent shrink-0" />
+              100% Non-Custodial (No Seed Storage)
+            </span>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-accent shrink-0" />
+              Formal Pre-Flight Verification
+            </span>
           </div>
-        </motion.div>
+        </div>
 
-        <div className="mx-auto mt-3 grid max-w-5xl grid-cols-2 gap-2 sm:grid-cols-4">
-          {[['USDC', 'Native fee asset'], ['EVM', 'Builder friendly'], ['<1s', 'Fast finality'], ['Testnet', 'Safe practice']].map(([value, label]) => (
-            <div key={label} className="rounded-xl border border-[#e1e7ef] bg-white/90 px-3 py-4 text-center shadow-sm">
-              <div className="text-lg font-semibold text-[#101828] sm:text-xl">{value}</div>
-              <div className="mt-1 text-[10px] font-medium text-[#64748b]">{label}</div>
+        {/* Right Hero: Interactive Cockpit */}
+        <div>
+          <HeroCockpit />
+        </div>
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 2: TELEMETRY & PROTOCOL METRICS
+         ───────────────────────────────────────────────────────────── */}
+      <section aria-label="Protocol Telemetry" className="my-8 card-pro py-8 px-6 glow-border">
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4 lg:gap-8">
+          {METRICS.map((metric) => (
+            <div key={metric.label} className="flex flex-col">
+              <span className="font-mono text-[11px] text-muted-foreground uppercase tracking-wider">{metric.label}</span>
+              <span className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl text-gradient-pro">
+                {metric.value}
+              </span>
+              <span className="mt-1 text-xs text-muted-foreground/80">{metric.sub}</span>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="relative border-y border-[#e3e8ef] bg-white/65">
-        <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
-          <div className="grid gap-8 md:grid-cols-[0.75fr_1.25fr] md:items-start">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#315bea]">Simple flow</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#101828] sm:text-3xl">Intent to confirmation without the clutter.</h2>
-              <p className="mt-3 text-sm leading-6 text-[#64748b]">Every important step stays visible. No decorative layer should compete with the transaction itself.</p>
-            </div>
-            <div className="space-y-2">
-              {flow.map((step, index) => (
-                <div key={step} className="flex items-center gap-3 rounded-xl border border-[#e1e7ef] bg-white px-3.5 py-3 shadow-sm">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef2ff] text-[10px] font-mono font-semibold text-[#315bea]">{String(index + 1).padStart(2, '0')}</span>
-                  <span className="text-xs font-medium text-[#334155]">{step}</span>
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 3: 6-CARD CAPABILITIES SHOWCASE
+         ───────────────────────────────────────────────────────────── */}
+      <section id="capabilities" aria-labelledby="capabilities-title" className="py-14 sm:py-20">
+        <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
+              Engine Architecture
+            </p>
+            <h2 id="capabilities-title" className="mt-2.5 text-3xl font-bold text-foreground sm:text-4xl font-display">
+              Engineered for Autonomous Execution.
+            </h2>
+          </div>
+          <Link 
+            href="/dashboard" 
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline cursor-pointer"
+          >
+            Access interactive tools <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {CAPABILITIES.map(({ icon: Icon, number, title, description, badge }) => (
+            <div 
+              key={title} 
+              className="group card-pro p-6 glow-border transition-all duration-300 hover:border-accent/40 hover:-translate-y-1"
+            >
+              <div className="flex items-center justify-between">
+                <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/25 transition-all group-hover:bg-accent/20 group-hover:scale-105 shadow-sm shadow-accent/10">
+                  <Icon aria-hidden="true" className="h-5 w-5" />
                 </div>
-              ))}
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] font-mono font-medium text-accent">
+                    {badge}
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-muted-foreground/60">{number}</span>
+                </div>
+              </div>
+
+              <h3 className="mt-6 text-lg font-semibold text-foreground transition-colors group-hover:text-accent font-display">
+                {title}
+              </h3>
+              <p className="mt-2.5 text-sm leading-6 text-muted-foreground">
+                {description}
+              </p>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 4: ARCHITECTURE PIPELINE ("INTENT TO FINALITY")
+         ───────────────────────────────────────────────────────────── */}
+      <section id="architecture" aria-labelledby="arch-title" className="border-t border-white/10 py-16 sm:py-24">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
+            Deterministic Pipeline
+          </p>
+          <h2 id="arch-title" className="mt-2 text-3xl font-bold text-foreground sm:text-4xl font-display">
+            From Natural Intent to Sub-Second Finality.
+          </h2>
+          <p className="mt-4 text-base text-muted-foreground leading-relaxed">
+            Eliminating blind signing and failed transactions. Every prompt traverses an audited, multi-layer consensus pipeline before requesting client signature.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          {ARCHITECTURE_STEPS.map((item, idx) => (
+            <div 
+              key={item.step} 
+              className="relative rounded-2xl border border-white/10 bg-card/60 p-6 backdrop-blur-xl glow-border flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-2xl font-bold text-accent">{item.step}</span>
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-mono text-muted-foreground border border-border">
+                    {item.tag}
+                  </span>
+                </div>
+                <h3 className="mt-5 text-base font-semibold text-foreground font-display">
+                  {item.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {item.desc}
+                </p>
+              </div>
+              <div className="mt-6 pt-4 border-t border-border/50 flex items-center gap-1.5 text-xs text-accent">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Stage {idx + 1} Automated
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 5: DEVELOPER TERMINAL & HEADLESS SDK
+         ───────────────────────────────────────────────────────────── */}
+      <section aria-labelledby="developer-title" className="border-t border-white/10 py-16 sm:py-20">
+        <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
+              Developer Substrate
+            </p>
+            <h2 id="developer-title" className="mt-2.5 text-3xl font-bold text-foreground sm:text-4xl font-display">
+              Build with the Autonomous Agent SDK.
+            </h2>
+          </div>
+          <Link 
+            href="/dashboard#tools" 
+            className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline cursor-pointer"
+          >
+            Explore API Documentation <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <DeveloperTerminal />
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 6: ECOSYSTEM SUBSTRATE MARQUEE
+         ───────────────────────────────────────────────────────────── */}
+      <section aria-label="Ecosystem Partners" className="my-8 border-t border-white/10 py-12">
+        <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 font-mono mb-6">
+          Powered by Industry-Leading Web3 Primitives
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-14 opacity-70 grayscale hover:grayscale-0 transition-all duration-300">
+          <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
+            <Globe className="h-4 w-4 text-accent" /> Arc Substrate
+          </div>
+          <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
+            <ShieldCheck className="h-4 w-4 text-accent" /> Circle Programmable Wallets
+          </div>
+          <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
+            <Sliders className="h-4 w-4 text-accent" /> Reown AppKit
+          </div>
+          <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
+            <Zap className="h-4 w-4 text-accent" /> ZeroDev Account Abstraction
+          </div>
+          <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
+            <Layers className="h-4 w-4 text-accent" /> Circle CCTP
           </div>
         </div>
       </section>
 
-      <section className="relative mx-auto max-w-5xl px-4 py-14 text-center sm:px-6">
-        <div className="mx-auto max-w-xl">
-          <Image src="/brand/agfusion-main.svg" alt="AGFusion" width={360} height={216} className="mx-auto h-auto w-48 object-contain drop-shadow-[0_12px_28px_rgba(15,23,42,0.08)] sm:w-56" />
-          <h2 className="mt-5 text-2xl font-semibold tracking-tight text-[#101828]">Quiet interface. Strong identity.</h2>
-          <p className="mt-2 text-sm leading-6 text-[#64748b]">The AGFusion mark carries the purple-to-cyan fusion identity while the product UI stays restrained, compact and easy to scan.</p>
-          <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-            <Button asChild variant="outline" className="border-[#d8e0ea] bg-white text-[#172033]"><Link href="/dashboard">Enter AGFusion <ArrowRight className="ml-1.5 h-4 w-4" /></Link></Button>
-            <a href={AGFUSION_X_URL} target="_blank" rel="noopener noreferrer me" className="inline-flex h-10 items-center justify-center rounded-xl px-4 text-xs font-semibold text-[#64748b] hover:bg-white hover:text-[#172033]">{AGFUSION_X_HANDLE}</a>
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 7: CONVERSION CALL-TO-ACTION COCKPIT
+         ───────────────────────────────────────────────────────────── */}
+      <section 
+        aria-labelledby="cta-heading" 
+        className="relative my-8 overflow-hidden rounded-3xl border border-accent/40 bg-gradient-to-br from-card via-[#070a0e] to-card/90 p-8 text-center shadow-2xl sm:p-14 glow-border card-pro"
+      >
+        <div className="relative z-10 mx-auto max-w-2xl">
+          <span className="rounded-full border border-accent/30 bg-accent/15 px-3.5 py-1 text-xs font-semibold text-accent font-mono shadow-xs shadow-accent/20">
+            Get Started on Arc Testnet
+          </span>
+          <h2 id="cta-heading" className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl font-display text-gradient-pro">
+            Experience the Future of Web3 Intelligence.
+          </h2>
+          <p className="mt-5 text-base text-muted-foreground sm:text-lg leading-relaxed">
+            Deploy autonomous intent workflows, manage multi-chain stablecoin balances, and execute non-custodial transactions in one unified workspace.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
+            <Button asChild size="lg" className="shimmer-button active-tactile min-h-12 px-8 text-base font-semibold shadow-xl shadow-accent/25 cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90">
+              <Link href="/dashboard" className="flex items-center gap-2">
+                Open Workspace Console <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/15 bg-background/60 hover:border-accent/40 backdrop-blur-md cursor-pointer">
+              <Link href="/dashboard#guide" className="flex items-center gap-2">
+                Getting Started Guide <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
+          <p className="mt-6 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
+            <ShieldCheck className="h-4 w-4 text-accent" />
+            Zero centralized custody • Formal verification active • Fully auditable
+          </p>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

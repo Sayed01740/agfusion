@@ -60,6 +60,8 @@ export default function DashboardPage() {
   const { transactions, activeTxId, setActiveTx, addTransaction, setThinking, walletAddress, refreshBalances, loadServerTransactions, addMessage, liveBalanceUsdc } = usePilotStore();
   const active = transactions.find((t) => t.id === activeTxId) || transactions[0];
   const [mobileTab, setMobileTab] = useState<"chat" | "tools">("chat");
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [pendingTarget, setPendingTarget] = useState<"guide" | "tools" | null>(null);
   const [payRequest, setPayRequest] = useState<{ amount: string; to?: string; memo?: string } | null>(null);
   const [payBusy, setPayBusy] = useState(false);
 
@@ -74,6 +76,43 @@ export default function DashboardPage() {
       setMobileTab("tools");
     } catch { /* ignore */ }
   }, [addMessage]);
+
+  useEffect(() => {
+    function revealTarget(hash: string) {
+      if (hash !== "#guide" && hash !== "#tools") return;
+      setMobileTab("tools");
+      if (hash === "#guide") setGuideOpen(true);
+      setPendingTarget(hash === "#guide" ? "guide" : "tools");
+    }
+    function onHashChange() { revealTarget(window.location.hash); }
+    function onClick(event: MouseEvent) {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest("a") : null;
+      if (!anchor || anchor.hasAttribute("download") || (anchor.target && anchor.target !== "_self")) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin === window.location.origin && url.pathname === window.location.pathname && url.search === window.location.search) revealTarget(url.hash);
+    }
+    onHashChange();
+    window.addEventListener("hashchange", onHashChange);
+    // Capture also handles repeated hashes before Next Link intercepts navigation.
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pendingTarget || mobileTab !== "tools" || (pendingTarget === "guide" && !guideOpen)) return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(pendingTarget);
+      if (!target?.getClientRects().length) return;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+      setPendingTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingTarget, mobileTab, guideOpen]);
 
   async function retryActive() {
     if (!active?.fromChain || !active.toChain) return;
@@ -90,72 +129,221 @@ export default function DashboardPage() {
   async function fulfillPayRequest() { if (!payRequest || !walletAddress) return; const to = payRequest.to || walletAddress; if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return; setPayBusy(true); setThinking(true); try { const tx = await executeSend({ amount: payRequest.amount, token: "USDC", chain: "Arc_Testnet", recipient: to, recipientLabel: payRequest.memo || "Payment request", preferLive: true }); addTransaction(tx); setActiveTx(tx.id); setPayRequest(null); } catch (e) { addMessage({ id: `msg_payerr_${Date.now()}`, role: "assistant", content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`, createdAt: new Date().toISOString() }); setMobileTab("chat"); } finally { setPayBusy(false); setThinking(false); } }
 
   return (
-    <main className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-[#f7f9fc] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-[#101828] sm:px-5 sm:py-6 lg:px-8 lg:py-8">
-      <header className="mb-4 sm:mb-5">
-        <div className="overflow-hidden rounded-[1.6rem] border border-[#dfe6ef] bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.08)] sm:p-5 lg:p-7">
-          <div className="flex min-w-0 flex-col gap-5 sm:gap-6">
-            <div className="flex items-start justify-between gap-3 sm:gap-6">
+    <div className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-background px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-foreground sm:px-5 sm:py-6 lg:px-8 lg:py-8">
+      <header className="mb-5 sm:mb-6">
+        <div className="overflow-hidden rounded-3xl border border-border glass-cockpit p-5 sm:p-6 lg:p-8 relative shadow-2xl">
+          {/* Subtle ambient lighting inside card */}
+          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent/10 blur-[80px]" />
+          
+          <div className="flex min-w-0 flex-col gap-6 sm:gap-7 relative z-[1]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="min-w-0 max-w-3xl">
-                <div className="mb-2 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#315bea] sm:text-[11px]"><span className="h-1.5 w-1.5 rounded-full bg-[#315bea]" />Command center</div>
-                <h1 className="max-w-[18ch] text-[clamp(1.85rem,8.5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.045em] text-[#0b1220] sm:max-w-none">Move money <span className="bg-gradient-to-r from-[#4f46e5] via-[#2563eb] to-[#06b6d4] bg-clip-text text-transparent">intelligently.</span></h1>
-                <p className="mt-2.5 max-w-2xl text-[12px] leading-[1.55] text-[#5b687a] sm:mt-3 sm:text-[15px] sm:leading-6">One workspace for AI-assisted stablecoin operations across Arc and supported EVM networks.</p>
+                <div className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+                  Arc Network · Financial Cockpit
+                </div>
+                <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+                  Move money <span className="text-gradient">intelligently.</span>
+                </h1>
+                <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-muted-foreground">
+                  AI-assisted crosschain operations on Arc with USDC gas, sub-second finality, and visible cryptographic execution.
+                </p>
               </div>
-              <Badge variant="outline" className="hidden shrink-0 items-center gap-1.5 border-[#d9e1ec] bg-[#f8fafc] px-2.5 py-1.5 text-[10px] text-[#315bea] sm:flex"><Activity className="h-3 w-3" />Testnet</Badge>
+
+              {/* Status Chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="items-center gap-1.5 border-accent/30 bg-accent/10 px-3 py-1 text-xs text-accent font-mono">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
+                  Sub-second Finality
+                </Badge>
+                <Badge variant="outline" className="hidden sm:flex items-center gap-1.5 border-border bg-muted/80 px-3 py-1 text-xs text-muted-foreground font-mono">
+                  <Activity aria-hidden="true" className="h-3 w-3 text-accent" />
+                  Arc Testnet
+                </Badge>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <div className="min-w-0 rounded-xl border border-[#e1e7ef] bg-[#f8fafc] px-3.5 py-3.5 sm:px-5 sm:py-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Available balance</p><p className="mt-1 truncate text-base font-semibold text-[#101828] sm:text-xl">{liveBalanceUsdc ? `${formatUsdc(Number(liveBalanceUsdc))} USDC` : "—"}</p></div>
-              <div className="min-w-0 rounded-xl border border-[#e1e7ef] bg-[#f8fafc] px-3.5 py-3.5 sm:px-5 sm:py-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Connected wallet</p><p className="mt-1 truncate text-[12px] font-semibold text-[#101828] sm:text-[14px]">{walletAddress ? shortenAddress(walletAddress) : "Not connected"}</p></div>
-              <div className="col-span-2 min-w-0 rounded-xl border border-[#e1e7ef] bg-[#f8fafc] px-3.5 py-3.5 sm:col-span-1 sm:px-5 sm:py-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#64748b]">Operations</p><p className="mt-1 text-base font-semibold text-[#101828] sm:text-xl">{transactions.length.toString().padStart(2, "0")} <span className="text-[10px] font-medium text-[#64748b] sm:text-xs">recorded</span></p></div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>Available Balance</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent/60 group-hover:bg-accent transition-colors" />
+                </p>
+                <p className="mt-2 break-words text-lg font-bold text-foreground sm:text-2xl font-display tabular-nums">
+                  {liveBalanceUsdc ? `${formatUsdc(Number(liveBalanceUsdc))} ` : "0.00 "}
+                  <span className="text-xs sm:text-sm font-semibold text-accent">USDC</span>
+                </p>
+              </div>
+
+              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>Connected Account</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                </p>
+                <p className="mt-2 break-words font-mono text-sm sm:text-base font-semibold text-foreground">
+                  {walletAddress ? shortenAddress(walletAddress, 4) : "Not connected"}
+                </p>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1 group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>Audit Trail</span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent/60" />
+                </p>
+                <p className="mt-2 text-lg font-bold text-foreground sm:text-2xl font-display tabular-nums">
+                  {transactions.length.toString().padStart(2, "0")}{" "}
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground">Operations</span>
+                </p>
+              </div>
             </div>
-            <div className="h-px w-full bg-gradient-to-r from-transparent via-[#2563eb]/20 to-transparent" />
           </div>
         </div>
-        {payRequest && <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-3 text-xs text-[#1e3a8a] sm:flex-row sm:items-center sm:justify-between sm:px-4"><span className="min-w-0 truncate">Pay request: <strong>{payRequest.amount} USDC</strong>{payRequest.to ? ` → ${payRequest.to.slice(0, 10)}…` : ""}</span><Button size="sm" className="h-10 w-full shrink-0 bg-gradient-to-r from-[#4f46e5] via-[#2563eb] to-[#06b6d4] text-white sm:w-auto" disabled={!walletAddress || payBusy} onClick={() => void fulfillPayRequest()}>{payBusy ? "Signing…" : "Pay request"}</Button></div>}
+
+        {payRequest && (
+          <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-accent/25 bg-accent/10 p-3.5 text-xs text-foreground sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <span className="min-w-0 truncate font-medium">
+              Payment Request: <strong className="font-semibold text-accent">{payRequest.amount} USDC</strong>
+              {payRequest.to ? <span className="text-muted-foreground font-mono ml-1">→ {shortenAddress(payRequest.to, 4)}</span> : ""}
+            </span>
+            <Button size="sm" className="h-9 w-full shrink-0 sm:w-auto font-semibold" disabled={!walletAddress || payBusy} onClick={() => void fulfillPayRequest()}>
+              {payBusy ? "Signing…" : "Pay Request"}
+            </Button>
+          </div>
+        )}
       </header>
 
-      <div className="mb-3 grid grid-cols-2 rounded-2xl border border-[#e1e7ef] bg-white p-1 shadow-sm lg:hidden">
-        <button onClick={() => setMobileTab("chat")} className={cn("flex min-h-12 items-center justify-center gap-2 rounded-xl text-[13px] font-semibold transition", mobileTab === "chat" ? "bg-[#eef2ff] text-[#315bea] ring-1 ring-[#c7d2fe]" : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#172033]")}><MessageSquare className="h-4 w-4" />AI Operator</button>
-        <button onClick={() => setMobileTab("tools")} className={cn("flex min-h-12 items-center justify-center gap-2 rounded-xl text-[13px] font-semibold transition", mobileTab === "tools" ? "bg-[#f1f5f9] text-[#172033] ring-1 ring-[#dbe3ee]" : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#172033]")}><Wrench className="h-4 w-4" />Operate</button>
+      <div role="group" aria-label="Dashboard view" className="mb-4 grid grid-cols-2 rounded-2xl border border-border bg-card/80 p-1.5 shadow-lg backdrop-blur-xl lg:hidden">
+        <button
+          type="button"
+          aria-pressed={mobileTab === "chat"}
+          aria-controls="dashboard-chat"
+          onClick={() => setMobileTab("chat")}
+          className={cn(
+            "flex min-h-[48px] items-center justify-center gap-2.5 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-[0.98] motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent",
+            mobileTab === "chat"
+              ? "bg-accent/15 text-accent border border-accent/30 shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <MessageSquare aria-hidden="true" className="h-4 w-4" />
+          AI Operator
+        </button>
+        <button
+          type="button"
+          aria-pressed={mobileTab === "tools"}
+          aria-controls="dashboard-tools"
+          onClick={() => setMobileTab("tools")}
+          className={cn(
+            "flex min-h-[48px] items-center justify-center gap-2.5 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-[0.98] motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent",
+            mobileTab === "tools"
+              ? "bg-accent/15 text-accent border border-accent/30 shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <Wrench aria-hidden="true" className="h-4 w-4" />
+          Operate
+        </button>
       </div>
 
+
       <section className="grid w-full min-w-0 gap-4 pb-2 sm:gap-5 lg:grid-cols-12">
-        <div className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8", mobileTab !== "chat" && "hidden lg:block")}><div className="[&>div]:!h-[clamp(430px,calc(100dvh-330px),680px)] [&>div]:!min-h-[430px] sm:[&>div]:!h-full sm:[&>div]:!min-h-[520px]"><ChatPanel /></div></div>
-        <div className={cn("min-w-0 w-full space-y-4 lg:col-span-5 xl:col-span-4", mobileTab !== "tools" && "hidden lg:block")}>
-          <UserGuideCard />
-          <div id="tools" className="min-w-0 w-full overflow-hidden"><ToolsWorkspace defaultTab="send" /></div>
+        <div id="dashboard-chat" className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8", mobileTab !== "chat" && "hidden lg:block")}><div className="[&>div]:!h-[clamp(430px,calc(100dvh-330px),680px)] [&>div]:!min-h-[430px] sm:[&>div]:!h-full sm:[&>div]:!min-h-[520px]"><ChatPanel /></div></div>
+        <div id="dashboard-tools" className={cn("min-w-0 w-full space-y-4 lg:col-span-5 xl:col-span-4", mobileTab !== "tools" && "hidden lg:block")}>
+          <UserGuideCard open={guideOpen} onOpenChange={setGuideOpen} />
+          <div className="min-w-0 w-full overflow-hidden"><ToolsWorkspace defaultTab="send" /></div>
           <LiveOperationPanel />
           {active && <TransactionProgress tx={active} onRetry={active.status === "error" || active.retryable ? () => void retryActive() : undefined} />}
-          <Card className="w-full overflow-hidden border-[#e1e7ef] bg-white shadow-sm">
-            <CardHeader className="pb-2"><div className="flex items-center justify-between gap-3"><CardTitle className="truncate text-sm text-[#172033]">Activity timeline</CardTitle><a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold text-[#315bea] hover:bg-[#eef2ff]">Operate <ArrowRight className="h-3 w-3" /></a></div></CardHeader>
-            <CardContent className="space-y-3">
-              {transactions.length === 0 && <p className="text-[12px] leading-relaxed text-[#64748b]">No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.</p>}
+          <Card className="w-full overflow-hidden border-border bg-card shadow-lg">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="truncate text-sm font-semibold text-foreground">Activity timeline</CardTitle>
+                <a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-accent hover:bg-muted transition-colors">
+                  Operate <ArrowRight className="h-3 w-3" />
+                </a>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {transactions.length === 0 && (
+                <p className="text-[12px] leading-relaxed text-muted-foreground">
+                  No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.
+                </p>
+              )}
               {transactions.slice(0, 8).map((tx) => {
                 const isActive = active?.id === tx.id;
                 const detail = getActivityDetail(tx);
                 const isBridgeError = tx.type === "bridge" && (tx.status === "error" || tx.retryable);
                 const childSteps = tx.type === "bridge" ? bridgeTxSteps(tx) : [];
                 return (
-                  <div key={tx.id} className={cn("rounded-xl border p-2.5", isActive ? "border-[#93c5fd] bg-[#eff6ff]" : "border-[#e5eaf0] bg-[#f8fafc]")}>
-                    <button type="button" onClick={() => setActiveTx(tx.id)} className="flex min-w-0 w-full min-h-10 items-center justify-between gap-2 text-left text-sm">
+                  <div
+                    key={tx.id}
+                    className={cn(
+                      "rounded-xl border p-3 transition-all",
+                      isActive
+                        ? "border-accent/40 bg-accent/5 shadow-sm"
+                        : "border-border bg-muted/60 hover:bg-muted"
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setActiveTx(tx.id)}
+                      className="flex min-w-0 w-full min-h-10 items-center justify-between gap-2 text-left text-sm"
+                    >
                       <div className="min-w-0 flex-1 overflow-hidden">
-                        <div className="truncate capitalize font-medium text-[#172033]">{tx.type.replace("_", " ")} · {tx.amount} {tx.token}</div>
-                        <div className="mt-0.5 truncate text-[11px] text-[#64748b]">{tx.status}{tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}</div>
-                        {isBridgeError && detail && <div className="mt-1 truncate text-[10px] leading-4 text-red-500" title={detail}>{detail}</div>}
+                        <div className="truncate capitalize font-semibold text-foreground">
+                          {tx.type.replace("_", " ")} · {tx.amount} {tx.token}
+                        </div>
+                        <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                          {tx.status}
+                          {tx.recipient ? ` · ${shortenAddress(tx.recipient)}` : tx.toChain ? ` · ${tx.toChain.replace(/_/g, " ")}` : ""}
+                        </div>
+                        {isBridgeError && detail && (
+                          <div className="mt-1 truncate text-[10px] leading-4 text-red-400" title={detail}>
+                            {detail}
+                          </div>
+                        )}
                       </div>
-                      <Badge variant={tx.status === "success" ? "success" : tx.status === "error" ? "outline" : "cyan"} className="shrink-0 text-[9px]">{tx.status}</Badge>
+                      <Badge
+                        variant={tx.status === "success" ? "success" : tx.status === "error" ? "danger" : "cyan"}
+                        className="shrink-0 text-[10px] font-mono"
+                      >
+                        {tx.status}
+                      </Badge>
                     </button>
                     {childSteps.length > 0 && (
-                      <div className="mt-2 border-t border-[#e2e8f0] pt-2 space-y-1.5">
+                      <div className="mt-2.5 border-t border-border/80 pt-2 space-y-1.5">
                         {childSteps.map((step, index) => {
                           const href = getStepExplorerUrl(tx, step);
                           return (
-                            <div key={`${step.name}-${step.txHash}-${index}`} className="flex min-w-0 items-center gap-2 rounded-lg bg-white/75 px-2.5 py-2">
-                              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", step.state === "success" ? "bg-emerald-500" : step.state === "error" ? "bg-red-500" : "bg-amber-400")} />
-                              <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[#334155]">{step.name}</span>
+                            <div
+                              key={`${step.name}-${step.txHash}-${index}`}
+                              className="flex min-w-0 items-center gap-2 rounded-lg bg-card/80 border border-border/50 px-2.5 py-1.5"
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                                  step.state === "success" ? "bg-emerald-400" : step.state === "error" ? "bg-red-400" : "bg-amber-400"
+                                )}
+                              />
+                              <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-muted-foreground">
+                                {step.name}
+                              </span>
                               {href ? (
-                                <a href={href} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="inline-flex shrink-0 items-center gap-1 font-mono text-[9px] text-[#315bea] hover:underline" title={step.txHash}>{shortenAddress(step.txHash || "", 3)}<ExternalLink className="h-2.5 w-2.5" /></a>
+                                <a
+                                  href={href}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] text-accent hover:underline"
+                                  title={step.txHash}
+                                >
+                                  {shortenAddress(step.txHash || "", 3)}
+                                  <ExternalLink className="h-2.5 w-2.5" />
+                                </a>
                               ) : step.txHash ? (
-                                <span className="shrink-0 font-mono text-[9px] text-[#64748b]">{shortenAddress(step.txHash, 3)}</span>
+                                <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                                  {shortenAddress(step.txHash, 3)}
+                                </span>
                               ) : null}
                             </div>
                           );
@@ -167,8 +355,9 @@ export default function DashboardPage() {
               })}
             </CardContent>
           </Card>
+
         </div>
       </section>
-    </main>
+    </div>
   );
 }

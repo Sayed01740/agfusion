@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowUp,
   Bot,
@@ -43,23 +43,24 @@ function renderMarkdownish(text: string) {
   const safeText = sanitizeAgentText(text);
   return safeText.split("\n").map((line, i) => {
     let html = line
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong class=\"text-foreground font-semibold\">$1</strong>")
       .replace(
         /`([^`]+)`/g,
-        '<code class="rounded bg-white/10 px-1 py-0.5 text-[12px] font-mono">$1</code>',
+        '<code class="rounded bg-muted border border-border/60 px-1.5 py-0.5 text-[12px] font-mono text-accent">$1</code>',
       );
     if (line.startsWith("• ") || line.startsWith("- ")) {
-      html = `<span class="text-cyan-400/80 mr-1">•</span>${html.slice(2)}`;
+      html = `<span class="text-accent font-bold mr-1.5">•</span>${html.slice(2)}`;
     }
     return (
       <p
         key={i}
-        className="min-h-[1.1em] leading-relaxed"
+        className="min-h-[1.1em] leading-relaxed text-foreground"
         dangerouslySetInnerHTML={{ __html: html || "&nbsp;" }}
       />
     );
   });
 }
+
 
 export function ChatPanel() {
   const {
@@ -77,6 +78,8 @@ export function ChatPanel() {
   } = usePilotStore();
   const [input, setInput] = useState("");
   const [statusLine, setStatusLine] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
   const [liveTrace, setLiveTrace] = useState<
     Array<{ name: string; summary: string; ok: boolean }>
   >([]);
@@ -84,7 +87,7 @@ export function ChatPanel() {
   const sendingRef = useRef(false);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [messages, isThinking, statusLine, liveTrace]);
 
   async function send(text: string, execute = false) {
@@ -92,6 +95,7 @@ export function ChatPanel() {
     if (!content || isThinking || sendingRef.current) return;
 
     sendingRef.current = true;
+    setChatError(null);
     const userMsg: ChatMessage = {
       id: uid("msg"),
       role: "user",
@@ -159,6 +163,7 @@ export function ChatPanel() {
           },
           onError: (err) => {
             sawError = true;
+            setChatError(`Agent error: ${err}`);
             addMessage({
               id: uid("msg"),
               role: "assistant",
@@ -200,6 +205,7 @@ export function ChatPanel() {
         });
       }
     } catch (e) {
+      setChatError(`Agent failed: ${e instanceof Error ? e.message : "unknown error"}. See the conversation for retry guidance.`);
       addMessage({
         id: uid("msg"),
         role: "assistant",
@@ -222,11 +228,13 @@ export function ChatPanel() {
     if (preview.executed || !preview.canExecute || isThinking || sendingRef.current)
       return;
 
+    setChatError(null);
     const effectiveAddress =
       walletAddress ||
       (await import("@/sdk/active-wallet")).getActiveWalletMeta()?.address;
 
     if (!effectiveAddress && preview.requiresWallet !== false) {
+      setChatError("Connect your wallet, switch to Arc Testnet, then confirm the action again.");
       addMessage({
         id: uid("msg"),
         role: "assistant",
@@ -323,6 +331,7 @@ export function ChatPanel() {
 
       addTransaction(tx);
       setActiveTx(tx.id);
+      if (tx.status === "error") setChatError(`${preview.title} failed. See the conversation and activity timeline for details.`);
       addMessage({
         id: uid("msg"),
         role: "assistant",
@@ -343,6 +352,7 @@ export function ChatPanel() {
       });
     } catch (e) {
       const err = e instanceof Error ? e.message : String(e);
+      setChatError(`Could not complete ${preview.title}: ${err}`);
       addMessage({
         id: uid("msg"),
         role: "assistant",
@@ -366,78 +376,85 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-[65vh] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-2xl bg-[#0a1120] sm:bg-gradient-to-b sm:from-[#0c1628]/95 sm:to-[#060d18] transition-all duration-700 ${
-        isThinking ? "ring-1 ring-cyan-500/50 shadow-[0_0_30px_-5px_rgba(34,211,238,0.15)]" : "border-y sm:border border-white/5 sm:border-cyan-400/12 sm:shadow-xl"
+      className={`flex h-[65vh] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-3xl glass-cockpit transition-all duration-500 motion-reduce:transition-none ${
+        isThinking
+          ? "ring-1 ring-accent/60 shadow-[0_0_35px_-5px_rgba(16,185,129,0.2)]"
+          : "border-y sm:border border-border/80 sm:shadow-2xl hover:border-accent/30"
       }`}
     >
+
+      <p role="status" aria-atomic="true" className="sr-only">
+        {isThinking ? "Agent working. Please wait." : !chatError && messages.at(-1)?.role === "assistant" ? `Agent message ${messages.length} is available in the conversation.` : ""}
+      </p>
+      <p role="alert" aria-atomic="true" className="sr-only">{chatError}</p>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/[0.04] bg-white/[0.01] px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur-md relative z-10 shrink-0">
+      <div className="flex items-center justify-between border-b border-border bg-card/80 px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur-md relative z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-purple-500/20 ring-1 ring-white/10">
-            <Bot className="h-4 w-4 text-cyan-100" />
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 ring-1 ring-accent/30">
+            <Bot className="h-4 w-4 text-accent" />
             {isThinking && (
               <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-500"></span>
+                <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-accent opacity-75"></span>
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent"></span>
               </span>
             )}
           </div>
           <div>
-            <h2 className="text-sm font-semibold tracking-wide text-slate-100">
+            <h2 className="text-sm font-semibold tracking-wide text-foreground">
               AGFusion Agent
             </h2>
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
               <span>Plan</span>
-              <span className="h-0.5 w-0.5 rounded-full bg-slate-600" />
+              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/50" />
               <span>confirm</span>
-              <span className="h-0.5 w-0.5 rounded-full bg-slate-600" />
+              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/50" />
               <span>wallet sign</span>
             </div>
           </div>
         </div>
-        <Badge variant="outline" className="gap-1 border-white/5 bg-slate-900/40 text-[10px] text-cyan-400">
+        <Badge variant="outline" className="gap-1 border-accent/30 bg-accent/10 text-[10px] text-accent">
           <Zap className="h-3 w-3" />
           Live
         </Badge>
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-4">
+      <div role="region" aria-label="Agent conversation" tabIndex={0} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-4 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6 px-2 animate-fade-in my-8">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/30">
-              <Zap className="h-8 w-8 text-cyan-400" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/15 shadow-lg shadow-accent/10 ring-1 ring-accent/30">
+              <Zap className="h-8 w-8 text-accent" />
             </div>
             
             <div className="space-y-2 max-w-[280px]">
-              <h3 className="text-xl font-semibold text-white tracking-tight">Auto-Agent</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="text-xl font-semibold text-foreground tracking-tight">Auto-Agent</h3>
+              <p className="text-sm text-muted-foreground">
                 Your smart assistant for the Arc Blockchain.
               </p>
             </div>
 
             <div className="w-full max-w-sm space-y-3 text-left">
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
-                <div className="text-[12px] font-semibold uppercase tracking-wider text-cyan-400">What I can do</div>
-                <ul className="space-y-2 text-sm text-slate-300">
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
+                <div className="text-[12px] font-semibold uppercase tracking-wider text-accent">What I can do</div>
+                <ul className="space-y-2 text-sm text-foreground">
                   <li className="flex gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
                     <span><strong>Send USDC</strong> to any address on Arc Testnet</span>
                   </li>
                   <li className="flex gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
                     <span><strong>Swap</strong> between USDC and EURC</span>
                   </li>
                   <li className="flex gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-500" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
                     <span>Check your <strong>balances</strong> and transactions</span>
                   </li>
                 </ul>
               </div>
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
-                <div className="text-[12px] font-semibold uppercase tracking-wider text-cyan-400">How to use</div>
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  Type what you want in plain English. I will create a secure plan. <strong>Nothing moves until you press Confirm</strong> and sign in your wallet.
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
+                <div className="text-[12px] font-semibold uppercase tracking-wider text-accent">How to use</div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Type what you want in plain English. I will create a secure plan. <strong className="text-foreground font-semibold">Nothing moves until you press Confirm</strong> and sign in your wallet.
                 </p>
               </div>
             </div>
@@ -448,7 +465,7 @@ export function ChatPanel() {
           {messages.map((m) => (
             <motion.div
               key={m.id}
-              initial={{ opacity: 0, y: 10 }}
+              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`flex w-full min-w-0 ${
                 m.role === "user" ? "justify-end" : "justify-start"
@@ -457,15 +474,15 @@ export function ChatPanel() {
               <div
                 className={
                   m.role === "user"
-                    ? "max-w-[90%] min-w-0 rounded-2xl rounded-br-md bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/20 px-4 py-3 text-sm"
-                    : "max-w-[95%] min-w-0 rounded-2xl rounded-bl-md bg-white/[0.03] border border-white/5 px-4 py-3 text-sm space-y-3"
+                    ? "max-w-[90%] min-w-0 rounded-2xl rounded-br-md bg-accent/15 border border-accent/30 px-4 py-3 text-sm text-foreground shadow-sm"
+                    : "max-w-[95%] min-w-0 rounded-2xl rounded-bl-md bg-card border border-border px-4 py-3 text-sm space-y-3 text-foreground shadow-md"
                 }
               >
-                <div className="text-slate-100 break-words">{renderMarkdownish(m.content)}</div>
+                <div className="text-foreground break-words">{renderMarkdownish(m.content)}</div>
 
                 {m.toolTrace && m.toolTrace.length > 0 && (
-                  <div className="rounded-xl border border-white/10 bg-[#020617] p-3 space-y-1.5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
-                    <div className="text-[10px] uppercase tracking-wider text-cyan-500/70 flex items-center gap-1 mb-2">
+                  <div className="rounded-xl border border-border bg-background p-3 space-y-1.5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
+                    <div className="text-[10px] uppercase tracking-wider text-accent flex items-center gap-1 mb-2 font-mono">
                       <Terminal className="h-3 w-3" />
                       Agent Sub-Routine [{m.toolTrace.length} calls]
                     </div>
@@ -473,14 +490,14 @@ export function ChatPanel() {
                       <div
                         key={`${t.name}-${i}`}
                         className={`text-[11px] font-mono flex gap-2 ${
-                          t.ok ? "text-cyan-400/80" : "text-red-400/90"
+                          t.ok ? "text-accent" : "text-red-400"
                         }`}
                       >
                         <span>{t.ok ? "❯" : "✖"}</span>
                         <div className="flex flex-col">
                           <span className="font-semibold">{t.name}</span>
                           {t.summary && (
-                            <span className="text-slate-500 text-[10px] opacity-80 leading-tight">
+                            <span className="text-muted-foreground text-[10px] opacity-80 leading-tight">
                               {t.summary}
                             </span>
                           )}
@@ -493,15 +510,15 @@ export function ChatPanel() {
                 {m.codeBlocks?.map((block, i) => (
                   <div
                     key={i}
-                    className="overflow-hidden rounded-xl border border-white/10 bg-slate-950"
+                    className="overflow-hidden rounded-xl border border-border bg-background"
                   >
-                    <div className="flex items-center justify-between border-b border-white/5 px-3 py-1.5 text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
                       <span>{block.filename || block.language}</span>
-                      <span className="uppercase tracking-wider">
+                      <span className="uppercase tracking-wider font-mono">
                         {block.language}
                       </span>
                     </div>
-                    <pre className="overflow-x-auto p-3 text-[12px] leading-relaxed text-cyan-100/90 font-mono">
+                    <pre className="overflow-x-auto p-3 text-[12px] leading-relaxed text-foreground font-mono">
                       <code>{block.code}</code>
                     </pre>
                   </div>
@@ -521,17 +538,17 @@ export function ChatPanel() {
 
         {isThinking && (
           <motion.div
-            initial={{ opacity: 0, y: 5 }}
+            initial={reduceMotion ? false : { opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-3 px-1"
           >
-            <div className="flex items-center gap-2 text-sm text-cyan-400 font-medium">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2 text-sm text-accent font-medium">
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />
               {statusLine || "Agent reasoning…"}
             </div>
             {liveTrace.length > 0 && (
-              <div className="rounded-xl border border-cyan-500/30 bg-[#020617] p-3 text-[11px] text-cyan-300 font-mono shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
-                <div className="flex items-center gap-2 mb-2 text-[10px] text-cyan-500/70 uppercase">
+              <div className="rounded-xl border border-accent/30 bg-background p-3 text-[11px] text-accent font-mono shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
+                <div className="flex items-center gap-2 mb-2 text-[10px] text-accent uppercase">
                   <Terminal className="h-3 w-3" /> Live Terminal
                 </div>
                 <div className="space-y-1">
@@ -541,7 +558,7 @@ export function ChatPanel() {
                       <span>{t.name}</span>
                     </div>
                   ))}
-                  <div className="flex gap-2 animate-pulse text-cyan-500">
+                  <div className="flex gap-2 animate-pulse motion-reduce:animate-none text-accent">
                     <span>_</span>
                     <span>processing...</span>
                   </div>
@@ -553,7 +570,7 @@ export function ChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-white/5 bg-white/[0.01] p-3 sm:p-4 space-y-3 shrink-0">
+      <div className="border-t border-border bg-card/60 p-3 sm:p-4 space-y-3 shrink-0">
         <div className="flex gap-2 overflow-x-auto scrollbar-thin [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:[scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block pb-1">
           {SUGGESTIONS.map((s) => (
             <button
@@ -561,7 +578,7 @@ export function ChatPanel() {
               type="button"
               disabled={isThinking}
               onClick={() => send(s)}
-              className="shrink-0 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-2 min-h-[40px] flex items-center justify-center text-[13px] text-cyan-100 hover:bg-cyan-500/20 hover:text-cyan-50 transition disabled:opacity-50"
+              className="shrink-0 rounded-full border border-border bg-muted px-4 py-2 min-h-11 flex items-center justify-center text-sm text-foreground hover:text-accent hover:border-accent/40 transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset disabled:opacity-50"
             >
               {s}
             </button>
@@ -575,11 +592,14 @@ export function ChatPanel() {
           className="flex items-end gap-2"
         >
           <div className="relative flex-1">
+            <label htmlFor="agent-message" className="sr-only">Message the AI Operator</label>
             <textarea
+              id="agent-message"
+              aria-describedby="agent-message-hint"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   send(input);
                 }
@@ -587,27 +607,30 @@ export function ChatPanel() {
               rows={2}
               disabled={isThinking}
               placeholder='Try: "Show my balances" or "How do I send USDC?"'
-              className="w-full resize-none rounded-2xl border border-white/[0.15] bg-white/[0.04] px-4 py-3.5 pr-12 text-sm leading-relaxed text-slate-50 shadow-inner placeholder:text-slate-400 focus:outline-none focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/20 disabled:opacity-60"
+              className="w-full resize-none rounded-2xl border border-border bg-muted px-4 py-3.5 text-base sm:text-sm leading-relaxed text-foreground shadow-inner placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent disabled:opacity-60"
             />
           </div>
           <Button
             type="submit"
+            aria-label="Send message"
             size="icon"
             disabled={!input.trim() || isThinking}
             className="h-11 w-11 shrink-0 rounded-2xl"
           >
             {isThinking ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />
             ) : (
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp aria-hidden="true" className="h-4 w-4" />
             )}
           </Button>
         </form>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 px-1">
-          <Zap className="h-3 w-3 text-cyan-500" />
+        <p id="agent-message-hint" className="sr-only">Enter to send. Shift+Enter for a new line.</p>
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-1">
+          <Zap className="h-3 w-3 text-accent" />
           Live only · tools first · Confirm · wallet signature required
         </div>
       </div>
+
     </div>
   );
 }

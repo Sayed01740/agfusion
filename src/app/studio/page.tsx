@@ -47,9 +47,18 @@ export default function StudioPage() {
   }, [query]);
 
   const active =
-    filtered.find((t) => t.id === activeId) || filtered[0] || CODE_TEMPLATES[0];
+    filtered.find((t) => t.id === activeId) || filtered[0];
+  const hasLiveSample = active && ["send", "component", "bridge", "unified", "swap"].includes(active.category);
+  const sampleDescription = active?.category === "send" || active?.category === "component"
+    ? "Built-in sample: self-transfer 0.05 USDC on Arc Testnet."
+    : active?.category === "bridge" || active?.category === "unified"
+      ? "Built-in sample: bridge 1 USDC from Arc Testnet to Base Sepolia."
+      : active?.category === "swap"
+        ? "Built-in sample: swap 1 USDC to EURC on Arc Testnet."
+        : "No live sample action for this template. Use the local deployment simulation below to preview a deploy flow.";
 
   async function copyCode() {
+    if (!active) return;
     await navigator.clipboard.writeText(active.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -75,6 +84,7 @@ export default function StudioPage() {
   }
 
   async function runSnippetLive() {
+    if (!active) return;
     setRunning(true);
     setRunLog(["→ Resolving template capability…"]);
     try {
@@ -149,11 +159,11 @@ export default function StudioPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8 text-foreground">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <Code2 className="h-6 w-6 text-cyan-400" />
-          Developer studio
+        <h1 className="text-2xl font-semibold tracking-tight flex items-start gap-2 text-foreground">
+          <Code2 aria-hidden="true" className="mt-1 h-6 w-6 shrink-0 text-accent" />
+          <span className="min-w-0 break-words">Developer studio</span>
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Code templates and Arc Build references — send, bridge, contracts, and
@@ -162,44 +172,49 @@ export default function StudioPage() {
       </div>
 
       <div className="grid lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-4 space-y-4">
+        <div className="min-w-0 lg:col-span-4 space-y-4">
+          <label htmlFor="template-search" className="block text-sm font-medium text-foreground">Search templates</label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              className="pl-9"
+              id="template-search"
+              type="search"
+              className="pl-9 border-border bg-muted text-foreground"
               placeholder="Search templates, bridge, swap…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
           <div className="space-y-2 max-h-[420px] overflow-y-auto scrollbar-thin">
+            {filtered.length === 0 && <p role="status" className="rounded-xl border border-border bg-muted p-4 text-sm text-muted-foreground">No templates match your search. Try another term or clear the search.</p>}
             {filtered.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setActiveId(t.id)}
+                aria-pressed={active?.id === t.id}
                 className={cn(
                   "w-full text-left rounded-xl border px-3 py-3 transition",
                   active?.id === t.id
-                    ? "border-cyan-500/40 bg-cyan-500/10"
-                    : "border-white/5 bg-white/[0.02] hover:border-white/10",
+                    ? "border-accent/40 bg-accent/10"
+                    : "border-border bg-card hover:bg-muted",
                 )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0 break-words text-sm font-medium text-foreground">
                     {t.title}
                   </span>
                   <Badge variant="outline">{t.category}</Badge>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">{t.description}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
               </button>
             ))}
           </div>
 
-          <Card>
+          <Card className="border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-blue-400" />
+              <CardTitle className="text-sm flex items-center gap-2 text-foreground">
+                <BookOpen aria-hidden="true" className="h-4 w-4 shrink-0 text-accent" />
                 Arc Build & House resources
               </CardTitle>
             </CardHeader>
@@ -210,7 +225,7 @@ export default function StudioPage() {
                   href={d.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="block text-xs text-cyan-300/90 hover:text-cyan-200 py-1"
+                  className="block break-words text-xs text-accent hover:underline py-1"
                 >
                   {d.title} ↗
                 </a>
@@ -219,20 +234,20 @@ export default function StudioPage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-8 space-y-4">
-          <Card className="overflow-hidden">
-            <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-white/5">
-              <div>
-                <CardTitle className="text-base">{active.title}</CardTitle>
+        <div className="min-w-0 lg:col-span-8 space-y-4">
+          {active ? <Card className="min-w-0 overflow-hidden border-border bg-card">
+            <CardHeader className="flex-col items-start gap-3 space-y-0 border-b border-border xl:flex-row xl:flex-wrap xl:justify-between">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="break-words text-base text-foreground">{active.title}</CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {active.description}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => void runSnippetLive()} disabled={running}>
-                  {running ? "Running…" : "Run on Arc"}
+              <div className="flex w-full flex-wrap gap-2 xl:w-auto">
+                <Button size="sm" variant="outline" className="h-auto min-h-10 whitespace-normal border-border bg-muted py-2 text-foreground" aria-describedby="studio-sample-description" onClick={() => void runSnippetLive()} disabled={running}>
+                  {running ? "Running sample…" : hasLiveSample ? "Run live sample action" : "Check sample support"}
                 </Button>
-                <Button size="sm" variant="secondary" onClick={copyCode}>
+                <Button size="sm" variant="secondary" className="h-auto min-h-10 border-border bg-muted py-2 text-foreground" onClick={copyCode}>
                   {copied ? (
                     <Check className="h-3.5 w-3.5" />
                   ) : (
@@ -243,20 +258,22 @@ export default function StudioPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <pre className="overflow-x-auto p-5 text-[12.5px] leading-relaxed font-mono text-cyan-50/90 bg-slate-950/50 max-h-[480px] scrollbar-thin">
+              <p id="studio-sample-description" className="border-b border-border p-4 text-xs text-muted-foreground">{sampleDescription} {hasLiveSample && "This runs a fixed sample action, not the displayed code. It may request wallet approval and incur testnet fees."}</p>
+              <pre tabIndex={0} aria-label={`${active.title} source code`} className="overflow-x-auto p-5 text-[12.5px] leading-relaxed font-mono text-foreground bg-muted max-h-[480px] scrollbar-thin">
                 <code>{active.code}</code>
               </pre>
               {runLog.length > 0 && (
-                <div className="border-t border-white/5 p-3 font-mono text-[11px] space-y-1 bg-slate-950/80">
+                <div role="log" aria-label="Sample action output" className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] border-t border-border p-3 font-mono text-[11px] space-y-1 bg-muted">
+                  <p className="font-semibold text-foreground">Sample action output (not execution of displayed code)</p>
                   {runLog.filter(Boolean).map((line, i) => (
                     <div
                       key={i}
                       className={
                         line.startsWith("✓")
-                          ? "text-emerald-400"
+                          ? "text-accent"
                           : line.startsWith("✗")
-                            ? "text-red-400"
-                            : "text-slate-400"
+                            ? "text-danger"
+                            : "text-muted-foreground"
                       }
                     >
                       {line}
@@ -265,25 +282,27 @@ export default function StudioPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card> : <Card className="border-border bg-card"><CardContent className="p-5"><h2 className="font-semibold text-foreground">No template selected</h2><p className="mt-2 text-sm text-muted-foreground">No templates match the current search. Clear the search to browse all templates.</p><Button variant="outline" size="sm" className="mt-4 border-border bg-muted text-foreground" onClick={() => setQuery("")}>Clear search</Button></CardContent></Card>}
 
-          <Card>
+          <Card className="min-w-0 border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Rocket className="h-4 w-4 text-emerald-400" />
-                Contract deployment assistant
+              <CardTitle className="text-sm flex items-center gap-2 text-foreground">
+                <Rocket aria-hidden="true" className="h-4 w-4 shrink-0 text-accent" />
+                Contract deployment simulation
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Walks through a Foundry/Viem-style deploy to Arc Testnet (chain
-                5042002, USDC gas). Keep private keys server-side only.
+                Local simulation of a Foundry/Viem-style deploy to Arc Testnet
+                (chain 5042002, USDC gas). No transaction is broadcast and no
+                contract is deployed or verified. Fees and addresses are illustrative.
               </p>
-              <Button size="sm" onClick={simulateDeploy}>
-                Preview ERC-20 deploy
+              <Button size="sm" variant="outline" className="h-auto min-h-10 whitespace-normal border-border bg-muted py-2 text-foreground" onClick={simulateDeploy}>
+                Simulate ERC-20 deploy (local)
               </Button>
               {deployLog.length > 0 && (
-                <div className="rounded-xl border border-white/10 bg-slate-950 p-3 font-mono text-[12px] space-y-1">
+                <div role="log" aria-label="Simulated deployment output, not on-chain" className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-xl border border-border bg-muted p-3 font-mono text-[12px] space-y-1">
+                  <p className="font-semibold text-foreground">SIMULATED OUTPUT: placeholder address, fee and verification; not on-chain.</p>
                   {deployLog.map((line, i) => (
                     <motion.div
                       key={i}
@@ -291,8 +310,8 @@ export default function StudioPage() {
                       animate={{ opacity: 1 }}
                       className={
                         line.startsWith("✓")
-                          ? "text-emerald-400"
-                          : "text-slate-400"
+                          ? "text-accent"
+                          : "text-muted-foreground"
                       }
                     >
                       {line}

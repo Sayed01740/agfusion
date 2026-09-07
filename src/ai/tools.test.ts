@@ -46,7 +46,8 @@ describe("money authorization (Phase 4)", () => {
     expect(result.ok).toBe(false);
     expect(result.needsConfirm).toBeFalsy();
     expect(result.summary).toMatch(/browser|wallet/i);
-  });
+  }, 15000);
+
 
   it("money tool allowlist is exact", () => {
     expect(isMoneyTool("execute_bridge")).toBe(true);

@@ -7,7 +7,7 @@ export function Card({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("surface-card text-card-foreground", className)}
+      className={cn("surface-card text-card-foreground border border-border bg-card shadow-lg", className)}
       {...props}
     />
   );
@@ -32,7 +32,7 @@ export function CardTitle({
   return (
     <h3
       className={cn(
-        "font-display text-base font-semibold tracking-tight text-slate-50",
+        "font-display text-base font-semibold tracking-tight text-foreground",
         className,
       )}
       {...props}
@@ -47,7 +47,7 @@ export function CardDescription({
   return (
     <p
       className={cn(
-        "text-sm leading-relaxed text-slate-400",
+        "text-sm leading-relaxed text-muted-foreground",
         className,
       )}
       {...props}
@@ -61,3 +61,4 @@ export function CardContent({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("p-5 pt-0", className)} {...props} />;
 }
+
