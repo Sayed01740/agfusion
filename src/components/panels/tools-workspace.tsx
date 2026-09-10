@@ -37,34 +37,34 @@ const TABS: Array<{
   {
     id: "send",
     label: "Send",
-    short: "Pay someone",
+    short: "USDC Transfer",
     icon: Send,
-    blurb: "Transfer test USDC to a full 0x wallet address on Arc.",
-    step: "1 · Amount  →  2 · Paste 0x  →  3 · Confirm in wallet",
+    blurb: "Transfer test USDC to a wallet address on Arc.",
+    step: "Enter amount and recipient address, then approve in wallet.",
   },
   {
     id: "swap",
     label: "Swap",
-    short: "Live token exchange",
+    short: "Exchange",
     icon: Waypoints,
-    blurb: "Get a live Circle quote and swap supported tokens on Arc Testnet.",
-    step: "1 · From / To  →  2 · Live quote  →  3 · Confirm in wallet",
+    blurb: "Swap supported tokens on Arc Testnet.",
+    step: "Select tokens, review quote, and approve in wallet.",
   },
   {
     id: "bridge",
     label: "Bridge",
-    short: "Move chains",
+    short: "Cross-Chain",
     icon: Waypoints,
-    blurb: "Move USDC between Arc and Base (and similar testnets).",
-    step: "1 · Amount  →  2 · From / To  →  3 · Confirm each step",
+    blurb: "Move USDC between Arc and Base testnets.",
+    step: "Enter amount and approve bridge transaction.",
   },
   {
     id: "more",
     label: "More",
-    short: "Advanced",
+    short: "Utilities",
     icon: MoreHorizontal,
-    blurb: "QR pay requests, batch payroll, risk check, unified balance.",
-    step: "Optional tools — start with Send if you are new",
+    blurb: "Payment requests, batch transfers, and utilities.",
+    step: "Select an action below.",
   },
 ];
 
@@ -138,15 +138,11 @@ export function ToolsWorkspace({
       <div className="border-b border-border/80 px-4 pt-5 pb-4 sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-accent flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-              Direct Operator Tools
-            </p>
             <h2 id="tools-heading" className="font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
-              Execution Terminal
+              Actions
             </h2>
             <p className="mt-1 text-xs sm:text-sm leading-relaxed text-muted-foreground">
-              Direct smart contract actions. Every operation requires a cryptographically verified wallet signature.
+              Direct smart contract actions with wallet approval.
             </p>
           </div>
         </div>

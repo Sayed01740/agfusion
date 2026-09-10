@@ -71,7 +71,6 @@ export function Navbar() {
           <BrandLogo variant="icon" height={38} priority className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
           <div className="hidden min-w-0 leading-tight min-[400px]:block">
             <div className="font-display text-[15px] font-bold tracking-[-0.02em] text-foreground sm:text-base">AGFusion</div>
-            <div className="hidden text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground lg:block">On Arc · programmable money</div>
           </div>
         </Link>
 

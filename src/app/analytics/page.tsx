@@ -45,15 +45,15 @@ export default function AnalyticsPage() {
     <div className="mb-6"><h1 className="text-2xl font-semibold tracking-tight text-foreground">Analytics</h1><p className="mt-1 text-sm text-muted-foreground">Built from your session transactions{stats.empty ? ". No transactions recorded yet." : ` · ${transactions.length} tx recorded`}</p></div>
     <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {[
-        { label: "Unified balance", value: allocation.length ? formatUsd(balances.totalUsd) : "N/A", subtitle: "Latest available balance snapshot" },
-        { label: "Tx success rate", value: stats.successRate === null ? "N/A" : `${stats.successRate.toFixed(1)}%`, subtitle: `${stats.successCount} successful / ${transactions.length} recorded (all statuses)` },
-        { label: "Completed USDC volume", value: `${formatUsdc(stats.volumeUsdc)} USDC`, subtitle: "Session total. Successful USDC amounts only; other tokens excluded. Not USD value." },
-        { label: "Avg network fee", value: stats.avgFee === null ? "N/A" : formatUsd(stats.avgFee), subtitle: "Recorded fees only, in USD" },
+        { label: "Unified balance", value: allocation.length ? formatUsd(balances.totalUsd) : "N/A", subtitle: "Latest balance snapshot" },
+        { label: "Tx success rate", value: stats.successRate === null ? "N/A" : `${stats.successRate.toFixed(1)}%`, subtitle: `${stats.successCount} successful of ${transactions.length} total` },
+        { label: "Completed USDC volume", value: `${formatUsdc(stats.volumeUsdc)} USDC`, subtitle: "Total successful USDC in session" },
+        { label: "Avg network fee", value: stats.avgFee === null ? "N/A" : formatUsd(stats.avgFee), subtitle: "Average fee per transaction" },
       ].map((s) => <Card key={s.label} className="min-w-0 border-border bg-card"><CardContent className="p-5"><div className="text-xs uppercase tracking-wider text-muted-foreground">{s.label}</div><div className="mt-2 break-words text-2xl font-semibold tabular-nums text-foreground">{s.value}</div><p className="mt-2 text-xs text-muted-foreground">{s.subtitle}</p></CardContent></Card>)}
     </div>
     <div className="grid gap-5 lg:grid-cols-5">
       <Card className="min-w-0 border-border bg-card lg:col-span-3">
-        <CardHeader><CardTitle className="text-sm text-foreground">Completed USDC volume (last 7 days)</CardTitle><p className="text-xs text-muted-foreground">Successful USDC amounts only, by local date. Other tokens excluded; not USD value.</p></CardHeader>
+        <CardHeader><CardTitle className="text-sm text-foreground">Completed USDC volume (last 7 days)</CardTitle><p className="text-xs text-muted-foreground">Successful USDC amounts by date.</p></CardHeader>
         <CardContent>
           {hasRecentVolume ? <div className="h-64" aria-hidden="true"><ResponsiveContainer width="100%" height="100%">
             <AreaChart data={stats.days} accessibilityLayer={false}>
@@ -74,7 +74,7 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
       <Card className="min-w-0 border-border bg-card lg:col-span-2">
-        <CardHeader><CardTitle className="text-sm text-foreground">Chain usage</CardTitle><p className="text-xs text-muted-foreground">Transaction counts, all statuses. Destination chain, or source if unavailable; networks grouped by chain. Shares rounded to 1 decimal.</p></CardHeader>
+        <CardHeader><CardTitle className="text-sm text-foreground">Chain usage</CardTitle><p className="text-xs text-muted-foreground">Transaction distribution by network.</p></CardHeader>
         <CardContent>
           {stats.empty ? <p className="flex min-h-48 items-center justify-center rounded-xl bg-muted p-5 text-center text-sm text-muted-foreground">No transactions recorded. Chain usage will appear when transactions are available.</p> : <>
             <div className="h-56" aria-hidden="true"><ResponsiveContainer width="100%" height="100%"><PieChart accessibilityLayer={false}>

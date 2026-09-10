@@ -32,16 +32,13 @@ console.log("On-chain settlement hash:", txResult.hash);`
   },
   rpc: {
     language: "bash",
-    filename: "curl-intent.sh",
-    code: `# Dispatch intent via Headless AGFusion JSON-RPC
-curl -X POST https://api.agfusion.io/v1/intent/plan \\
+    filename: "agent-api.sh",
+    code: `# Dispatch intent via agent API
+curl -X POST /api/ai/agent \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer agf_live_99d08e1a" \\
   -d '{
-    "sender": "0x71C...438E",
-    "prompt": "Distribute 1000 USDC payroll across contributor list",
-    "targetSubstrate": "arc-testnet",
-    "safetyChecks": ["formal_verification", "slippage_guard"]
+    "message": "Bridge 5 USDC from Arc to Base",
+    "execute": false
   }'`
   },
   solidity: {
@@ -160,16 +157,16 @@ export function DeveloperTerminal() {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <Cpu className="h-3 w-3 text-accent" />
-            Arc Testnet VM Compatible
+            Arc Testnet (EVM)
           </span>
           <span className="hidden sm:inline text-border">•</span>
-          <span className="hidden sm:inline">TypeScript 5.0+ / Viem v2</span>
+          <span className="hidden sm:inline">TypeScript / Viem</span>
         </div>
         <Link 
           href="/dashboard" 
           className="inline-flex items-center gap-1 text-accent hover:underline font-medium"
         >
-          Explore interactive sandbox <ExternalLink className="h-3 w-3" />
+          Explore in dashboard <ExternalLink className="h-3 w-3" />
         </Link>
       </div>
     </div>

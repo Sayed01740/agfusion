@@ -140,13 +140,13 @@ export default function DashboardPage() {
               <div className="min-w-0 max-w-3xl">
                 <div className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
                   <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-                  Arc Network · Financial Cockpit
+                  Arc Network Workspace
                 </div>
                 <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl lg:text-4xl">
                   Move money <span className="text-gradient">intelligently.</span>
                 </h1>
                 <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-muted-foreground">
-                  AI-assisted crosschain operations on Arc with USDC gas, sub-second finality, and visible cryptographic execution.
+                  AI-assisted crosschain operations on Arc with USDC gas and fast finality.
                 </p>
               </div>
 
@@ -154,7 +154,7 @@ export default function DashboardPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="items-center gap-1.5 border-accent/30 bg-accent/10 px-3 py-1 text-xs text-accent font-mono">
                   <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
-                  Sub-second Finality
+                  Fast Finality
                 </Badge>
                 <Badge variant="outline" className="hidden sm:flex items-center gap-1.5 border-border bg-muted/80 px-3 py-1 text-xs text-muted-foreground font-mono">
                   <Activity aria-hidden="true" className="h-3 w-3 text-accent" />
@@ -188,12 +188,12 @@ export default function DashboardPage() {
 
               <div className="col-span-2 sm:col-span-1 group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Audit Trail</span>
+                  <span>Recent Activity</span>
                   <span className="h-1.5 w-1.5 rounded-full bg-accent/60" />
                 </p>
                 <p className="mt-2 text-lg font-bold text-foreground sm:text-2xl font-display tabular-nums">
                   {transactions.length.toString().padStart(2, "0")}{" "}
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground">Operations</span>
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground">Transactions</span>
                 </p>
               </div>
             </div>

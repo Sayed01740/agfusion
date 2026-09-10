@@ -403,13 +403,9 @@ export function ChatPanel() {
             <h2 className="text-sm font-semibold tracking-wide text-foreground">
               AGFusion Agent
             </h2>
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <span>Plan</span>
-              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/50" />
-              <span>confirm</span>
-              <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/50" />
-              <span>wallet sign</span>
-            </div>
+            <p className="text-[11px] font-medium text-muted-foreground">
+              AI Transaction Assistant
+            </p>
           </div>
         </div>
         <Badge variant="outline" className="gap-1 border-accent/30 bg-accent/10 text-[10px] text-accent">
@@ -484,7 +480,7 @@ export function ChatPanel() {
                   <div className="rounded-xl border border-border bg-background p-3 space-y-1.5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
                     <div className="text-[10px] uppercase tracking-wider text-accent flex items-center gap-1 mb-2 font-mono">
                       <Terminal className="h-3 w-3" />
-                      Agent Sub-Routine [{m.toolTrace.length} calls]
+                      Execution Steps ({m.toolTrace.length})
                     </div>
                     {m.toolTrace.slice(0, 8).map((t, i) => (
                       <div
@@ -549,7 +545,7 @@ export function ChatPanel() {
             {liveTrace.length > 0 && (
               <div className="rounded-xl border border-accent/30 bg-background p-3 text-[11px] text-accent font-mono shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">
                 <div className="flex items-center gap-2 mb-2 text-[10px] text-accent uppercase">
-                  <Terminal className="h-3 w-3" /> Live Terminal
+                  <Terminal className="h-3 w-3" /> Live Execution
                 </div>
                 <div className="space-y-1">
                   {liveTrace.slice(-3).map((t, i) => (
@@ -627,7 +623,7 @@ export function ChatPanel() {
         <p id="agent-message-hint" className="sr-only">Enter to send. Shift+Enter for a new line.</p>
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-1">
           <Zap className="h-3 w-3 text-accent" />
-          Live only · tools first · Confirm · wallet signature required
+          Requires wallet confirmation before execution
         </div>
       </div>
 

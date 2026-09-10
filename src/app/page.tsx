@@ -15,10 +15,9 @@ import {
   Sparkles, 
   CheckCircle2, 
   Globe,
-  Sliders
+  Sliders,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { HeroCockpit } from "@/components/landing/hero-cockpit";
 import { DeveloperTerminal } from "@/components/landing/developer-terminal";
 
 const CAPABILITIES = [
@@ -39,7 +38,7 @@ const CAPABILITIES = [
   {
     icon: Route,
     number: "03",
-    title: "Cross-Chain Liquidity Substrate",
+    title: "Cross-Chain Liquidity & Bridging",
     description: "Native Circle CCTP stablecoin bridging across Arc Testnet, Base, Arbitrum, and EVM testnets with zero wrapped asset risk.",
     badge: "Multi-Chain",
   },
@@ -55,42 +54,42 @@ const CAPABILITIES = [
     number: "05",
     title: "Cryptographic Audit Trails",
     description: "Every plan produces a human-readable diff, state change simulation, and verifiable cryptographic execution receipt.",
-    badge: "Formally Verified",
+    badge: "Auditable",
   },
   {
     icon: Cpu,
     number: "06",
     title: "Headless Developer SDK",
-    description: "Integrate autonomous on-chain intent routing into your decentralized application with less than 5 lines of TypeScript.",
-    badge: "API & Hooks",
+    description: "Integrate autonomous on-chain intent routing into your decentralized application with clean TypeScript APIs.",
+    badge: "SDK & Hooks",
   },
 ];
 
 const METRICS = [
-  { label: "Total Simulated Volume", value: "$148.5M+", sub: "Across Arc & EVM Testnets" },
-  { label: "Execution Finality", value: "< 850ms", sub: "Arc Substrate Consensus" },
-  { label: "Multi-Chain Substrates", value: "5+ Networks", sub: "Arc, Base, Arbitrum, OP, Sepolia" },
-  { label: "Simulation Accuracy", value: "99.98%", sub: "Zero Reverted Signatures" },
+  { label: "Target Network", value: "Arc Testnet", sub: "Chain ID 5042002" },
+  { label: "Native Fee Asset", value: "USDC", sub: "Gas paid directly in USDC" },
+  { label: "Settlement Speed", value: "< 1s", sub: "Fast finality on Arc" },
+  { label: "Cross-Chain Support", value: "EVM + CCTP", sub: "Arc, Base & Ethereum" },
 ];
 
 const ARCHITECTURE_STEPS = [
   {
     step: "01",
     title: "Intent Parsing & Disambiguation",
-    desc: "User expresses goals via UI or API. The multi-model agent maps intents to deterministic smart contract signatures.",
-    tag: "Client-Side Ingestion"
+    desc: "User expresses goals via UI or API. The agent maps natural language intents to deterministic contract calls.",
+    tag: "Intent Parsing"
   },
   {
     step: "02",
     title: "State Simulation & Safety Guard",
-    desc: "Pre-flight RPC calls verify gas overhead, address hygiene, and slippage thresholds before prompting any wallet.",
-    tag: "Formal Verification"
+    desc: "Pre-flight RPC checks verify gas overhead, address hygiene, and slippage thresholds before prompting any wallet.",
+    tag: "Pre-Flight Guard"
   },
   {
     step: "03",
     title: "Atomic On-Chain Settlement",
-    desc: "User approves via Web3 wallet. Arc Substrate settles the transaction with sub-second finality and cryptographic proof.",
-    tag: "Substrate Finality"
+    desc: "User approves via Web3 wallet. Arc Network settles the transaction with sub-second finality and cryptographic proof.",
+    tag: "Arc Settlement"
   }
 ];
 
@@ -98,66 +97,59 @@ export default function LandingPage() {
   return (
     <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16 pt-4">
       {/* ─────────────────────────────────────────────────────────────
-          SECTION 1: HERO WITH LIVE AGENT INTENT COCKPIT
+          SECTION 1: HERO
          ───────────────────────────────────────────────────────────── */}
       <section 
-        className="grid items-center gap-12 py-8 sm:py-16 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:py-20" 
+        className="flex flex-col items-center text-center py-12 sm:py-20 lg:py-24 max-w-4xl mx-auto" 
         aria-labelledby="hero-title"
       >
-        <div>
-          {/* Status Indicator Pill */}
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3.5 py-1.5 text-xs font-medium text-accent backdrop-blur-md">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
-            </span>
-            <span className="font-mono">Arc Substrate & Multi-Chain EVM v2.4 Live</span>
-          </div>
-
-          {/* Main Display Headline */}
-          <h1 
-            id="hero-title" 
-            className="text-[clamp(2.5rem,5.2vw,4.5rem)] font-bold leading-[1.06] tracking-tight text-foreground font-display"
-          >
-            Autonomous AI Infrastructure for <br className="hidden sm:inline" />
-            <span className="text-gradient-pro">Modern Web3.</span>
-          </h1>
-
-          {/* Subtitle Value Proposition */}
-          <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-            Transform complex multi-chain liquidity, cross-chain swaps, and treasury operations into verified, non-custodial transactions. Zero slippage routing and instant finality on Arc Testnet.
-          </p>
-
-          {/* CTA Cluster */}
-          <div className="mt-8 flex flex-col gap-3.5 sm:flex-row">
-            <Button asChild size="lg" className="shimmer-button active-tactile min-h-12 px-7 text-base font-semibold shadow-lg shadow-accent/20 cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90">
-              <Link href="/dashboard" className="flex items-center gap-2">
-                Launch App Console <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/10 hover:border-accent/40 bg-card/60 backdrop-blur-md cursor-pointer">
-              <Link href="#architecture" className="flex items-center gap-2 text-foreground">
-                Protocol Architecture <ArrowRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-
-          {/* Micro Assurance */}
-          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <ShieldCheck aria-hidden="true" className="h-4 w-4 text-accent shrink-0" />
-              100% Non-Custodial (No Seed Storage)
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-accent shrink-0" />
-              Formal Pre-Flight Verification
-            </span>
-          </div>
+        {/* Status Indicator Pill */}
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3.5 py-1.5 text-xs font-medium text-accent backdrop-blur-md">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+          </span>
+          <span className="font-mono">Arc Testnet Live</span>
         </div>
 
-        {/* Right Hero: Interactive Cockpit */}
-        <div>
-          <HeroCockpit />
+        {/* Main Display Headline */}
+        <h1 
+          id="hero-title" 
+          className="text-[clamp(2.5rem,5.5vw,4.5rem)] font-bold leading-[1.08] tracking-tight text-foreground font-display"
+        >
+          Autonomous AI Infrastructure for <br className="hidden sm:inline" />
+          <span className="text-gradient-pro">Modern Web3.</span>
+        </h1>
+
+        {/* Subtitle Value Proposition */}
+        <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+          Transform complex multi-chain liquidity, cross-chain swaps, and treasury operations into verified, non-custodial transactions. Zero slippage routing and instant finality on Arc Testnet.
+        </p>
+
+        {/* CTA Cluster */}
+        <div className="mt-8 flex flex-col gap-3.5 sm:flex-row justify-center">
+          <Button asChild size="lg" className="shimmer-button active-tactile min-h-12 px-8 text-base font-semibold shadow-lg shadow-accent/20 cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              Launch App Console <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/10 hover:border-accent/40 bg-card/60 backdrop-blur-md cursor-pointer">
+            <Link href="#architecture" className="flex items-center gap-2 text-foreground">
+              Protocol Architecture <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        {/* Micro Assurance */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <ShieldCheck aria-hidden="true" className="h-4 w-4 text-accent shrink-0" />
+            100% Non-Custodial (No Seed Storage)
+          </span>
+          <span className="flex items-center gap-2">
+            <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-accent shrink-0" />
+            Pre-Flight Verification
+          </span>
         </div>
       </section>
 
@@ -265,7 +257,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="mt-6 pt-4 border-t border-border/50 flex items-center gap-1.5 text-xs text-accent">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Stage {idx + 1} Automated
+                <CheckCircle2 className="h-3.5 w-3.5" /> Stage {idx + 1}
               </div>
             </div>
           ))}
@@ -279,7 +271,7 @@ export default function LandingPage() {
         <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
-              Developer Substrate
+              Developer SDK
             </p>
             <h2 id="developer-title" className="mt-2.5 text-3xl font-bold text-foreground sm:text-4xl font-display">
               Build with the Autonomous Agent SDK.
@@ -297,7 +289,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          SECTION 6: ECOSYSTEM SUBSTRATE MARQUEE
+          SECTION 6: ECOSYSTEM PARTNERS MARQUEE
          ───────────────────────────────────────────────────────────── */}
       <section aria-label="Ecosystem Partners" className="my-8 border-t border-white/10 py-12">
         <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 font-mono mb-6">
@@ -305,7 +297,7 @@ export default function LandingPage() {
         </p>
         <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-14 opacity-70 grayscale hover:grayscale-0 transition-all duration-300">
           <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
-            <Globe className="h-4 w-4 text-accent" /> Arc Substrate
+            <Globe className="h-4 w-4 text-accent" /> Arc Network
           </div>
           <div className="flex items-center gap-2 font-display text-sm font-semibold text-foreground tracking-wide">
             <ShieldCheck className="h-4 w-4 text-accent" /> Circle Programmable Wallets
@@ -353,7 +345,7 @@ export default function LandingPage() {
           </div>
           <p className="mt-6 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-accent" />
-            Zero centralized custody • Formal verification active • Fully auditable
+            100% Non-custodial • Client approval required • Verifiable execution
           </p>
         </div>
       </section>

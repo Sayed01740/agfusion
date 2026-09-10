@@ -36,11 +36,11 @@ const SCENARIOS: IntentScenario[] = [
     label: "Cross-Chain Bridge",
     prompt: "Bridge 25 USDC from Arc to Base via CCTP with minimal slippage",
     action: "Bridge & Settle",
-    network: "Arc Testnet (Substrate)",
+    network: "Arc Testnet",
     targetChain: "Base Sepolia",
     amount: "25.00 USDC",
-    estGas: "< $0.002 (0.00008 ETH)",
-    executionMode: "ZeroDev Account Abstraction",
+    estGas: "< $0.002",
+    executionMode: "Circle CCTP Bridge",
     hash: "0x8f2a...e41c",
     steps: [
       "Verify client signature (EIP-712)",
@@ -51,35 +51,35 @@ const SCENARIOS: IntentScenario[] = [
   {
     id: "swap",
     label: "Optimal Swap",
-    prompt: "Swap 100 USDC to ARC at best available market depth",
+    prompt: "Swap 100 USDC to EURC at best available rate",
     action: "Algorithmic Swap",
     network: "Arc Testnet",
-    targetChain: "Arc Native DEX",
-    amount: "100.00 USDC → 100.00 ARC",
+    targetChain: "Arc Testnet",
+    amount: "100.00 USDC → 92.40 EURC",
     estGas: "< $0.001",
-    executionMode: "Circle Programmable Wallet",
+    executionMode: "Circle FX Protocol",
     hash: "0x3c7d...99b2",
     steps: [
-      "Aggregate mempool liquidity quotes",
-      "Route execution through optimal pool",
-      "Zero-slippage atomic settlement"
+      "Fetch live pool rate quote",
+      "Route execution through liquidity pool",
+      "Instant atomic settlement"
     ]
   },
   {
     id: "batch",
     label: "Treasury Payroll",
-    prompt: "Disburse 50 USDC split equally among 2 audited dev wallets",
+    prompt: "Disburse 50 USDC split equally among 2 recipient wallets",
     action: "Batch Multi-Send",
     network: "Arc Testnet",
     targetChain: "Multi-Recipient (2)",
     amount: "50.00 USDC (25 each)",
-    estGas: "< $0.003 (Batch discount)",
-    executionMode: "Safe Multi-Sig / ERC-4337",
+    estGas: "< $0.003",
+    executionMode: "Batch Disperse",
     hash: "0x6e1b...aa54",
     steps: [
-      "Validate recipient compliance status",
-      "Construct single multi-call transaction",
-      "Simulate state change & sign"
+      "Validate recipient addresses",
+      "Construct single batch transaction",
+      "Simulate execution & sign"
     ]
   }
 ];
@@ -88,15 +88,6 @@ export function HeroCockpit() {
   const [activeScenario, setActiveScenario] = useState<IntentScenario>(SCENARIOS[0]);
   const [isSimulating, setIsSimulating] = useState(false);
   const [customInput, setCustomInput] = useState("");
-  const [blockHeight, setBlockHeight] = useState(489124);
-
-  // Live block height increment simulation
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setBlockHeight((prev) => prev + 1);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
 
   const handleSelectScenario = (scenario: IntentScenario) => {
     setIsSimulating(true);
@@ -115,16 +106,16 @@ export function HeroCockpit() {
       label: "Custom Intent",
       prompt: customInput,
       action: "Autonomous Execution",
-      network: "Arc Testnet (Substrate)",
-      targetChain: "Arc Native Ecosystem",
+      network: "Arc Testnet",
+      targetChain: "Arc Ecosystem",
       amount: "Verified Intent Payload",
-      estGas: "< $0.001 (Optimized)",
+      estGas: "< $0.001",
       executionMode: "Non-Custodial ERC-4337",
       hash: mockHash,
       steps: [
         "Natural language intent parsing",
         "Deterministic parameter extraction",
-        "Mempool gas & route simulation",
+        "Fee & route simulation",
         "Awaiting client approval"
       ]
     });
@@ -145,22 +136,19 @@ export function HeroCockpit() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold tracking-tight text-foreground font-display">AI Intent Cockpit</p>
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent border border-accent/25">
-                v2.4 Active
-              </span>
+              <p className="text-sm font-semibold tracking-tight text-foreground font-display">AI Intent Simulator</p>
             </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
               <Activity className="h-3 w-3 text-accent" />
-              Sub-second route & intent verification
+              Simulate natural language intent workflows
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-muted/60 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            Arc Substrate: #{blockHeight.toLocaleString()}
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+            Arc Testnet
           </div>
         </div>
       </div>
@@ -169,9 +157,8 @@ export function HeroCockpit() {
       <div className="mt-5">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-            Simulate Real-World Intents:
+            Sample Intents:
           </p>
-          <span className="text-[10px] font-mono text-accent">0.38s LATENCY</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {SCENARIOS.map((scenario) => {
@@ -224,8 +211,7 @@ export function HeroCockpit() {
           <Terminal className="h-4 w-4 text-accent shrink-0 mt-0.5" />
           <div className="w-full">
             <div className="flex items-center justify-between text-[11px] font-mono text-muted-foreground mb-1">
-              <span>NATURAL_INTENT_STREAM</span>
-              <span className="text-accent/90">EIP-712 VERIFIED</span>
+              <span>NATURAL LANGUAGE INTENT</span>
             </div>
             <p className="text-sm font-medium text-foreground leading-relaxed">
               &ldquo;{activeScenario.prompt}&rdquo;
@@ -238,7 +224,7 @@ export function HeroCockpit() {
       <div className={`rounded-2xl border border-white/10 bg-background/90 p-5 shadow-lg backdrop-blur-md transition-opacity duration-200 ${isSimulating ? "opacity-35" : "opacity-100"}`}>
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-accent">
-            <Check className="h-4 w-4" /> Deterministic Execution Plan
+            <Check className="h-4 w-4" /> Planned Execution
           </div>
           <span className="font-mono text-[11px] text-muted-foreground">
             Hash: {activeScenario.hash}
@@ -248,13 +234,13 @@ export function HeroCockpit() {
         {/* Dynamic Amount / Value */}
         <div className="mt-4 flex items-baseline justify-between">
           <div>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">Payload Volume</span>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">Amount</span>
             <p className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl mt-0.5 text-gradient-pro">
               {activeScenario.amount}
             </p>
           </div>
           <div className="text-right">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">Est. Network Fee</span>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">Est. Gas</span>
             <p className="font-mono text-xs font-semibold text-emerald-400 mt-1">
               {activeScenario.estGas}
             </p>
@@ -264,15 +250,15 @@ export function HeroCockpit() {
         {/* Telemetry Parameter Table */}
         <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/5 bg-card/60 p-3 text-xs">
           <div>
-            <dt className="text-muted-foreground text-[11px]">Origin Substrate</dt>
+            <dt className="text-muted-foreground text-[11px]">Network</dt>
             <dd className="font-medium text-foreground mt-0.5">{activeScenario.network}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground text-[11px]">Settlement Target</dt>
+            <dt className="text-muted-foreground text-[11px]">Destination</dt>
             <dd className="font-medium text-accent mt-0.5">{activeScenario.targetChain}</dd>
           </div>
           <div className="col-span-2 pt-2 border-t border-border/40">
-            <dt className="text-muted-foreground text-[11px]">Key Governance</dt>
+            <dt className="text-muted-foreground text-[11px]">Execution Method</dt>
             <dd className="font-medium text-foreground flex items-center gap-1.5 mt-0.5">
               <ShieldCheck className="h-3.5 w-3.5 text-accent" />
               {activeScenario.executionMode}
@@ -282,7 +268,7 @@ export function HeroCockpit() {
 
         {/* Multi-step execution roadmap */}
         <div className="mt-4 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Automated Route Steps</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Execution Steps</p>
           {activeScenario.steps.map((step, idx) => (
             <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-accent/15 text-[10px] font-mono font-bold text-accent">
@@ -297,11 +283,11 @@ export function HeroCockpit() {
         <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between gap-3">
           <span className="text-xs text-muted-foreground flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-            Client sign required
+            Requires wallet signature
           </span>
           <Button asChild size="sm" className="shimmer-button bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer">
             <Link href="/dashboard" className="flex items-center gap-1.5">
-              Test in Workspace <ArrowUpRight className="h-3.5 w-3.5" />
+              Open in Workspace <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </Button>
         </div>
@@ -311,10 +297,7 @@ export function HeroCockpit() {
       <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground px-1">
         <span className="flex items-center gap-1.5">
           <Zap className="h-3.5 w-3.5 text-accent" />
-          Pre-execution slippage simulation & protection
-        </span>
-        <span className="font-mono text-[10px] text-muted-foreground/80 hidden sm:inline">
-          ZERO_KEY_STORAGE
+          Pre-execution simulation & slippage protection
         </span>
       </div>
     </div>
