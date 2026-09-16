@@ -50,7 +50,10 @@ function loadCircleMeta(): ActiveWalletMeta | null {
       wallets?: Array<{ address?: string; blockchain?: string }>;
     };
     if (parsed?.uuid !== "circle-pw") return null;
-    const arc = parsed.wallets?.find((w) => w.blockchain === "ARC-TESTNET");
+    const arc =
+      parsed.wallets?.find((w) => w.blockchain === "ARC") ||
+      parsed.wallets?.find((w) => w.blockchain === "ARC-TESTNET") ||
+      parsed.wallets?.[0];
     if (!arc?.address) return null;
     return {
       uuid: "circle-pw",

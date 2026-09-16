@@ -92,7 +92,9 @@ export async function POST(req: Request) {
   }
   if (chainId) {
     const expectedBlockchain = circleBlockchainForChainId(chainId);
-    if (owned.wallet.blockchain !== expectedBlockchain) {
+    const isArcTarget = chainId === 5042 || chainId === 5042002;
+    const isArcWallet = owned.wallet.blockchain === "ARC" || owned.wallet.blockchain === "ARC-TESTNET";
+    if (owned.wallet.blockchain !== expectedBlockchain && !(isArcTarget && isArcWallet)) {
       return NextResponse.json(
         {
           error: "wallet_chain_mismatch",

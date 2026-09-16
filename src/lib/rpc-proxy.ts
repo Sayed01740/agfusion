@@ -14,6 +14,8 @@ export const ARC_EXPECTED_CHAIN_ID_HEX = ARC_CHAIN_ID_HEX;
 /** Expected EVM chain IDs for every chain exposed by the bridge UI. */
 export const EXPECTED_CHAIN_IDS: Record<string, string> = {
   arc: ARC_EXPECTED_CHAIN_ID_HEX,
+  arc_mainnet: "0x13b2",
+  arc_testnet: "0x4cef52",
   base: "0x14a34",
   eth: "0xaa36a7",
   arb: "0x66eee",
@@ -38,6 +40,17 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
         "https://rpc.drpc.testnet.arc.io",
         "https://rpc.quicknode.testnet.arc.io",
       ],
+  arc_mainnet: [
+    "https://rpc.mainnet.arc.io",
+    "https://rpc.arc.network",
+  ],
+  arc_testnet: [
+    "https://rpc.testnet.arc.io",
+    "https://rpc.testnet.arc.network",
+    "https://rpc.blockdaemon.testnet.arc.io",
+    "https://rpc.drpc.testnet.arc.io",
+    "https://rpc.quicknode.testnet.arc.io",
+  ],
   base: [
     // Base's public endpoint is rate-limited, so keep it as a last resort.
     "https://base-sepolia-rpc.publicnode.com",

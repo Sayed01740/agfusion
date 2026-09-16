@@ -46,7 +46,9 @@ describe("circle-pw-server validators (Phase 3)", () => {
   });
 
   it("validates blockchains and user tokens", () => {
+    expect(isValidBlockchain("ARC")).toBe(true);
     expect(isValidBlockchain("ARC-TESTNET")).toBe(true);
+    expect(isValidBlockchain("BASE")).toBe(true);
     expect(isValidBlockchain("BASE-SEPOLIA")).toBe(true);
     expect(isValidBlockchain("ETHEREUM-SEPOLIA")).toBe(false);
     expect(isValidUserToken("0123456789abcdef")).toBe(true);
@@ -55,7 +57,9 @@ describe("circle-pw-server validators (Phase 3)", () => {
   });
 
   it("maps chain ids to Circle blockchains (only supported chains)", () => {
+    expect(circleBlockchainForChainId(5042)).toBe("ARC");
     expect(circleBlockchainForChainId(5042002)).toBe("ARC-TESTNET");
+    expect(circleBlockchainForChainId(8453)).toBe("BASE");
     expect(circleBlockchainForChainId(84532)).toBe("BASE-SEPOLIA");
     expect(circleBlockchainForChainId(11155111)).toBeNull();
     expect(circleBlockchainForChainId(57054)).toBeNull();

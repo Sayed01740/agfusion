@@ -29,7 +29,11 @@ import {
   type DiscoveredWallet,
   type InjectedProvider,
 } from "@/sdk/wallet-adapter";
-import { getActiveWalletMeta, setActiveProvider } from "@/sdk/active-wallet";
+import {
+  getActiveProvider,
+  getActiveWalletMeta,
+  setActiveProvider,
+} from "@/sdk/active-wallet";
 import { usePilotStore } from "@/store/pilot-store";
 import { isAppKitInstalled } from "@/sdk/appkit-client";
 import { WalletModal } from "@/components/wallet/wallet-modal";
@@ -60,6 +64,7 @@ type WalletContextValue = {
   error: string | null;
   clearError: () => void;
   enableAgentMode: () => Promise<void>;
+  connectCircleWallet: (circleProvider: InjectedProvider, address: string) => void;
 };
 
 const WalletContext = createContext<WalletContextValue | null>(null);
@@ -469,14 +474,42 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     usePilotStore.getState().setWalletType("evm");
   }, [setWallet, setLiveBalance, setAuthenticated]);
 
+  const connectCircleWallet = useCallback(
+    (circleProvider: InjectedProvider, address: string) => {
+      setProvider(circleProvider);
+      setWallet(address, ARC_CHAIN_ID);
+      setWalletName("Circle Email Wallet");
+      setAuthLocal(true);
+      usePilotStore.getState().setWalletType("circle");
+      usePilotStore.getState().setAuthenticated(true);
+    },
+    [setWallet],
+  );
+
   const switchToArc = useCallback(
     async (targetChainId?: 5042 | 5042002) => {
       setError(null);
       try {
-        const p = provider || (await getInjectedProvider());
+        const p = provider || (getActiveProvider() as InjectedProvider) || (await getInjectedProvider());
         const target = targetChainId || (ARC_CHAIN_ID as 5042 | 5042002);
         const switchedId = await switchToArcNetwork(p, target);
-        if (walletAddress) setWallet(walletAddress, switchedId);
+        
+        let nextAddress = walletAddress;
+        if (usePilotStore.getState().walletType === "circle") {
+          try {
+            const accs = (await p.request({ method: "eth_accounts" })) as string[];
+            if (accs?.[0]) nextAddress = accs[0];
+          } catch {}
+          setProvider(p);
+          setActiveProvider(p, {
+            uuid: "circle-pw",
+            name: "Circle Email Wallet",
+            address: (nextAddress || "").toLowerCase(),
+            smartAccountAddress: (nextAddress || "").toLowerCase(),
+          });
+        }
+
+        if (nextAddress) setWallet(nextAddress, switchedId);
         await refreshBalance();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to switch network");
@@ -517,6 +550,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       error,
       clearError: () => setError(null),
       enableAgentMode,
+      connectCircleWallet,
     }),
     [
       connecting,
@@ -537,6 +571,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       signInSiwe,
       error,
       enableAgentMode,
+      connectCircleWallet,
     ],
   );
 
@@ -550,6 +585,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           setError(null);
         }}
         onSelect={(w) => void connectWith(w)}
+        onConnectCircle={connectCircleWallet}
         connecting={connecting}
         error={error}
       />

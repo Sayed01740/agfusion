@@ -43,12 +43,14 @@ export function WalletModal({
   open,
   onClose,
   onSelect,
+  onConnectCircle,
   connecting,
   error,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (wallet: DiscoveredWallet) => void;
+  onConnectCircle?: (provider: any, address: string) => void;
   connecting?: boolean;
   error?: string | null;
 }) {
@@ -131,6 +133,7 @@ export function WalletModal({
                 // the Circle wallet.
                 usePilotStore.getState().setWallet(address, ARC_CHAIN_ID);
                 usePilotStore.getState().setAuthenticated(true);
+                onConnectCircle?.(mockProvider as any, address);
                 
                 alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on ${ARC_NETWORK_NAME}. This same Circle smart-wallet address can be used by Auto-Agent.`);
                 onClose();

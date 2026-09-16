@@ -63,7 +63,8 @@ export async function POST(req: Request) {
       accountType: wallet.accountType,
     })),
     address:
-      wallets.find((wallet: { blockchain?: string }) => wallet.blockchain === "ARC-TESTNET")
-        ?.address ?? wallets[0].address,
+      wallets.find((wallet: { blockchain?: string }) => wallet.blockchain === "ARC")?.address ??
+      wallets.find((wallet: { blockchain?: string }) => wallet.blockchain === "ARC-TESTNET")?.address ??
+      wallets[0].address,
   });
 }

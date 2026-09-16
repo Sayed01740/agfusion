@@ -36,7 +36,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 1,
-    rpcProxyKey: "arc",
+    rpcProxyKey: "arc_mainnet",
     explorerUrl: "https://explorer.arc.io",
   },
   Arc_Mainnet: {
@@ -48,7 +48,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 1,
-    rpcProxyKey: "arc",
+    rpcProxyKey: "arc_mainnet",
     explorerUrl: "https://explorer.arc.io",
   },
   Arc_Testnet: {
@@ -60,7 +60,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 1,
-    rpcProxyKey: "arc",
+    rpcProxyKey: "arc_testnet",
     explorerUrl: ARC_EXPLORER,
   },
   Base_Sepolia: {

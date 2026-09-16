@@ -1,7 +1,7 @@
 import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
 import { type Address } from "viem";
-import { CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
-import { cctpConfigByChainId } from "@/lib/cctp-chains";
+import { CIRCLE_BRIDGE_CHAINS, CCTP_CHAIN_CONFIG, cctpConfigByChainId } from "@/lib/cctp-chains";
+import { ARC_CHAIN_ID, ARC_CHAIN_ID_HEX, IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 let circleSdk: W3SSdk | null = null;
 let circleSdkAppId: string | null = null;
@@ -174,9 +174,13 @@ export async function authenticateWithCircleEmail(
   sdk.setAuthentication({ userToken: data.userToken, encryptionKey: data.encryptionKey });
 
   let wallets = await listWallets(data.userToken);
-  const wanted = CIRCLE_BRIDGE_CHAINS.map(
-    (c) => cctpConfigByChainId(c === "Arc_Testnet" ? 5042002 : 84532)?.circleBlockchain,
-  ).filter(Boolean) as string[];
+  const wanted = Array.from(
+    new Set(
+      CIRCLE_BRIDGE_CHAINS.map((c) => CCTP_CHAIN_CONFIG[c]?.circleBlockchain).filter(
+        (bc): bc is string => Boolean(bc),
+      ),
+    ),
+  );
 
   if (!wanted.every((bc) => wallets.some((w) => w.blockchain === bc))) {
     const challengeRes = await fetch("/api/circle/pw/challenge", {
@@ -190,8 +194,13 @@ export async function authenticateWithCircleEmail(
     wallets = await listWallets(data.userToken);
   }
 
-  const arcWallet = wallets.find((wallet) => wallet.blockchain === "ARC-TESTNET");
-  if (!arcWallet) throw new Error("Circle did not return an Arc Testnet wallet after approval.");
+  const preferredBlockchain = IS_ARC_MAINNET ? "ARC" : "ARC-TESTNET";
+  const arcWallet =
+    wallets.find((wallet) => wallet.blockchain === preferredBlockchain) ||
+    wallets.find((wallet) => wallet.blockchain === "ARC") ||
+    wallets.find((wallet) => wallet.blockchain === "ARC-TESTNET") ||
+    wallets[0];
+  if (!arcWallet) throw new Error("Circle did not return an Arc wallet after approval.");
 
   saveCircleSession({
     userToken: data.userToken,
@@ -222,7 +231,9 @@ async function syncCircleAuthServer(
 }
 
 function circleBlockchainForChainId(chainId: number): string | null {
+  if (chainId === 5042) return "ARC";
   if (chainId === 5042002) return "ARC-TESTNET";
+  if (chainId === 8453) return "BASE";
   if (chainId === 84532) return "BASE-SEPOLIA";
   return null;
 }
@@ -231,7 +242,7 @@ function rpcProxyKeyForChainId(chainId: number): string {
   return cctpConfigByChainId(chainId)?.rpcProxyKey ?? "arc";
 }
 
-const CIRCLE_SUPPORTED_CHAIN_IDS = new Set<number>([5042002, 84532]);
+const CIRCLE_SUPPORTED_CHAIN_IDS = new Set<number>([5042, 5042002, 8453, 84532]);
 
 async function forwardRpcToProxy(chainId: number, method: string, params: unknown[]): Promise<unknown> {
   const chainKey = rpcProxyKeyForChainId(chainId);
@@ -256,33 +267,73 @@ export function createCircleMockProvider(options: {
   chainIdRef: { value: string };
   session?: () => CircleSession | null;
 }): {
-  provider: { request: (args: any) => Promise<unknown>; on: () => void; removeListener: () => void };
+  provider: {
+    request: (args: any) => Promise<unknown>;
+    on: (event: string, fn: (...args: any[]) => void) => void;
+    removeListener: (event: string, fn: (...args: any[]) => void) => void;
+  };
   getChainIdHex: () => string;
 } {
   const { address, chainIdRef, session } = options;
   const sessionGetter = session ?? (() => getCircleSession());
+  const activeAddressRef = { value: address };
+  const listeners = new Map<string, Set<(...args: any[]) => void>>();
+
+  const emit = (event: string, ...payload: any[]) => {
+    const set = listeners.get(event);
+    if (set) {
+      for (const fn of set) {
+        try {
+          fn(...payload);
+        } catch {}
+      }
+    }
+  };
+
   const provider = {
     request: async (args: any) => {
       switch (args.method) {
         case "eth_accounts":
-        case "eth_requestAccounts": return [address];
+        case "eth_requestAccounts": {
+          const currentChainId = Number.parseInt(chainIdRef.value, 16);
+          const blockchain = circleBlockchainForChainId(currentChainId);
+          const currentSession = sessionGetter();
+          const matched = currentSession?.wallets?.find((w) => w.blockchain === blockchain);
+          if (matched?.address) activeAddressRef.value = matched.address;
+          return [activeAddressRef.value];
+        }
         case "eth_chainId": return chainIdRef.value;
         case "wallet_switchEthereumChain": {
           const target = args.params?.[0]?.chainId;
           const chainId = target ? Number.parseInt(String(target), 16) : NaN;
           if (!Number.isFinite(chainId) || !CIRCLE_SUPPORTED_CHAIN_IDS.has(chainId)) {
-            throw new Error(`Circle Email Wallet cannot switch to chain ${target ?? "unknown"}. Supported: Arc Testnet (5042002) and Base Sepolia (84532).`);
+            throw new Error(`Circle Email Wallet cannot switch to chain ${target ?? "unknown"}. Supported: Arc Mainnet (5042), Arc Testnet (5042002), and Base Sepolia (84532).`);
           }
           const blockchain = circleBlockchainForChainId(chainId);
-          const session = sessionGetter();
-          if (!session?.wallets?.some((w) => w.blockchain === blockchain)) {
+          const currentSession = sessionGetter();
+          const matched = currentSession?.wallets?.find((w) => w.blockchain === blockchain);
+          if (matched?.address) {
+            activeAddressRef.value = matched.address;
+          } else if (!currentSession?.wallets?.some((w) => w.blockchain === "ARC" || w.blockchain === "ARC-TESTNET")) {
             throw new Error(`No Circle ${blockchain} wallet found. Reconnect your Circle Email Wallet to create one.`);
           }
-          chainIdRef.value = `0x${chainId.toString(16)}`.toLowerCase();
+          const newHex = `0x${chainId.toString(16)}`.toLowerCase();
+          chainIdRef.value = newHex;
+          emit("chainChanged", newHex);
+          emit("accountsChanged", [activeAddressRef.value]);
           return null;
         }
-        case "wallet_addEthereumChain":
-          throw new Error("Circle Email Wallet cannot add networks. Only Arc Testnet and Base Sepolia are supported.");
+        case "wallet_addEthereumChain": {
+          const target = args.params?.[0]?.chainId;
+          const chainId = target ? Number.parseInt(String(target), 16) : NaN;
+          if (Number.isFinite(chainId) && CIRCLE_SUPPORTED_CHAIN_IDS.has(chainId)) {
+            const newHex = `0x${chainId.toString(16)}`.toLowerCase();
+            chainIdRef.value = newHex;
+            emit("chainChanged", newHex);
+            return null;
+          }
+          throw new Error("Circle Email Wallet only supports Arc Mainnet (5042), Arc Testnet (5042002), and Base Sepolia (84532).");
+        }
         case "personal_sign":
         case "eth_sign":
           throw new Error("personal_sign is not supported for Circle Email Wallet. Circle transactions are approved through the Circle PIN/security challenge instead.");
@@ -297,12 +348,12 @@ export function createCircleMockProvider(options: {
         case "eth_estimateGas": {
           const chainId = Number.parseInt(chainIdRef.value, 16);
           const tx = args.params?.[0] || {};
-          return forwardRpcToProxy(chainId, "eth_estimateGas", [{ ...tx, from: tx.from ?? address }, ...(Array.isArray(args.params) ? args.params.slice(1) : [])]);
+          return forwardRpcToProxy(chainId, "eth_estimateGas", [{ ...tx, from: tx.from ?? activeAddressRef.value }, ...(Array.isArray(args.params) ? args.params.slice(1) : [])]);
         }
         case "eth_call": {
           const chainId = Number.parseInt(chainIdRef.value, 16);
           const tx = args.params?.[0] || {};
-          return forwardRpcToProxy(chainId, "eth_call", [{ ...tx, from: tx.from ?? address }, ...(Array.isArray(args.params) ? args.params.slice(1) : [])]);
+          return forwardRpcToProxy(chainId, "eth_call", [{ ...tx, from: tx.from ?? activeAddressRef.value }, ...(Array.isArray(args.params) ? args.params.slice(1) : [])]);
         }
         case "eth_gasPrice": return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), "eth_gasPrice", []);
         case "eth_maxPriorityFeePerGas": return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), "eth_maxPriorityFeePerGas", []);
@@ -314,8 +365,13 @@ export function createCircleMockProvider(options: {
           return forwardRpcToProxy(Number.parseInt(chainIdRef.value, 16), args.method, args.params || []);
       }
     },
-    on: () => {},
-    removeListener: () => {},
+    on: (event: string, fn: (...args: any[]) => void) => {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)!.add(fn);
+    },
+    removeListener: (event: string, fn: (...args: any[]) => void) => {
+      listeners.get(event)?.delete(fn);
+    },
   };
   return { provider, getChainIdHex: () => chainIdRef.value };
 }
@@ -327,7 +383,12 @@ export async function restoreCircleSession(): Promise<{
 } | null> {
   const session = loadCircleSession();
   if (!session) return null;
-  const arcWallet = session.wallets.find((w) => w.blockchain === "ARC-TESTNET");
+  const preferred = IS_ARC_MAINNET ? "ARC" : "ARC-TESTNET";
+  const arcWallet =
+    session.wallets.find((w) => w.blockchain === preferred) ||
+    session.wallets.find((w) => w.blockchain === "ARC") ||
+    session.wallets.find((w) => w.blockchain === "ARC-TESTNET") ||
+    session.wallets[0];
   if (!arcWallet) return null;
   const sdk = await getCircleSdk();
 
@@ -350,7 +411,7 @@ export async function restoreCircleSession(): Promise<{
   }
 
   sdk.setAuthentication({ userToken, encryptionKey });
-  const chainIdRef = { value: "0x4cef52" };
+  const chainIdRef = { value: ARC_CHAIN_ID_HEX };
   const { provider } = createCircleMockProvider({ address: arcWallet.address, chainIdRef });
   void syncCircleAuthServer(userToken, arcWallet.id, arcWallet.address);
   return { address: arcWallet.address, wallets: session.wallets, provider };
@@ -366,7 +427,13 @@ export async function executeCircleContractTransaction(params: {
   if (!session) throw new Error("Circle wallet session expired. Reconnect your Circle Email Wallet.");
   const blockchain = circleBlockchainForChainId(params.chainId);
   if (!blockchain) throw new Error(`Circle Email Wallet can only execute on ${session.supportedBlockchains.join(", ")}. Chain ${params.chainId} is not supported by the Circle wallet.`);
-  const wallet = session.wallets.find((item) => item.blockchain === blockchain);
+  let wallet = session.wallets.find((item) => item.blockchain === blockchain);
+  if (!wallet) {
+    const arcWallet = session.wallets.find((item) => item.blockchain === "ARC" || item.blockchain === "ARC-TESTNET");
+    if (arcWallet && (blockchain === "ARC" || blockchain === "ARC-TESTNET")) {
+      wallet = arcWallet;
+    }
+  }
   if (!wallet) throw new Error(`Create or reconnect a Circle ${blockchain} wallet before bridging.`);
 
   const preparedAt = Date.now();

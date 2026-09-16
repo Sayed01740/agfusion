@@ -16,13 +16,17 @@ const CIRCLE_API_BASE = "https://api.circle.com/v1/w3s";
 
 /** Blockchains Circle Programmable Wallets may execute on in this app. */
 export const CIRCLE_ALLOWED_BLOCKCHAINS = new Set([
+  "ARC",
   "ARC-TESTNET",
+  "BASE",
   "BASE-SEPOLIA",
 ]);
 
 /** Chain id → Circle PW blockchain string (mirrors client circle-pw.ts). */
 export function circleBlockchainForChainId(chainId: number): string | null {
+  if (chainId === 5042) return "ARC";
   if (chainId === 5042002) return "ARC-TESTNET";
+  if (chainId === 8453) return "BASE";
   if (chainId === 84532) return "BASE-SEPOLIA";
   return null;
 }
