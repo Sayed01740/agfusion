@@ -1,55 +1,66 @@
-import { defineChain } from "viem";
+import { defineChain, type Chain } from "viem";
 
 /**
- * Official Arc Testnet network (MetaMask / wallet_addEthereumChain).
+ * Arc Network Configuration (Mainnet or Testnet).
  *
- * | Field            | Value                              |
- * |------------------|------------------------------------|
- * | Network name     | Arc Testnet                        |
- * | New RPC URL      | https://rpc.testnet.arc.io         |
- * | Chain ID         | 5042002  (hex 0x4cef52)            |
- * | Currency symbol  | USDC                               |
- * | Explorer URL     | https://testnet.arcscan.app        |
- *
- * IMPORTANT: hex must be 0x4cef52 NOT 0x4cf152 (typo that breaks MetaMask).
+ * Configurable via environment variables:
+ * - NEXT_PUBLIC_ARC_NETWORK ("mainnet" | "testnet")
+ * - NEXT_PUBLIC_ARC_CHAIN_ID ("5042" | "5042002")
+ * - NEXT_PUBLIC_ARC_RPC_URL
+ * - NEXT_PUBLIC_ARC_EXPLORER_URL
  */
 
-export const ARC_TESTNET_RPC =
+export const IS_ARC_MAINNET =
+  process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_ID === "5042" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.toLowerCase() === "0x13b2";
+
+export const ARC_CHAIN_ID = IS_ARC_MAINNET ? 5042 : 5042002;
+export const ARC_CHAIN_ID_HEX = IS_ARC_MAINNET ? "0x13b2" : "0x4cef52";
+export const ARC_NETWORK_NAME = IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet";
+
+export const ARC_RPC =
   process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() ||
-  "https://rpc.testnet.arc.io";
+  (IS_ARC_MAINNET ? "https://rpc.mainnet.arc.io" : "https://rpc.testnet.arc.io");
 
-export const ARC_TESTNET_WS =
+export const ARC_WS =
   process.env.NEXT_PUBLIC_ARC_WS_URL?.trim() ||
-  "wss://rpc.testnet.arc.io";
+  (IS_ARC_MAINNET ? "wss://rpc.mainnet.arc.io" : "wss://rpc.testnet.arc.io");
 
-export const ARC_CHAIN_ID = 5042002;
-/** Live RPC eth_chainId from rpc.testnet.arc.network */
-export const ARC_CHAIN_ID_HEX = "0x4cef52";
-export const ARC_NETWORK_NAME = "Arc Testnet";
+// Backward compatibility alias for testnet RPC exports
+export const ARC_TESTNET_RPC = ARC_RPC;
+export const ARC_TESTNET_WS = ARC_WS;
+
 export const ARC_CURRENCY_SYMBOL = "USDC";
 export const ARC_CURRENCY_NAME = "USDC";
 export const ARC_CURRENCY_DECIMALS = 18;
-export const ARC_EXPLORER = "https://testnet.arcscan.app";
+
+export const ARC_EXPLORER =
+  process.env.NEXT_PUBLIC_ARC_EXPLORER_URL?.trim() ||
+  (IS_ARC_MAINNET ? "https://explorer.arc.io" : "https://testnet.arcscan.app");
+
 export const ARC_FAUCET_URL = "https://faucet.circle.com";
 export const ARC_DOCS_URL = "https://docs.arc.io";
 export const ARC_APPKIT_URL = "https://docs.arc.io/app-kit";
 
 /** MetaMask / EIP-3085 wallet_addEthereumChain params */
-export const ARC_TESTNET_WALLET_PARAMS = {
-  chainId: "0x4cef52",
-  chainName: "Arc Testnet",
+export const ARC_WALLET_PARAMS = {
+  chainId: ARC_CHAIN_ID_HEX,
+  chainName: ARC_NETWORK_NAME,
   nativeCurrency: {
-    name: "USDC",
-    symbol: "USDC",
-    decimals: 18,
+    name: ARC_CURRENCY_NAME,
+    symbol: ARC_CURRENCY_SYMBOL,
+    decimals: ARC_CURRENCY_DECIMALS,
   },
-  rpcUrls: ["https://rpc.testnet.arc.io"] as string[],
-  blockExplorerUrls: ["https://testnet.arcscan.app"] as string[],
+  rpcUrls: [ARC_RPC],
+  blockExplorerUrls: [ARC_EXPLORER],
 };
+
+export const ARC_TESTNET_WALLET_PARAMS = ARC_WALLET_PARAMS;
 
 /** Query RPC for eth_chainId so wallet_add always matches MetaMask checks. */
 export async function fetchArcChainIdFromRpc(
-  rpcUrl: string = ARC_TESTNET_RPC,
+  rpcUrl: string = ARC_RPC,
 ): Promise<{ hex: string; decimal: number }> {
   const res = await fetch(rpcUrl, {
     method: "POST",
@@ -84,7 +95,7 @@ export async function getArcWalletAddParams(): Promise<{
   rpcUrls: string[];
   blockExplorerUrls: string[];
 }> {
-  const rpc = ARC_TESTNET_RPC;
+  const rpc = ARC_RPC;
   let chainId = ARC_CHAIN_ID_HEX.toLowerCase();
   try {
     const live = await fetchArcChainIdFromRpc(rpc);
@@ -111,10 +122,10 @@ export async function getArcWalletAddParams(): Promise<{
   };
 }
 
-/** viem chain definition */
-export const arcTestnet = defineChain({
-  id: ARC_CHAIN_ID,
-  name: ARC_NETWORK_NAME,
+/** viem chain definitions for both Mainnet and Testnet */
+export const arcMainnetChain = defineChain({
+  id: 5042,
+  name: "Arc Mainnet",
   nativeCurrency: {
     name: ARC_CURRENCY_NAME,
     symbol: ARC_CURRENCY_SYMBOL,
@@ -122,35 +133,179 @@ export const arcTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [ARC_TESTNET_RPC],
-      webSocket: [ARC_TESTNET_WS],
+      http: ["https://rpc.mainnet.arc.io"],
+      webSocket: ["wss://rpc.mainnet.arc.io"],
     },
   },
   blockExplorers: {
     default: {
-      name: "ArcScan",
-      url: ARC_EXPLORER,
+      name: "Arc Explorer",
+      url: "https://explorer.arc.io",
+    },
+  },
+  testnet: false,
+});
+
+export const arcTestnetChain = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    name: ARC_CURRENCY_NAME,
+    symbol: ARC_CURRENCY_SYMBOL,
+    decimals: ARC_CURRENCY_DECIMALS,
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.testnet.arc.io"],
+      webSocket: ["wss://rpc.testnet.arc.io"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Arcscan Testnet",
+      url: "https://testnet.arcscan.app",
     },
   },
   testnet: true,
 });
 
-export function explorerTxUrl(txHash: string, chain: "arc" | "base" = "arc") {
-  if (chain === "base") {
+/** viem chain definition based on default config */
+export const arcChain = IS_ARC_MAINNET ? arcMainnetChain : arcTestnetChain;
+export const arcTestnet = arcChain;
+
+export interface ArcNetworkMeta {
+  name: string;
+  shortName: string;
+  chainId: number;
+  chainIdHex: string;
+  rpc: string;
+  ws: string;
+  explorer: string;
+  isMainnet: boolean;
+  isTestnet: boolean;
+  isArc: boolean;
+  chain: Chain;
+}
+
+/**
+ * Dynamically detects whether a given chainId (e.g. from wallet or event)
+ * is Arc Mainnet (5042) or Arc Testnet (5042002).
+ * If chainId is null, undefined, or unknown, it falls back to the configured default network.
+ */
+export function getArcNetworkMeta(chainId?: number | string | null): ArcNetworkMeta {
+  const numId =
+    typeof chainId === "number"
+      ? chainId
+      : typeof chainId === "string" && chainId.startsWith("0x")
+      ? parseInt(chainId, 16)
+      : typeof chainId === "string" && /^\d+$/.test(chainId)
+      ? parseInt(chainId, 10)
+      : null;
+
+  if (numId === 5042) {
+    return {
+      name: "Arc Mainnet",
+      shortName: "Arc Mainnet",
+      chainId: 5042,
+      chainIdHex: "0x13b2",
+      rpc: process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.io",
+      ws: process.env.NEXT_PUBLIC_ARC_WS_URL?.trim() || "wss://rpc.mainnet.arc.io",
+      explorer: process.env.NEXT_PUBLIC_ARC_EXPLORER_URL?.trim() || "https://explorer.arc.io",
+      isMainnet: true,
+      isTestnet: false,
+      isArc: true,
+      chain: arcMainnetChain,
+    };
+  }
+
+  if (numId === 5042002) {
+    return {
+      name: "Arc Testnet",
+      shortName: "Arc Testnet",
+      chainId: 5042002,
+      chainIdHex: "0x4cef52",
+      rpc: "https://rpc.testnet.arc.io",
+      ws: "wss://rpc.testnet.arc.io",
+      explorer: "https://testnet.arcscan.app",
+      isMainnet: false,
+      isTestnet: true,
+      isArc: true,
+      chain: arcTestnetChain,
+    };
+  }
+
+  // Not on Arc or not connected: return default config
+  const isDefaultMainnet = IS_ARC_MAINNET;
+  return {
+    name: ARC_NETWORK_NAME,
+    shortName: ARC_NETWORK_NAME,
+    chainId: ARC_CHAIN_ID,
+    chainIdHex: ARC_CHAIN_ID_HEX,
+    rpc: ARC_RPC,
+    ws: ARC_WS,
+    explorer: ARC_EXPLORER,
+    isMainnet: isDefaultMainnet,
+    isTestnet: !isDefaultMainnet,
+    isArc: numId === 5042 || numId === 5042002,
+    chain: arcChain,
+  };
+}
+
+export function explorerTxUrl(txHash: string, chainOrId?: string | number): string {
+  // Arc Mainnet
+  if (chainOrId === 5042 || chainOrId === "Arc" || chainOrId === "Arc_Mainnet") {
+    return `https://explorer.arc.io/tx/${txHash}`;
+  }
+  // Arc Testnet
+  if (chainOrId === 5042002 || chainOrId === "Arc_Testnet") {
+    return `https://testnet.arcscan.app/tx/${txHash}`;
+  }
+  // Base Mainnet
+  if (chainOrId === "Base" || chainOrId === 8453) {
+    return `https://basescan.org/tx/${txHash}`;
+  }
+  // Base Sepolia Testnet
+  if (chainOrId === "Base_Sepolia" || chainOrId === "base" || chainOrId === 84532) {
     return `https://sepolia.basescan.org/tx/${txHash}`;
   }
+  // Ethereum Mainnet
+  if (chainOrId === "Ethereum" || chainOrId === 1) {
+    return `https://etherscan.io/tx/${txHash}`;
+  }
+  // Ethereum Sepolia
+  if (chainOrId === "Ethereum_Sepolia" || chainOrId === 11155111) {
+    return `https://sepolia.etherscan.io/tx/${txHash}`;
+  }
+  // Arbitrum One Mainnet
+  if (chainOrId === "Arbitrum" || chainOrId === 42161) {
+    return `https://arbiscan.io/tx/${txHash}`;
+  }
+  // Arbitrum Sepolia
+  if (chainOrId === "Arbitrum_Sepolia" || chainOrId === 421614) {
+    return `https://sepolia.arbiscan.io/tx/${txHash}`;
+  }
+  // Optimism Mainnet
+  if (chainOrId === "Optimism" || chainOrId === 10) {
+    return `https://optimistic.etherscan.io/tx/${txHash}`;
+  }
+  // Optimism Sepolia
+  if (chainOrId === "Optimism_Sepolia" || chainOrId === 11155420) {
+    return `https://sepolia-optimism.etherscan.io/tx/${txHash}`;
+  }
+  // Fallback: use configured Arc explorer
   return `${ARC_EXPLORER}/tx/${txHash}`;
 }
 
 export function isArcChainId(id: number | null | undefined): boolean {
-  return id === ARC_CHAIN_ID;
+  return id === 5042 || id === 5042002;
 }
 
 export const ARC_NETWORK_MANUAL = {
-  networkName: "Arc Testnet",
-  rpcUrl: "https://rpc.testnet.arc.io",
-  chainId: "5042002",
-  chainIdHex: "0x4cef52",
-  currencySymbol: "USDC",
-  explorerUrl: "https://testnet.arcscan.app",
+  networkName: ARC_NETWORK_NAME,
+  rpcUrl: ARC_RPC,
+  chainId: String(ARC_CHAIN_ID),
+  chainIdHex: ARC_CHAIN_ID_HEX,
+  currencySymbol: ARC_CURRENCY_SYMBOL,
+  explorerUrl: ARC_EXPLORER,
 } as const;
+

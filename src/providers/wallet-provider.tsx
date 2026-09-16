@@ -10,14 +10,22 @@ import {
 } from "react";
 import { formatEther, type Address } from "viem";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
-import { ARC_CHAIN_ID, arcTestnet } from "@/lib/arc-chain";
+import {
+  ARC_CHAIN_ID,
+  arcTestnet,
+  getArcNetworkMeta,
+  type ArcNetworkMeta,
+} from "@/lib/arc-chain";
 import {
   connectWallet,
   disconnectActiveWallet,
   discoverWallets,
+  getChainId,
   getInjectedProvider,
   getStoredWalletName,
-  switchToArcTestnet,
+  switchToArcMainnet as adapterSwitchToArcMainnet,
+  switchToArcTestnet as adapterSwitchToArcTestnet,
+  switchToArcNetwork,
   type DiscoveredWallet,
   type InjectedProvider,
 } from "@/sdk/wallet-adapter";
@@ -32,6 +40,11 @@ type WalletContextValue = {
   authenticated: boolean;
   appKitReady: boolean | null;
   walletName: string | null;
+  chainId: number | null;
+  isMainnet: boolean;
+  isTestnet: boolean;
+  isArc: boolean;
+  networkMeta: ArcNetworkMeta;
   /** Opens multi-wallet picker */
   openConnectModal: () => void;
   /** Connect specific discovered wallet */
@@ -39,7 +52,9 @@ type WalletContextValue = {
   /** Quick connect: first available or open modal if multiple */
   connect: () => Promise<void>;
   disconnect: () => void;
-  switchToArc: () => Promise<void>;
+  switchToArc: (targetChainId?: 5042 | 5042002) => Promise<void>;
+  switchToArcMainnet: () => Promise<void>;
+  switchToArcTestnet: () => Promise<void>;
   refreshBalance: () => Promise<void>;
   signInSiwe: (explicitAddress?: string) => Promise<boolean>;
   error: string | null;
@@ -50,10 +65,11 @@ type WalletContextValue = {
 const WalletContext = createContext<WalletContextValue | null>(null);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const {
+    const {
     setWallet,
     setLiveBalance,
     walletAddress,
+    walletChainId,
     hydrate,
     setAuthenticated,
     loadServerTransactions,
@@ -68,14 +84,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [walletName, setWalletName] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Dynamic network detection based on actual connected chainId
+  const networkMeta = useMemo(
+    () => getArcNetworkMeta(walletChainId),
+    [walletChainId],
+  );
+
   useEffect(() => {
     hydrate();
     isAppKitInstalled().then(setAppKitReady);
     const storedName = getStoredWalletName();
     if (storedName) setWalletName(storedName);
 
-    // Restore a persisted Circle Email Wallet session (Phase 4) so the mock
-    // provider can be rebuilt after reload instead of living only in the modal.
+    // Restore a persisted Circle Email Wallet session (Phase 4)
     void import("@/sdk/circle-pw")
       .then(async (mod) => {
         const restored = await mod.restoreCircleSession();
@@ -100,7 +121,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try {
           const accs = (await p.request({ method: "eth_accounts" })) as string[];
           if (accs?.[0]) {
-            setWallet(accs[0], ARC_CHAIN_ID);
+            let actualChainId: number = ARC_CHAIN_ID;
+            try {
+              actualChainId = await getChainId(p);
+            } catch {
+              /* fallback */
+            }
+            setWallet(accs[0], actualChainId);
             setActiveProvider(p, {
               uuid: "restored",
               name: storedName || "Wallet",
@@ -122,7 +149,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setAuthLocal(ok);
         setAuthenticated(ok);
         if (d.user?.address) {
-          setWallet(d.user.address, ARC_CHAIN_ID);
+          const currentId = usePilotStore.getState().walletChainId || ARC_CHAIN_ID;
+          setWallet(d.user.address, currentId);
           void loadServerTransactions(d.user.address);
         }
       })
@@ -135,16 +163,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      // Route browser reads through the same-origin /api/rpc proxy so a flaky
-      // or CORS-blocked public RPC can never surface as "Network connection
-      // failed for Arc Testnet" on the balance card.
       void import("@/lib/circle-proxy").then((m) => m.installCircleApiProxy());
+      const currentMeta = getArcNetworkMeta(usePilotStore.getState().walletChainId);
       const client = createPublicClient({
-        chain: arcTestnet,
+        chain: currentMeta.chain,
         transport: http(
           typeof window !== "undefined"
             ? `${window.location.origin}/api/rpc?chain=arc`
-            : arcTestnet.rpcUrls.default.http[0],
+            : currentMeta.rpc,
         ),
       });
       const bal = await client.getBalance({
@@ -155,8 +181,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       refreshBalances();
     } catch {
       try {
+        const cId = usePilotStore.getState().walletChainId || ARC_CHAIN_ID;
         const res = await fetch(
-          `/api/balances?address=${encodeURIComponent(walletAddress)}`,
+          `/api/balances?address=${encodeURIComponent(walletAddress)}&chainId=${cId}`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -171,8 +198,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [walletAddress, setLiveBalance, refreshBalances]);
 
   // Live data: fetch on connect, then poll on-chain balance + server history
-  // every 15s while a wallet is connected so the UI reflects new sends/bridges
-  // without a manual refresh.
   useEffect(() => {
     if (!walletAddress) return;
     void refreshBalance();
@@ -195,21 +220,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           setAuthenticated(false);
           setWalletName(null);
         } else {
-          setWallet(accs[0], ARC_CHAIN_ID);
+          // preserve current detected chain ID
+          const currentId = usePilotStore.getState().walletChainId || ARC_CHAIN_ID;
+          setWallet(accs[0], currentId);
         }
       };
       const onChain = (...args: unknown[]) => {
         const hex = String(args[0] || "0x0");
         const id = parseInt(hex, 16);
-        // Keep current account; update chain id from wallet event
+        // Keep current account; update chain id dynamically from wallet event
         const addr =
           usePilotStore.getState().walletAddress || address;
         setWallet(addr, Number.isFinite(id) ? id : null);
+        // Trigger balance re-fetch on the new chain
+        setTimeout(() => {
+          void refreshBalance();
+        }, 100);
       };
       p.on?.("accountsChanged", onAccounts);
       p.on?.("chainChanged", onChain);
     },
-    [setWallet, setLiveBalance, setAuthenticated],
+    [setWallet, setLiveBalance, setAuthenticated, refreshBalance],
   );
 
   /**
@@ -222,7 +253,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       try {
         // Align chain with SIWE Chain ID so wallets don't flag a mismatch
         try {
-          await switchToArcTestnet(p);
+          await adapterSwitchToArcTestnet(p);
           setWallet(address, ARC_CHAIN_ID);
         } catch {
           /* user can still sign; chain switch is best-effort */
@@ -438,17 +469,29 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     usePilotStore.getState().setWalletType("evm");
   }, [setWallet, setLiveBalance, setAuthenticated]);
 
-  const switchToArc = useCallback(async () => {
-    setError(null);
-    try {
-      const p = provider || (await getInjectedProvider());
-      await switchToArcTestnet(p);
-      if (walletAddress) setWallet(walletAddress, ARC_CHAIN_ID);
-      await refreshBalance();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to switch network");
-    }
-  }, [provider, walletAddress, setWallet, refreshBalance]);
+  const switchToArc = useCallback(
+    async (targetChainId?: 5042 | 5042002) => {
+      setError(null);
+      try {
+        const p = provider || (await getInjectedProvider());
+        const target = targetChainId || (ARC_CHAIN_ID as 5042 | 5042002);
+        const switchedId = await switchToArcNetwork(p, target);
+        if (walletAddress) setWallet(walletAddress, switchedId);
+        await refreshBalance();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to switch network");
+      }
+    },
+    [provider, walletAddress, setWallet, refreshBalance],
+  );
+
+  const switchToArcMainnet = useCallback(async () => {
+    return switchToArc(5042);
+  }, [switchToArc]);
+
+  const switchToArcTestnet = useCallback(async () => {
+    return switchToArc(5042002);
+  }, [switchToArc]);
 
   const value = useMemo(
     () => ({
@@ -457,11 +500,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       authenticated,
       appKitReady,
       walletName,
+      chainId: walletChainId,
+      isMainnet: networkMeta.isMainnet,
+      isTestnet: networkMeta.isTestnet,
+      isArc: networkMeta.isArc,
+      networkMeta,
       openConnectModal,
       connectWith,
       connect,
       disconnect,
       switchToArc,
+      switchToArcMainnet,
+      switchToArcTestnet,
       refreshBalance,
       signInSiwe,
       error,
@@ -474,11 +524,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       authenticated,
       appKitReady,
       walletName,
+      walletChainId,
+      networkMeta,
       openConnectModal,
       connectWith,
       connect,
       disconnect,
       switchToArc,
+      switchToArcMainnet,
+      switchToArcTestnet,
       refreshBalance,
       signInSiwe,
       error,

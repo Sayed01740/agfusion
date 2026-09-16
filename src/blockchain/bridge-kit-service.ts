@@ -107,7 +107,7 @@ async function sendTx(provider: Eip1193, from: string, to: string, data: string,
     chainId = Number.parseInt(String(rawChain), 16);
   } catch {}
   const txPayload: Record<string, unknown> = { from, to, data };
-  if (chainId === 5042002) {
+  if (chainId === 5042002 || chainId === 5042) {
     txPayload.gas = stage.includes("burn") ? "0x7a120" : "0x30d40";
   }
   const hash = String(await rpc(provider, "eth_sendTransaction", [txPayload]));

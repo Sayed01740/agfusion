@@ -1,10 +1,11 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { verifyMessage } from "viem";
 import { getPrisma, isDbConfigured } from "@/lib/db";
+import { ARC_CHAIN_ID } from "@/lib/arc-chain";
 
 /** EIP-4361 (SIWE) helpers. */
 
-const CHAIN_ID = Number(process.env.NEXT_PUBLIC_SIWE_CHAIN_ID || 5042002);
+const CHAIN_ID = Number(process.env.NEXT_PUBLIC_SIWE_CHAIN_ID || ARC_CHAIN_ID);
 
 export const SIWE_STATEMENT =
   "Sign in to AGFusion. This request will not trigger a blockchain transaction or cost any fees.";

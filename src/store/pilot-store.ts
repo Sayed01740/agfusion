@@ -15,7 +15,7 @@ import {
   mergeTransactions,
   saveTransactions,
 } from "@/lib/persistence";
-import { explorerTxUrl } from "@/lib/arc-chain";
+import { explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET, getArcNetworkMeta } from "@/lib/arc-chain";
 
 function normalizeTransactionForActivity(tx: TransactionRecord): TransactionRecord {
   const chain =
@@ -170,18 +170,22 @@ export const usePilotStore = create<PilotState>((set, get) => ({
   refreshBalances: () => {
     const addr = get().walletAddress;
     const live = get().liveBalanceUsdc;
+    const chainId = get().walletChainId;
+    const meta = getArcNetworkMeta(chainId);
     if (addr || live) {
       const n = Number(String(live || "0").replace(/,/g, ""));
       const amount = Number.isFinite(n) ? n : 0;
-      set({ balances: { totalUsd: amount, balances: [{ chain: "Arc_Testnet", chainLabel: "Arc Testnet", token: "USDC", amount, usdValue: amount, color: "#22d3ee" }], updatedAt: new Date().toISOString() } });
+      const activeChain = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
+      set({ balances: { totalUsd: amount, balances: [{ chain: activeChain, chainLabel: meta.name, token: "USDC", amount, usdValue: amount, color: "#22d3ee" }], updatedAt: new Date().toISOString() } });
       if (addr) {
-        void fetch(`/api/balances?address=${encodeURIComponent(addr)}`, { cache: "no-store" })
+        const cIdQuery = chainId ? `&chainId=${chainId}` : "";
+        void fetch(`/api/balances?address=${encodeURIComponent(addr)}${cIdQuery}`, { cache: "no-store" })
           .then((r) => r.json())
           .then((data) => {
             const row = data?.balances?.[0];
             const amt = Number(row?.amount ?? data?.totalUsd ?? 0);
             if (!Number.isFinite(amt)) return;
-            set({ liveBalanceUsdc: String(amt), balances: { totalUsd: amt, balances: [{ chain: "Arc_Testnet", chainLabel: "Arc Testnet", token: "USDC", amount: amt, usdValue: amt, color: "#22d3ee" }], updatedAt: new Date().toISOString() } });
+            set({ liveBalanceUsdc: String(amt), balances: { totalUsd: amt, balances: [{ chain: activeChain, chainLabel: meta.name, token: "USDC", amount: amt, usdValue: amt, color: "#22d3ee" }], updatedAt: new Date().toISOString() } });
           })
           .catch(() => {});
       }

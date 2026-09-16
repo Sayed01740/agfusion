@@ -1,11 +1,11 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
-import { explorerTxUrl } from "@/lib/arc-chain";
+import { explorerTxUrl, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 import { uid } from "@/lib/utils";
 import { encodeFunctionData, formatUnits, parseUnits } from "viem";
 
-const ARC_CHAIN: ChainId = "Arc_Testnet";
+const ARC_CHAIN: ChainId = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
 const ROUTER = "0x437b1aBf6e5a69548849b15EC35f83A73Fa1E28F" as `0x${string}`;
 const WUSDC = "0x911b4000D3422F482F4062a913885f7b035382Df" as `0x${string}`;
 const TOKENS = {

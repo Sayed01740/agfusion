@@ -4,21 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AmountField, ResultBanner, ErrorNote, useArcBalance } from "@/components/dapp/shared";
-import { ARC_TOKENS, SWAP_SYMBOLS, type ArcToken } from "@/lib/dapp/tokens";
+import { ARC_TOKENS, SWAP_SYMBOLS, getArcTokens, type ArcToken } from "@/lib/dapp/tokens";
 import { getArcDexSwapQuote } from "@/blockchain/production-swap";
 import { executeSwap } from "@/lib/client-actions";
 import { usePilotStore } from "@/store/pilot-store";
+import { getArcNetworkMeta } from "@/lib/arc-chain";
 import type { TransactionRecord } from "@/types";
 
-const SWAP_TOKENS: ArcToken[] = SWAP_SYMBOLS.map((s) => ARC_TOKENS[s]);
 const SLIPPAGE_PRESETS = [50, 100, 300];
 
 export function SwapCard({ connected }: { connected: boolean }) {
   const addTransaction = usePilotStore((s) => s.addTransaction);
   const refreshBalances = usePilotStore((s) => s.refreshBalances);
+  const walletChainId = usePilotStore((s) => s.walletChainId);
+  const meta = getArcNetworkMeta(walletChainId);
 
-  const [tokenIn, setTokenIn] = useState<ArcToken>(ARC_TOKENS.USDC);
-  const [tokenOut, setTokenOut] = useState<ArcToken>(ARC_TOKENS.EURC);
+  const currentTokens = getArcTokens(meta.isMainnet);
+  const swapTokensList: ArcToken[] = SWAP_SYMBOLS.map((s) => currentTokens[s] || ARC_TOKENS[s]);
+
+  const [tokenIn, setTokenIn] = useState<ArcToken>(currentTokens.USDC || ARC_TOKENS.USDC);
+  const [tokenOut, setTokenOut] = useState<ArcToken>(currentTokens.EURC || ARC_TOKENS.EURC);
   const [amountIn, setAmountIn] = useState("");
   const [amountOut, setAmountOut] = useState("");
   const [route, setRoute] = useState<string | null>(null);
@@ -59,6 +64,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
     }
     const seq = ++quoteSeq.current;
     setQuoting(true);
+    setError(null);
     const timer = setTimeout(async () => {
       try {
         const q = await getArcDexSwapQuote({
@@ -66,17 +72,17 @@ export function SwapCard({ connected }: { connected: boolean }) {
           tokenIn: tokenIn.symbol,
           tokenOut: tokenOut.symbol,
         });
-        if (seq !== quoteSeq.current) return;
+        if (quoteSeq.current !== seq) return;
         setAmountOut(q.amountOut);
         setRoute(q.route);
         setError(null);
       } catch (e) {
-        if (seq !== quoteSeq.current) return;
+        if (quoteSeq.current !== seq) return;
         setAmountOut("");
         setRoute(null);
         setError(e instanceof Error ? e.message : "No quote available.");
       } finally {
-        if (seq === quoteSeq.current) setQuoting(false);
+        if (quoteSeq.current === seq) setQuoting(false);
       }
     }, 500);
     return () => clearTimeout(timer);
@@ -87,11 +93,12 @@ export function SwapCard({ connected }: { connected: boolean }) {
     setError(null);
     setResult(null);
     try {
+      const activeChain = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
       const tx = await executeSwap({
         amount: amountIn,
         tokenIn: tokenIn.symbol,
         tokenOut: tokenOut.symbol,
-        chain: "Arc_Testnet",
+        chain: activeChain,
         slippageBps,
       });
       addTransaction(tx);
@@ -122,7 +129,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
         amount={amountIn}
         onAmountChange={setAmountIn}
         token={tokenIn}
-        tokenOptions={SWAP_TOKENS}
+        tokenOptions={swapTokensList}
         onTokenChange={pickIn}
         balance={connected ? inBal.balance : undefined}
         onMax={connected ? () => setAmountIn(inBal.balance) : undefined}
@@ -143,7 +150,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
         label="You receive"
         amount={amountOut}
         token={tokenOut}
-        tokenOptions={SWAP_TOKENS}
+        tokenOptions={swapTokensList}
         onTokenChange={pickOut}
         readOnly
         loading={quoting}

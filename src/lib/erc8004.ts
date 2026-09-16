@@ -12,7 +12,7 @@ import {
   type Address,
   type Hash,
 } from "viem";
-import { arcTestnet } from "@/lib/arc-chain";
+import { arcTestnet, ARC_CHAIN_ID, explorerTxUrl } from "@/lib/arc-chain";
 import {
   getInjectedProvider,
   requestAccounts,
@@ -124,11 +124,11 @@ export async function registerErc8004Agent(opts?: {
     agentId,
     owner,
     metadataURI,
-    explorerUrl: `https://testnet.arcscan.app/tx/${txHash}`,
+    explorerUrl: explorerTxUrl(txHash),
     registry: ERC8004_IDENTITY_REGISTRY,
   };
 }
 
 export function erc8004GlobalId(agentId: string): string {
-  return `eip155:5042002:${ERC8004_IDENTITY_REGISTRY}:${agentId}`;
+  return `eip155:${ARC_CHAIN_ID}:${ERC8004_IDENTITY_REGISTRY}:${agentId}`;
 }

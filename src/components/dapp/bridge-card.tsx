@@ -5,15 +5,19 @@ import { Loader2, Info, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AmountField, ResultBanner, ErrorNote, useArcBalance } from "@/components/dapp/shared";
-import { ARC_TOKENS, BRIDGE_ROUTES, isAddress } from "@/lib/dapp/tokens";
+import { ARC_TOKENS, getBridgeRoutes, getArcTokens, isAddress } from "@/lib/dapp/tokens";
 import { executeBridge } from "@/lib/client-actions";
 import { usePilotStore } from "@/store/pilot-store";
+import { getArcNetworkMeta } from "@/lib/arc-chain";
 import type { ChainId, TransactionRecord } from "@/types";
 
 export function BridgeCard({ connected }: { connected: boolean }) {
   const addTransaction = usePilotStore((s) => s.addTransaction);
   const refreshBalances = usePilotStore((s) => s.refreshBalances);
+  const walletChainId = usePilotStore((s) => s.walletChainId);
+  const meta = getArcNetworkMeta(walletChainId);
 
+  const routes = useMemo(() => getBridgeRoutes(meta.isMainnet), [meta.isMainnet]);
   const [routeIdx, setRouteIdx] = useState(0);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -21,9 +25,11 @@ export function BridgeCard({ connected }: { connected: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TransactionRecord | null>(null);
 
-  const route = BRIDGE_ROUTES[routeIdx];
-  const fromArc = route.from === "Arc_Testnet";
-  const bal = useArcBalance(fromArc ? ARC_TOKENS.USDC : null);
+  const safeRouteIdx = routeIdx < routes.length ? routeIdx : 0;
+  const route = routes[safeRouteIdx];
+  const fromArc = route.from === "Arc_Testnet" || route.from === "Arc_Mainnet" || route.from === "Arc";
+  const currentTokens = getArcTokens(meta.isMainnet);
+  const bal = useArcBalance(fromArc ? currentTokens.USDC : null);
   const recipientValid = recipient.trim() === "" || isAddress(recipient);
 
   const [fromLabel, toLabel] = useMemo(() => {
@@ -62,13 +68,13 @@ export function BridgeCard({ connected }: { connected: boolean }) {
       <div>
         <label className="mb-1.5 block px-1 text-[12px] text-slate-500">Route</label>
         <div className="grid gap-1.5">
-          {BRIDGE_ROUTES.map((r, i) => (
+          {routes.map((r, i) => (
             <button
               key={r.label}
               type="button"
               onClick={() => setRouteIdx(i)}
               className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition-colors ${
-                i === routeIdx
+                i === safeRouteIdx
                   ? "border-cyan-400/40 bg-cyan-400/10 text-slate-100"
                   : "border-white/[0.06] bg-[#0a1017] text-slate-300 hover:border-white/15"
               }`}
@@ -78,7 +84,7 @@ export function BridgeCard({ connected }: { connected: boolean }) {
                 <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
                 {r.label.split(" → ")[1]}
               </span>
-              {i === routeIdx && <span className="text-[11px] font-semibold text-cyan-300">Selected</span>}
+              {i === safeRouteIdx && <span className="text-[11px] font-semibold text-cyan-300">Selected</span>}
             </button>
           ))}
         </div>

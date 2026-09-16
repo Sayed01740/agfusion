@@ -1,12 +1,10 @@
 /**
- * Single-signature batch send ("disperse") on Arc Testnet.
+ * Single-signature batch send ("disperse") on Arc (Mainnet or Testnet).
  *
+ * Dynamically detects the active Arc network and switches accordingly.
  * When the AGFusionDisperse contract is deployed and configured
  * (NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS), a whole batch of USDC/EURC/cirBTC
- * payouts is executed with ONE wallet signature via disperseToken():
- *
- *   1. approve() the Disperse contract once (max) — only if allowance is short
- *   2. disperseToken(token, recipients, values) — the single batch signature
+ * payouts is executed with ONE wallet signature via disperseToken().
  *
  * After the first max-approval, every future batch for that token is a single
  * signature. If the contract is NOT configured, callers should fall back to the
@@ -18,7 +16,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { explorerTxUrl } from "@/lib/arc-chain";
+import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
 import {
   DISPERSE_ADDRESS,
@@ -27,9 +25,10 @@ import {
   type ArcToken,
 } from "@/lib/dapp/tokens";
 import {
+  getChainId,
   getInjectedProvider,
   requestAccounts,
-  switchToArcTestnet,
+  switchToArcNetwork,
   type InjectedProvider,
 } from "@/sdk/wallet-adapter";
 import type { TransactionRecord, TxStep } from "@/types";
@@ -125,9 +124,17 @@ export async function runBatchDisperse(params: {
   const { recipients, values, total, totalDisplay } = validateBatch(params.rows, params.token);
 
   const id = uid("tx");
+
+  // ── Detect network early so we can label steps correctly ──────────────────
+  const provider = params.provider || (await getInjectedProvider());
+  const detectedChainId = await getChainId(provider);
+  const meta = getArcNetworkMeta(detectedChainId);
+  const networkLabel = meta.isMainnet ? "Arc Mainnet" : "Arc Testnet";
+  const activeChain: "Arc" | "Arc_Testnet" = meta.isMainnet ? "Arc" : "Arc_Testnet";
+
   const steps: TxStep[] = [
     { name: "Connect wallet", state: "active" },
-    { name: "Switch to Arc Testnet", state: "pending" },
+    { name: `Switch to ${networkLabel}`, state: "pending" },
     { name: `Approve ${params.token.symbol}`, state: "pending" },
     { name: `Send to ${recipients.length} recipients`, state: "pending" },
     { name: "Confirm finality", state: "pending" },
@@ -135,7 +142,6 @@ export async function runBatchDisperse(params: {
   const emit = () => params.onStep?.(steps.map((s) => ({ ...s })));
   emit();
 
-  const provider = params.provider || (await getInjectedProvider());
   const accounts = await requestAccounts(provider);
   const from = accounts[0] as Address | undefined;
   if (!from) throw new Error("No wallet account — connect your wallet first.");
@@ -143,12 +149,12 @@ export async function runBatchDisperse(params: {
   steps[1].state = "active";
   emit();
 
-  await switchToArcTestnet(provider);
+  await switchToArcNetwork(provider, meta.chainId as 5042 | 5042002);
   steps[1].state = "success";
   steps[2].state = "active";
   emit();
 
-  const publicClient = arcPublicClient();
+  const publicClient = arcPublicClient(meta.isMainnet);
 
   // --- Step 1: approval (only when the current allowance is insufficient) ---
   let approvalTxHash: `0x${string}` | undefined;
@@ -245,8 +251,8 @@ export async function runBatchDisperse(params: {
     retryable: status === "retryable",
     amount: totalDisplay,
     token: params.token.symbol,
-    fromChain: "Arc_Testnet",
-    toChain: "Arc_Testnet",
+    fromChain: activeChain,
+    toChain: activeChain,
     recipient: `${recipients.length} recipients`,
     recipientLabel: `Batch · ${recipients.length} payouts`,
     feeUsd: 0.04,

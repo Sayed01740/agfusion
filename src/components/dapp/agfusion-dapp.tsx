@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useWallet } from "@/providers/wallet-provider";
 import { usePilotStore } from "@/store/pilot-store";
-import { ARC_CHAIN_ID } from "@/lib/arc-chain";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
 import { SwapCard } from "@/components/dapp/swap-card";
 import { SendCard } from "@/components/dapp/send-card";
 import { BridgeCard } from "@/components/dapp/bridge-card";
@@ -38,9 +38,10 @@ export function AGFusionDapp() {
   const { openConnectModal, disconnect, switchToArc, connecting } = useWallet();
   const walletAddress = usePilotStore((s) => s.walletAddress);
   const walletChainId = usePilotStore((s) => s.walletChainId);
+  const meta = getArcNetworkMeta(walletChainId);
 
   const connected = Boolean(walletAddress);
-  const onArc = walletChainId === ARC_CHAIN_ID;
+  const onArc = walletChainId === 5042 || walletChainId === 5042002;
 
   return (
     <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-lg flex-col items-center justify-center px-4 py-10 sm:py-14">
@@ -53,7 +54,7 @@ export function AGFusionDapp() {
         </h1>
         <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-5 text-slate-400">
           Swap stablecoins, send tokens, bridge across chains, and pay many
-          recipients in one signature — all on Arc Testnet.
+          recipients in one signature — all on {meta.name}.
         </p>
       </div>
 
@@ -107,12 +108,12 @@ export function AGFusionDapp() {
         {connected && !onArc && (
           <button
             type="button"
-            onClick={switchToArc}
+            onClick={() => void switchToArc()}
             className="mb-3 flex w-full items-center justify-between gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2.5 text-left text-[12px] text-amber-100 transition-colors hover:bg-amber-400/15"
           >
             <span className="flex items-center gap-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              Wallet is on another network. Switch to Arc Testnet.
+              Wallet is on another network. Switch to Arc Network.
             </span>
             <span className="inline-flex items-center gap-0.5 font-semibold">
               Switch <ChevronRight className="h-3.5 w-3.5" />
@@ -148,7 +149,7 @@ export function AGFusionDapp() {
           Get testnet USDC
         </a>
         <span className="text-slate-700">·</span>
-        <span className="font-mono text-slate-600">Arc Testnet · 5042002</span>
+        <span className="font-mono text-slate-600">{meta.name} · {meta.chainId}</span>
       </div>
     </section>
   );

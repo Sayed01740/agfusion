@@ -12,7 +12,8 @@ import {
   useArcBalance,
   formatBalance,
 } from "@/components/dapp/shared";
-import { TOKEN_LIST, ARC_TOKENS, isAddress, isDisperseConfigured, type ArcToken } from "@/lib/dapp/tokens";
+import { ARC_TOKENS, getArcTokens, isAddress, isDisperseConfigured, type ArcToken } from "@/lib/dapp/tokens";
+import { getArcNetworkMeta } from "@/lib/arc-chain";
 import { runBatchDisperse, validateBatch, type BatchRow } from "@/lib/dapp/disperse";
 import { sendArcToken } from "@/lib/dapp/send";
 import { usePilotStore } from "@/store/pilot-store";
@@ -27,8 +28,11 @@ export function BatchCard({ connected }: { connected: boolean }) {
   const addTransaction = usePilotStore((s) => s.addTransaction);
   const setActiveTx = usePilotStore((s) => s.setActiveTx);
   const refreshBalances = usePilotStore((s) => s.refreshBalances);
+  const walletChainId = usePilotStore((s) => s.walletChainId);
+  const meta = getArcNetworkMeta(walletChainId);
+  const tokenList: ArcToken[] = Object.values(getArcTokens(meta.isMainnet));
 
-  const [token, setToken] = useState<ArcToken>(ARC_TOKENS.USDC);
+  const [token, setToken] = useState<ArcToken>(tokenList[0] || ARC_TOKENS.USDC);
   const [rows, setRows] = useState<BatchRow[]>(EMPTY_ROWS);
   const [busy, setBusy] = useState(false);
   const [steps, setSteps] = useState<TxStep[]>([]);
@@ -103,6 +107,7 @@ export function BatchCard({ connected }: { connected: boolean }) {
           recipient: row.address,
           amount: row.amount,
           recipientLabel: `Batch · ${who}`,
+          walletChainId: walletChainId ?? undefined,
         });
         addTransaction(tx);
         setActiveTx(tx.id);
@@ -127,7 +132,7 @@ export function BatchCard({ connected }: { connected: boolean }) {
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-slate-500">Token</span>
-          <TokenSelect value={token} options={TOKEN_LIST} onChange={setToken} />
+          <TokenSelect value={token} options={tokenList} onChange={setToken} />
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${

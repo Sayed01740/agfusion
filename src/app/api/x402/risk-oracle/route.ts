@@ -15,7 +15,14 @@ import { estimateBridgeDemo } from "@/blockchain/appkit-service";
 import type { ChainId } from "@/types";
 import { resolveChain } from "@/lib/chains";
 import { AGFUSION_DEPLOYER } from "@/lib/onchain";
-import { ARC_TESTNET_RPC } from "@/lib/arc-chain";
+import {
+  ARC_RPC,
+  ARC_CHAIN_ID,
+  ARC_EXPLORER,
+  ARC_NETWORK_NAME,
+  IS_ARC_MAINNET,
+  explorerTxUrl,
+} from "@/lib/arc-chain";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getPrisma, isDbConfigured } from "@/lib/db";
 
@@ -33,7 +40,7 @@ function paymentRequirements(resource: string) {
     accepts: [
       {
         scheme: "exact",
-        network: "eip155:5042002",
+        network: `eip155:${ARC_CHAIN_ID}`,
         maxAmountRequired: PRICE_WEI.toString(),
         amountUsdc: PRICE_USDC,
         asset: "native-USDC",
@@ -42,10 +49,10 @@ function paymentRequirements(resource: string) {
         description: "AGFusion route risk oracle assessment",
         mimeType: "application/json",
         extra: {
-          chain: "Arc_Testnet",
-          chainId: 5042002,
-          explorer: "https://testnet.arcscan.app",
-          note: "Send native USDC on Arc to payTo, then retry POST with paymentTxHash",
+          chain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+          chainId: ARC_CHAIN_ID,
+          explorer: ARC_EXPLORER,
+          note: `Send native USDC on ${ARC_NETWORK_NAME} to payTo, then retry POST with paymentTxHash`,
         },
       },
     ],
@@ -63,7 +70,7 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
   }
 
   try {
-    const res = await fetch(ARC_TESTNET_RPC, {
+    const res = await fetch(ARC_RPC, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -107,7 +114,7 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
     }
 
     // A transaction is not a payment until its receipt exists and succeeds.
-    const rc = await fetch(ARC_TESTNET_RPC, {
+    const rc = await fetch(ARC_RPC, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -279,8 +286,8 @@ export async function POST(req: Request) {
       amountUsdc: PRICE_USDC,
       payTo: AGFUSION_DEPLOYER,
       from: verified.from,
-      network: "eip155:5042002",
-      explorerUrl: `https://testnet.arcscan.app/tx/${paymentTxHash}`,
+      network: `eip155:${ARC_CHAIN_ID}`,
+      explorerUrl: explorerTxUrl(paymentTxHash),
     },
     risk,
     quote: bridgeQuote,

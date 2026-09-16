@@ -3,7 +3,13 @@ import { maxTransferAmount } from "@/lib/config";
 import { isAddress } from "viem";
 
 const chainIdSchema = z.enum([
+  "Arc",
+  "Arc_Mainnet",
   "Arc_Testnet",
+  "Base",
+  "Ethereum",
+  "Arbitrum",
+  "Optimism",
   "Ethereum_Sepolia",
   "Base_Sepolia",
   "Arbitrum_Sepolia",

@@ -6,7 +6,9 @@
 import { ArcTestnet } from "@circle-fin/app-kit/chains";
 import {
   ARC_CHAIN_ID,
+  ARC_CHAIN_ID_HEX,
   ARC_EXPLORER,
+  ARC_NETWORK_NAME,
   ARC_NETWORK_MANUAL,
   ARC_TESTNET_RPC,
   getArcWalletAddParams,
@@ -232,7 +234,7 @@ export async function requestAccounts(
 
 const MANUAL_FIX = `Delete the old network in your wallet, then re-add:
 
-1. Wallet → Settings → Networks → find "Arc Testnet" → Delete
+1. Wallet → Settings → Networks → find "${ARC_NETWORK_MANUAL.networkName}" → Delete
 2. Add network manually:
    • Network name: ${ARC_NETWORK_MANUAL.networkName}
    • RPC URL: ${ARC_NETWORK_MANUAL.rpcUrl}
@@ -256,33 +258,39 @@ export async function getChainId(provider: InjectedProvider): Promise<number> {
 }
 
 /**
- * Switch the *given* provider to Arc Testnet and verify eth_chainId === 5042002.
+ * Switch the *given* provider to Arc (Mainnet or Testnet) and verify eth_chainId === ARC_CHAIN_ID.
  * Rabby can show Arc in the UI while another injected provider (MetaMask) is used
  * for signing — always pass the sticky active wallet provider.
  */
-export async function switchToArcTestnet(
+/**
+ * Switch the given provider to Arc Network (Mainnet 5042 or Testnet 5042002).
+ */
+export async function switchToArcNetwork(
   provider: InjectedProvider,
+  targetChainId: 5042 | 5042002 = ARC_CHAIN_ID as 5042 | 5042002,
 ): Promise<number> {
-  // Already on Arc?
+  const isTargetMainnet = targetChainId === 5042;
+  const targetHex = isTargetMainnet ? "0x13b2" : "0x4cef52";
+  const targetName = isTargetMainnet ? "Arc Mainnet" : "Arc Testnet";
+  const targetRpc = isTargetMainnet
+    ? (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.io")
+    : "https://rpc.testnet.arc.io";
+  const targetExplorer = isTargetMainnet
+    ? (process.env.NEXT_PUBLIC_ARC_EXPLORER_URL?.trim() || "https://explorer.arc.io")
+    : "https://testnet.arcscan.app";
+
+  // Already on target chain?
   try {
     const current = await getChainId(provider);
-    if (current === ARC_CHAIN_ID) return current;
+    if (current === targetChainId) return current;
   } catch {
     /* continue switch */
   }
 
-  const params = await getArcWalletAddParams();
-  // Normalize hex (lowercase, no unnecessary padding issues)
-  const chainIdHex = (
-    params.chainId.startsWith("0x")
-      ? params.chainId
-      : `0x${Number(params.chainId).toString(16)}`
-  ).toLowerCase();
-
   const trySwitch = async () => {
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: chainIdHex }],
+      params: [{ chainId: targetHex }],
     });
   };
 
@@ -291,11 +299,15 @@ export async function switchToArcTestnet(
       method: "wallet_addEthereumChain",
       params: [
         {
-          chainId: chainIdHex,
-          chainName: params.chainName,
-          nativeCurrency: params.nativeCurrency,
-          rpcUrls: params.rpcUrls,
-          blockExplorerUrls: params.blockExplorerUrls,
+          chainId: targetHex,
+          chainName: targetName,
+          nativeCurrency: {
+            name: "USDC",
+            symbol: "USDC",
+            decimals: 18,
+          },
+          rpcUrls: [targetRpc],
+          blockExplorerUrls: [targetExplorer],
         },
       ],
     });
@@ -329,16 +341,6 @@ export async function switchToArcTestnet(
       if (/4001|reject|denied|user rejected/i.test(addMsg)) {
         throw new Error("Add network rejected in wallet");
       }
-
-      // "already added" / chain exists — try switch again
-      if (
-        !/already|exist|pending/i.test(addMsg) &&
-        /rpc does not match|chain id does not match/i.test(addMsg + " " + msg)
-      ) {
-        throw new Error(
-          `Your wallet has a bad Arc Testnet entry (wrong RPC or chain ID).\n\n${MANUAL_FIX}`,
-        );
-      }
     }
 
     try {
@@ -353,7 +355,7 @@ export async function switchToArcTestnet(
     await sleep(150 + i * 50);
     try {
       const id = await getChainId(provider);
-      if (id === ARC_CHAIN_ID) return id;
+      if (id === targetChainId) return id;
     } catch {
       /* retry */
     }
@@ -366,31 +368,51 @@ export async function switchToArcTestnet(
     /* ignore */
   }
 
-  if (finalId === ARC_CHAIN_ID) return finalId;
+  if (finalId === targetChainId) return finalId;
 
   throw new Error(
-    `Could not switch to Arc Testnet. Wallet reports chainId=${finalId} (hex 0x${finalId > 0 ? finalId.toString(16) : "?"}), need ${ARC_CHAIN_ID} (0x4cef52).\n\n` +
-      `In Rabby: select the **same account** AGFusion connected, open network list, pick **Arc Testnet**.\n\n` +
-      `If Arc is wrong/corrupt:\n${MANUAL_FIX}`,
+    `Could not switch to ${targetName}. Wallet reports chainId=${finalId} (hex 0x${finalId > 0 ? finalId.toString(16) : "?"}), need ${targetChainId} (${targetHex}).`,
   );
 }
 
+export async function switchToArcMainnet(provider: InjectedProvider): Promise<number> {
+  return switchToArcNetwork(provider, 5042);
+}
+
+export async function switchToArcTestnet(
+  provider: InjectedProvider,
+): Promise<number> {
+  return switchToArcNetwork(provider, 5042002);
+}
+
 /**
- * Force Arc + return verified chain id (throws if not on Arc).
+ * Force Arc (either Mainnet 5042 or Testnet 5042002) + return verified chain id.
  */
 export async function ensureArcChainId(
   provider: InjectedProvider,
+  preferredChainId?: 5042 | 5042002,
 ): Promise<number> {
-  const id = await switchToArcTestnet(provider);
-  if (id !== ARC_CHAIN_ID) {
+  try {
+    const current = await getChainId(provider);
+    if (current === 5042 || current === 5042002) {
+      if (!preferredChainId || current === preferredChainId) {
+        return current;
+      }
+    }
+  } catch {
+    /* continue to switch */
+  }
+
+  const id = await switchToArcNetwork(provider, preferredChainId || (ARC_CHAIN_ID as 5042 | 5042002));
+  if (id !== 5042 && id !== 5042002) {
     throw new Error(
-      `Wallet still on chain ${id}, need Arc Testnet ${ARC_CHAIN_ID}.`,
+      `Wallet still on chain ${id}, need Arc (${ARC_CHAIN_ID}).`,
     );
   }
   return id;
 }
 
-/** Well-known EVM testnet params for bridge source chains */
+/** Well-known EVM params for bridge chains */
 export const EVM_CHAIN_PARAMS: Record<
   string,
   {
@@ -402,10 +424,34 @@ export const EVM_CHAIN_PARAMS: Record<
     nativeCurrency: { name: string; symbol: string; decimals: number };
   }
 > = {
+  Arc: {
+    chainId: 5042,
+    chainIdHex: "0x13b2",
+    chainName: "Arc Mainnet",
+    rpcUrls: ["https://rpc.mainnet.arc.io"],
+    explorers: ["https://explorer.arc.io"],
+    nativeCurrency: {
+      name: "USDC",
+      symbol: "USDC",
+      decimals: 18,
+    },
+  },
+  Arc_Mainnet: {
+    chainId: 5042,
+    chainIdHex: "0x13b2",
+    chainName: "Arc Mainnet",
+    rpcUrls: ["https://rpc.mainnet.arc.io"],
+    explorers: ["https://explorer.arc.io"],
+    nativeCurrency: {
+      name: "USDC",
+      symbol: "USDC",
+      decimals: 18,
+    },
+  },
   Arc_Testnet: {
     chainId: ARC_CHAIN_ID,
-    chainIdHex: "0x4cef52",
-    chainName: "Arc Testnet",
+    chainIdHex: ARC_CHAIN_ID_HEX,
+    chainName: ARC_NETWORK_NAME,
     rpcUrls: [ARC_TESTNET_RPC],
     explorers: [ARC_EXPLORER],
     nativeCurrency: {
@@ -881,7 +927,7 @@ export async function createAppKitAdapterFromBrowser(opts?: {
     console.warn("[AGFusion] App Kit adapter unavailable:", e);
     if (
       e instanceof Error &&
-      (/chain|Arc Testnet|5042002|0x4cef52|network switch|bad Arc/i.test(
+      (/chain|Arc|5042002|5042|0x4cef52|0x13b2|network switch|bad Arc/i.test(
         e.message,
       ))
     ) {

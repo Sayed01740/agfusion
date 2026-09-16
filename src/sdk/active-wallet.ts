@@ -93,6 +93,7 @@ function wrapWalletRpcGuard(
 
   const origin = window.location.origin;
   const chainRpc: Record<string, WalletRpcConfig> = {
+    "0x13b2": { name: "Arc Mainnet", rpc: `${origin}/api/rpc?chain=arc`, explorer: "https://explorer.arc.io", currency: { name: "USDC", symbol: "USDC", decimals: 18 }, key: "arc" },
     "0x4cef52": { name: "Arc Testnet", rpc: `${origin}/api/rpc?chain=arc`, explorer: "https://testnet.arcscan.app", currency: { name: "USDC", symbol: "USDC", decimals: 18 }, key: "arc" },
     "0x14a34": { name: "Base Sepolia", rpc: `${origin}/api/rpc?chain=base`, explorer: "https://sepolia.basescan.org", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "base" },
     "0xaa36a7": { name: "Ethereum Sepolia", rpc: `${origin}/api/rpc?chain=eth`, explorer: "https://sepolia.etherscan.io", currency: { name: "Ether", symbol: "ETH", decimals: 18 }, key: "eth" },

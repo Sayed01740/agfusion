@@ -7,6 +7,7 @@ import {
   ARC_CURRENCY_DECIMALS,
   ARC_CURRENCY_NAME,
   ARC_CURRENCY_SYMBOL,
+  IS_ARC_MAINNET,
 } from "@/lib/arc-chain";
 
 export interface ChainMeta {
@@ -43,6 +44,24 @@ export const CHAINS: Record<ChainId, ChainMeta> = {
   Unichain: { id: "Unichain", label: "Unichain", short: "Unic", color: "#a3a3a3", explorer: "https://explorer.unichain.com", appKitName: "Unichain", testnet: false },
   World_Chain: { id: "World_Chain", label: "World Chain", short: "Worl", color: "#a3a3a3", explorer: "https://explorer.worldchain.com", appKitName: "World_Chain", testnet: false },
   XDC: { id: "XDC", label: "XDC", short: "XDC", color: "#a3a3a3", explorer: "https://explorer.xdc.com", appKitName: "XDC", testnet: false },
+  Arc: {
+    id: "Arc",
+    label: "Arc Mainnet",
+    short: "Arc",
+    color: "#a3a3a3",
+    explorer: "https://explorer.arc.io",
+    appKitName: "Arc",
+    testnet: false,
+  },
+  Arc_Mainnet: {
+    id: "Arc_Mainnet",
+    label: "Arc Mainnet",
+    short: "Arc",
+    color: "#a3a3a3",
+    explorer: "https://explorer.arc.io",
+    appKitName: "Arc_Mainnet",
+    testnet: false,
+  },
   Arc_Testnet: {
     id: "Arc_Testnet",
     label: ARC_NETWORK_NAME,
@@ -80,7 +99,8 @@ export const CHAINS: Record<ChainId, ChainMeta> = {
 export const CHAIN_LIST: ChainMeta[] = Object.values(CHAINS);
 
 const CHAIN_ALIASES: Record<string, ChainId> = {
-  arc: "Arc_Testnet",
+  arc: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+  "arc mainnet": "Arc_Mainnet",
   "arc testnet": "Arc_Testnet",
   base: "Base_Sepolia",
   "base sepolia": "Base_Sepolia",

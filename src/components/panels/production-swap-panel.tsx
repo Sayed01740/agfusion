@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
 import { getArcDexSwapQuote, normalizeSlippageBps } from "@/blockchain/production-swap";
+import { ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 const ARC_SWAP_TOKENS: ArcSwapToken[] = ["USDC", "EURC", "cirBTC"];
@@ -32,7 +33,8 @@ function minimumReceived(amountOut: string, slippage: string): string {
 }
 
 export function ProductionSwapPanel() {
-  const { addTransaction, setActiveTx, setThinking, walletAddress } = usePilotStore();
+  const { addTransaction, setActiveTx, setThinking, walletAddress, walletChainId } = usePilotStore();
+  const meta = getArcNetworkMeta(walletChainId);
   const [tokenIn, setTokenIn] = useState<ArcSwapToken>("USDC");
   const [tokenOut, setTokenOut] = useState<ArcSwapToken>("EURC");
   const [amount, setAmount] = useState("0.50");
@@ -117,7 +119,8 @@ export function ProductionSwapPanel() {
     setThinking(true);
     setError(null);
     try {
-      const tx = await executeSwap({ amount, tokenIn, tokenOut, chain: "Arc_Testnet", slippageBps });
+      const activeChain = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
+      const tx = await executeSwap({ amount, tokenIn, tokenOut, chain: activeChain, slippageBps });
       addTransaction(tx);
       setActiveTx(tx.id);
       if (tx.status === "success") {
@@ -138,7 +141,7 @@ export function ProductionSwapPanel() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">Arc Testnet Swap</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">{meta.name} Swap</p>
           <p className="mt-1 text-[12px] leading-relaxed text-slate-400">Live Arc DEX quote, wallet confirmation, and receipt verification.</p>
         </div>
         <Badge variant="cyan" className="shrink-0">USDC · EURC · cirBTC</Badge>

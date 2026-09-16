@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DeveloperTerminal } from "@/components/landing/developer-terminal";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME } from "@/lib/arc-chain";
 
 const CAPABILITIES = [
   {
@@ -66,7 +67,7 @@ const CAPABILITIES = [
 ];
 
 const METRICS = [
-  { label: "Target Network", value: "Arc Testnet", sub: "Chain ID 5042002" },
+  { label: "Target Network", value: ARC_NETWORK_NAME, sub: `Chain ID ${ARC_CHAIN_ID}` },
   { label: "Native Fee Asset", value: "USDC", sub: "Gas paid directly in USDC" },
   { label: "Settlement Speed", value: "< 1s", sub: "Fast finality on Arc" },
   { label: "Cross-Chain Support", value: "EVM + CCTP", sub: "Arc, Base & Ethereum" },
@@ -109,7 +110,7 @@ export default function LandingPage() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
           </span>
-          <span className="font-mono">Arc Testnet Live</span>
+          <span className="font-mono">{ARC_NETWORK_NAME} Live</span>
         </div>
 
         {/* Main Display Headline */}
@@ -123,7 +124,7 @@ export default function LandingPage() {
 
         {/* Subtitle Value Proposition */}
         <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-          Transform complex multi-chain liquidity, cross-chain swaps, and treasury operations into verified, non-custodial transactions. Zero slippage routing and instant finality on Arc Testnet.
+          Transform complex multi-chain liquidity, cross-chain swaps, and treasury operations into verified, non-custodial transactions. Zero slippage routing and instant finality on {ARC_NETWORK_NAME}.
         </p>
 
         {/* CTA Cluster */}
@@ -323,7 +324,7 @@ export default function LandingPage() {
       >
         <div className="relative z-10 mx-auto max-w-2xl">
           <span className="rounded-full border border-accent/30 bg-accent/15 px-3.5 py-1 text-xs font-semibold text-accent font-mono shadow-xs shadow-accent/20">
-            Get Started on Arc Testnet
+            Get Started on {ARC_NETWORK_NAME}
           </span>
           <h2 id="cta-heading" className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl font-display text-gradient-pro">
             Experience the Future of Web3 Intelligence.

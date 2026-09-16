@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePilotStore } from "@/store/pilot-store";
 import { CHAIN_LIST, CHAINS } from "@/lib/chains";
+import { ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
 import { cn } from "@/lib/utils";
 import {
   executeBridge,
@@ -525,7 +526,7 @@ export function SwapPanelBody() {
           />
         </Field>
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          Live swap on Arc Testnet. Your wallet will ask you to sign — that is
+          Live swap on {ARC_NETWORK_NAME}. Your wallet will ask you to sign — that is
           normal.
         </p>
         <FeeLineItems quote={quoteSwapFee(amount)} compact />
@@ -607,7 +608,7 @@ export function SwapPanelBody() {
         open={confirm}
         feeQuote={quoteSwapFee(amount)}
         title="Confirm swap"
-        summary={`Swap ${amount} USDC → EURC on Arc Testnet with your connected wallet.`}
+        summary={`Swap ${amount} USDC → EURC on ${ARC_NETWORK_NAME} with your connected wallet.`}
         mode={mode}
         busy={busy}
         onCancel={() => setConfirm(false)}
@@ -618,8 +619,9 @@ export function SwapPanelBody() {
 }
 
 export function SendPanelBody() {
-  const { addTransaction, setActiveTx, setThinking, executionMode } =
+  const { addTransaction, setActiveTx, setThinking, executionMode, walletChainId } =
     usePilotStore();
+  const meta = getArcNetworkMeta(walletChainId);
   const [amount, setAmount] = useState("0.05");
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
@@ -643,10 +645,11 @@ export function SendPanelBody() {
     setThinking(true);
     setConfirm(false);
     try {
+      const activeChain: ChainId = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
       const transaction = await executeSend({
         amount,
         token: "USDC",
-        chain: "Arc_Testnet",
+        chain: activeChain,
         recipient: trimmed,
         preferLive: true,
       });

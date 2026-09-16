@@ -20,9 +20,8 @@ export async function executeCircleCctpBridge(params: {
 }): Promise<TransactionRecord> {
   const debugId = params.txId || uid("bridge");
 
-  // Circle App Kit SDK does not support Arc Testnet. Route Arc bridges directly through
-  // our CCTP v2 Forwarding service.
-  if (params.fromChain === "Arc_Testnet" || params.toChain === "Arc_Testnet") {
+  const isArc = (c: ChainId) => c === "Arc_Testnet" || c === "Arc" || c === "Arc_Mainnet";
+  if (isArc(params.fromChain) || isArc(params.toChain)) {
     return runBridgeKitFlow({
       amount: params.amount,
       fromChain: params.fromChain,

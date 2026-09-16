@@ -14,6 +14,7 @@ import { formatUsdc } from "@/lib/fees";
 import { Activity, ArrowRight, MessageSquare, Wrench, ExternalLink } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
+import { ARC_EXPLORER, ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
 import type { TransactionRecord, TxStep } from "@/types";
 
 function getActivityError(tx: TransactionRecord): { step?: string; message?: string } {
@@ -44,8 +45,8 @@ function getBridgeStepChain(tx: TransactionRecord, step: TxStep): string | undef
 function getStepExplorerUrl(tx: TransactionRecord, step: TxStep): string | null {
   if (!step.txHash) return null;
   const chain = tx.type === "bridge" ? getBridgeStepChain(tx, step) : tx.fromChain || tx.toChain;
-  const explorer = chain === "Arc_Testnet"
-    ? "https://testnet.arcscan.app"
+  const explorer = (chain === "Arc_Testnet" || chain === "Arc" || chain === "Arc_Mainnet")
+    ? ARC_EXPLORER
     : chain === "Base_Sepolia"
       ? "https://sepolia.basescan.org"
       : undefined;
@@ -57,7 +58,20 @@ function bridgeTxSteps(tx: TransactionRecord): TxStep[] {
 }
 
 export default function DashboardPage() {
-  const { transactions, activeTxId, setActiveTx, addTransaction, setThinking, walletAddress, refreshBalances, loadServerTransactions, addMessage, liveBalanceUsdc } = usePilotStore();
+  const {
+    transactions,
+    activeTxId,
+    setActiveTx,
+    addTransaction,
+    setThinking,
+    walletAddress,
+    walletChainId,
+    refreshBalances,
+    loadServerTransactions,
+    addMessage,
+    liveBalanceUsdc,
+  } = usePilotStore();
+  const detectedMeta = getArcNetworkMeta(walletChainId);
   const active = transactions.find((t) => t.id === activeTxId) || transactions[0];
   const [mobileTab, setMobileTab] = useState<"chat" | "tools">("chat");
   const [guideOpen, setGuideOpen] = useState(false);
@@ -156,9 +170,29 @@ export default function DashboardPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
                   Fast Finality
                 </Badge>
-                <Badge variant="outline" className="hidden sm:flex items-center gap-1.5 border-border bg-muted/80 px-3 py-1 text-xs text-muted-foreground font-mono">
-                  <Activity aria-hidden="true" className="h-3 w-3 text-accent" />
-                  Arc Testnet
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "items-center gap-1.5 border px-3 py-1 text-xs font-mono transition-colors",
+                    detectedMeta.isMainnet
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      : detectedMeta.isTestnet
+                      ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                  )}
+                >
+                  <Activity
+                    aria-hidden="true"
+                    className={cn(
+                      "h-3 w-3",
+                      detectedMeta.isMainnet
+                        ? "text-emerald-400"
+                        : detectedMeta.isTestnet
+                        ? "text-cyan-300"
+                        : "text-amber-300"
+                    )}
+                  />
+                  {detectedMeta.name}
                 </Badge>
               </div>
             </div>

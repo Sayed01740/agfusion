@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { ARC_TESTNET_RPC } from "@/lib/arc-chain";
+import { getArcNetworkMeta } from "@/lib/arc-chain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * Live Arc USDC (native gas) balance via public RPC.
- * Accepts ?address=0x… or authenticated session address.
+ * Accepts ?address=0x…&chainId=… or authenticated session address.
  */
 export async function GET(req: Request) {
   const rl = rateLimit(`balances:${clientIp(req)}`, {
@@ -21,6 +21,9 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const qAddr = url.searchParams.get("address")?.trim() || "";
+  const qChainId = url.searchParams.get("chainId")?.trim() || null;
+  const meta = getArcNetworkMeta(qChainId);
+
   const session = await getSessionUser();
   const address =
     (qAddr.match(/^0x[a-fA-F0-9]{40}$/) ? qAddr : null) ||
@@ -37,7 +40,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const rpc = process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || ARC_TESTNET_RPC;
+    const rpc = meta.rpc;
     const cleanAddress = address.toLowerCase().replace(/^0x/, "");
     const balanceOfData = `0x70a08231${"0".repeat(24)}${cleanAddress}`;
 
@@ -118,16 +121,16 @@ export async function GET(req: Request) {
       address,
       balances: [
         {
-          chain: "Arc_Testnet",
-          chainName: "Arc Testnet",
+          chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+          chainName: meta.name,
           token: "USDC",
           amount: tokenAmountStr,
           usdValue: tokenBalance,
           source: "rpc",
         },
         {
-          chain: "Arc_Testnet",
-          chainName: "Arc Testnet",
+          chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+          chainName: meta.name,
           token: "USDC (Gas)",
           amount: gasAmount,
           usdValue: gasUsd,

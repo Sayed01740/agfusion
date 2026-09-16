@@ -1,9 +1,6 @@
-/**
- * AGFusion on-chain identity (Arc Testnet).
- * Custom contract deployed by project owner — separate from Circle App Kit / CCTP.
- */
+import { ARC_CHAIN_ID, ARC_EXPLORER } from "@/lib/arc-chain";
 
-export const ARC_CHAIN_ID = 5042002;
+export { ARC_CHAIN_ID };
 
 /** Deployed AGFusionRegistry (Foundry Path A) */
 export const AGFUSION_REGISTRY =
@@ -22,20 +19,20 @@ export const AGFUSION_DEPLOY_TX =
 export const AGFUSION_METADATA_URI =
   "https://agfusion.vercel.app/identity/agfusion-agent.json";
 
-/** ERC-8004 IdentityRegistry (Arc Testnet) — see src/lib/erc8004.ts */
+/** ERC-8004 IdentityRegistry — see src/lib/erc8004.ts */
 export const ERC8004_IDENTITY_REGISTRY =
   "0x8004A818BFB912233c491871b3d84c89A494BD9e";
 
 export function registryExplorerUrl(address = AGFUSION_REGISTRY): string {
-  return `https://testnet.arcscan.app/address/${address}`;
+  return `${ARC_EXPLORER}/address/${address}`;
 }
 
 export function txExplorerUrl(hash = AGFUSION_DEPLOY_TX): string {
-  return `https://testnet.arcscan.app/tx/${hash}`;
+  return `${ARC_EXPLORER}/tx/${hash}`;
 }
 
 export function walletExplorerUrl(address = AGFUSION_DEPLOYER): string {
-  return `https://testnet.arcscan.app/address/${address}`;
+  return `${ARC_EXPLORER}/address/${address}`;
 }
 
 /** Minimal ABI for UI / cast */

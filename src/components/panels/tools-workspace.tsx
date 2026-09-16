@@ -23,6 +23,7 @@ import { QrPayCard } from "@/components/pay/qr-pay";
 import { BatchPayrollCard } from "@/components/pay/batch-payroll";
 import { RiskOracleCard } from "@/components/pay/risk-oracle";
 import { UnifiedBalanceCard } from "@/components/balance/unified-balance";
+import { ARC_NETWORK_NAME } from "@/lib/arc-chain";
 
 type TabId = "send" | "swap" | "bridge" | "more";
 
@@ -39,7 +40,7 @@ const TABS: Array<{
     label: "Send",
     short: "USDC Transfer",
     icon: Send,
-    blurb: "Transfer test USDC to a wallet address on Arc.",
+    blurb: "Transfer USDC to a wallet address on Arc.",
     step: "Enter amount and recipient address, then approve in wallet.",
   },
   {
@@ -47,7 +48,7 @@ const TABS: Array<{
     label: "Swap",
     short: "Exchange",
     icon: Waypoints,
-    blurb: "Swap supported tokens on Arc Testnet.",
+    blurb: `Swap supported tokens on ${ARC_NETWORK_NAME}.`,
     step: "Select tokens, review quote, and approve in wallet.",
   },
   {

@@ -17,7 +17,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { arcTestnet, explorerTxUrl } from "@/lib/arc-chain";
+import { arcTestnet, explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import {
   getInjectedProvider,
   requestAccounts,
@@ -230,8 +230,8 @@ export async function liveSendUsdcOnArc(params: {
     retryable: status === "retryable",
     amount: params.amount,
     token: "USDC",
-    fromChain: "Arc_Testnet",
-    toChain: "Arc_Testnet",
+    fromChain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+    toChain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
     recipient: params.recipient,
     recipientLabel: params.recipientLabel,
     feeUsd: 0.04,
@@ -239,7 +239,7 @@ export async function liveSendUsdcOnArc(params: {
     txHash: hash,
     explorerUrl: explorerTxUrl(hash),
     createdAt: new Date().toISOString(),
-    message: `Live USDC send on Arc Testnet — ${finalityMessage}`,
+    message: `Live USDC send on ${ARC_NETWORK_NAME} — ${finalityMessage}`,
     executionMode: "live",
   };
 }

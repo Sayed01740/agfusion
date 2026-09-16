@@ -3,6 +3,7 @@
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AGFUSION_X_URL } from "@/lib/social";
+import { ARC_EXPLORER } from "@/lib/arc-chain";
 import {
   AGFUSION_DEPLOYER,
   AGFUSION_REGISTRY,
@@ -90,12 +91,12 @@ export function ReviewerPathCard() {
             Faucet <ExternalLink className="h-3 w-3" />
           </a>
           <a
-            href="https://testnet.arcscan.app"
+            href={ARC_EXPLORER}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300"
           >
-            ArcScan <ExternalLink className="h-3 w-3" />
+            Explorer <ExternalLink className="h-3 w-3" />
           </a>
           <a
             href={AGFUSION_X_URL}

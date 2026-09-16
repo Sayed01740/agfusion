@@ -11,16 +11,20 @@ import {
   ErrorNote,
   useArcBalance,
 } from "@/components/dapp/shared";
-import { TOKEN_LIST, ARC_TOKENS, isAddress, type ArcToken } from "@/lib/dapp/tokens";
+import { TOKEN_LIST, ARC_TOKENS, getArcTokens, isAddress, type ArcToken } from "@/lib/dapp/tokens";
 import { sendArcToken } from "@/lib/dapp/send";
 import { usePilotStore } from "@/store/pilot-store";
+import { getArcNetworkMeta } from "@/lib/arc-chain";
 import type { TransactionRecord, TxStep } from "@/types";
 
 export function SendCard({ connected }: { connected: boolean }) {
   const addTransaction = usePilotStore((s) => s.addTransaction);
   const refreshBalances = usePilotStore((s) => s.refreshBalances);
+  const walletChainId = usePilotStore((s) => s.walletChainId);
+  const meta = getArcNetworkMeta(walletChainId);
 
-  const [token, setToken] = useState<ArcToken>(ARC_TOKENS.USDC);
+  const tokenList: ArcToken[] = Object.values(getArcTokens(meta.isMainnet));
+  const [token, setToken] = useState<ArcToken>(tokenList[0] || ARC_TOKENS.USDC);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,6 +46,7 @@ export function SendCard({ connected }: { connected: boolean }) {
         recipient,
         amount,
         onStep: setSteps,
+        walletChainId: walletChainId ?? undefined,
       });
       addTransaction(tx);
       setResult(tx);
@@ -68,7 +73,7 @@ export function SendCard({ connected }: { connected: boolean }) {
         amount={amount}
         onAmountChange={setAmount}
         token={token}
-        tokenOptions={TOKEN_LIST}
+        tokenOptions={tokenList}
         onTokenChange={setToken}
         balance={connected ? bal.balance : undefined}
         onMax={connected ? () => setAmount(bal.balance) : undefined}

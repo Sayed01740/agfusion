@@ -8,6 +8,12 @@ import {
   discoverWallets,
   type DiscoveredWallet,
 } from "@/sdk/wallet-adapter";
+import {
+  ARC_CHAIN_ID,
+  ARC_CHAIN_ID_HEX,
+  ARC_NETWORK_NAME,
+  ARC_RPC,
+} from "@/lib/arc-chain";
 import { cn } from "@/lib/utils";
 
 const INSTALL_LINKS = [
@@ -105,7 +111,7 @@ export function WalletModal({
                 // For a User-Controlled Wallet, we don't have a standard window.ethereum.
                 // Build the shared mock provider so the app recognizes a wallet is
                 // connected AND so it can be reconstructed after a page reload.
-                const chainIdRef = { value: "0x4cef52" }; // Arc Testnet = 5042002
+                const chainIdRef = { value: ARC_CHAIN_ID_HEX };
                 const { provider: mockProvider } = createCircleMockProvider({
                   address,
                   chainIdRef,
@@ -123,10 +129,10 @@ export function WalletModal({
                 // Do not wrap it in a ZeroDev account here: that creates a second address,
                 // so the UI would check the smart account while the faucet funds remain in
                 // the Circle wallet.
-                usePilotStore.getState().setWallet(address, 5042002);
+                usePilotStore.getState().setWallet(address, ARC_CHAIN_ID);
                 usePilotStore.getState().setAuthenticated(true);
                 
-                alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on Arc Testnet. This same Circle smart-wallet address can be used by Auto-Agent.`);
+                alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on ${ARC_NETWORK_NAME}. This same Circle smart-wallet address can be used by Auto-Agent.`);
                 onClose();
               } catch (err: any) {
                 alert(err.message || "Failed to create Circle Wallet");
@@ -283,11 +289,10 @@ export function WalletModal({
               </li>
             </ul>
             <div className="pt-1 border-t border-border text-muted-foreground font-mono break-words">
-              Arc Testnet · Chain ID 5042002 · RPC rpc.testnet.arc.network · USDC
-              gas
+              {ARC_NETWORK_NAME} · Chain ID {ARC_CHAIN_ID} · RPC {ARC_RPC} · USDC gas
             </div>
             <div className="text-muted-foreground">
-              Network tip: if add-network fails, delete a stale “Arc Testnet” in
+              Network tip: if add-network fails, delete a stale “{ARC_NETWORK_NAME}” in
               wallet settings and connect again.
             </div>
           </div>

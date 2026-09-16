@@ -1,25 +1,45 @@
 import { cn } from "@/lib/utils";
 
 export type SupportedChainMark =
+  | "Arc"
+  | "Arc_Mainnet"
   | "Arc_Testnet"
+  | "Base"
   | "Base_Sepolia"
+  | "Arbitrum"
   | "Arbitrum_Sepolia"
+  | "Ethereum"
   | "Ethereum_Sepolia"
+  | "Optimism"
   | "Optimism_Sepolia"
+  | "Avalanche"
   | "Avalanche_Fuji"
+  | "Polygon"
   | "Polygon_Amoy"
+  | "Unichain"
   | "Unichain_Sepolia"
+  | "Linea"
   | "Linea_Sepolia";
 
 const marks: Record<SupportedChainMark, { name: string; short: string; src: string }> = {
+  Arc: { name: "Arc Mainnet", short: "ARC", src: "https://www.arc.io/favicon.ico" },
+  Arc_Mainnet: { name: "Arc Mainnet", short: "ARC", src: "https://www.arc.io/favicon.ico" },
   Arc_Testnet: { name: "Arc Testnet", short: "ARC", src: "https://www.arc.io/favicon.ico" },
+  Base: { name: "Base", short: "BASE", src: "https://cdn.simpleicons.org/base" },
   Base_Sepolia: { name: "Base Sepolia", short: "BASE", src: "https://cdn.simpleicons.org/base" },
+  Arbitrum: { name: "Arbitrum", short: "ARB", src: "https://cdn.simpleicons.org/arbitrum" },
   Arbitrum_Sepolia: { name: "Arbitrum Sepolia", short: "ARB", src: "https://cdn.simpleicons.org/arbitrum" },
+  Ethereum: { name: "Ethereum", short: "ETH", src: "https://cdn.simpleicons.org/ethereum" },
   Ethereum_Sepolia: { name: "Ethereum Sepolia", short: "ETH", src: "https://cdn.simpleicons.org/ethereum" },
+  Optimism: { name: "Optimism", short: "OP", src: "https://cdn.simpleicons.org/optimism" },
   Optimism_Sepolia: { name: "Optimism Sepolia", short: "OP", src: "https://cdn.simpleicons.org/optimism" },
+  Avalanche: { name: "Avalanche", short: "AVAX", src: "https://cdn.simpleicons.org/avalanche" },
   Avalanche_Fuji: { name: "Avalanche Fuji", short: "AVAX", src: "https://cdn.simpleicons.org/avalanche" },
+  Polygon: { name: "Polygon", short: "POL", src: "https://cdn.simpleicons.org/polygon" },
   Polygon_Amoy: { name: "Polygon Amoy", short: "POL", src: "https://cdn.simpleicons.org/polygon" },
+  Unichain: { name: "Unichain", short: "UNI", src: "https://cdn.simpleicons.org/uniswap" },
   Unichain_Sepolia: { name: "Unichain Sepolia", short: "UNI", src: "https://cdn.simpleicons.org/uniswap" },
+  Linea: { name: "Linea", short: "LINEA", src: "https://cdn.simpleicons.org/linea" },
   Linea_Sepolia: { name: "Linea Sepolia", short: "LINEA", src: "https://cdn.simpleicons.org/linea" },
 };
 

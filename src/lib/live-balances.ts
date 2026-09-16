@@ -3,6 +3,7 @@
  */
 
 import type { UnifiedBalanceSnapshot } from "@/types";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 export function snapshotFromArcUsdc(
   amountStr: string | null | undefined,
@@ -14,8 +15,8 @@ export function snapshotFromArcUsdc(
     totalUsd: amount,
     balances: [
       {
-        chain: "Arc_Testnet",
-        chainLabel: "Arc Testnet",
+        chain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+        chainLabel: IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet",
         token: "USDC",
         amount,
         usdValue: amount,

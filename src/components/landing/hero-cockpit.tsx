@@ -15,6 +15,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ARC_NETWORK_NAME } from "@/lib/arc-chain";
 
 interface IntentScenario {
   id: string;
@@ -148,7 +149,7 @@ export function HeroCockpit() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-muted/60 px-2.5 py-1 text-[11px] font-mono text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-            Arc Testnet
+            {ARC_NETWORK_NAME}
           </div>
         </div>
       </div>

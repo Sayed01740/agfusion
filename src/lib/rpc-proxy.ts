@@ -7,7 +7,9 @@
  * transaction to a dead public endpoint while preserving the no-duplicate rule.
  */
 
-export const ARC_EXPECTED_CHAIN_ID_HEX = "0x4cef52";
+import { ARC_CHAIN_ID_HEX, IS_ARC_MAINNET } from "@/lib/arc-chain";
+
+export const ARC_EXPECTED_CHAIN_ID_HEX = ARC_CHAIN_ID_HEX;
 
 /** Expected EVM chain IDs for every chain exposed by the bridge UI. */
 export const EXPECTED_CHAIN_IDS: Record<string, string> = {
@@ -24,13 +26,18 @@ export const EXPECTED_CHAIN_IDS: Record<string, string> = {
 
 /** Ordered upstreams per chain key. First healthy provider wins. */
 export const RPC_UPSTREAMS: Record<string, string[]> = {
-  arc: [
-    "https://rpc.testnet.arc.io",
-    "https://rpc.testnet.arc.network",
-    "https://rpc.blockdaemon.testnet.arc.io",
-    "https://rpc.drpc.testnet.arc.io",
-    "https://rpc.quicknode.testnet.arc.io",
-  ],
+  arc: IS_ARC_MAINNET
+    ? [
+        "https://rpc.mainnet.arc.io",
+        "https://rpc.arc.network",
+      ]
+    : [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.testnet.arc.network",
+        "https://rpc.blockdaemon.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io",
+      ],
   base: [
     // Base's public endpoint is rate-limited, so keep it as a last resort.
     "https://base-sepolia-rpc.publicnode.com",

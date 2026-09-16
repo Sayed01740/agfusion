@@ -21,6 +21,8 @@ export type ChainId =
   | "Unichain"
   | "World_Chain"
   | "XDC"
+  | "Arc"
+  | "Arc_Mainnet"
   | "Arc_Testnet"
   | "Arbitrum_Sepolia"
   | "Avalanche_Fuji"

@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect, useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bot, Code2, Home, LayoutDashboard, LineChart, LogOut, Wallet, Settings } from "lucide-react";
+import { Bot, Code2, Home, LayoutDashboard, LineChart, LogOut, Wallet, Settings, Globe } from "lucide-react";
 import { cn, shortenAddress } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand/logo";
 import { AGFUSION_X_HANDLE, AGFUSION_X_URL } from "@/lib/social";
 import { usePilotStore } from "@/store/pilot-store";
 import { useWallet } from "@/providers/wallet-provider";
+import { ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
 
 function XIcon({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" /></svg>; }
 
@@ -21,8 +22,16 @@ const panelClass = "absolute right-0 top-full z-50 mt-2 w-[calc(100vw-1.5rem)] r
 
 export function Navbar() {
   const pathname = usePathname();
-  const { walletAddress, developerMode, setDeveloperMode } = usePilotStore();
-  const { connect, disconnect, connecting, enableAgentMode } = useWallet();
+  const { walletAddress, walletChainId, developerMode, setDeveloperMode } = usePilotStore();
+  const {
+    connect,
+    disconnect,
+    connecting,
+    enableAgentMode,
+    switchToArcMainnet,
+    switchToArcTestnet,
+  } = useWallet();
+  const currentMeta = getArcNetworkMeta(walletChainId);
   const [openMenu, setOpenMenu] = useState<"settings" | "wallet" | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
@@ -103,10 +112,53 @@ export function Navbar() {
 
           {walletAddress ? <div className="relative" ref={walletRef}>
             <Button variant="outline" type="button" onClick={() => setOpenMenu(openMenu === "wallet" ? null : "wallet")} aria-label={`Wallet options for ${shortenAddress(walletAddress)}`} aria-expanded={openMenu === "wallet"} aria-controls={walletId} className={cn("min-h-11 gap-2 rounded-xl border-border bg-card px-3 text-foreground", focusClass, openMenu === "wallet" && "bg-muted")}>
+              <span className={cn("h-2 w-2 rounded-full", currentMeta.isMainnet ? "bg-emerald-400" : currentMeta.isTestnet ? "bg-cyan-400" : "bg-amber-400")} />
               <Wallet aria-hidden="true" className="h-4 w-4 shrink-0 text-accent" /><span className="font-mono text-xs font-medium sm:text-sm">{shortenAddress(walletAddress)}</span>
             </Button>
-            <div id={walletId} hidden={openMenu !== "wallet"} className={cn(panelClass, "max-w-64")}>
-              <div className="flex items-center justify-between px-3 py-2 text-xs text-muted-foreground"><span>Status</span><span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider">Arc Testnet</span></div>
+            <div id={walletId} hidden={openMenu !== "wallet"} className={cn(panelClass, "max-w-72")}>
+              <div className="flex items-center justify-between px-3 py-2 text-xs text-muted-foreground">
+                <span>Network</span>
+                <span className={cn(
+                  "rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                  currentMeta.isMainnet
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                    : currentMeta.isTestnet
+                    ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                )}>
+                  {currentMeta.name}
+                </span>
+              </div>
+
+              {/* Quick switch between Mainnet and Testnet */}
+              <div className="mx-1 my-1 flex gap-1 rounded-xl bg-muted/60 p-1">
+                <button
+                  type="button"
+                  onClick={() => { void switchToArcMainnet(); closeMenu(); }}
+                  className={cn(
+                    "flex-1 rounded-lg py-1 text-[11px] font-medium transition-colors",
+                    currentMeta.isMainnet
+                      ? "bg-emerald-500/20 text-emerald-300 font-semibold shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Arc Mainnet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void switchToArcTestnet(); closeMenu(); }}
+                  className={cn(
+                    "flex-1 rounded-lg py-1 text-[11px] font-medium transition-colors",
+                    currentMeta.isTestnet
+                      ? "bg-cyan-500/20 text-cyan-300 font-semibold shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Arc Testnet
+                </button>
+              </div>
+
+              <div className="my-1 h-px bg-border" />
               <Button variant="ghost" size="sm" type="button" onClick={() => { navigator.clipboard.writeText(walletAddress); alert("Address copied!"); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-foreground", focusClass)}><Wallet aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> Copy Address</Button>
               <Button variant="ghost" size="sm" type="button" onClick={() => { void enableAgentMode(); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-foreground", focusClass)}><Bot aria-hidden="true" className="h-4 w-4 text-accent" /> Enable Auto-Agent</Button>
               <div className="my-1 h-px bg-border" />

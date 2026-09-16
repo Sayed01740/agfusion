@@ -12,7 +12,7 @@ import type {
 import { CHAINS } from "@/lib/chains";
 import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-chains";
 import { uid } from "@/lib/utils";
-import { explorerTxUrl } from "@/lib/arc-chain";
+import { explorerTxUrl, ARC_CHAIN_ID, ARC_NETWORK_NAME, ARC_RPC } from "@/lib/arc-chain";
 import { getAppKit, getAppKitLoadError } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser } from "@/sdk/wallet-adapter";
 import { liveSendUsdcOnArc } from "@/blockchain/live-send";
@@ -704,7 +704,7 @@ export async function runSwapFlow(params: {
     // Real chain mismatch strings only — do NOT map all 1098 to this
     // (1098 = generic INPUT_VALIDATION_FAILED in Circle kits)
     if (
-      /chainId should be same|Wallet is on chain|Could not switch to Arc|left Arc after|bad Arc Testnet|need 5042002|need Arc Testnet/i.test(
+      /chainId should be same|Wallet is on chain|Could not switch to Arc|left Arc after|bad Arc|need 5042|need Arc/i.test(
         msg,
       )
     ) {
@@ -712,7 +712,7 @@ export async function runSwapFlow(params: {
         `${msg}\n\n` +
           `Tips:\n` +
           `• In Rabby, select the **exact account** connected to AGFusion\n` +
-          `• Network must be **Arc Testnet** · chain id **5042002** · RPC **https://rpc.testnet.arc.io**\n` +
+          `• Network must be **${ARC_NETWORK_NAME}** · chain id **${ARC_CHAIN_ID}** · RPC **${ARC_RPC}**\n` +
           `• If MetaMask + Rabby both installed: Connect → choose **Rabby** in AGFusion\n` +
           `• Delete a bad Arc network entry and re-add if needed`,
       );
@@ -759,7 +759,10 @@ export async function runSendFlow(params: {
   onStep?: (steps: TxStep[]) => void;
   preferLive?: boolean;
 }): Promise<TransactionRecord> {
-  if ((preferLive() || params.preferLive) && params.chain === "Arc_Testnet") {
+  if (
+    (preferLive() || params.preferLive) &&
+    (params.chain === "Arc_Testnet" || params.chain === "Arc" || params.chain === "Arc_Mainnet")
+  ) {
     try {
       return await liveSendUsdcOnArc({
         amount: params.amount,

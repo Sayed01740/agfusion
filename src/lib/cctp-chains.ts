@@ -6,6 +6,7 @@
  */
 
 import type { ChainId } from "@/types";
+import { ARC_EXPLORER } from "@/lib/arc-chain";
 
 export interface CctpChainConfig {
   chainId: number;
@@ -26,6 +27,30 @@ const CCTP_V2_MSG_TRANSMITTER =
   "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" as const;
 
 export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
+  Arc: {
+    chainId: 5042,
+    appKitName: "Arc",
+    circleBlockchain: "ARC",
+    domain: 26,
+    usdc: "0x3600000000000000000000000000000000000000",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+    confirmations: 1,
+    rpcProxyKey: "arc",
+    explorerUrl: "https://explorer.arc.io",
+  },
+  Arc_Mainnet: {
+    chainId: 5042,
+    appKitName: "Arc_Mainnet",
+    circleBlockchain: "ARC",
+    domain: 26,
+    usdc: "0x3600000000000000000000000000000000000000",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+    confirmations: 1,
+    rpcProxyKey: "arc",
+    explorerUrl: "https://explorer.arc.io",
+  },
   Arc_Testnet: {
     chainId: 5042002,
     appKitName: "Arc_Testnet",
@@ -36,7 +61,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
     confirmations: 1,
     rpcProxyKey: "arc",
-    explorerUrl: "https://testnet.arcscan.app",
+    explorerUrl: ARC_EXPLORER,
   },
   Base_Sepolia: {
     chainId: 84532,
@@ -139,6 +164,8 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
 };
 
 export const EVM_BRIDGE_CHAINS: ChainId[] = [
+  "Arc",
+  "Arc_Mainnet",
   "Arc_Testnet",
   "Ethereum_Sepolia",
   "Base_Sepolia",
@@ -151,6 +178,8 @@ export const EVM_BRIDGE_CHAINS: ChainId[] = [
 ];
 
 export const CIRCLE_BRIDGE_CHAINS: ChainId[] = [
+  "Arc",
+  "Arc_Mainnet",
   "Arc_Testnet",
   "Base_Sepolia",
 ];
