@@ -99,6 +99,8 @@ export function WalletModal({
         </div>
 
         <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4 scrollbar-thin">
+          {/* Circle Email Wallet — enabled only when NEXT_PUBLIC_CIRCLE_WALLET_ENABLED=true */}
+          {process.env.NEXT_PUBLIC_CIRCLE_WALLET_ENABLED === "true" ? (
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -176,6 +178,15 @@ export function WalletModal({
               </p>
             </div>
           </form>
+          ) : (
+          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 px-4 py-3 opacity-60 cursor-not-allowed select-none">
+            <div>
+              <div className="text-sm font-medium text-foreground">Circle Email Wallet</div>
+              <div className="text-[10px] text-muted-foreground">Use an EVM wallet below for now</div>
+            </div>
+            <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Soon</span>
+          </div>
+          )}
 
           <div className="relative flex items-center py-2">
             <div className="flex-grow border-t border-border"></div>
