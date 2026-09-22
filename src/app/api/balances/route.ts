@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getArcNetworkMeta } from "@/lib/arc-chain";
+import { RPC_UPSTREAMS } from "@/lib/rpc-proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,114 +40,125 @@ export async function GET(req: Request) {
     });
   }
 
-  try {
-    const rpc = meta.rpc;
-    const cleanAddress = address.toLowerCase().replace(/^0x/, "");
-    const balanceOfData = `0x70a08231${"0".repeat(24)}${cleanAddress}`;
+  const candidateUpstreams = Array.from(
+    new Set([
+      meta.rpc,
+      ...(RPC_UPSTREAMS[meta.isMainnet ? "arc_mainnet" : "arc_testnet"] || []),
+    ])
+  );
 
-    const [gasRes, tokenRes] = await Promise.all([
-      fetch(rpc, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "eth_getBalance",
-          params: [address, "latest"],
+  const cleanAddress = address.toLowerCase().replace(/^0x/, "");
+  const balanceOfData = `0x70a08231${"0".repeat(24)}${cleanAddress}`;
+
+  for (const rpc of candidateUpstreams) {
+    try {
+      const [gasRes, tokenRes] = await Promise.all([
+        fetch(rpc, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_getBalance",
+            params: [address, "latest"],
+          }),
+          signal: AbortSignal.timeout?.(6_000),
         }),
-        signal: AbortSignal.timeout?.(10_000),
-      }),
-      fetch(rpc, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 2,
-          method: "eth_call",
-          params: [
-            {
-              to: "0x3600000000000000000000000000000000000000",
-              data: balanceOfData,
-            },
-            "latest",
-          ],
+        fetch(rpc, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "eth_call",
+            params: [
+              {
+                to: "0x3600000000000000000000000000000000000000",
+                data: balanceOfData,
+              },
+              "latest",
+            ],
+          }),
+          signal: AbortSignal.timeout?.(6_000),
         }),
-        signal: AbortSignal.timeout?.(10_000),
-      }),
-    ]);
+      ]);
 
-    let gasAmount = "0";
-    let gasUsd = 0;
-    if (gasRes.ok) {
-      const data = (await gasRes.json()) as {
-        result?: string;
-        error?: { message?: string };
-      };
-      if (data.result && !data.error) {
-        const weiHex = data.result;
-        const wei = BigInt(weiHex);
-        const whole = Number(wei) / 1e18;
-        gasAmount = Number.isFinite(whole)
-          ? whole.toLocaleString("en-US", {
-              maximumFractionDigits: 6,
-              useGrouping: false,
-            })
-          : "0";
-        gasUsd = Number.isFinite(whole) ? whole : 0;
+      let gasAmount = "0";
+      let gasUsd = 0;
+      if (gasRes.ok) {
+        const data = (await gasRes.json()) as {
+          result?: string;
+          error?: { message?: string };
+        };
+        if (data.result && !data.error) {
+          const weiHex = data.result;
+          const wei = BigInt(weiHex);
+          const whole = Number(wei) / 1e18;
+          gasAmount = Number.isFinite(whole)
+            ? whole.toLocaleString("en-US", {
+                maximumFractionDigits: 6,
+                useGrouping: false,
+              })
+            : "0";
+          gasUsd = Number.isFinite(whole) ? whole : 0;
+        }
       }
-    }
 
-    let tokenBalance = 0;
-    if (tokenRes.ok) {
-      const data = (await tokenRes.json()) as {
-        result?: string;
-        error?: { message?: string };
-      };
-      if (data.result && !data.error) {
-        const valHex = data.result === "0x" ? "0x0" : data.result;
-        const val = BigInt(valHex);
-        tokenBalance = Number(val) / 1e6; // ERC-20 USDC uses 6 decimals
+      let tokenBalance = 0;
+      if (tokenRes.ok) {
+        const data = (await tokenRes.json()) as {
+          result?: string;
+          error?: { message?: string };
+        };
+        if (data.result && !data.error) {
+          const valHex = data.result === "0x" ? "0x0" : data.result;
+          const val = BigInt(valHex);
+          tokenBalance = Number(val) / 1e6; // ERC-20 USDC uses 6 decimals
+        }
       }
+
+      const tokenAmountStr = Number.isFinite(tokenBalance)
+        ? tokenBalance.toLocaleString("en-US", {
+            maximumFractionDigits: 6,
+            useGrouping: false,
+          })
+        : "0";
+
+      return NextResponse.json({
+        totalUsd: tokenBalance,
+        address,
+        balances: [
+          {
+            chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+            chainName: meta.name,
+            token: "USDC",
+            amount: tokenAmountStr,
+            usdValue: tokenBalance,
+            source: "rpc",
+          },
+          {
+            chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+            chainName: meta.name,
+            token: "USDC (Gas)",
+            amount: gasAmount,
+            usdValue: gasUsd,
+            source: "rpc",
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {
+      // Upstream failed or timed out; continue to next fallback upstream
+      continue;
     }
-
-    const tokenAmountStr = Number.isFinite(tokenBalance)
-      ? tokenBalance.toLocaleString("en-US", {
-          maximumFractionDigits: 6,
-          useGrouping: false,
-        })
-      : "0";
-
-    return NextResponse.json({
-      totalUsd: tokenBalance,
-      address,
-      balances: [
-        {
-          chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
-          chainName: meta.name,
-          token: "USDC",
-          amount: tokenAmountStr,
-          usdValue: tokenBalance,
-          source: "rpc",
-        },
-        {
-          chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
-          chainName: meta.name,
-          token: "USDC (Gas)",
-          amount: gasAmount,
-          usdValue: gasUsd,
-          source: "rpc",
-        },
-      ],
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (e) {
-    console.warn("[balances] rpc failed", e);
-    return NextResponse.json({
-      totalUsd: 0,
-      address,
-      balances: [],
-      updatedAt: new Date().toISOString(),
-      note: "Could not read Arc RPC. Check network or try again.",
-    });
   }
+
+  // All upstreams failed
+  return NextResponse.json({
+    totalUsd: 0,
+    address,
+    balances: [],
+    updatedAt: new Date().toISOString(),
+    note: "Could not read Arc RPC. Check network or try again.",
+  });
 }

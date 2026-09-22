@@ -17,11 +17,11 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { arcTestnet, explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { arcChain, explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET, ARC_CHAIN_ID } from "@/lib/arc-chain";
 import {
   getInjectedProvider,
   requestAccounts,
-  switchToArcTestnet,
+  switchToArcNetwork,
   type InjectedProvider,
 } from "@/sdk/wallet-adapter";
 import type { TransactionRecord, TxStep } from "@/types";
@@ -66,12 +66,12 @@ export async function getLiveWalletContext(): Promise<{
 function arcRpcUrl(): string {
   return typeof window !== "undefined"
     ? `${window.location.origin}/api/rpc?chain=arc`
-    : arcTestnet.rpcUrls.default.http[0];
+    : arcChain.rpcUrls.default.http[0];
 }
 
 export async function fetchArcNativeBalance(address: Address): Promise<string> {
   const client = createPublicClient({
-    chain: arcTestnet,
+    chain: arcChain,
     transport: http(arcRpcUrl()),
   });
   const bal = await client.getBalance({ address });
@@ -96,7 +96,7 @@ export async function liveSendUsdcOnArc(params: {
   const id = uid("tx");
   const steps: TxStep[] = [
     { name: "Connect wallet", state: "active" },
-    { name: "Switch to Arc Testnet", state: "pending" },
+    { name: `Switch to ${ARC_NETWORK_NAME}`, state: "pending" },
     { name: "Sign & send USDC", state: "pending" },
     { name: "Confirm finality", state: "pending" },
   ];
@@ -113,7 +113,7 @@ export async function liveSendUsdcOnArc(params: {
   steps[1].state = "active";
   emit();
 
-  await switchToArcTestnet(provider);
+  await switchToArcNetwork(provider, ARC_CHAIN_ID as 5042 | 5042002);
 
   steps[1].state = "success";
   steps[2].state = "active";
@@ -137,13 +137,13 @@ export async function liveSendUsdcOnArc(params: {
       const minRequired = numericAmount + 0.005;
       if (nativeBal < minRequired) {
         throw new Error(
-          `Insufficient balance on Arc Testnet for ${from}. Balance is ${nativeBal.toFixed(4)} USDC, but transaction requires at least ${minRequired.toFixed(4)} USDC (including gas reserve). Please fund your wallet using the Arc testnet faucet.`
+          `Insufficient balance on ${ARC_NETWORK_NAME} for ${from}. Balance is ${nativeBal.toFixed(4)} USDC, but transaction requires at least ${minRequired.toFixed(4)} USDC (including gas reserve). Please fund your wallet.`
         );
       }
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("Insufficient balance on Arc Testnet")) {
+    if (msg.includes(`Insufficient balance on ${ARC_NETWORK_NAME}`)) {
       throw err;
     }
   }
@@ -193,12 +193,12 @@ export async function liveSendUsdcOnArc(params: {
   emit();
 
   const publicClient = createPublicClient({
-    chain: arcTestnet,
+    chain: arcChain,
     transport: http(arcRpcUrl()),
   });
 
   let status: TransactionRecord["status"] = "success";
-  let finalityMessage = "Confirmed on Arc Testnet";
+  let finalityMessage = `Confirmed on ${ARC_NETWORK_NAME}`;
   try {
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
@@ -206,7 +206,7 @@ export async function liveSendUsdcOnArc(params: {
     });
     if (receipt.status !== "success") {
       status = "error";
-      finalityMessage = "Transaction reverted on Arc Testnet";
+      finalityMessage = `Transaction reverted on ${ARC_NETWORK_NAME}`;
       steps[3].state = "error";
       steps[3].message = finalityMessage;
     } else {

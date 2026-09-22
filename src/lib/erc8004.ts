@@ -12,11 +12,11 @@ import {
   type Address,
   type Hash,
 } from "viem";
-import { arcTestnet, ARC_CHAIN_ID, explorerTxUrl } from "@/lib/arc-chain";
+import { arcChain, ARC_CHAIN_ID, explorerTxUrl } from "@/lib/arc-chain";
 import {
   getInjectedProvider,
   requestAccounts,
-  switchToArcTestnet,
+  switchToArcNetwork,
 } from "@/sdk/wallet-adapter";
 import { AGFUSION_METADATA_URI } from "@/lib/onchain";
 
@@ -68,20 +68,20 @@ export async function registerErc8004Agent(opts?: {
     throw new Error("Connect Rabby / MetaMask first, then register.");
   }
 
-  await switchToArcTestnet(provider);
+  await switchToArcNetwork(provider, ARC_CHAIN_ID as 5042 | 5042002);
 
   const walletClient = createWalletClient({
     account: owner,
-    chain: arcTestnet,
+    chain: arcChain,
     transport: custom(provider as never),
   });
 
   const publicClient = createPublicClient({
-    chain: arcTestnet,
+    chain: arcChain,
     transport: http(
       typeof window !== "undefined"
         ? `${window.location.origin}/api/rpc?chain=arc`
-        : arcTestnet.rpcUrls.default.http[0],
+        : arcChain.rpcUrls.default.http[0],
     ),
   });
 
@@ -91,7 +91,7 @@ export async function registerErc8004Agent(opts?: {
     functionName: "register",
     args: [metadataURI],
     account: owner,
-    chain: arcTestnet,
+    chain: arcChain,
   });
 
   await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations: 1 });

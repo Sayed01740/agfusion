@@ -2,16 +2,7 @@
 import { createWalletClient, createPublicClient, custom, http, type Address, type Chain } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { InjectedProvider } from "./wallet-adapter";
-import { ARC_CHAIN_ID } from "@/lib/arc-chain";
-
-const arcTestnet = {
-  id: ARC_CHAIN_ID,
-  name: "Arc Testnet",
-  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://rpc.testnet.arc.network"] },
-  },
-} as const satisfies Chain;
+import { ARC_CHAIN_ID, arcChain } from "@/lib/arc-chain";
 
 export async function createSmartAccountClient(provider: InjectedProvider, address: Address) {
   if (typeof window === "undefined") throw new Error("Window is undefined");
@@ -42,11 +33,11 @@ export async function createSmartAccountClient(provider: InjectedProvider, addre
   const rpcUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/api/rpc?chain=arc`
-      : arcTestnet.rpcUrls.default.http[0];
+      : arcChain.rpcUrls.default.http[0];
 
   const agentClient = createWalletClient({
     account: localAccount,
-    chain: arcTestnet,
+    chain: arcChain,
     transport: http(rpcUrl),
   });
   
@@ -120,10 +111,10 @@ export function createEIP1193ProviderProxy(
           const { EVM_CHAIN_PARAMS } = await import("./wallet-adapter");
           
           let targetRpc = "";
-          let targetChainObj: any = arcTestnet;
+          let targetChainObj: any = arcChain;
           
           if (chainId === ARC_CHAIN_ID) {
-            targetRpc = typeof window !== "undefined" ? `${window.location.origin}/api/rpc?chain=arc` : arcTestnet.rpcUrls.default.http[0];
+            targetRpc = typeof window !== "undefined" ? `${window.location.origin}/api/rpc?chain=arc` : arcChain.rpcUrls.default.http[0];
           } else {
             const param = Object.values(EVM_CHAIN_PARAMS).find((p: any) => p.chainId === chainId);
             if (param) {
