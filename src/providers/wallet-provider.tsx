@@ -24,7 +24,6 @@ import {
   getInjectedProvider,
   getStoredWalletName,
   switchToArcMainnet as adapterSwitchToArcMainnet,
-  switchToArcTestnet as adapterSwitchToArcTestnet,
   switchToArcNetwork,
   type DiscoveredWallet,
   type InjectedProvider,
@@ -170,11 +169,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       void import("@/lib/circle-proxy").then((m) => m.installCircleApiProxy());
       const currentMeta = getArcNetworkMeta(usePilotStore.getState().walletChainId);
+      // Use chain-specific proxy key so testnet/mainnet balances are fetched
+      // from the correct upstream regardless of IS_ARC_MAINNET default.
+      const chainKey = currentMeta.chainId === 5042002 ? "arc_testnet" : "arc_mainnet";
       const client = createPublicClient({
         chain: currentMeta.chain,
         transport: http(
           typeof window !== "undefined"
-            ? `${window.location.origin}/api/rpc?chain=arc`
+            ? `${window.location.origin}/api/rpc?chain=${chainKey}`
             : currentMeta.rpc,
         ),
       });
@@ -256,9 +258,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const trySiwe = useCallback(
     async (address: string, p: InjectedProvider) => {
       try {
-        // Align chain with SIWE Chain ID so wallets don't flag a mismatch
+        // Align chain with the configured Arc network so wallets don't flag a mismatch
         try {
-          await adapterSwitchToArcTestnet(p);
+          await switchToArcNetwork(p, ARC_CHAIN_ID as 5042 | 5042002);
           setWallet(address, ARC_CHAIN_ID);
         } catch {
           /* user can still sign; chain switch is best-effort */

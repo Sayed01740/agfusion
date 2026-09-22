@@ -178,7 +178,6 @@ export const EVM_BRIDGE_CHAINS: ChainId[] = [
 ];
 
 export const CIRCLE_BRIDGE_CHAINS: ChainId[] = [
-  "Arc",
   "Arc_Mainnet",
   "Arc_Testnet",
   "Base_Sepolia",
@@ -189,5 +188,9 @@ export function getCctpConfig(appKitName: string): CctpChainConfig | null {
 }
 
 export function cctpConfigByChainId(chainId: number): CctpChainConfig | null {
+  // Deterministic lookup — avoids Object.values() ordering ambiguity for
+  // chains that share a chain ID (Arc / Arc_Mainnet both = 5042).
+  if (chainId === 5042) return CCTP_CHAIN_CONFIG["Arc_Mainnet"];
+  if (chainId === 5042002) return CCTP_CHAIN_CONFIG["Arc_Testnet"];
   return Object.values(CCTP_CHAIN_CONFIG).find((c) => c.chainId === chainId) ?? null;
 }
