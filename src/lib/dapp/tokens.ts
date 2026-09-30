@@ -60,19 +60,18 @@ export const ARC_MAINNET_TOKENS: Record<string, ArcToken> = {
   EURC: {
     symbol: "EURC",
     name: "Euro Coin",
-    address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as Address,
+    address: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1" as Address,
     decimals: 6,
     accent: "#1A4FDA",
   },
   cirBTC: {
     symbol: "cirBTC",
     name: "Circle BTC",
-    address: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF" as Address,
+    address: "0x171A4217b86A807A64eB94757Db6849fb4bDbAA0" as Address,
     decimals: 8,
     accent: "#F7931A",
   },
-  // NOTE: USDT and DAI are intentionally excluded — their Arc Mainnet addresses
-  // have not been verified. Add them once confirmed from https://docs.arc.io
+  // Official Arc Mainnet contracts from https://docs.arc.io/arc/references/contract-addresses
 };
 
 export function getArcTokens(isMainnet: boolean = IS_ARC_MAINNET): Record<string, ArcToken> {

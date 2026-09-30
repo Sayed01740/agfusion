@@ -12,7 +12,7 @@ import type {
 import { CHAINS } from "@/lib/chains";
 import { CIRCLE_BRIDGE_CHAINS, getCctpConfig } from "@/lib/cctp-chains";
 import { uid } from "@/lib/utils";
-import { explorerTxUrl, ARC_CHAIN_ID, ARC_NETWORK_NAME, ARC_RPC } from "@/lib/arc-chain";
+import { explorerTxUrl, ARC_CHAIN_ID, ARC_NETWORK_NAME, ARC_RPC, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { getAppKit, getAppKitLoadError } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser } from "@/sdk/wallet-adapter";
 import { liveSendUsdcOnArc } from "@/blockchain/live-send";
@@ -199,14 +199,17 @@ export function rpcKeyForChain(chain: ChainId): string {
   return getCctpConfig(chain)?.rpcProxyKey ?? "arc";
 }
 
-/** Circle Email Wallets can only bridge Arc Testnet ↔ Base Sepolia today. */
+/** Circle Email Wallets can only bridge Arc ↔ Base today. */
 export function assertCircleBridgeChains(from: ChainId, to: ChainId): void {
+  const allowed: ChainId[] = IS_ARC_MAINNET
+    ? ["Arc_Mainnet", "Arc", "Base"]
+    : ["Arc_Testnet", "Arc", "Base_Sepolia"];
   if (
-    !CIRCLE_BRIDGE_CHAINS.includes(from) ||
-    !CIRCLE_BRIDGE_CHAINS.includes(to)
+    !allowed.includes(from) ||
+    !allowed.includes(to)
   ) {
     throw new Error(
-      `Circle Email Wallet supports only Arc Testnet ↔ Base Sepolia bridging. ` +
+      `Circle Email Wallet supports only Arc ${IS_ARC_MAINNET ? "Mainnet ↔ Base" : "Testnet ↔ Base Sepolia"} bridging. ` +
         `Use a browser wallet (Rabby / MetaMask) for ${from.replace(/_/g, " ")} → ${to.replace(/_/g, " ")}.`,
     );
   }

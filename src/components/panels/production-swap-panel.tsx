@@ -143,9 +143,13 @@ export function ProductionSwapPanel() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">{meta.name} Swap</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">Live Arc DEX quote, wallet confirmation, and receipt verification.</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+            {meta.isMainnet
+              ? "Arc StableFX live RFQ quote, instant zero-slippage settlement, and receipt verification."
+              : "Live ApexiSwap DEX quote, wallet confirmation, and receipt verification."}
+          </p>
         </div>
-        <Badge variant="cyan" className="shrink-0">USDC · EURC · cirBTC</Badge>
+        <Badge variant="cyan" className="shrink-0">{meta.isMainnet ? "StableFX RFQ" : "USDC · EURC"}</Badge>
       </div>
 
       <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
