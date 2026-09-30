@@ -103,4 +103,28 @@ describe("finalizeVerifiedTransaction", () => {
 
     expect(result.status).toBe("retryable");
   });
+
+  it("preserves swap transactions intact without cross-chain destination checks", async () => {
+    const swapRecord = {
+      id: "tx_swap",
+      type: "swap" as const,
+      status: "success" as const,
+      amount: "0.50",
+      token: "USDC",
+      tokenOut: "EURC",
+      fromChain: "Arc_Testnet" as const,
+      toChain: "Arc_Testnet" as const,
+      steps: [],
+      txHash: TX,
+      createdAt: new Date().toISOString(),
+      message: "Swap confirmed via ApexiSwap DEX (Testnet): 0.50 USDC → approximately 0.372098 EURC. Receipt verified on-chain.",
+      executionMode: "live" as const,
+    };
+
+    const result = await finalizeVerifiedTransaction(swapRecord, "Arc_Testnet");
+
+    expect(result.status).toBe("success");
+    expect(result.message).toBe("Swap confirmed via ApexiSwap DEX (Testnet): 0.50 USDC → approximately 0.372098 EURC. Receipt verified on-chain.");
+    expect(mockedVerify).not.toHaveBeenCalled();
+  });
 });

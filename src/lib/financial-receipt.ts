@@ -95,6 +95,12 @@ function isForwardedBridge(record: TransactionRecord): boolean {
 }
 
 export async function finalizeVerifiedTransaction(record: TransactionRecord, chain: ChainId | undefined): Promise<TransactionRecord> {
+  // Same-chain swaps are executed directly on Arc and verified on-chain by runProductionSwap.
+  // They do not have a cross-chain destination mint or destination transfer event.
+  if (record.type === "swap") {
+    return record;
+  }
+
   const forwardedBridge = isForwardedBridge(record);
 
   if (!record.txHash) {
