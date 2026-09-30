@@ -6,7 +6,7 @@
  */
 
 import type { ChainId } from "@/types";
-import { ARC_EXPLORER } from "@/lib/arc-chain";
+import { ARC_EXPLORER, IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 export interface CctpChainConfig {
   chainId: number;
@@ -21,10 +21,18 @@ export interface CctpChainConfig {
   explorerUrl: string;
 }
 
+// --- Testnet CCTP v2 contracts (Circle Iris Sandbox) ---
 const CCTP_V2_TOKEN_MESSENGER =
   "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as const;
 const CCTP_V2_MSG_TRANSMITTER =
   "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" as const;
+
+// --- Production Mainnet CCTP v2 contracts (Circle Iris Production) ---
+// Source: https://developers.circle.com/stablecoins/docs/evm-smart-contracts
+const CCTP_V2_TOKEN_MESSENGER_MAINNET =
+  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5f" as const;
+const CCTP_V2_MSG_TRANSMITTER_MAINNET =
+  "0x81D40f21B21285853e618Cc442bB505f0D2c72AF" as const;
 
 export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   Arc: {
@@ -45,8 +53,9 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     circleBlockchain: "ARC",
     domain: 26,
     usdc: "0x3600000000000000000000000000000000000000",
-    tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
-    messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+    // Production mainnet CCTP v2 messenger contracts
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 1,
     rpcProxyKey: "arc_mainnet",
     explorerUrl: "https://explorer.arc.io",
@@ -161,6 +170,55 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     rpcProxyKey: "linea",
     explorerUrl: "https://sepolia.lineascan.build",
   },
+  // --- Mainnet CCTP chains (Circle Iris Production) ---
+  Base: {
+    chainId: 8453,
+    appKitName: "Base",
+    circleBlockchain: "BASE",
+    domain: 6,
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 5,
+    rpcProxyKey: "base",
+    explorerUrl: "https://basescan.org",
+  },
+  Ethereum: {
+    chainId: 1,
+    appKitName: "Ethereum",
+    circleBlockchain: "ETH",
+    domain: 0,
+    usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "eth",
+    explorerUrl: "https://etherscan.io",
+  },
+  Arbitrum: {
+    chainId: 42161,
+    appKitName: "Arbitrum",
+    circleBlockchain: "ARB",
+    domain: 3,
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "arb",
+    explorerUrl: "https://arbiscan.io",
+  },
+  Optimism: {
+    chainId: 10,
+    appKitName: "Optimism",
+    circleBlockchain: "OP",
+    domain: 2,
+    usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "op",
+    explorerUrl: "https://optimistic.etherscan.io",
+  },
 };
 
 export const EVM_BRIDGE_CHAINS: ChainId[] = [
@@ -177,11 +235,10 @@ export const EVM_BRIDGE_CHAINS: ChainId[] = [
   "Linea_Sepolia",
 ];
 
-export const CIRCLE_BRIDGE_CHAINS: ChainId[] = [
-  "Arc_Mainnet",
-  "Arc_Testnet",
-  "Base_Sepolia",
-];
+/** IS_ARC_MAINNET-aware bridge chain list for the UI */
+export const CIRCLE_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
+  ? ["Arc_Mainnet", "Base", "Ethereum", "Arbitrum", "Optimism"]
+  : ["Arc_Testnet", "Base_Sepolia", "Ethereum_Sepolia", "Arbitrum_Sepolia", "Optimism_Sepolia"];
 
 export function getCctpConfig(appKitName: string): CctpChainConfig | null {
   return CCTP_CHAIN_CONFIG[appKitName] ?? null;

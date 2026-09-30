@@ -5,7 +5,10 @@ import { verifyReceiptOnChain } from "@/lib/tx-verify";
 import { uid } from "@/lib/utils";
 import { encodeFunctionData, formatUnits, parseUnits } from "viem";
 
+/** Active Arc chain key — dynamically follows the configured network */
 const ARC_CHAIN: ChainId = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
+
+// Arc DEX (Uniswap-v2 fork) — same router address on both Arc Testnet and Arc Mainnet
 const ROUTER = "0x437b1aBf6e5a69548849b15EC35f83A73Fa1E28F" as `0x${string}`;
 const WUSDC = "0x911b4000D3422F482F4062a913885f7b035382Df" as `0x${string}`;
 const TOKENS = {
@@ -40,7 +43,7 @@ const ERC20_ABI = [
 ] as const;
 
 function assertToken(token: string): asserts token is ArcSwapToken {
-  if (!(token in TOKENS)) throw new Error("Arc Testnet Swap supports USDC, EURC, and cirBTC.");
+  if (!(token in TOKENS)) throw new Error("Arc Swap supports USDC, EURC, and cirBTC.");
 }
 
 export function normalizeSlippageBps(value: number): number {
@@ -58,9 +61,26 @@ function normalizeAmount(amount: string, token: ArcSwapToken): bigint {
   return parseUnits(amount, ROUTER_DECIMALS[token]);
 }
 
-async function ethCall(provider: Provider, to: `0x${string}`, data: `0x${string}`): Promise<`0x${string}`> {
-  const result = await provider.request({ method: "eth_call", params: [{ to, data }, "latest"] });
-  return String(result) as `0x${string}`;
+async function ethCall(provider: Provider | null, to: `0x${string}`, data: `0x${string}`): Promise<`0x${string}`> {
+  if (provider) {
+    try {
+      const result = await provider.request({ method: "eth_call", params: [{ to, data }, "latest"] });
+      if (result && result !== "0x") return String(result) as `0x${string}`;
+    } catch {}
+  }
+  // Robust fallback to public Arc Testnet RPC
+  try {
+    const res = await fetch("https://rpc.testnet.arc.io", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to, data }, "latest"] }),
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { result?: string };
+      if (json.result && json.result !== "0x") return json.result as `0x${string}`;
+    }
+  } catch {}
+  return "0x";
 }
 
 async function blockTimestamp(provider: Provider): Promise<bigint> {
@@ -81,28 +101,63 @@ function effectiveDecimals(token: ArcSwapToken): number {
   return ROUTER_DECIMALS[token];
 }
 
-async function quotePath(provider: Provider, amountIn: bigint, path: `0x${string}`[]): Promise<bigint> {
+async function quotePath(provider: Provider | null, amountIn: bigint, path: `0x${string}`[]): Promise<bigint> {
   const data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "getAmountsOut", args: [amountIn, path] });
   const raw = await ethCall(provider, ROUTER, data);
   const encoded = raw.slice(2);
-  if (!encoded) throw new Error("No liquidity route available on Arc Testnet.");
+  if (!encoded) throw new Error("No liquidity route available on Arc.");
   const offset = BigInt(`0x${encoded.slice(0, 64)}`);
   const start = Number(offset) * 2;
   const length = Number(BigInt(`0x${encoded.slice(start, start + 64)}`));
-  if (!length) throw new Error("No liquidity route available on Arc Testnet.");
+  if (!length) throw new Error("No liquidity route available on Arc.");
   const last = encoded.slice(start + 64 + (length - 1) * 64, start + 64 + length * 64);
   return BigInt(`0x${last}`);
 }
 
-export async function getArcDexSwapQuote(params: { amount: string; tokenIn: string; tokenOut: string }): Promise<QuoteResult> {
+async function resolveTargetArcChain(provider: Provider | null, requestedChain?: ChainId): Promise<{ chain: ChainId; isMainnet: boolean }> {
+  if (requestedChain === "Arc_Mainnet" || requestedChain === "Arc") {
+    return { chain: "Arc_Mainnet", isMainnet: true };
+  }
+  if (requestedChain === "Arc_Testnet") {
+    return { chain: "Arc_Testnet", isMainnet: false };
+  }
+  if (provider) {
+    try {
+      const rawId = await provider.request({ method: "eth_chainId" });
+      const chainIdHex = String(rawId || "").toLowerCase();
+      if (chainIdHex === "0x13b2" || chainIdHex === "5042") {
+        return { chain: "Arc_Mainnet", isMainnet: true };
+      }
+      if (chainIdHex === "0x4cef52" || chainIdHex === "5042002") {
+        return { chain: "Arc_Testnet", isMainnet: false };
+      }
+    } catch {}
+  }
+  return {
+    chain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+    isMainnet: IS_ARC_MAINNET,
+  };
+}
+
+export async function getArcDexSwapQuote(params: { amount: string; tokenIn: string; tokenOut: string; chain?: ChainId }): Promise<QuoteResult> {
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
   assertToken(tokenIn);
   assertToken(tokenOut);
   if (tokenIn === tokenOut) throw new Error("Choose two different tokens.");
-  const provider = await getInjectedProvider();
-  await requestAccounts(provider);
-  await switchToChainId(provider, ARC_CHAIN);
+  let provider: Provider | null = null;
+  try {
+    provider = await getInjectedProvider();
+  } catch {}
+  const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  if (isMainnet) {
+    throw new Error("ApexiSwap DEX liquidity is currently deployed on Arc Testnet. On Arc Mainnet, liquidity pools are not live yet. Please switch your wallet to Arc Testnet in the header to swap.");
+  }
+  if (provider) {
+    try {
+      await switchToChainId(provider, targetChain);
+    } catch {}
+  }
   const amountIn = normalizeAmount(params.amount, tokenIn);
   const a = effectiveAddress(tokenIn);
   const b = effectiveAddress(tokenOut);
@@ -111,7 +166,10 @@ export async function getArcDexSwapQuote(params: { amount: string; tokenIn: stri
   if (a !== WUSDC && b !== WUSDC) paths.push([a, WUSDC, b]);
   const candidates: { path: `0x${string}`[]; out: bigint }[] = [];
   for (const path of paths) {
-    try { candidates.push({ path, out: await quotePath(provider, amountIn, path) }); } catch {}
+    try {
+      const out = await quotePath(provider, amountIn, path);
+      if (out > 0n) candidates.push({ path, out });
+    } catch {}
   }
   if (!candidates.length) throw new Error(`No liquidity route available for ${tokenIn} → ${tokenOut} on Arc Testnet.`);
   candidates.sort((x, y) => (x.out > y.out ? -1 : x.out < y.out ? 1 : 0));
@@ -175,14 +233,17 @@ async function preflightSwap(provider: Provider, owner: `0x${string}`, to: `0x${
       params: [{ from: owner, to, data, value }],
     });
   } catch (error) {
-    // Arc Testnet RPC has documented eth_estimateGas/simulation quirks for DEX writes.
+    // Arc RPC has documented eth_estimateGas/simulation quirks for DEX writes.
     // Log a warning rather than aborting the swap before the user's wallet can open.
     console.warn("[AGFusion][Swap] eth_estimateGas preflight warning (proceeding with deterministic gas limit):", error);
   }
 }
 
 export async function runProductionSwap(params: { amount: string; tokenIn: string; tokenOut: string; chain: ChainId; slippageBps?: number; onStep?: (steps: TxStep[]) => void }): Promise<TransactionRecord> {
-  if (params.chain !== ARC_CHAIN) throw new Error("Arc Testnet is the only supported swap testnet.");
+  // Allow both Arc Mainnet and Arc Testnet — reject any other chain
+  if (params.chain !== "Arc_Mainnet" && params.chain !== "Arc_Testnet" && params.chain !== "Arc") {
+    throw new Error("Swap is only supported on Arc Mainnet and Arc Testnet.");
+  }
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
   assertToken(tokenIn);
@@ -192,10 +253,14 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
   const slippageBps = normalizeSlippageBps(params.slippageBps ?? DEFAULT_SLIPPAGE_BPS);
   const provider = await getInjectedProvider();
   const accounts = await requestAccounts(provider);
-  await switchToChainId(provider, ARC_CHAIN);
+  const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  if (isMainnet) {
+    throw new Error("ApexiSwap DEX liquidity is currently deployed on Arc Testnet. On Arc Mainnet, liquidity pools are not live yet. Please switch your wallet to Arc Testnet in the header to swap.");
+  }
+  await switchToChainId(provider, targetChain);
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
   const amountIn = normalizeAmount(params.amount, tokenIn);
-  const quote = await getArcDexSwapQuote(params);
+  const quote = await getArcDexSwapQuote({ ...params, chain: targetChain });
   const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut));
   const minOut = (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = (await blockTimestamp(provider)) + 120n;
@@ -261,16 +326,16 @@ export async function runProductionSwap(params: { amount: string; tokenIn: strin
     steps[3].state = "error";
     steps[3].message = "Swap transaction reverted on-chain.";
     params.onStep?.(steps.map((s) => ({ ...s })));
-    return { id: uid("tx"), type: "swap", status: "error", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: "Swap reverted on-chain. No retry was submitted automatically.", executionMode: "live" };
+    return { id: uid("tx"), type: "swap", status: "error", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: targetChain, toChain: targetChain, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: "Swap reverted on-chain. No retry was submitted automatically.", executionMode: "live" };
   }
   if (verification.status !== "success") {
     steps[3].state = "pending";
     steps[3].message = "Receipt not confirmed yet.";
     params.onStep?.(steps.map((s) => ({ ...s })));
-    return { id: uid("tx"), type: "swap", status: "retryable", retryable: true, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: "Swap submitted but the receipt is not confirmed yet.", executionMode: "live" };
+    return { id: uid("tx"), type: "swap", status: "retryable", retryable: true, amount: params.amount, token: tokenIn, tokenOut, fromChain: targetChain, toChain: targetChain, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: "Swap submitted but the receipt is not confirmed yet.", executionMode: "live" };
   }
 
   steps[3].state = "success";
   params.onStep?.(steps.map((s) => ({ ...s })));
-  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: ARC_CHAIN, toChain: ARC_CHAIN, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Minimum received protected at ${formatUnits(minOut, effectiveDecimals(tokenOut))} ${tokenOut} (${slippageBps / 100}% slippage). Receipt verified on-chain.`, executionMode: "live" };
+  return { id: uid("tx"), type: "swap", status: "success", retryable: false, amount: params.amount, token: tokenIn, tokenOut, fromChain: targetChain, toChain: targetChain, feeUsd: 0, steps, txHash, explorerUrl: explorerTxUrl(txHash), createdAt: new Date().toISOString(), message: `Swap confirmed: ${params.amount} ${tokenIn} → approximately ${quote.amountOut} ${tokenOut}. Minimum received protected at ${formatUnits(minOut, effectiveDecimals(tokenOut))} ${tokenOut} (${slippageBps / 100}% slippage). Receipt verified on-chain.`, executionMode: "live" };
 }

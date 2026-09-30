@@ -71,6 +71,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
           amount: amountIn,
           tokenIn: tokenIn.symbol,
           tokenOut: tokenOut.symbol,
+          chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
         });
         if (quoteSeq.current !== seq) return;
         setAmountOut(q.amountOut);

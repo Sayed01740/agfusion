@@ -9,6 +9,7 @@ import { parseIntent } from "@/ai/intent";
 import { CHAINS } from "@/lib/chains";
 import { CODE_TEMPLATES } from "@/lib/demo-data";
 import { formatUsd, uid } from "@/lib/utils";
+import { IS_ARC_MAINNET, ARC_CHAIN_ID, ARC_NETWORK_NAME } from "@/lib/arc-chain";
 import {
   estimateBridgeDemo,
   estimateSwapDemo,
@@ -16,6 +17,11 @@ import {
   runSendFlow,
 } from "@/blockchain/appkit-service";
 import { runCircleSafeSwapFlow } from "@/blockchain/circle-safe-swap";
+
+/** Active Arc ChainId string for the current environment */
+const ACTIVE_ARC_CHAIN = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
+/** Example bridge peer chain for the current environment */
+const PEER_CHAIN_LABEL = IS_ARC_MAINNET ? "Base" : "Base Sepolia";
 
 export interface OrchestratorResult {
   message: ChatMessage;
@@ -61,16 +67,16 @@ function buildPreview(intent: ParsedIntent): ActionPreview | undefined {
 
 function narrative(intent: ParsedIntent, preview?: ActionPreview): string {
   switch (intent.type) {
-    case "balance": return ["**Balances**", "", "Connect your wallet to load **live Arc USDC** from RPC.", "We never invent multi-chain demo balances.", "", "Try: `Show my balances` after connecting on Arc Testnet."].join("\n");
+    case "balance": return ["**Balances**", "", "Connect your wallet to load **live Arc USDC** from RPC.", "We never invent multi-chain demo balances.", "", `Try: \`Show my balances\` after connecting on ${ARC_NETWORK_NAME}.`].join("\n");
     case "bridge": return [preview?.canExecute ? `Preparing to move **${intent.amount} ${intent.token}**.` : "I can prepare the bridge, but I need the missing amount and/or source/destination networks first.", "", preview?.route ? `**Route:** ${preview.route.join(" → ")}` : "**Route:** source → destination", preview?.estimatedFeeUsd !== undefined ? `**Est. fees:** ${formatUsd(preview.estimatedFeeUsd)}` : "**Fees:** calculated after the route is specified", preview?.estimatedTime ? `**ETA:** ${preview.estimatedTime}` : "", "", "Steps: approve → burn on source → attestation → mint on destination. Final success requires an on-chain receipt."].filter(Boolean).join("\n");
-    case "swap": return preview?.canExecute ? [`Swapping **${intent.amount} ${intent.token} → ${intent.tokenOut}** on ${intent.toChain ? CHAINS[intent.toChain].label : "the selected network"}.`, "", "Confirm the exact quote and approve in your wallet before execution."].join("\n") : "I can prepare the swap once you provide the amount, token pair, and supported network.";
-    case "send": return [`Payment ${preview?.canExecute ? "ready" : "needs details"}: **${intent.amount ?? "amount"} ${intent.token}** → **${intent.recipientLabel || intent.recipient || "recipient"}**.`, "", intent.recipient ? `Recipient: \`${intent.recipient}\` on ${intent.toChain ? CHAINS[intent.toChain].label : "the selected network"}.` : "I need a valid 0x recipient before any payment can be executed.", "", "The transaction will only be sent after explicit confirmation and wallet signing."].join("\n");
-    case "route": return preview?.canExecute ? [`**Payment plan**`, "", `1. Validate ${intent.fromChain ? CHAINS[intent.fromChain].short : "source"} → ${intent.toChain ? CHAINS[intent.toChain].short : "destination"}`, `2. Move **${intent.amount} ${intent.token}**`, `3. Verify destination settlement`, `4. Pay **${intent.recipientLabel || intent.recipient}**`, "", "Confirm to run the complete flow."].join("\n") : "I can build the transfer-and-pay plan once the amount, source, destination, and recipient are explicit.";
-    case "code": return [`Here's Arc-ready code for **${intent.codeTopic || "send"}** — aligned with Arc Build docs.`, "", "Use Viem/Foundry on Arc Testnet (chain `5042002`).", "I can also scaffold a Next.js payment component or deploy script."].join("\n");
-    case "deploy": return [`Deployment assistant ready for **${intent.codeTopic === "contract" ? "ERC-20" : "contract"}** on Arc Testnet.`, "", "Arc is EVM-compatible with **USDC as gas**.", "Chain ID: `5042002`", "", "I'll keep deployment user-authorized and wallet-signed."].join("\n");
+    case "swap": return preview?.canExecute ? [`Swapping **${intent.amount} ${intent.token} → ${intent.tokenOut}** on ${intent.toChain ? CHAINS[intent.toChain]?.label ?? intent.toChain : ARC_NETWORK_NAME}.`, "", "Confirm the exact quote and approve in your wallet before execution."].join("\n") : `I can prepare the swap once you provide the amount, token pair, and supported network. Arc ${IS_ARC_MAINNET ? "Mainnet" : "Testnet"} supports USDC, EURC, and cirBTC.`;
+    case "send": return [`Payment ${preview?.canExecute ? "ready" : "needs details"}: **${intent.amount ?? "amount"} ${intent.token}** → **${intent.recipientLabel || intent.recipient || "recipient"}**.`, "", intent.recipient ? `Recipient: \`${intent.recipient}\` on ${intent.toChain ? CHAINS[intent.toChain]?.label ?? intent.toChain : ARC_NETWORK_NAME}.` : "I need a valid 0x recipient before any payment can be executed.", "", "The transaction will only be sent after explicit confirmation and wallet signing."].join("\n");
+    case "route": return preview?.canExecute ? [`**Payment plan**`, "", `1. Validate ${intent.fromChain ? CHAINS[intent.fromChain]?.short ?? intent.fromChain : "source"} → ${intent.toChain ? CHAINS[intent.toChain]?.short ?? intent.toChain : "destination"}`, `2. Move **${intent.amount} ${intent.token}**`, `3. Verify destination settlement`, `4. Pay **${intent.recipientLabel || intent.recipient}**`, "", "Confirm to run the complete flow."].join("\n") : "I can build the transfer-and-pay plan once the amount, source, destination, and recipient are explicit.";
+    case "code": return [`Here's Arc-ready code for **${intent.codeTopic || "send"}** — aligned with Arc Build docs.`, "", `Use Viem/Foundry on Arc ${IS_ARC_MAINNET ? "Mainnet" : "Testnet"} (chain \`${ARC_CHAIN_ID}\`).`, "I can also scaffold a Next.js payment component or deploy script."].join("\n");
+    case "deploy": return [`Deployment assistant ready for **${intent.codeTopic === "contract" ? "ERC-20" : "contract"}** on Arc ${IS_ARC_MAINNET ? "Mainnet" : "Testnet"}.`, "", "Arc is EVM-compatible with **USDC as gas**.", `Chain ID: \`${ARC_CHAIN_ID}\``, "", "I'll keep deployment user-authorized and wallet-signed."].join("\n");
     case "agent": return ["**AGFusion Operator**", "", "• Interpret financial intent", "• Prepare policy-bound actions", "• Request explicit user confirmation", "• Execute through the connected wallet", "• Verify the resulting on-chain state", "", "The agent never treats its own plan as authorization."].join("\n");
     case "explain": return ["I can diagnose failed transfers (approve / burn / attestation / mint), recover incomplete routes, and explain fees in USDC terms.", "", "Paste a transaction hash or describe the failure and I'll help."].join("\n");
-    default: return ["I'm **AGFusion** — an AI-native workspace for stablecoin operations on Arc and supported EVM networks.", "", "Try:", '• "Show my balances"', '• "Swap 1 USDC to EURC on Arc"', '• "Bridge 5 USDC from Arc to Base"', '• "Bridge 5 USDC from Base to Arc"', '• "Send 2 USDC to 0x... on Arc"'].join("\n");
+    default: return ["I'm **AGFusion** — an AI-native workspace for stablecoin operations on Arc and supported EVM networks.", "", "Try:", '• "Show my balances"', `• "Swap 1 USDC to EURC on Arc"`, `• "Bridge 5 USDC from Arc to ${PEER_CHAIN_LABEL}"`, `• "Bridge 5 USDC from ${PEER_CHAIN_LABEL} to Arc"`, '• "Send 2 USDC to 0x... on Arc"'].join("\n");
   }
 }
 
@@ -84,7 +90,10 @@ export async function orchestrateUserMessage(content: string, options?: { execut
     if (intent.type === "bridge" && intent.amount && intent.fromChain && intent.toChain) {
       transaction = await runBridgeFlow({ amount: intent.amount, token: intent.token || "USDC", fromChain: intent.fromChain, toChain: intent.toChain });
     } else if (intent.type === "swap" && intent.amount && intent.token && intent.tokenOut && intent.toChain) {
-      transaction = await runCircleSafeSwapFlow({ amount: intent.amount, tokenIn: intent.token, tokenOut: intent.tokenOut, chain: intent.toChain });
+      transaction = await runCircleSafeSwapFlow({ amount: intent.amount, tokenIn: intent.token, tokenOut: intent.tokenOut, chain: intent.toChain as import("@/types").ChainId });
+    } else if (intent.type === "swap" && intent.amount && intent.token && intent.tokenOut && !intent.toChain) {
+      // If no chain specified, default to the active Arc network
+      transaction = await runCircleSafeSwapFlow({ amount: intent.amount, tokenIn: intent.token, tokenOut: intent.tokenOut, chain: ACTIVE_ARC_CHAIN as import("@/types").ChainId });
     } else if (intent.type === "send" && intent.amount && intent.recipient && intent.toChain && /^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
       transaction = await runSendFlow({ amount: intent.amount, token: intent.token || "USDC", chain: intent.toChain, recipient: intent.recipient, recipientLabel: intent.recipientLabel });
     } else if (intent.type === "route" && intent.amount && intent.fromChain && intent.toChain && intent.recipient && /^0x[a-fA-F0-9]{40}$/.test(intent.recipient)) {
@@ -106,7 +115,20 @@ export function welcomeMessage(): ChatMessage {
   return {
     id: uid("msg"),
     role: "assistant",
-    content: ["Hi — I’m the **AGFusion Operator**.", "", "I can plan stablecoin operations across Arc and supported EVM networks: bridge, swap, send, balance and route analysis.", "", "**Safety:** I plan first. Money only moves after you confirm the exact action and approve it in your wallet.", "", "Try:", '• **Show my balances**', '• **Swap 1 USDC to EURC on Arc**', '• **Bridge 5 USDC from Base to Arc**', '• **Send 0.05 USDC to a full 0x address on Arc**'].join("\n"),
+    content: [
+      `Hi — I'm the **AGFusion Operator** on **${ARC_NETWORK_NAME}** (Chain \`${ARC_CHAIN_ID}\`).`,
+      "",
+      "I can plan stablecoin operations across Arc and supported EVM networks: bridge, swap, send, balance and route analysis.",
+      "",
+      "**Safety:** I plan first. Money only moves after you confirm the exact action and approve it in your wallet.",
+      "",
+      "Try:",
+      "• **Show my balances**",
+      "• **Swap 1 USDC to EURC on Arc**",
+      `• **Bridge 5 USDC from ${PEER_CHAIN_LABEL} to Arc**`,
+      `• **Bridge 5 USDC from Arc to ${PEER_CHAIN_LABEL}**`,
+      "• **Send 0.05 USDC to a full 0x address on Arc**",
+    ].join("\n"),
     createdAt: new Date().toISOString(),
     intent: "unknown",
   };

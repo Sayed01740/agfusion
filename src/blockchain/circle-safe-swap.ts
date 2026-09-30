@@ -1,16 +1,26 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { runProductionSwap } from "@/blockchain/production-swap";
-
-const ARC_CHAIN: ChainId = "Arc_Testnet";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 /**
- * Arc Testnet swap execution deliberately does not use Circle's
- * Stablecoin Service Swap provider. That provider is a managed swap
- * service and its current published package does not support testnet
- * swap execution. Arc Testnet has its own live DEX path in
- * production-swap.ts, which works with the connected EIP-1193 wallet,
- * including the Circle Email/Smart Wallet adapter.
+ * Arc swap execution entry point — supports both Arc Mainnet (5042) and Arc Testnet (5042002).
+ *
+ * AGFusion uses its own Arc DEX path (production-swap.ts) which works with
+ * the connected EIP-1193 wallet including Circle Email/Smart Wallet adapter.
+ * Circle's hosted Stablecoin Swap Service is not used here because it does
+ * not support Arc as a chain.
  */
+
+const ARC_MAINNET_CHAIN: ChainId = "Arc_Mainnet";
+const ARC_TESTNET_CHAIN: ChainId = "Arc_Testnet";
+
+/** Resolved active Arc chain based on runtime environment */
+const ACTIVE_ARC_CHAIN: ChainId = IS_ARC_MAINNET ? ARC_MAINNET_CHAIN : ARC_TESTNET_CHAIN;
+
+function isArcChain(chain: ChainId): boolean {
+  return chain === "Arc" || chain === "Arc_Mainnet" || chain === "Arc_Testnet";
+}
+
 export async function runCircleSafeSwapFlow(params: {
   amount: string;
   tokenIn: string;
@@ -19,8 +29,11 @@ export async function runCircleSafeSwapFlow(params: {
   slippageBps?: number;
   onStep?: (steps: TxStep[]) => void;
 }): Promise<TransactionRecord> {
-  if (params.chain !== ARC_CHAIN) {
-    throw new Error("Arc Testnet is the only supported swap chain.");
+  if (!isArcChain(params.chain)) {
+    throw new Error(
+      `Swap is only supported on Arc networks. Received: "${params.chain}". ` +
+      `Please switch to Arc ${IS_ARC_MAINNET ? "Mainnet" : "Testnet"} in your wallet.`,
+    );
   }
 
   const tokenIn = params.tokenIn.toUpperCase();
@@ -30,15 +43,20 @@ export async function runCircleSafeSwapFlow(params: {
     throw new Error("Enter a valid swap amount.");
   }
 
-  if (!((tokenIn === "USDC" && tokenOut === "EURC") || (tokenIn === "EURC" && tokenOut === "USDC"))) {
-    throw new Error("Arc swap currently supports USDC ↔ EURC.");
-  }
+  // Route to the matching Arc chain — if the caller passes Arc_Testnet but we're
+  // on mainnet (or vice-versa), we normalise to the active chain so the wallet
+  // switch lands on the right network.
+  const targetChain: ChainId = params.chain === "Arc_Mainnet" || params.chain === "Arc"
+    ? ARC_MAINNET_CHAIN
+    : params.chain === "Arc_Testnet"
+      ? ARC_TESTNET_CHAIN
+      : ACTIVE_ARC_CHAIN;
 
   return runProductionSwap({
     amount: params.amount,
     tokenIn,
     tokenOut,
-    chain: ARC_CHAIN,
+    chain: targetChain,
     slippageBps: params.slippageBps,
     onStep: params.onStep,
   });

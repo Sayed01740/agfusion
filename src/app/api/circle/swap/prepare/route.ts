@@ -6,7 +6,18 @@ import { getServerKitKey } from "@/lib/circle-kit-server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ARC_CHAIN_ID = 5042002;
+// Both Arc Mainnet (5042) and Arc Testnet (5042002) are supported
+const ARC_MAINNET_CHAIN_ID = 5042;
+const ARC_TESTNET_CHAIN_ID = 5042002;
+
+// Detect whether we're configured for mainnet
+const IS_MAINNET =
+  process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_ID === "5042" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.toLowerCase() === "0x13b2";
+
+/** Default chain ID follows the runtime Arc network config */
+const ARC_CHAIN_ID = IS_MAINNET ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
   USDC: "0x3600000000000000000000000000000000000000",
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
@@ -112,8 +123,11 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "unsupported_swap_pair" }, { status: 400 });
   }
-  if (chainId !== ARC_CHAIN_ID) {
-    return NextResponse.json({ error: "unsupported_swap_chain" }, { status: 400 });
+  if (chainId !== ARC_MAINNET_CHAIN_ID && chainId !== ARC_TESTNET_CHAIN_ID) {
+    return NextResponse.json(
+      { error: "unsupported_swap_chain", detail: `Chain ${chainId} is not Arc Mainnet (5042) or Arc Testnet (5042002).` },
+      { status: 400 },
+    );
   }
 
   const kitKey = getServerKitKey();
@@ -136,19 +150,29 @@ export async function POST(req: Request) {
       import("viem"),
     ]);
 
+    // Determine which Arc chain we are on for this request
+    const requestIsMainnet = chainId === ARC_MAINNET_CHAIN_ID;
+    const arcViemChainId = requestIsMainnet ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
+    const arcViemName = requestIsMainnet ? "Arc Mainnet" : "Arc Testnet";
+    const arcViemRpc = requestIsMainnet
+      ? (process.env.NEXT_PUBLIC_ARC_RPC_URL || "https://rpc.mainnet.arc.io")
+      : (process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io");
+    const arcViemExplorer = requestIsMainnet
+      ? "https://explorer.arc.io"
+      : "https://testnet.arcscan.app";
+    const arcChainHex = requestIsMainnet ? "0x13b2" : "0x4cef52";
+
     const arcViem = viem.defineChain({
-      id: ARC_CHAIN_ID,
-      name: "Arc Testnet",
+      id: arcViemChainId,
+      name: arcViemName,
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
-        default: {
-          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"],
-        },
+        default: { http: [arcViemRpc] },
       },
       blockExplorers: {
-        default: { name: "Arcscan", url: "https://testnet.arcscan.app" },
+        default: { name: "Arc Explorer", url: arcViemExplorer },
       },
-      testnet: true,
+      testnet: !requestIsMainnet,
     });
 
     const publicClient = viem.createPublicClient({
@@ -156,28 +180,26 @@ export async function POST(req: Request) {
       transport: viem.http(),
     });
 
-    // The Circle adapter expects a full EIP-1193 request signature with
-    // overloads/generics. Keep the small server-side shim isolated at this
-    // boundary because only the adapter consumes it.
     const provider = {
       request: async ({ method, params }: { method: string; params?: readonly unknown[] }) => {
         if (method === "eth_accounts") return [address];
-        if (method === "eth_chainId") return "0x4cef52";
+        if (method === "eth_chainId") return arcChainHex;
         return publicClient.request({ method: method as never, params: params as never });
       },
     } as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
 
-    // Chain is supplied to App Kit as the official chain identifier below.
-    // Capabilities are intentionally omitted here because older App Kit
-    // versions bundled in this project do not export typed ChainDefinition
-    // objects from @circle-fin/app-kit/chains.
     const adapter = await createViemAdapterFromProvider({ provider });
+
+    // Circle App Kit chain identifier: "Arc" for mainnet, "Arc_Testnet" for testnet
+    // Cast via unknown to bridge the SwapChainIdentifier type which may not yet include "Arc"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const appKitChainName = (requestIsMainnet ? "Arc" : "Arc_Testnet") as any;
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({
       from: {
         adapter,
-        chain: "Arc_Testnet",
+        chain: appKitChainName,
       },
       tokenIn: tokenIn as SupportedToken,
       tokenOut: tokenOut as SupportedToken,

@@ -4,13 +4,22 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 /**
  * Server-side proxy for Circle's IRIS CCTP API.
  *
- * AGFusion currently bridges testnet chains, so IRIS sandbox is the correct
- * upstream for CCTP testnet fee/message lookups. Keeping this server-side
- * also avoids browser CORS failures that Circle surfaces as generic
+ * Dynamically selects Circle's production or sandbox IRIS endpoint based on
+ * the active Arc network (mainnet vs testnet). Keeping this server-side also
+ * avoids browser CORS failures that Circle surfaces as generic
  * "Network connection failed" errors.
  */
 
-const IRIS_BASE = "https://iris-api-sandbox.circle.com";
+// Detect mainnet from server-side env (mirrors arc-chain.ts IS_ARC_MAINNET logic)
+const IS_MAINNET =
+  process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_ID === "5042" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.toLowerCase() === "0x13b2";
+
+// Circle's CCTP IRIS API — production for mainnet, sandbox for testnet
+const IRIS_BASE = IS_MAINNET
+  ? "https://iris-api.circle.com"
+  : "https://iris-api-sandbox.circle.com";
 const TIMEOUT_MS = 20_000;
 
 export const runtime = "nodejs";

@@ -91,7 +91,8 @@ export function ProductionSwapPanel() {
     setQuoteBusy(true);
     setError(null);
     try {
-      const raw = await getArcDexSwapQuote({ amount, tokenIn, tokenOut });
+      const activeChain = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
+      const raw = await getArcDexSwapQuote({ amount, tokenIn, tokenOut, chain: activeChain });
       setQuote({ amountOut: raw.amountOut, route: raw.route });
     } catch (e) {
       setQuote(null);
