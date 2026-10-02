@@ -32,40 +32,30 @@ const TABS: Array<{
   label: string;
   short: string;
   icon: typeof Send;
-  blurb: string;
-  step: string;
 }> = [
   {
     id: "send",
     label: "Send",
     short: "USDC Transfer",
     icon: Send,
-    blurb: "Transfer USDC to a wallet address on Arc.",
-    step: "Enter amount and recipient address, then approve in wallet.",
   },
   {
     id: "swap",
     label: "Swap",
     short: "Exchange",
     icon: Waypoints,
-    blurb: `Swap supported tokens on ${ARC_NETWORK_NAME}.`,
-    step: "Select tokens, review quote, and approve in wallet.",
   },
   {
     id: "bridge",
     label: "Bridge",
     short: "Cross-Chain",
     icon: Waypoints,
-    blurb: "Move USDC across supported networks with Circle CCTP.",
-    step: "Enter amount and approve bridge transaction.",
   },
   {
     id: "more",
     label: "More",
     short: "Utilities",
     icon: MoreHorizontal,
-    blurb: "Payment requests, batch transfers, and utilities.",
-    step: "Select an action below.",
   },
 ];
 
@@ -126,7 +116,6 @@ export function ToolsWorkspace({
 }) {
   const [tab, setTab] = useState<TabId>(defaultTab);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const active = TABS.find((t) => t.id === tab) || TABS[0];
 
   return (
     <section
@@ -137,18 +126,13 @@ export function ToolsWorkspace({
     >
       <TransactionAmountResetter />
       <div className="border-b border-border/80 px-4 pt-5 pb-4 sm:px-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 id="tools-heading" className="font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
-              Actions
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm leading-relaxed text-muted-foreground">
-              Direct smart contract actions with wallet approval.
-            </p>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="tools-heading" className="font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
+            Actions
+          </h2>
         </div>
 
-        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-4 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted/80 p-1.5 ring-1 ring-border/80 backdrop-blur-md">
+        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-3.5 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted/80 p-1.5 ring-1 ring-border/80 backdrop-blur-md">
           {TABS.map((t, index) => {
             const Icon = t.icon;
             const on = tab === t.id;
@@ -192,14 +176,8 @@ export function ToolsWorkspace({
         </div>
       </div>
 
-      <div className="border-b border-border/80 bg-muted/50 px-4 py-3 sm:px-6 backdrop-blur-sm">
-        <p className="text-xs sm:text-sm font-medium leading-relaxed text-foreground">{active.blurb}</p>
-
-        <p id="tools-instructions" className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{active.step}</p>
-      </div>
-
       {TABS.map((t) => (
-        <div key={t.id} id={`tools-panel-${t.id}`} role="tabpanel" aria-labelledby={`tools-tab-${t.id}`} aria-describedby={tab === t.id ? "tools-instructions" : undefined} hidden={tab !== t.id} tabIndex={0} className="p-4 sm:p-5 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset">
+        <div key={t.id} id={`tools-panel-${t.id}`} role="tabpanel" aria-labelledby={`tools-tab-${t.id}`} hidden={tab !== t.id} tabIndex={0} className="p-4 sm:p-5 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset">
           {tab === t.id && (
             t.id === "send" ? <SendPanelBody /> :
             t.id === "swap" ? <ProductionSwapPanel /> :

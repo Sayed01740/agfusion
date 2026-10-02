@@ -141,14 +141,7 @@ export function ProductionSwapPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">{meta.name} Swap</p>
-          <p className="mt-0.5 text-xs text-slate-400">
-            {meta.isMainnet
-              ? "StableFX RFQ with instant settlement."
-              : "Live DEX swap with on-chain settlement."}
-          </p>
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-300/90">{meta.name} Swap</p>
         <Badge variant="cyan" className="shrink-0">{meta.isMainnet ? "StableFX RFQ" : "USDC · EURC"}</Badge>
       </div>
 

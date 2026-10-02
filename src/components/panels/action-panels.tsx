@@ -252,12 +252,6 @@ export function ActionPanels() {
             </select>
           </Field>
         </div>
-
-<p className="text-[11px] text-slate-500 leading-relaxed">
-          Funds leave{" "}
-          <strong className="text-slate-300">{from.replace(/_/g, " ")}</strong>.
-          You need USDC on the <em>from</em> network before bridging.
-        </p>
         <FeeLineItems quote={quoteBridgeFee(amount)} compact />
 
         {/* Real bridge progress (Phase 10) — restored from persisted state after reload */}
