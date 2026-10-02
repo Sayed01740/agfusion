@@ -116,19 +116,18 @@ export function BatchPayrollCard({ embedded = false }: { embedded?: boolean }) {
   const form = (
         <div className="space-y-3">
           {!embedded && (
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Multi-send USDC on Arc. Each recipient triggers a live wallet
-            signature (one confirm per payout).
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Disperse USDC payouts to multiple recipients in batch.
           </p>
           )}
           <Input
             value={scheduleNote}
             onChange={(e) => setScheduleNote(e.target.value)}
-            placeholder="Schedule note (e.g. Friday payroll)"
+            placeholder="Batch label (e.g. Payroll)"
           />
           <div className="space-y-2 max-h-56 overflow-y-auto scrollbar-thin">
             {rows.map((row, i) => (
-              <div key={i} className="space-y-1 rounded-lg border border-white/5 p-2">
+              <div key={i} className="space-y-1 rounded-lg border border-border/40 p-2">
                 <div className="grid grid-cols-[1fr_80px_auto] gap-1.5 items-center">
                   <Input
                     className="text-xs h-9"
@@ -152,14 +151,14 @@ export function BatchPayrollCard({ embedded = false }: { embedded?: boolean }) {
                     disabled={rows.length <= 1}
                     onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-slate-500" />
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </div>
                 <Input
                   className="text-[11px] h-8 font-mono"
                   value={row.address}
                   onChange={(e) => updateRow(i, { address: e.target.value })}
-                  placeholder="0x recipient address"
+                  placeholder="0x…"
                 />
               </div>
             ))}
@@ -170,7 +169,7 @@ export function BatchPayrollCard({ embedded = false }: { embedded?: boolean }) {
           </Button>
           <FeeLineItems quote={fee} />
           <Button
-            className="w-full"
+            className="w-full font-semibold"
             size="sm"
             disabled={busy || rows.length === 0 || !walletAddress}
             onClick={() => setConfirm(true)}
@@ -178,7 +177,7 @@ export function BatchPayrollCard({ embedded = false }: { embedded?: boolean }) {
             {busy
               ? "Running batch…"
               : walletAddress
-                ? `Pay ${rows.length} recipients (live)`
+                ? `Disperse ${rows.length} Payouts`
                 : "Connect wallet to pay"}
           </Button>
           {log.length > 0 && (

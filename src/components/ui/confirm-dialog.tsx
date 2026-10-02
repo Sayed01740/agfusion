@@ -44,44 +44,25 @@ export function ConfirmDialog({
         </div>
 
         {title.toLowerCase().includes("transfer") && (
-          <div className="rounded-xl border border-accent/20 bg-accent/5 p-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <span aria-hidden="true" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-accent text-xs">✓</span>
-              <div>
-                <p className="text-xs font-semibold text-foreground">Transaction security preview</p>
-                <p className="text-[10px] text-muted-foreground">Review these details before your wallet opens.</p>
-              </div>
-            </div>
-
+          <div className="rounded-xl border border-accent/20 bg-accent/5 p-3 space-y-2">
             <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <div className="rounded-lg bg-white/[0.03] p-2">
-                <p className="text-muted-foreground">Protocol</p>
-                <p className="text-foreground font-medium">Circle CCTP v2</p>
+              <div className="rounded-lg bg-card/60 border border-border/40 p-2">
+                <p className="text-muted-foreground text-[10px]">Protocol</p>
+                <p className="text-foreground font-medium text-xs">Circle CCTP v2</p>
               </div>
-              <div className="rounded-lg bg-white/[0.03] p-2">
-                <p className="text-muted-foreground">Asset</p>
-                <p className="text-foreground font-medium">USDC</p>
+              <div className="rounded-lg bg-card/60 border border-border/40 p-2">
+                <p className="text-muted-foreground text-[10px]">Settlement Asset</p>
+                <p className="text-foreground font-medium text-xs">USDC</p>
               </div>
             </div>
-
-            <ul className="space-y-1.5 text-[10px] text-muted-foreground">
-              <li className="flex gap-2"><span className="text-emerald-400">✓</span><span>Amount and source/destination route are shown above and reviewed before signing.</span></li>
-              <li className="flex gap-2"><span className="text-emerald-400">✓</span><span>Destination is the connected wallet unless you explicitly choose another recipient.</span></li>
-              <li className="flex gap-2"><span className="text-emerald-400">✓</span><span>Bridge recovery is state-bound and does not resubmit a confirmed burn.</span></li>
-              <li className="flex gap-2"><span className="text-emerald-400">✓</span><span>Your wallet remains the final authority. AGFusion never asks for seed phrases or private keys.</span></li>
-            </ul>
-
-            <p className="text-[10px] leading-relaxed text-muted-foreground border-t border-border pt-2">
-              Some wallets may show “Simulation Not Supported” or “Unknown Signature Type” for complex CCTP contract calls. Those labels come from the wallet's decoder/simulation layer, not from AGFusion. Always compare the wallet prompt with the details above before signing.
-            </p>
           </div>
         )}
 
         {quote && <FeeLineItems quote={quote} />}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <Button
             variant="secondary"
-            className="min-h-11 flex-1 border-border bg-secondary text-secondary-foreground hover:bg-muted focus-visible:ring-accent motion-reduce:transition-none motion-reduce:transform-none"
+            className="min-h-10 flex-1 border-border bg-secondary text-secondary-foreground hover:bg-muted"
             onClick={onCancel}
             disabled={busy}
             type="button"
@@ -89,12 +70,12 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button
-            className="min-h-11 flex-1 border-accent bg-accent bg-none text-accent-foreground hover:bg-accent/90 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:transform-none"
+            className="min-h-10 flex-1 border-accent bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
             onClick={onConfirm}
             disabled={busy}
             type="button"
           >
-            {busy ? "Working…" : "Sign in wallet"}
+            {busy ? "Confirming…" : "Confirm"}
           </Button>
         </div>
         <p role="status" className="sr-only">{busy ? "Working. Please complete the request in your wallet." : ""}</p>

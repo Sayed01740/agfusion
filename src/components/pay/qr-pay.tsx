@@ -100,14 +100,13 @@ export function QrPayCard({ embedded = false }: { embedded?: boolean }) {
   const body = (
         <div className="space-y-3">
           {!embedded && (
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Create a live USDC request on Arc. Share the link/QR, or pay a
-            recipient from this wallet (opens Rabby to sign).
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Create a USDC payment link or QR code.
           </p>
           )}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[10px] text-slate-500 uppercase">
+              <label className="text-[10px] text-muted-foreground uppercase font-medium">
                 Amount
               </label>
               <Input
@@ -119,13 +118,13 @@ export function QrPayCard({ embedded = false }: { embedded?: boolean }) {
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 uppercase">Memo</label>
+              <label className="text-[10px] text-muted-foreground uppercase font-medium">Memo</label>
               <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 uppercase">
-              Pay to (0x… · blank = yourself)
+            <label className="text-[10px] text-muted-foreground uppercase font-medium">
+              Recipient Address (blank = yourself)
             </label>
             <Input
               className="font-mono text-xs"
@@ -172,17 +171,17 @@ export function QrPayCard({ embedded = false }: { embedded?: boolean }) {
             </Button>
             <Button
               size="sm"
-              className="flex-1"
+              className="flex-1 font-semibold"
               disabled={!walletAddress || busy}
               onClick={() => setConfirm(true)}
             >
               <Wallet className="h-3.5 w-3.5" />
-              {busy ? "Opening wallet…" : "Pay now"}
+              {busy ? "Opening wallet…" : "Pay"}
             </Button>
           </div>
           {!walletAddress && (
             <p className="text-[10px] text-amber-200/80">
-              Connect wallet to send live USDC on Arc.
+              Connect wallet to pay.
             </p>
           )}
         </div>
@@ -197,7 +196,7 @@ export function QrPayCard({ embedded = false }: { embedded?: boolean }) {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <QrCode className="h-4 w-4 text-cyan-400" />
-              QR / request pay
+              Payment Request & QR
             </CardTitle>
           </CardHeader>
           <CardContent>{body}</CardContent>
@@ -205,8 +204,8 @@ export function QrPayCard({ embedded = false }: { embedded?: boolean }) {
       )}
       <ConfirmDialog
         open={confirm}
-        title="Confirm live payment"
-        summary={`Send ${amount} USDC on Arc to ${recipient.slice(0, 10)}… (${memo}). Rabby will ask you to sign.`}
+        title="Confirm Payment"
+        summary={`Send ${amount} USDC to ${recipient.slice(0, 10)}… (${memo})`}
         feeQuote={fee}
         mode={mode}
         busy={busy}

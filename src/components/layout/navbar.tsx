@@ -159,7 +159,7 @@ export function Navbar() {
               </div>
 
               <div className="my-1 h-px bg-border" />
-              <Button variant="ghost" size="sm" type="button" onClick={() => { navigator.clipboard.writeText(walletAddress); alert("Address copied!"); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-foreground", focusClass)}><Wallet aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> Copy Address</Button>
+              <Button variant="ghost" size="sm" type="button" onClick={() => { void navigator.clipboard.writeText(walletAddress); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-foreground", focusClass)}><Wallet aria-hidden="true" className="h-4 w-4 text-muted-foreground" /> Copy Address</Button>
               <Button variant="ghost" size="sm" type="button" onClick={() => { void enableAgentMode(); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-foreground", focusClass)}><Bot aria-hidden="true" className="h-4 w-4 text-accent" /> Enable Auto-Agent</Button>
               <div className="my-1 h-px bg-border" />
               <Button variant="ghost" size="sm" type="button" onClick={() => { void onWalletClick(); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-danger hover:bg-danger/10", focusClass)}><LogOut aria-hidden="true" className="h-4 w-4" /> Disconnect</Button>

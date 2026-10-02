@@ -56,7 +56,7 @@ const TABS: Array<{
     label: "Bridge",
     short: "Cross-Chain",
     icon: Waypoints,
-    blurb: "Move USDC between Arc and Base testnets.",
+    blurb: "Move USDC across supported networks with Circle CCTP.",
     step: "Enter amount and approve bridge transaction.",
   },
   {
@@ -213,28 +213,24 @@ export function ToolsWorkspace({
 
 function MoreTools() {
   return (
-    <div className="space-y-3">
-      <p className="text-sm leading-relaxed text-muted-foreground">
-        Advanced options. Most first-time users only need <strong className="text-foreground">Send</strong>, <strong className="text-foreground">Swap</strong>, or <strong className="text-foreground">Bridge</strong>.
-      </p>
-
-      <Accordion icon={QrCode} title="QR / payment link" plain="Create a link or QR so someone can pay you test USDC.">
+    <div className="space-y-2.5">
+      <Accordion icon={QrCode} title="QR & Payment Links" plain="Generate a shareable payment request or QR code.">
         <QrPayCard embedded />
       </Accordion>
 
-      <Accordion icon={Users} title="Batch payroll" plain="Send the same or different amounts to several addresses at once.">
+      <Accordion icon={Users} title="Batch Payouts" plain="Disperse token payments to multiple addresses.">
         <BatchPayrollCard embedded />
       </Accordion>
 
-      <Accordion icon={ShieldAlert} title="Route risk check" plain="Quick safety score before a bridge or large transfer (optional micropay).">
+      <Accordion icon={ShieldAlert} title="Route Risk Analysis" plain="Inspect liquidity and congestion risks before moving funds.">
         <RiskOracleCard embedded />
       </Accordion>
 
-      <Accordion icon={Wallet} title="Unified balance" plain="Deposit from other chains and spend on Arc (advanced).">
+      <Accordion icon={Wallet} title="Unified Balance" plain="Cross-chain deposit and balance aggregation.">
         <UnifiedBalanceCard embedded />
       </Accordion>
 
-      <Accordion icon={Waypoints} title="Stuck transfer recovery" plain="Retry a bridge that stopped mid-way.">
+      <Accordion icon={Waypoints} title="Bridge Recovery" plain="Claim or retry an incomplete cross-chain transfer.">
         <RecoveryPanelBody />
       </Accordion>
     </div>

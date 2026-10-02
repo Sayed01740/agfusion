@@ -164,12 +164,8 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {/* Status Chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="items-center gap-1.5 border-accent/30 bg-accent/10 px-3 py-1 text-xs text-accent font-mono">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
-                  Fast Finality
-                </Badge>
+              {/* Network Status Chip */}
+              <div className="flex items-center gap-2">
                 <Badge
                   variant="outline"
                   className={cn(
@@ -299,8 +295,8 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2.5">
               {transactions.length === 0 && (
-                <p className="text-[12px] leading-relaxed text-muted-foreground">
-                  No operations yet. Start with a small Send, Swap or Bridge, or ask the AI Operator to prepare one for you.
+                <p className="text-xs text-muted-foreground py-2">
+                  No recent transactions.
                 </p>
               )}
               {transactions.slice(0, 8).map((tx) => {

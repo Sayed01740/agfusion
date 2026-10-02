@@ -143,10 +143,10 @@ export function ProductionSwapPanel() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-300/80">{meta.name} Swap</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+          <p className="mt-0.5 text-xs text-slate-400">
             {meta.isMainnet
-              ? "Arc StableFX live RFQ quote, instant zero-slippage settlement, and receipt verification."
-              : "Live ApexiSwap DEX quote, wallet confirmation, and receipt verification."}
+              ? "StableFX RFQ with instant settlement."
+              : "Live DEX swap with on-chain settlement."}
           </p>
         </div>
         <Badge variant="cyan" className="shrink-0">{meta.isMainnet ? "StableFX RFQ" : "USDC · EURC"}</Badge>
@@ -178,20 +178,19 @@ export function ProductionSwapPanel() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Slippage tolerance</span>
-              <span className="mt-1 block text-[11px] text-slate-400">Maximum price movement you are willing to accept.</span>
             </div>
             <div className="flex items-center gap-1.5">
               {SLIPPAGE_PRESETS.map((preset) => (
-                <button key={preset} type="button" disabled={quoteBusy || swapBusy} onClick={() => updateSlippage(preset)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${slippage === preset ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>
+                <button key={preset} type="button" disabled={quoteBusy || swapBusy} onClick={() => updateSlippage(preset)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${slippage === preset ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>
                   {preset}%
                 </button>
               ))}
             </div>
           </div>
-          <div className="mt-2.5 flex items-center gap-2">
-            <Input type="number" min="0.1" max="5" step="0.1" inputMode="decimal" value={slippage} disabled={quoteBusy || swapBusy} onChange={(e) => updateSlippage(e.target.value)} className="h-9 w-24 text-center" aria-label="Custom slippage percentage" />
+          <div className="mt-2 flex items-center gap-2">
+            <Input type="number" min="0.1" max="5" step="0.1" inputMode="decimal" value={slippage} disabled={quoteBusy || swapBusy} onChange={(e) => updateSlippage(e.target.value)} className="h-8 w-20 text-center text-xs" aria-label="Custom slippage percentage" />
             <span className="text-[11px] text-slate-500">%</span>
-            <span className="ml-auto text-[10px] text-slate-500">Allowed: 0.1%–5%</span>
+            <span className="ml-auto text-[10px] text-slate-500">Range: 0.1%–5%</span>
           </div>
         </div>
       </div>
@@ -200,20 +199,30 @@ export function ProductionSwapPanel() {
         <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] p-3.5 space-y-2.5">
           <div className="flex items-center justify-between gap-3"><span className="text-[11px] text-slate-400">Estimated receive</span><span className="text-sm font-semibold text-slate-50">{prettyAmount(quote.amountOut)} {tokenOut}</span></div>
           <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><p className="text-slate-500">Minimum receive</p><p className="mt-0.5 text-slate-200">{minimumReceived(quote.amountOut || "", slippage)} {tokenOut}</p></div>
-            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><p className="text-slate-500">Route</p><p className="mt-0.5 text-slate-200">{quote.route || "Arc DEX"}</p></div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2"><p className="text-slate-500 text-[10px]">Minimum receive</p><p className="mt-0.5 text-slate-200 font-medium">{minimumReceived(quote.amountOut || "", slippage)} {tokenOut}</p></div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2"><p className="text-slate-500 text-[10px]">Route</p><p className="mt-0.5 text-slate-200 font-medium">{quote.route || "Arc DEX"}</p></div>
           </div>
-          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-500"><span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Your wallet controls the transaction.</span><span className="font-semibold text-cyan-300">{slippage}% slippage</span></div>
+          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Verified on-chain</span>
+            <span className="font-semibold text-cyan-300">{slippage}% slippage</span>
+          </div>
         </div>
       )}
 
       {error && <div className="rounded-xl border border-red-400/15 bg-red-400/[0.04] px-3 py-2.5 text-[11px] leading-relaxed text-red-200 whitespace-pre-wrap">{error}</div>}
 
-      {!quote && <Button className="w-full" disabled={!canQuote || quoteBusy || swapBusy} onClick={() => void getQuote()}>{quoteBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Getting live quote…</> : "Get live quote"}</Button>}
+      {!quote && <Button className="w-full font-semibold" disabled={!canQuote || quoteBusy || swapBusy} onClick={() => void getQuote()}>{quoteBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Getting quote…</> : "Get Quote"}</Button>}
 
-      {quote && <div className="space-y-2"><Button className="w-full" disabled={swapBusy || !walletAddress} onClick={() => void swap()}>{swapBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Waiting for wallet…</> : `Continue · Confirm swap (${slippage}%)`}</Button><Button type="button" variant="outline" className="w-full" disabled={swapBusy} onClick={() => void getQuote()}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh quote</Button></div>}
-
-      <div className="flex items-start gap-2 rounded-xl border border-white/[0.05] bg-white/[0.015] px-3 py-2.5 text-[10px] leading-relaxed text-slate-500"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400/80" />Slippage is applied to the on-chain minimum output. A lower value gives tighter price protection but can cause more failed swaps when liquidity moves quickly.</div>
+      {quote && (
+        <div className="space-y-2">
+          <Button className="w-full font-semibold" disabled={swapBusy || !walletAddress} onClick={() => void swap()}>
+            {swapBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Confirming in wallet…</> : "Confirm Swap"}
+          </Button>
+          <Button type="button" variant="outline" className="w-full text-xs h-9" disabled={swapBusy} onClick={() => void getQuote()}>
+            <RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh Quote
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

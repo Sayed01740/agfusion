@@ -416,43 +416,16 @@ export function ChatPanel() {
 
       <div role="region" aria-label="Agent conversation" tabIndex={0} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-4 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-6 px-2 animate-fade-in my-8">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/15 shadow-lg shadow-accent/10 ring-1 ring-accent/30">
-              <Zap className="h-8 w-8 text-accent" />
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-3.5 px-4 py-12 animate-fade-in">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15 ring-1 ring-accent/30 shadow-lg shadow-accent/10">
+              <Zap className="h-6 w-6 text-accent" />
             </div>
             
-            <div className="space-y-2 max-w-[280px]">
-              <h3 className="text-xl font-semibold text-foreground tracking-tight">Auto-Agent</h3>
-              <p className="text-sm text-muted-foreground">
-                Your smart assistant for the Arc Blockchain.
+            <div className="space-y-1 max-w-sm">
+              <h3 className="text-base font-semibold text-foreground tracking-tight">AI Financial Operator</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Manage transfers, swaps, and cross-chain operations with natural language. Every transaction requires your wallet confirmation before execution.
               </p>
-            </div>
-
-            <div className="w-full max-w-sm space-y-3 text-left">
-              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
-                <div className="text-[12px] font-semibold uppercase tracking-wider text-accent">What I can do</div>
-                <ul className="space-y-2 text-sm text-foreground">
-                  <li className="flex gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
-                    <span><strong>Send USDC</strong> to any address on Arc Testnet</span>
-                  </li>
-                  <li className="flex gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
-                    <span><strong>Swap</strong> between USDC and EURC</span>
-                  </li>
-                  <li className="flex gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
-                    <span>Check your <strong>balances</strong> and transactions</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
-                <div className="text-[12px] font-semibold uppercase tracking-wider text-accent">How to use</div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Type what you want in plain English. I will create a secure plan. <strong className="text-foreground font-semibold">Nothing moves until you press Confirm</strong> and sign in your wallet.
-                </p>
-              </div>
             </div>
           </div>
         )}
@@ -602,7 +575,7 @@ export function ChatPanel() {
               }}
               rows={2}
               disabled={isThinking}
-              placeholder='Try: "Show my balances" or "How do I send USDC?"'
+              placeholder='Try: "Swap 1 USDC to EURC", "Show my balances"…'
               className="w-full resize-none rounded-2xl border border-border bg-muted px-4 py-3.5 text-base sm:text-sm leading-relaxed text-foreground shadow-inner placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent disabled:opacity-60"
             />
           </div>

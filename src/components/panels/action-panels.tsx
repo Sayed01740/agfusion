@@ -271,12 +271,12 @@ export function ActionPanels() {
           </p>
         )}
         <Button
-          className="w-full"
+          className="w-full font-semibold"
           disabled={busy}
           onClick={() => setConfirm(true)}
           type="button"
         >
-          {busy ? "Transferring…" : "Continue · Confirm transfer"}
+          {busy ? "Transferring…" : "Bridge USDC"}
         </Button>
       </div>
       <ConfirmDialog
@@ -595,13 +595,13 @@ export function SwapPanelBody() {
           </p>
         )}
         <Button
-          className="w-full"
+          className="w-full font-semibold"
           variant="secondary"
           disabled={busy}
           onClick={() => setConfirm(true)}
           type="button"
         >
-          {busy ? "Swapping…" : "Continue · Confirm swap"}
+          {busy ? "Swapping…" : "Swap Tokens"}
         </Button>
       </div>
       <ConfirmDialog
@@ -668,7 +668,7 @@ export function SendPanelBody() {
   return (
     <>
       <div className="space-y-3">
-        <Field label="Amount (USDC on Arc)">
+        <Field label="Amount (USDC)">
           <Input
             type="number"
             min="0"
@@ -678,12 +678,12 @@ export function SendPanelBody() {
             disabled={busy}
           />
         </Field>
-        <Field label="Recipient wallet (0x address)">
+        <Field label="Recipient Address">
           <Input
             value={to}
             onChange={(e) => setTo(e.target.value)}
             disabled={busy}
-            placeholder="0x… paste full address"
+            placeholder="0x…"
             spellCheck={false}
             className="font-mono text-xs"
           />
@@ -691,12 +691,12 @@ export function SendPanelBody() {
         <FeeLineItems quote={quoteSendFee(amount)} compact />
         {error && <p className="text-xs text-red-400">{error}</p>}
         <Button
-          className="w-full"
+          className="w-full font-semibold"
           disabled={busy}
           onClick={() => setConfirm(true)}
           type="button"
         >
-          {busy ? "Sending…" : "Continue · Confirm send"}
+          {busy ? "Sending…" : "Send USDC"}
         </Button>
       </div>
       <ConfirmDialog
