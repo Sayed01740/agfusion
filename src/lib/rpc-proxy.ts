@@ -109,7 +109,10 @@ export function isWriteMethod(method: string): boolean {
 }
 
 export function chainKey(raw: string | null): string {
-  return (raw || "arc").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const norm = (raw || "arc").toLowerCase().replace(/[^a-z0-9_]/g, "");
+  if (norm === "arcmainnet") return "arc_mainnet";
+  if (norm === "arctestnet") return "arc_testnet";
+  return norm;
 }
 
 export interface ForwardResult {

@@ -2,8 +2,10 @@ import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wallet-adapter";
 import { explorerTxUrl, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
-import { uid } from "@/lib/utils";
+import { shortenAddress, uid } from "@/lib/utils";
 import { encodeFunctionData, formatUnits, parseUnits } from "viem";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Active Arc chain key — dynamically follows the configured network */
 export const ARC_CHAIN: ChainId = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
@@ -590,9 +592,54 @@ export async function runProductionSwap(params: {
   params.onStep?.(steps.map((s) => ({ ...s })));
 
   const chainKey = isMainnet ? "arc_mainnet" : "arc";
-  const verification = await verifyReceiptOnChain({ chainKey, txHash, attempts: 8, delayMs: 1_000 });
 
-  if (verification.status === "reverted") {
+  // Dual verification strategy:
+  // 1. Direct wallet provider query (lowest latency, zero proxy hops)
+  // 2. Fallback to RPC proxy pool
+  // Allows up to 30 seconds for block production and RPC propagation
+  let receiptStatus: "success" | "reverted" | "pending" = "pending";
+  const maxWaitMs = 30_000;
+  const pollIntervalMs = 1_500;
+  const started = Date.now();
+
+  while (Date.now() - started < maxWaitMs) {
+    // 1. Direct wallet provider check
+    try {
+      const directReceipt = (await provider.request({
+        method: "eth_getTransactionReceipt",
+        params: [txHash],
+      })) as { status?: string } | null;
+      if (directReceipt) {
+        if (directReceipt.status === "0x1" || directReceipt.status === "1") {
+          receiptStatus = "success";
+          break;
+        } else if (directReceipt.status === "0x0" || directReceipt.status === "0") {
+          receiptStatus = "reverted";
+          break;
+        }
+      }
+    } catch {
+      // Wallet provider temporary error, fallback to proxy
+    }
+
+    // 2. RPC proxy verification check
+    try {
+      const v = await verifyReceiptOnChain({ chainKey, txHash, attempts: 1 });
+      if (v.status === "success") {
+        receiptStatus = "success";
+        break;
+      } else if (v.status === "reverted") {
+        receiptStatus = "reverted";
+        break;
+      }
+    } catch {
+      // Transient proxy error, will retry
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  if (receiptStatus === "reverted") {
     steps[3].state = "error";
     steps[3].message = "Swap transaction reverted on-chain.";
     params.onStep?.(steps.map((s) => ({ ...s })));
@@ -616,9 +663,9 @@ export async function runProductionSwap(params: {
     };
   }
 
-  if (verification.status !== "success") {
+  if (receiptStatus !== "success") {
     steps[3].state = "pending";
-    steps[3].message = "Receipt not confirmed yet.";
+    steps[3].message = "Receipt confirming on-chain in background...";
     params.onStep?.(steps.map((s) => ({ ...s })));
     return {
       id: uid("tx"),
@@ -635,7 +682,7 @@ export async function runProductionSwap(params: {
       txHash,
       explorerUrl: explorerTxUrl(txHash, targetChain),
       createdAt: new Date().toISOString(),
-      message: "Swap submitted but the receipt is not confirmed yet.",
+      message: `Swap submitted to Arc (hash: ${shortenAddress(txHash)}). Receipt is confirming on-chain in the background.`,
       executionMode: "live",
     };
   }

@@ -43,6 +43,7 @@ export function ProductionSwapPanel() {
   const [quoteBusy, setQuoteBusy] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const slippageBps = useMemo(() => {
     try {
@@ -119,6 +120,7 @@ export function ProductionSwapPanel() {
     setSwapBusy(true);
     setThinking(true);
     setError(null);
+    setNotice(null);
     try {
       const activeChain = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
       const tx = await executeSwap({ amount, tokenIn, tokenOut, chain: activeChain, slippageBps });
@@ -127,8 +129,13 @@ export function ProductionSwapPanel() {
       if (tx.status === "success") {
         setAmount("0");
         setQuote(null);
+        setNotice(tx.message || "Swap confirmed on-chain!");
+      } else if (tx.status === "retryable") {
+        setAmount("0");
+        setQuote(null);
+        setNotice(tx.message || "Swap submitted to Arc — finality is confirming in the background.");
       } else {
-        setError(tx.message || "Swap was submitted but is not confirmed yet.");
+        setError(tx.message || "Swap failed.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Swap failed.");
@@ -199,6 +206,12 @@ export function ProductionSwapPanel() {
             <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Verified on-chain</span>
             <span className="font-semibold text-cyan-300">{slippage}% slippage</span>
           </div>
+        </div>
+      )}
+
+      {notice && (
+        <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2.5 text-[11px] leading-relaxed text-cyan-200">
+          {notice}
         </div>
       )}
 
