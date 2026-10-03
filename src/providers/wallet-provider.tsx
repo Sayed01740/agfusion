@@ -36,6 +36,7 @@ import {
 import { usePilotStore } from "@/store/pilot-store";
 import { isAppKitInstalled } from "@/sdk/appkit-client";
 import { WalletModal } from "@/components/wallet/wallet-modal";
+import { useTransactionWatcher } from "@/lib/tx-watcher";
 
 type WalletContextValue = {
   connecting: boolean;
@@ -93,6 +94,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     () => getArcNetworkMeta(walletChainId),
     [walletChainId],
   );
+
+  // Background real-time transaction watcher for pending/retryable operations
+  useTransactionWatcher();
 
   useEffect(() => {
     hydrate();

@@ -127,10 +127,42 @@ export const usePilotStore = create<PilotState>((set, get) => ({
 
   updateTransaction: (id, patch) =>
     set((s) => {
-      const transactions = s.transactions.map((t) =>
-        t.id === id ? normalizeTransactionForActivity({ ...t, ...patch }) : t,
-      );
+      let updatedRecord: TransactionRecord | undefined;
+      const transactions = s.transactions.map((t) => {
+        if (t.id === id) {
+          updatedRecord = normalizeTransactionForActivity({ ...t, ...patch });
+          return updatedRecord;
+        }
+        return t;
+      });
       saveTransactions(transactions, s.walletAddress);
+      if (updatedRecord) {
+        const record = updatedRecord;
+        const wallet = s.walletAddress;
+        void fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: record.id,
+            type: record.type,
+            status: record.status,
+            amount: record.amount,
+            token: record.token,
+            tokenOut: record.tokenOut,
+            fromChain: record.fromChain,
+            toChain: record.toChain,
+            recipient: record.recipient,
+            recipientLabel: record.recipientLabel,
+            feeUsd: record.feeUsd,
+            txHash: record.txHash,
+            explorerUrl: record.explorerUrl,
+            executionMode: record.executionMode || "live",
+            message: record.message,
+            stepsJson: JSON.stringify(record.steps || []),
+            walletAddress: wallet || undefined,
+          }),
+        }).catch(() => {});
+      }
       return { transactions };
     }),
 
