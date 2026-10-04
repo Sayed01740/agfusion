@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AGFUSION_X_URL } from "@/lib/social";
@@ -106,14 +107,12 @@ export function ReviewerPathCard() {
           >
             X @AGfusion_ <ExternalLink className="h-3 w-3" />
           </a>
-          <a
-            href="https://docs.arc.io"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300"
+          <Link
+            href="/docs"
+            className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold"
           >
-            Arc docs <ExternalLink className="h-3 w-3" />
-          </a>
+            AGFusion Docs <ExternalLink className="h-3 w-3" />
+          </Link>
         </div>
       </CardContent>
     </Card>

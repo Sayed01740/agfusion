@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect, useId } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bot, Code2, Home, LayoutDashboard, LineChart, LogOut, Wallet, Settings, Globe } from "lucide-react";
+import { Bot, Code2, Home, LayoutDashboard, LineChart, LogOut, Wallet, Settings, Globe, BookOpen } from "lucide-react";
 import { cn, shortenAddress } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand/logo";
@@ -15,7 +15,12 @@ import { ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
 
 function XIcon({ className }: { className?: string }) { return <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" /></svg>; }
 
-const links = [{ href: "/dashboard", label: "Workspace", icon: LayoutDashboard }, { href: "/studio", label: "Studio", icon: Code2 }, { href: "/analytics", label: "Analytics", icon: LineChart }];
+const links = [
+  { href: "/dashboard", label: "Workspace", icon: LayoutDashboard },
+  { href: "/studio", label: "Studio", icon: Code2 },
+  { href: "/analytics", label: "Analytics", icon: LineChart },
+  { href: "/docs", label: "Docs", icon: BookOpen },
+];
 const mobileLinks = [{ href: "/", label: "Home", icon: Home }, ...links];
 const focusClass = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:transform-none";
 const panelClass = "absolute right-0 top-full z-50 mt-2 w-[calc(100vw-1.5rem)] rounded-2xl border border-border bg-card p-2 text-card-foreground shadow-2xl max-h-[calc(100dvh-9rem)] overflow-y-auto";

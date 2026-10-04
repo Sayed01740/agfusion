@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { MotionConfig } from "framer-motion";
 import { Navbar } from "@/components/layout/navbar";
 import { WalletProvider } from "@/providers/wallet-provider";
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
               <div className="flex items-center gap-4">
                 <a href={AGFUSION_X_URL} target="_blank" rel="noopener noreferrer me" className="hover:text-slate-200 transition font-medium">X · {AGFUSION_X_HANDLE}</a>
-                <a href="https://docs.arc.io" target="_blank" rel="noreferrer" className="hover:text-slate-200 transition">Arc docs</a>
+                <Link href="/docs" className="hover:text-slate-200 transition font-medium">Docs</Link>
                 <a href="https://faucet.circle.com" target="_blank" rel="noreferrer" className="hover:text-slate-200 transition">Faucet</a>
                 <a href={ARC_EXPLORER} target="_blank" rel="noreferrer" className="hover:text-slate-200 transition">Explorer</a>
               </div>

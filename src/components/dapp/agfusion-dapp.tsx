@@ -150,6 +150,10 @@ export function AGFusionDapp() {
           About AGFusion
         </Link>
         <span className="text-slate-700">·</span>
+        <Link href="/docs" className="transition-colors hover:text-emerald-400 font-semibold">
+          Docs
+        </Link>
+        <span className="text-slate-700">·</span>
         <Link href="/dashboard" className="transition-colors hover:text-slate-300">
           Full workspace
         </Link>
