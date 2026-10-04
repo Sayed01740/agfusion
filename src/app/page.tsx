@@ -122,41 +122,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 4: CONVERSION CALL-TO-ACTION COCKPIT
-         ───────────────────────────────────────────────────────────── */}
-      <section 
-        aria-labelledby="cta-heading" 
-        className="relative my-8 overflow-hidden rounded-3xl border border-accent/40 bg-gradient-to-br from-card via-[#070a0e] to-card/90 p-8 text-center shadow-2xl sm:p-14 glow-border card-pro"
-      >
-        <div className="relative z-10 mx-auto max-w-2xl">
-          <span className="rounded-full border border-accent/30 bg-accent/15 px-3.5 py-1 text-xs font-semibold text-accent font-mono shadow-xs shadow-accent/20">
-            Get Started on {ARC_NETWORK_NAME}
-          </span>
-          <h2 id="cta-heading" className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl font-display text-gradient-pro">
-            Experience the Future of Web3 Intelligence.
-          </h2>
-          <p className="mt-5 text-base text-muted-foreground sm:text-lg leading-relaxed">
-            Deploy autonomous intent workflows, manage multi-chain stablecoin balances, and execute non-custodial transactions in one unified workspace.
-          </p>
-          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-            <Button asChild size="lg" className="shimmer-button active-tactile min-h-12 px-8 text-base font-semibold shadow-xl shadow-accent/25 cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90">
-              <Link href="/dashboard" className="flex items-center gap-2">
-                Open Workspace Console <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/15 bg-background/60 hover:border-accent/40 backdrop-blur-md cursor-pointer">
-              <Link href="/docs" className="flex items-center gap-2">
-                Developer Docs <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-          <p className="mt-6 text-xs text-muted-foreground flex items-center justify-center gap-1.5">
-            <ShieldCheck className="h-4 w-4 text-accent" />
-            100% Non-custodial • Client approval required • Verifiable execution
-          </p>
-        </div>
-      </section>
     </div>
   );
 }
