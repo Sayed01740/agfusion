@@ -2,96 +2,21 @@ import Link from "next/link";
 import { 
   ArrowRight, 
   ArrowUpRight, 
-  Bot, 
   ShieldCheck, 
-  Cpu, 
   Layers, 
-  Route, 
-  Send, 
   Zap, 
-  Lock, 
-  Terminal, 
-  Activity, 
-  Sparkles, 
   CheckCircle2, 
   Globe,
   Sliders,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DeveloperTerminal } from "@/components/landing/developer-terminal";
 import { ARC_CHAIN_ID, ARC_NETWORK_NAME } from "@/lib/arc-chain";
-
-const CAPABILITIES = [
-  {
-    icon: Bot,
-    number: "01",
-    title: "Autonomous Agent Engine",
-    description: "Converts conversational natural language into typed EIP-712 execution intents without manual parameter calculation.",
-    badge: "AI-Powered",
-  },
-  {
-    icon: Lock,
-    number: "02",
-    title: "Non-Custodial Abstraction",
-    description: "Integrated with Circle Programmable Wallets and ZeroDev ERC-4337. Private keys never touch any centralized servers.",
-    badge: "Zero-Knowledge",
-  },
-  {
-    icon: Route,
-    number: "03",
-    title: "Cross-Chain Liquidity & Bridging",
-    description: "Native Circle CCTP stablecoin bridging across Arc Testnet, Base, Arbitrum, and EVM testnets with zero wrapped asset risk.",
-    badge: "Multi-Chain",
-  },
-  {
-    icon: Zap,
-    number: "04",
-    title: "Predictive Gas & Slippage Oracles",
-    description: "Pre-execution mempool simulation algorithms predict congestion to lock in exact routing rates and prevent transaction revert.",
-    badge: "Sub-Second",
-  },
-  {
-    icon: ShieldCheck,
-    number: "05",
-    title: "Cryptographic Audit Trails",
-    description: "Every plan produces a human-readable diff, state change simulation, and verifiable cryptographic execution receipt.",
-    badge: "Auditable",
-  },
-  {
-    icon: Cpu,
-    number: "06",
-    title: "Headless Developer SDK",
-    description: "Integrate autonomous on-chain intent routing into your decentralized application with clean TypeScript APIs.",
-    badge: "SDK & Hooks",
-  },
-];
 
 const METRICS = [
   { label: "Target Network", value: ARC_NETWORK_NAME, sub: `Chain ID ${ARC_CHAIN_ID}` },
   { label: "Native Fee Asset", value: "USDC", sub: "Gas paid directly in USDC" },
   { label: "Settlement Speed", value: "< 1s", sub: "Fast finality on Arc" },
   { label: "Cross-Chain Support", value: "EVM + CCTP", sub: "Arc, Base & Ethereum" },
-];
-
-const ARCHITECTURE_STEPS = [
-  {
-    step: "01",
-    title: "Intent Parsing & Disambiguation",
-    desc: "User expresses goals via UI or API. The agent maps natural language intents to deterministic contract calls.",
-    tag: "Intent Parsing"
-  },
-  {
-    step: "02",
-    title: "State Simulation & Safety Guard",
-    desc: "Pre-flight RPC checks verify gas overhead, address hygiene, and slippage thresholds before prompting any wallet.",
-    tag: "Pre-Flight Guard"
-  },
-  {
-    step: "03",
-    title: "Atomic On-Chain Settlement",
-    desc: "User approves via Web3 wallet. Arc Network settles the transaction with sub-second finality and cryptographic proof.",
-    tag: "Arc Settlement"
-  }
 ];
 
 export default function LandingPage() {
@@ -135,8 +60,8 @@ export default function LandingPage() {
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/10 hover:border-accent/40 bg-card/60 backdrop-blur-md cursor-pointer">
-            <Link href="#architecture" className="flex items-center gap-2 text-foreground">
-              Protocol Architecture <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            <Link href="/docs" className="flex items-center gap-2 text-foreground">
+              Protocol Docs <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </Button>
         </div>
@@ -172,127 +97,9 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          SECTION 3: 6-CARD CAPABILITIES SHOWCASE
+          SECTION 3: ECOSYSTEM PARTNERS MARQUEE
          ───────────────────────────────────────────────────────────── */}
-      <section id="capabilities" aria-labelledby="capabilities-title" className="py-14 sm:py-20">
-        <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
-              Engine Architecture
-            </p>
-            <h2 id="capabilities-title" className="mt-2.5 text-3xl font-bold text-foreground sm:text-4xl font-display">
-              Engineered for Autonomous Execution.
-            </h2>
-          </div>
-          <Link 
-            href="/dashboard" 
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline cursor-pointer"
-          >
-            Access interactive tools <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CAPABILITIES.map(({ icon: Icon, number, title, description, badge }) => (
-            <div 
-              key={title} 
-              className="group card-pro p-6 glow-border transition-all duration-300 hover:border-accent/40 hover:-translate-y-1"
-            >
-              <div className="flex items-center justify-between">
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/25 transition-all group-hover:bg-accent/20 group-hover:scale-105 shadow-sm shadow-accent/10">
-                  <Icon aria-hidden="true" className="h-5 w-5" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-md border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] font-mono font-medium text-accent">
-                    {badge}
-                  </span>
-                  <span className="font-mono text-xs font-semibold text-muted-foreground/60">{number}</span>
-                </div>
-              </div>
-
-              <h3 className="mt-6 text-lg font-semibold text-foreground transition-colors group-hover:text-accent font-display">
-                {title}
-              </h3>
-              <p className="mt-2.5 text-sm leading-6 text-muted-foreground">
-                {description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 4: ARCHITECTURE PIPELINE ("INTENT TO FINALITY")
-         ───────────────────────────────────────────────────────────── */}
-      <section id="architecture" aria-labelledby="arch-title" className="border-t border-white/10 py-16 sm:py-24">
-        <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
-            Deterministic Pipeline
-          </p>
-          <h2 id="arch-title" className="mt-2 text-3xl font-bold text-foreground sm:text-4xl font-display">
-            From Natural Intent to Sub-Second Finality.
-          </h2>
-          <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-            Eliminating blind signing and failed transactions. Every prompt traverses an audited, multi-layer consensus pipeline before requesting client signature.
-          </p>
-        </div>
-
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {ARCHITECTURE_STEPS.map((item, idx) => (
-            <div 
-              key={item.step} 
-              className="relative rounded-2xl border border-white/10 bg-card/60 p-6 backdrop-blur-xl glow-border flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-2xl font-bold text-accent">{item.step}</span>
-                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-mono text-muted-foreground border border-border">
-                    {item.tag}
-                  </span>
-                </div>
-                <h3 className="mt-5 text-base font-semibold text-foreground font-display">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {item.desc}
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-border/50 flex items-center gap-1.5 text-xs text-accent">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Stage {idx + 1}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 5: DEVELOPER TERMINAL & HEADLESS SDK
-         ───────────────────────────────────────────────────────────── */}
-      <section aria-labelledby="developer-title" className="border-t border-white/10 py-16 sm:py-20">
-        <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent font-mono">
-              Developer SDK
-            </p>
-            <h2 id="developer-title" className="mt-2.5 text-3xl font-bold text-foreground sm:text-4xl font-display">
-              Build with the Autonomous Agent SDK.
-            </h2>
-          </div>
-          <Link 
-            href="/dashboard#tools" 
-            className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline cursor-pointer"
-          >
-            Explore API Documentation <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-
-        <DeveloperTerminal />
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 6: ECOSYSTEM PARTNERS MARQUEE
-         ───────────────────────────────────────────────────────────── */}
-      <section aria-label="Ecosystem Partners" className="my-8 border-t border-white/10 py-12">
+      <section aria-label="Ecosystem Partners" className="my-12 border-t border-white/10 py-12">
         <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/70 font-mono mb-6">
           Powered by Industry-Leading Web3 Primitives
         </p>
@@ -316,7 +123,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          SECTION 7: CONVERSION CALL-TO-ACTION COCKPIT
+          SECTION 4: CONVERSION CALL-TO-ACTION COCKPIT
          ───────────────────────────────────────────────────────────── */}
       <section 
         aria-labelledby="cta-heading" 
@@ -339,8 +146,8 @@ export default function LandingPage() {
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="active-tactile min-h-12 px-6 border-white/15 bg-background/60 hover:border-accent/40 backdrop-blur-md cursor-pointer">
-              <Link href="/dashboard#guide" className="flex items-center gap-2">
-                Getting Started Guide <ArrowRight className="h-4 w-4" />
+              <Link href="/docs" className="flex items-center gap-2">
+                Developer Docs <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>
