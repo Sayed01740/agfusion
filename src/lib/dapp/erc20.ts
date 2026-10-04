@@ -58,8 +58,8 @@ export function arcRpcUrl(isMainnet?: boolean): string {
   // Server side: use the real RPC based on detected or configured network
   const mainnet = isMainnet ?? IS_ARC_MAINNET;
   return mainnet
-    ? (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.io")
-    : "https://rpc.testnet.arc.io";
+    ? (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.network")
+    : (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.testnet.arc.network");
 }
 
 /**
