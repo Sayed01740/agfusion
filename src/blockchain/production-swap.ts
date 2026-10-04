@@ -133,10 +133,10 @@ async function ethCall(
 
   // 3. Fallback across public Arc upstreams
   const upstreams = isMainnet
-    ? ["https://rpc.mainnet.arc.io", "https://rpc.arc.network"]
+    ? ["https://rpc.mainnet.arc.network", "https://rpc.mainnet.arc.io", "https://rpc.arc.network"]
     : [
-        "https://rpc.testnet.arc.io",
         "https://rpc.testnet.arc.network",
+        "https://rpc.testnet.arc.io",
         "https://rpc.drpc.testnet.arc.io",
         "https://rpc.quicknode.testnet.arc.io",
         "https://rpc.blockdaemon.testnet.arc.io",

@@ -24,9 +24,9 @@ import {
   runBridgeFlow,
   runBridgeWithRecovery,
   runSendFlow,
-  runSwapFlow,
   runUnifiedRouteFlow,
 } from "@/blockchain/appkit-service";
+import { runCircleSafeSwapFlow } from "@/blockchain/circle-safe-swap";
 import { CHAINS, resolveChain } from "@/lib/chains";
 import { formatUsd } from "@/lib/utils";
 import { IS_ARC_MAINNET } from "@/lib/arc-chain";
@@ -623,15 +623,16 @@ export async function executeTool(
           if (Number.isFinite(swapAmount) && Number.isFinite(liveBal) && liveBal < swapAmount + 0.005) {
             return {
               ok: false,
-              summary: `Insufficient balance on Arc Testnet: wallet has ${liveBal.toFixed(4)} USDC, but swapping requires ${swapAmount} USDC plus gas fees.`,
+              summary: `Insufficient balance on Arc: wallet has ${liveBal.toFixed(4)} USDC, but swapping requires ${swapAmount} USDC plus gas fees.`,
             };
           }
         }
-        const transaction = await runSwapFlow({
+        const activeChain = (ctx.wallet.chainId === 5042 || IS_ARC_MAINNET) ? "Arc_Mainnet" : "Arc_Testnet";
+        const transaction = await runCircleSafeSwapFlow({
           amount: String(args.amount || "50"),
           tokenIn: String(args.tokenIn || "USDC"),
           tokenOut: String(args.tokenOut || "EURC"),
-          chain: "Arc_Testnet",
+          chain: activeChain,
         });
         return {
           ok: transaction.status === "success",
