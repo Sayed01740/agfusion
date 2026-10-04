@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Plus, Trash2, Zap, Layers } from "lucide-react";
+import { useState, useRef } from "react";
+import { Loader2, Plus, Trash2, Zap, Layers, Upload, Download, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +16,7 @@ import { ARC_TOKENS, getArcTokens, isAddress, isDisperseConfigured, type ArcToke
 import { getArcNetworkMeta } from "@/lib/arc-chain";
 import { runBatchDisperse, validateBatch, type BatchRow } from "@/lib/dapp/disperse";
 import { sendArcToken } from "@/lib/dapp/send";
+import { parseBatchCsv, exportTreasuryStatementCsv } from "@/lib/dapp/accounting-export";
 import { usePilotStore } from "@/store/pilot-store";
 import type { TransactionRecord, TxStep } from "@/types";
 
@@ -39,6 +40,8 @@ export function BatchCard({ connected }: { connected: boolean }) {
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TransactionRecord | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const transactions = usePilotStore((s) => s.transactions);
 
   const bal = useArcBalance(token);
   const singleSig = isDisperseConfigured();
@@ -60,6 +63,25 @@ export function BatchCard({ connected }: { connected: boolean }) {
   }
   function removeRow(i: number) {
     setRows((rs) => (rs.length <= 1 ? rs : rs.filter((_, idx) => idx !== i)));
+  }
+
+  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+      const parsed = parseBatchCsv(text);
+      if (parsed.length > 0) {
+        setRows(parsed);
+        setError(null);
+      } else {
+        setError("Could not parse CSV. Format: address,amount,label");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   }
 
   function reset() {
@@ -201,10 +223,42 @@ export function BatchCard({ connected }: { connected: boolean }) {
         })}
       </div>
 
-      <div className="flex items-center justify-between">
-        <Button variant="outline" size="sm" onClick={addRow} disabled={busy}>
-          <Plus className="h-3.5 w-3.5" /> Add recipient
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" onClick={addRow} disabled={busy}>
+            <Plus className="h-3.5 w-3.5" /> Add
+          </Button>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleCsvFile}
+            accept=".csv,text/csv"
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy}
+            title="Import CSV with columns: address,amount,label"
+            className="text-slate-300 hover:text-white"
+          >
+            <Upload className="h-3.5 w-3.5 text-cyan-400" /> Import CSV
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => exportTreasuryStatementCsv(transactions)}
+            disabled={transactions.length === 0}
+            title="Export accounting CSV statement"
+            className="text-slate-400 hover:text-slate-200 text-[11px] px-2"
+          >
+            <Download className="h-3.5 w-3.5 text-emerald-400" /> Statement
+          </Button>
+        </div>
+
         <div className="px-1 text-right">
           <div className="text-[11px] text-slate-500">Total</div>
           <div className="text-sm font-semibold text-slate-100">

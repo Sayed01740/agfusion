@@ -35,6 +35,8 @@ import {
   registerErc8004Agent,
 } from "@/lib/erc8004";
 import { AGFUSION_METADATA_URI } from "@/lib/onchain";
+import { isEscrowConfigured, runCreateEscrowTask } from "@/lib/dapp/escrow";
+import type { Address } from "viem";
 
 export default function AgentsPage() {
   const { addTransaction, setActiveTx, walletAddress } = usePilotStore();
@@ -158,21 +160,34 @@ export default function AgentsPage() {
 
       setJobLog((l) => ({
         ...l,
-        [agent.id]: "Settling live 1 USDC on Arc — confirm in Rabby…",
+        [agent.id]: isEscrowConfigured()
+          ? "Depositing 1 USDC into AGFusionEscrow contract on Arc…"
+          : "Settling live 1 USDC on Arc — confirm in Rabby…",
       }));
       const fee = quoteSendFee("1");
-      const tx = await executeSend({
-        amount: "1",
-        token: "USDC",
-        chain: "Arc_Testnet",
-        recipient: payTo,
-        recipientLabel: `${agent.name} escrow payout`,
-        preferLive: true,
-      });
+      let tx: any;
+      if (isEscrowConfigured()) {
+        tx = await runCreateEscrowTask({
+          agentAddress: payTo as Address,
+          amount: "1",
+          taskTitle: `${agent.name} Milestone Escrow`,
+        });
+      } else {
+        tx = await executeSend({
+          amount: "1",
+          token: "USDC",
+          chain: "Arc_Testnet",
+          recipient: payTo,
+          recipientLabel: `${agent.name} escrow payout`,
+          preferLive: true,
+        });
+      }
       addTransaction({
         ...tx,
         feeUsd: fee.totalUsdc,
-        message: `ERC-8183 completed · ${fee.headline}`,
+        message: isEscrowConfigured()
+          ? `On-Chain Escrow Activated · ${agent.name}`
+          : `ERC-8183 completed · ${fee.headline}`,
       });
       setActiveTx(tx.id);
       job = advanceJob(job, "completed", `Tx ${tx.status}`);

@@ -48,8 +48,11 @@ next-env.d.ts
 .vercel/
 .vercel.env*
 
-# contracts (separate repo)
-/contracts/
+# contracts artifacts
+/contracts/out/
+/contracts/cache/
+/contracts/lib/
+/contracts/broadcast/
 
 # personal ops scripts that embed credentials
 /scripts/update-vercel.ps1

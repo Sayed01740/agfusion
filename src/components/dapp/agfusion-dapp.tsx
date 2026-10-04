@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   ChevronRight,
   Power,
+  Bot,
 } from "lucide-react";
 import { useWallet } from "@/providers/wallet-provider";
 import { usePilotStore } from "@/store/pilot-store";
@@ -19,14 +20,18 @@ import { SwapCard } from "@/components/dapp/swap-card";
 import { SendCard } from "@/components/dapp/send-card";
 import { BridgeCard } from "@/components/dapp/bridge-card";
 import { BatchCard } from "@/components/dapp/batch-card";
+import { ArcGasSavingsBanner } from "@/components/dapp/arc-gas-savings";
+import { SessionKeyManager } from "@/components/dapp/session-key-manager";
+import { X402Showcase } from "@/components/dapp/x402-showcase";
 
-type Tab = "swap" | "send" | "bridge" | "batch";
+type Tab = "swap" | "send" | "bridge" | "batch" | "agents";
 
 const TABS: { id: Tab; label: string; icon: typeof Send }[] = [
   { id: "swap", label: "Swap", icon: ArrowLeftRight },
   { id: "send", label: "Send", icon: Send },
   { id: "bridge", label: "Bridge", icon: Route },
   { id: "batch", label: "Batch", icon: Users },
+  { id: "agents", label: "Agent OS", icon: Bot },
 ];
 
 function shortAddr(a: string) {
@@ -58,6 +63,9 @@ export function AGFusionDapp() {
         </p>
       </div>
 
+      {/* Arc Native USDC Gas Banner */}
+      <ArcGasSavingsBanner />
+
       {/* The card */}
       <div className="relative w-full rounded-[1.75rem] border border-white/[0.08] bg-[#0c1219]/90 p-3 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-xl sm:p-4">
         {/* Header: tabs + wallet */}
@@ -68,7 +76,7 @@ export function AGFusionDapp() {
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[13px] font-semibold transition-colors sm:px-3 ${
+                className={`inline-flex items-center gap-1.5 rounded-xl px-2 py-2 text-[12px] sm:text-[13px] font-semibold transition-colors sm:px-2.5 ${
                   tab === id
                     ? "bg-white/[0.09] text-slate-50 shadow-sm"
                     : "text-slate-400 hover:text-slate-200"
@@ -127,6 +135,12 @@ export function AGFusionDapp() {
           {tab === "send" && <SendCard connected={connected} />}
           {tab === "bridge" && <BridgeCard connected={connected} />}
           {tab === "batch" && <BatchCard connected={connected} />}
+          {tab === "agents" && (
+            <div className="space-y-3">
+              <SessionKeyManager />
+              <X402Showcase />
+            </div>
+          )}
         </div>
       </div>
 
