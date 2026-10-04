@@ -29,6 +29,7 @@ import {
 } from "@/blockchain/appkit-service";
 import { CHAINS, resolveChain } from "@/lib/chains";
 import { formatUsd } from "@/lib/utils";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 export type WalletContext = {
   address?: string | null;
@@ -649,7 +650,7 @@ export async function executeTool(
           if (Number.isFinite(sendAmount) && Number.isFinite(liveBal) && liveBal < sendAmount + 0.005) {
             return {
               ok: false,
-              summary: `Insufficient balance on Arc Testnet: wallet has ${liveBal.toFixed(4)} USDC, but sending requires ${sendAmount} USDC plus gas fees.`,
+              summary: `Insufficient balance on Arc: wallet has ${liveBal.toFixed(4)} USDC, but sending requires ${sendAmount} USDC plus gas fees.`,
             };
           }
         }
@@ -665,10 +666,11 @@ export async function executeTool(
             summary: e instanceof Error ? e.message : "Invalid recipient",
           };
         }
+        const activeChain = (ctx.wallet.chainId === 5042 || IS_ARC_MAINNET) ? "Arc_Mainnet" : "Arc_Testnet";
         const transaction = await runSendFlow({
           amount: String(args.amount || "25"),
           token: "USDC",
-          chain: "Arc_Testnet",
+          chain: activeChain,
           recipient: safeRecipient,
           recipientLabel: args.recipientLabel
             ? String(args.recipientLabel)

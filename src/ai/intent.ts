@@ -1,5 +1,6 @@
 import type { IntentType, ParsedIntent, StableToken } from "@/types";
 import { resolveChain } from "@/lib/chains";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 const TOKENS: StableToken[] = ["USDC", "EURC", "USDT", "USDe", "DAI", "PYUSD"];
 
@@ -77,7 +78,7 @@ function extractChains(text: string): {
   const arrow = t.match(new RegExp(`\\b(${CHAIN_WORD})\\s*(?:to|→|->|⇒)\\s*(${CHAIN_WORD})\\b`, "i"));
   if (arrow) return { fromChain: resolveChain(arrow[1]), toChain: resolveChain(arrow[2]) };
 
-  const toOnly = t.match(new RegExp(`(?:to|onto)\\s+(${CHAIN_WORD})(?:\\s|$|,|\\.)`, "i"));
+  const toOnly = t.match(new RegExp(`(?:to|onto|on|in)\\s+(${CHAIN_WORD})(?:\\s|$|,|\\.)`, "i"));
   const fromOnly = t.match(new RegExp(`from\\s+(${CHAIN_WORD})(?:\\s|$|,|\\.)`, "i"));
   return { toChain: resolveChain(toOnly?.[1]), fromChain: resolveChain(fromOnly?.[1]) };
 }

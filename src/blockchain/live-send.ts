@@ -17,8 +17,18 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { arcChain, explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET, ARC_CHAIN_ID } from "@/lib/arc-chain";
 import {
+  arcChain,
+  arcMainnetChain,
+  arcTestnetChain,
+  getArcNetworkMeta,
+  explorerTxUrl,
+  ARC_NETWORK_NAME,
+  IS_ARC_MAINNET,
+  ARC_CHAIN_ID,
+} from "@/lib/arc-chain";
+import {
+  getChainId,
   getInjectedProvider,
   requestAccounts,
   switchToArcNetwork,
@@ -63,16 +73,21 @@ export async function getLiveWalletContext(): Promise<{
 }
 
 /** Same-origin /api/rpc proxy URL (browser) or the raw RPC (server). */
-function arcRpcUrl(): string {
-  return typeof window !== "undefined"
-    ? `${window.location.origin}/api/rpc?chain=arc`
-    : arcChain.rpcUrls.default.http[0];
+function arcRpcUrl(isMainnet?: boolean): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api/rpc?chain=arc`;
+  }
+  const mainnet = isMainnet ?? IS_ARC_MAINNET;
+  return mainnet
+    ? (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.io")
+    : (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.testnet.arc.io");
 }
 
-export async function fetchArcNativeBalance(address: Address): Promise<string> {
+export async function fetchArcNativeBalance(address: Address, isMainnet?: boolean): Promise<string> {
+  const chain = (isMainnet ?? IS_ARC_MAINNET) ? arcMainnetChain : arcTestnetChain;
   const client = createPublicClient({
-    chain: arcChain,
-    transport: http(arcRpcUrl()),
+    chain,
+    transport: http(arcRpcUrl(isMainnet)),
   });
   const bal = await client.getBalance({ address });
   return formatEther(bal);
@@ -94,9 +109,15 @@ export async function liveSendUsdcOnArc(params: {
   installCircleApiProxy();
 
   const id = uid("tx");
+  const provider = params.provider || (await getInjectedProvider());
+  const detectedChainId = await getChainId(provider).catch(() => ARC_CHAIN_ID);
+  const meta = getArcNetworkMeta(detectedChainId);
+  const networkName = meta.name;
+  const activeChain = meta.isMainnet ? arcMainnetChain : arcTestnetChain;
+
   const steps: TxStep[] = [
     { name: "Connect wallet", state: "active" },
-    { name: `Switch to ${ARC_NETWORK_NAME}`, state: "pending" },
+    { name: `Switch to ${networkName}`, state: "pending" },
     { name: "Sign & send USDC", state: "pending" },
     { name: "Confirm finality", state: "pending" },
   ];
@@ -104,7 +125,6 @@ export async function liveSendUsdcOnArc(params: {
 
   emit();
 
-  const provider = params.provider || (await getInjectedProvider());
   const accounts = await requestAccounts(provider);
   const from = accounts[0] as Address | undefined;
   if (!from) throw new Error("No wallet account — connect Rabby or MetaMask first");
@@ -113,7 +133,7 @@ export async function liveSendUsdcOnArc(params: {
   steps[1].state = "active";
   emit();
 
-  await switchToArcNetwork(provider, ARC_CHAIN_ID as 5042 | 5042002);
+  await switchToArcNetwork(provider, meta.chainId as 5042 | 5042002);
 
   steps[1].state = "success";
   steps[2].state = "active";
@@ -131,19 +151,19 @@ export async function liveSendUsdcOnArc(params: {
 
   // Pre-flight balance check: Ensure sender has enough USDC to cover amount and Arc gas fee
   try {
-    const nativeBalStr = await fetchArcNativeBalance(from);
+    const nativeBalStr = await fetchArcNativeBalance(from, meta.isMainnet);
     const nativeBal = Number.parseFloat(nativeBalStr);
     if (Number.isFinite(nativeBal)) {
       const minRequired = numericAmount + 0.005;
       if (nativeBal < minRequired) {
         throw new Error(
-          `Insufficient balance on ${ARC_NETWORK_NAME} for ${from}. Balance is ${nativeBal.toFixed(4)} USDC, but transaction requires at least ${minRequired.toFixed(4)} USDC (including gas reserve). Please fund your wallet.`
+          `Insufficient balance on ${networkName} for ${from}. Balance is ${nativeBal.toFixed(4)} USDC, but transaction requires at least ${minRequired.toFixed(4)} USDC (including gas reserve). Please fund your wallet.`
         );
       }
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes(`Insufficient balance on ${ARC_NETWORK_NAME}`)) {
+    if (msg.includes("Insufficient balance on")) {
       throw err;
     }
   }
@@ -193,12 +213,12 @@ export async function liveSendUsdcOnArc(params: {
   emit();
 
   const publicClient = createPublicClient({
-    chain: arcChain,
-    transport: http(arcRpcUrl()),
+    chain: activeChain,
+    transport: http(arcRpcUrl(meta.isMainnet)),
   });
 
   let status: TransactionRecord["status"] = "success";
-  let finalityMessage = `Confirmed on ${ARC_NETWORK_NAME}`;
+  let finalityMessage = `Confirmed on ${networkName}`;
   try {
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
@@ -206,7 +226,7 @@ export async function liveSendUsdcOnArc(params: {
     });
     if (receipt.status !== "success") {
       status = "error";
-      finalityMessage = `Transaction reverted on ${ARC_NETWORK_NAME}`;
+      finalityMessage = `Transaction reverted on ${networkName}`;
       steps[3].state = "error";
       steps[3].message = finalityMessage;
     } else {
@@ -230,16 +250,16 @@ export async function liveSendUsdcOnArc(params: {
     retryable: status === "retryable",
     amount: params.amount,
     token: "USDC",
-    fromChain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
-    toChain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+    fromChain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+    toChain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
     recipient: params.recipient,
     recipientLabel: params.recipientLabel,
     feeUsd: 0.04,
     steps,
     txHash: hash,
-    explorerUrl: explorerTxUrl(hash),
+    explorerUrl: meta.explorer ? `${meta.explorer}/tx/${hash}` : explorerTxUrl(hash),
     createdAt: new Date().toISOString(),
-    message: `Live USDC send on ${ARC_NETWORK_NAME} — ${finalityMessage}`,
+    message: `Live USDC send on ${networkName} — ${finalityMessage}`,
     executionMode: "live",
   };
 }

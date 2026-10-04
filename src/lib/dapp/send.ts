@@ -117,7 +117,7 @@ export async function sendArcToken(params: {
   steps[3].state = "active";
   emit();
 
-  const publicClient = arcPublicClient();
+  const publicClient = arcPublicClient(meta.isMainnet);
   let status: TransactionRecord["status"] = "success";
   let finalityMessage = `Confirmed on ${networkLabel}`;
   try {
