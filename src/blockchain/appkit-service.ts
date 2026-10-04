@@ -419,11 +419,18 @@ export async function runSwapFlow(params: {
   tokenOut: string;
   chain: ChainId;
   onStep?: (steps: TxStep[]) => void;
+  slippageBps?: number;
 }): Promise<TransactionRecord> {
   if (typeof window === "undefined") {
     throw new Error(
       "Swap must run in the browser with your connected wallet (Rabby / MetaMask).",
     );
+  }
+
+  // Arc Build Standard: Route Arc network swaps directly to on-chain DEX router
+  if (params.chain === "Arc" || params.chain === "Arc_Testnet" || params.chain === "Arc_Mainnet") {
+    const { runCircleSafeSwapFlow } = await import("@/blockchain/circle-safe-swap");
+    return runCircleSafeSwapFlow(params);
   }
 
   // App Kit calls api.circle.com from the browser → often "Failed to fetch" (8002).

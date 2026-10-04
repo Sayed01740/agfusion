@@ -489,7 +489,7 @@ export async function runProductionSwap(params: {
 
   const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut));
   const minOut = isMainnet ? quotedOut : (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
-  const deadline = (await blockTimestamp(provider)) + 180n;
+  const deadline = (await blockTimestamp(provider)) + 300n;
 
   const steps: TxStep[] = [
     { name: "Live quote", state: "success", message: `${quote.route} · ${isMainnet ? "Zero slippage" : `${slippageBps / 100}% slippage`}` },
