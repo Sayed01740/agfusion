@@ -178,5 +178,5 @@ This repository is currently maintained as an active AGFusion project. Licensing
 ## Links
 
 - Live application: https://agfusion.vercel.app
-- Arc documentation: https://docs.arc.io
+- Documentation: https://agfusion.vercel.app/docs
 - Arc Testnet explorer: https://testnet.arcscan.app

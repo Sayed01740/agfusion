@@ -5,6 +5,7 @@
 **AGFusion is the AI-native command layer for stablecoin finance on Arc:** natural language → fee estimate → confirm → live wallet signature (Circle App Kit bridge/swap + native Arc USDC send).
 
 **Live demo:** https://agfusion.vercel.app  
+**Documentation:** https://agfusion.vercel.app/docs  
 **X:** https://x.com/AGfusion_
 
 ## Honest model (live-only)
@@ -64,5 +65,6 @@ Arc’s infrastructure (USDC gas, CCTP, App Kit, agentic economy) makes that pos
 ## Contact
 
 - Site: https://agfusion.vercel.app  
+- Documentation: https://agfusion.vercel.app/docs  
 - X: https://x.com/AGfusion_  
 - Architecture: `docs/ARCHITECTURE.md`
