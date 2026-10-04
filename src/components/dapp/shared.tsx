@@ -89,14 +89,14 @@ export function TokenSelect({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] py-1.5 pl-1.5 pr-2.5 text-sm font-semibold text-slate-100 transition-colors",
-          !disabled && "hover:bg-white/[0.09] hover:border-white/20",
+          "inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.06] py-1.5 pl-1.5 pr-2.5 text-sm font-semibold text-white shadow-sm transition-all",
+          !disabled && "hover:bg-white/[0.12] hover:border-white/25 hover:scale-[1.02]",
           disabled && "opacity-60",
         )}
       >
         <TokenGlyph token={value} size={24} />
         <span>{value.symbol}</span>
-        {!disabled && <ChevronDown className="h-4 w-4 text-slate-400" />}
+        {!disabled && <ChevronDown className="h-4 w-4 text-slate-300" />}
       </button>
 
       {open && !disabled && (
@@ -107,7 +107,7 @@ export function TokenSelect({
             className="fixed inset-0 z-40 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-white/10 bg-[#0c1219] p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.5)]">
+          <div className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-white/[0.12] bg-[#090e16]/95 p-1.5 shadow-[0_24px_50px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
             {options.map((t) => {
               const active = t.symbol === value.symbol;
               return (
@@ -120,13 +120,13 @@ export function TokenSelect({
                   }}
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors",
-                    active ? "bg-white/[0.07]" : "hover:bg-white/[0.05]",
+                    active ? "bg-emerald-500/15 text-emerald-300" : "hover:bg-white/[0.06] text-slate-200",
                   )}
                 >
                   <TokenGlyph token={t} size={26} />
                   <span className="flex-1">
-                    <span className="block text-sm font-semibold text-slate-100">{t.symbol}</span>
-                    <span className="block text-[11px] text-slate-500">{t.name}</span>
+                    <span className="block text-sm font-semibold text-slate-50">{t.symbol}</span>
+                    <span className="block text-[11px] text-slate-400">{t.name}</span>
                   </span>
                   {active && <Check className="h-4 w-4 text-emerald-400" />}
                 </button>
@@ -171,17 +171,17 @@ export function AmountField({
   lockToken?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0a1017] px-4 py-3.5 transition-colors focus-within:border-white/15">
-      <div className="mb-1.5 flex items-center justify-between text-[12px] text-slate-500">
-        <span>{label}</span>
+    <div className="rounded-2xl border border-white/[0.08] bg-[#070c14]/95 px-4 py-3.5 shadow-inner transition-all focus-within:border-emerald-400/40 focus-within:ring-1 focus-within:ring-emerald-400/20">
+      <div className="mb-1.5 flex items-center justify-between text-[12px]">
+        <span className="font-medium text-slate-300">{label}</span>
         {balance !== undefined && (
-          <span className="flex items-center gap-1.5">
-            <span>Balance: {formatBalance(balance)}</span>
+          <span className="flex items-center gap-1.5 text-slate-400 font-mono text-[11px] tabular-nums">
+            <span>Bal: <strong className="text-slate-200">{formatBalance(balance)}</strong></span>
             {onMax && (
               <button
                 type="button"
                 onClick={onMax}
-                className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-400/10"
+                className="rounded-md px-1.5 py-0.5 text-[10px] font-bold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-colors uppercase tracking-wider"
               >
                 MAX
               </button>
@@ -192,9 +192,9 @@ export function AmountField({
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           {readOnly ? (
-            <div className="flex h-10 items-center text-2xl font-semibold text-slate-100">
+            <div className="flex h-10 items-center font-mono tabular-nums text-2xl font-bold text-white">
               {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
               ) : (
                 <span className="truncate">{amount || "0.0"}</span>
               )}
@@ -208,10 +208,10 @@ export function AmountField({
                 const v = e.target.value;
                 if (v === "" || /^\d*\.?\d*$/.test(v)) onAmountChange?.(v);
               }}
-              className="h-10 w-full bg-transparent text-2xl font-semibold text-slate-100 outline-none placeholder:text-slate-600"
+              className="h-10 w-full bg-transparent font-mono tabular-nums text-2xl font-bold text-white outline-none placeholder:text-slate-600"
             />
           )}
-          {secondary && <div className="mt-0.5 text-[12px] text-slate-500">{secondary}</div>}
+          {secondary && <div className="mt-0.5 text-[12px] font-mono text-slate-400">{secondary}</div>}
         </div>
         <TokenSelect
           value={token}

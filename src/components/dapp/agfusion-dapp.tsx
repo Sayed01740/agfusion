@@ -50,14 +50,14 @@ export function AGFusionDapp() {
 
   return (
     <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-lg flex-col items-center justify-center px-4 py-10 sm:py-14">
-      {/* Glow behind the card */}
-      <div className="pointer-events-none absolute left-1/2 top-24 h-72 w-[30rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.16),rgba(34,211,238,0.06),transparent_70%)] blur-2xl" />
+      {/* Ambient Arc Mint & Cyan Glow behind the card */}
+      <div className="pointer-events-none absolute left-1/2 top-20 h-80 w-[38rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(5,242,155,0.18),rgba(6,182,212,0.12),transparent_70%)] blur-3xl" />
 
       <div className="relative mb-5 text-center">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-slate-50 sm:text-[1.75rem]">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-white sm:text-[1.85rem]">
           Trade, send &amp; bridge on Arc
         </h1>
-        <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-5 text-slate-400">
+        <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-5 text-slate-300">
           Swap stablecoins, send tokens, bridge across chains, and pay many
           recipients in one signature — all on {meta.name}.
         </p>
@@ -67,19 +67,19 @@ export function AGFusionDapp() {
       <ArcGasSavingsBanner />
 
       {/* The card */}
-      <div className="relative w-full rounded-[1.75rem] border border-white/[0.08] bg-[#0c1219]/90 p-3 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] backdrop-blur-xl sm:p-4">
+      <div className="relative w-full rounded-[2rem] border border-white/[0.1] bg-[#0c1219]/90 p-3.5 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.12)] backdrop-blur-2xl sm:p-4.5">
         {/* Header: tabs + wallet */}
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-0.5 rounded-2xl bg-black/25 p-1">
+        <div className="mb-3.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 rounded-2xl bg-black/40 border border-white/[0.04] p-1 shadow-inner">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-2 py-2 text-[12px] sm:text-[13px] font-semibold transition-colors sm:px-2.5 ${
+                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[12px] sm:text-[13px] font-semibold transition-all ${
                   tab === id
-                    ? "bg-white/[0.09] text-slate-50 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-gradient-to-r from-white/[0.12] to-white/[0.08] text-white shadow-sm border border-white/[0.08]"
+                    : "text-slate-400 hover:text-slate-100 hover:bg-white/[0.04]"
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -93,18 +93,18 @@ export function AGFusionDapp() {
               type="button"
               onClick={disconnect}
               title="Disconnect"
-              className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.04] px-2.5 py-2 text-[12px] font-semibold text-slate-200 transition-colors hover:border-white/20"
+              className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.12] bg-white/[0.05] px-3 py-2 text-[12px] font-semibold text-slate-100 transition-all hover:border-white/25 hover:bg-white/[0.09]"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
               <span className="font-mono">{shortAddr(walletAddress!)}</span>
-              <Power className="h-3 w-3 text-slate-500 group-hover:text-red-300" />
+              <Power className="h-3 w-3 text-slate-400 group-hover:text-red-300 transition-colors" />
             </button>
           ) : (
             <button
               type="button"
               onClick={openConnectModal}
               disabled={connecting}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 px-3 py-2 text-[12px] font-semibold text-white shadow-[0_6px_20px_rgba(56,189,248,0.25)] transition-transform hover:scale-[1.02] disabled:opacity-60"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 px-3.5 py-2 text-[12px] font-bold text-slate-950 shadow-[0_4px_20px_rgba(5,242,155,0.35)] transition-all hover:scale-[1.02] hover:brightness-110 disabled:opacity-60"
             >
               <Wallet className="h-3.5 w-3.5" />
               {connecting ? "Connecting…" : "Connect"}

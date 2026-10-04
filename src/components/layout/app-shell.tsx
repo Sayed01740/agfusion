@@ -14,12 +14,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Cosmic Horizon Ambient Glow */}
         <div className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 h-[420px] w-full max-w-6xl cosmic-horizon opacity-90 blur-3xl z-0" />
 
-        {/* Ambient Aurora Orbs */}
-        <div className="pointer-events-none fixed -top-40 right-[-10%] h-[550px] w-[550px] rounded-full bg-emerald-500/12 blur-[130px] animate-float z-0" style={{ animationDuration: "14s" }} />
-        <div className="pointer-events-none fixed top-[25%] -left-40 h-[500px] w-[500px] rounded-full bg-indigo-500/09 blur-[140px] animate-float z-0" style={{ animationDuration: "16s", animationDelay: "-5s" }} />
-        <div className="pointer-events-none fixed -bottom-32 left-[25%] h-[450px] w-[550px] rounded-full bg-emerald-600/08 blur-[140px] z-0" />
-        <div className="pointer-events-none fixed inset-0 grid-bg opacity-35 z-0" />
-        <div className="pointer-events-none fixed inset-0 dot-matrix opacity-25 z-0" />
+        {/* Ambient Arc Signature Lighting Orbs */}
+        <div className="pointer-events-none fixed -top-32 right-[-5%] h-[580px] w-[580px] rounded-full bg-emerald-400/14 blur-[140px] animate-float z-0" style={{ animationDuration: "16s" }} />
+        <div className="pointer-events-none fixed top-[20%] -left-32 h-[520px] w-[520px] rounded-full bg-cyan-500/12 blur-[140px] animate-float z-0" style={{ animationDuration: "18s", animationDelay: "-6s" }} />
+        <div className="pointer-events-none fixed -bottom-36 left-[30%] h-[500px] w-[600px] rounded-full bg-emerald-500/10 blur-[150px] z-0" />
+        <div className="pointer-events-none fixed inset-0 grid-bg opacity-30 z-0" />
+        <div className="pointer-events-none fixed inset-0 dot-matrix opacity-20 z-0" />
         <div className="relative z-[1]">
 
           <a href="#main-content" className="skip-link">Skip to content</a>
