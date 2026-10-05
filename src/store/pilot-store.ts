@@ -16,6 +16,7 @@ import {
   saveTransactions,
 } from "@/lib/persistence";
 import { explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET, getArcNetworkMeta } from "@/lib/arc-chain";
+import { DEMO_TRANSACTIONS } from "@/lib/demo-data";
 
 function normalizeTransactionForActivity(tx: TransactionRecord): TransactionRecord {
   const chain =
@@ -62,6 +63,7 @@ interface PilotState {
   setAuthenticated: (v: boolean) => void;
   setDeveloperMode: (v: boolean) => void;
   loadServerTransactions: (wallet?: string) => Promise<void>;
+  loadDemoTransactions: () => void;
   refreshBalances: () => void;
   resetChat: () => void;
   markPreviewExecuted: (messageId: string) => void;
@@ -173,7 +175,7 @@ export const usePilotStore = create<PilotState>((set, get) => ({
       const prev = (s.walletAddress || "").toLowerCase();
       const next = (address || "").toLowerCase();
       let transactions = s.transactions;
-      if (prev !== next) transactions = address ? loadTransactions(address) : [];
+      if (prev !== next) transactions = address ? loadTransactions(address) : loadTransactions(null);
       return { walletAddress: address, walletChainId: chainId ?? null, transactions };
     }),
   setWalletType: (t) => {
@@ -198,6 +200,14 @@ export const usePilotStore = create<PilotState>((set, get) => ({
         return { transactions: merged };
       });
     } catch { /* ignore */ }
+  },
+  loadDemoTransactions: () => {
+    set((s) => {
+      const list = DEMO_TRANSACTIONS.map(normalizeTransactionForActivity);
+      const merged = mergeTransactions(s.transactions, list);
+      saveTransactions(merged, s.walletAddress);
+      return { transactions: merged };
+    });
   },
   refreshBalances: () => {
     const addr = get().walletAddress;
@@ -230,7 +240,7 @@ export const usePilotStore = create<PilotState>((set, get) => ({
   hydrate: () => {
     if (get().hydrated) return;
     try { window.sessionStorage?.removeItem("agfusion_force_demo"); window.sessionStorage?.removeItem("AGFusion_force_demo"); window.sessionStorage?.removeItem("arcpilot_force_demo"); } catch { /* ignore */ }
-    const stored = loadTransactions(get().walletAddress).filter((t) => t.executionMode !== "demo");
+    const stored = loadTransactions(get().walletAddress);
     let walletType: "evm" | "circle" = "evm";
     try { const wt = window.localStorage?.getItem("agfusion_wallet_type_v1"); if (wt === "circle" || wt === "evm") walletType = wt; } catch { /* ignore */ }
     set({ transactions: stored.map(normalizeTransactionForActivity), hydrated: true, forceDemo: false, walletType });

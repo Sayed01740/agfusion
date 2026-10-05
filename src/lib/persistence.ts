@@ -20,9 +20,14 @@ function txKey(address?: string | null): string {
  */
 export function loadTransactions(address?: string | null): TransactionRecord[] {
   if (typeof window === "undefined") return [];
-  if (!address) return [];
   try {
-    const raw = localStorage.getItem(txKey(address));
+    const key = txKey(address);
+    let raw = localStorage.getItem(key);
+    if (!raw && address) {
+      raw = localStorage.getItem(TX_KEY);
+    } else if (!raw && !address) {
+      raw = localStorage.getItem(TX_KEY);
+    }
     if (!raw) return [];
     const parsed = JSON.parse(raw) as TransactionRecord[];
     return Array.isArray(parsed) ? parsed : [];
