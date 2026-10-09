@@ -64,7 +64,7 @@ export const CHAINS: Record<ChainId, ChainMeta> = {
   },
   Arc_Testnet: {
     id: "Arc_Testnet",
-    label: ARC_NETWORK_NAME,
+    label: "Arc Testnet",
     short: "Arc",
     color: "#a3a3a3",
     explorer: ARC_EXPLORER,

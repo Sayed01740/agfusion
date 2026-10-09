@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -16,7 +16,12 @@ import {
   executeUnifiedDeposit,
 } from "@/lib/client-actions";
 import type { ChainId, TransactionRecord } from "@/types";
-import { EVM_BRIDGE_CHAINS, CIRCLE_BRIDGE_CHAINS } from "@/lib/cctp-chains";
+import {
+  EVM_BRIDGE_CHAINS,
+  CIRCLE_BRIDGE_CHAINS,
+  getEvmBridgeChains,
+  getCircleBridgeChains,
+} from "@/lib/cctp-chains";
 import {
   bridgeStateToSteps,
   loadBridgeState,
@@ -53,12 +58,26 @@ export function ActionPanels() {
       <RecoveryPanelBody />
     </div>
   );
-}export function BridgePanelBody() {
-  const { addTransaction, setActiveTx, setThinking, executionMode, walletType } =
+}
+
+export function BridgePanelBody() {
+  const { addTransaction, setActiveTx, setThinking, executionMode, walletType, walletChainId } =
     usePilotStore();
+  const meta = getArcNetworkMeta(walletChainId);
+  const isMainnet = meta.isMainnet;
+
+  const CCTP_BRIDGE_CHAINS: ChainId[] = useMemo(() => {
+    return walletType === "circle"
+      ? getCircleBridgeChains(isMainnet)
+      : getEvmBridgeChains(isMainnet);
+  }, [walletType, isMainnet]);
+
+  const defaultFrom: ChainId = isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
+  const defaultTo: ChainId = isMainnet ? "Base" : "Base_Sepolia";
+
   const [amount, setAmount] = useState("10");
-  const [from, setFrom] = useState<ChainId>("Arc_Testnet");
-  const [to, setTo] = useState<ChainId>("Base_Sepolia");
+  const [from, setFrom] = useState<ChainId>(defaultFrom);
+  const [to, setTo] = useState<ChainId>(defaultTo);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -67,12 +86,16 @@ export function ActionPanels() {
   const activeTxId = usePilotStore((s) => s.activeTxId);
   const mode = executionMode();
 
-  // Wallet type determines the available bridge routes (Phase 2/12):
-  // - Circle Email Wallet: only Arc ↔ Base (the chains Circle PW can execute)
-  // - EVM wallets: all verified CCTP v2 testnet routes (Sonic excluded — SDK
-  //   chainId 14601 does not match live Blaze 57054)
-  const CCTP_BRIDGE_CHAINS: ChainId[] =
-    walletType === "circle" ? CIRCLE_BRIDGE_CHAINS : EVM_BRIDGE_CHAINS;
+  // Sync chains if active network flips between testnet and mainnet
+  useEffect(() => {
+    if (!CCTP_BRIDGE_CHAINS.includes(from)) {
+      setFrom(CCTP_BRIDGE_CHAINS[0] ?? defaultFrom);
+    }
+    if (!CCTP_BRIDGE_CHAINS.includes(to)) {
+      const fallbackTo = CCTP_BRIDGE_CHAINS[1] ?? defaultTo;
+      setTo(fallbackTo);
+    }
+  }, [CCTP_BRIDGE_CHAINS, from, to, defaultFrom, defaultTo]);
 
   // Restore progress of the last bridge from persisted state (Phase 10).
   useEffect(() => {

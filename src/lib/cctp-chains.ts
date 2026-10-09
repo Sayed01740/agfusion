@@ -221,12 +221,10 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   },
 };
 
-export const EVM_BRIDGE_CHAINS: ChainId[] = [
-  "Arc",
-  "Arc_Mainnet",
+export const EVM_TESTNET_BRIDGE_CHAINS: ChainId[] = [
   "Arc_Testnet",
-  "Ethereum_Sepolia",
   "Base_Sepolia",
+  "Ethereum_Sepolia",
   "Arbitrum_Sepolia",
   "Optimism_Sepolia",
   "Polygon_Amoy_Testnet",
@@ -234,6 +232,28 @@ export const EVM_BRIDGE_CHAINS: ChainId[] = [
   "Unichain_Sepolia",
   "Linea_Sepolia",
 ];
+
+export const EVM_MAINNET_BRIDGE_CHAINS: ChainId[] = [
+  "Arc_Mainnet",
+  "Base",
+  "Ethereum",
+  "Arbitrum",
+  "Optimism",
+];
+
+export function getEvmBridgeChains(isMainnet: boolean = IS_ARC_MAINNET): ChainId[] {
+  return isMainnet ? EVM_MAINNET_BRIDGE_CHAINS : EVM_TESTNET_BRIDGE_CHAINS;
+}
+
+export function getCircleBridgeChains(isMainnet: boolean = IS_ARC_MAINNET): ChainId[] {
+  return isMainnet
+    ? ["Arc_Mainnet", "Base", "Ethereum", "Arbitrum", "Optimism"]
+    : ["Arc_Testnet", "Base_Sepolia", "Ethereum_Sepolia", "Arbitrum_Sepolia", "Optimism_Sepolia"];
+}
+
+export const EVM_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
+  ? EVM_MAINNET_BRIDGE_CHAINS
+  : EVM_TESTNET_BRIDGE_CHAINS;
 
 /** IS_ARC_MAINNET-aware bridge chain list for the UI */
 export const CIRCLE_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
