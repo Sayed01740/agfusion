@@ -84,6 +84,8 @@ export function BridgePanelBody() {
   const [liveBridgeState, setLiveBridgeState] = useState<BridgeState | null>(null);
   const [lastTxId, setLastTxId] = useState<string | null>(null);
   const activeTxId = usePilotStore((s) => s.activeTxId);
+  const activeTx = usePilotStore((s) => s.transactions.find((t) => t.id === (lastTxId || s.activeTxId)));
+  const currentBridgeState = activeTx?.bridgeState ?? liveBridgeState;
   const mode = executionMode();
 
   // Sync chains if active network flips between testnet and mainnet
@@ -278,8 +280,8 @@ export function BridgePanelBody() {
         <FeeLineItems quote={quoteBridgeFee(amount)} compact />
 
         {/* Real bridge progress (Phase 10) — restored from persisted state after reload */}
-        {lastTxId && liveBridgeState && (
-          <BridgeProgressStepper state={liveBridgeState} txId={lastTxId} />
+        {lastTxId && currentBridgeState && (
+          <BridgeProgressStepper state={currentBridgeState} txId={lastTxId} />
         )}
 
         {error && (

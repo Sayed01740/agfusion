@@ -31,7 +31,7 @@ export type BridgeWalletType = "evm" | "circle" | "agent";
 export interface BridgeState {
   txId: string;
   walletType: BridgeWalletType;
-  walletAddress: string | null;
+  walletAddress?: string | null;
   fromChain: ChainId;
   toChain: ChainId;
   token: string;
@@ -289,7 +289,7 @@ export function deriveBridgeState(
   return next;
 }
 
-export function bridgeStateToSteps(state: BridgeState | null): TxStep[] {
+export function bridgeStateToSteps(state: BridgeState | null | undefined): TxStep[] {
   if (!state) return [];
   const mk = (name: string, s: "pending" | "active" | "success" | "error", txHash?: string): TxStep => ({ name, state: s, txHash });
   const inState = (names: BridgeStateName[]) => names.includes(state.state);

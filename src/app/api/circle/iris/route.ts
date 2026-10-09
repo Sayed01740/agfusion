@@ -66,7 +66,16 @@ function getTarget(req: Request): string | Response {
   if (!path || !path.startsWith("/") || path.startsWith("//")) {
     return NextResponse.json({ error: "invalid_path" }, { status: 400 });
   }
-  return `${IRIS_BASE}${path}`;
+  const isSandbox =
+    url.searchParams.get("sandbox") === "true" ||
+    url.searchParams.get("testnet") === "true" ||
+    (!url.searchParams.has("sandbox") && !IS_MAINNET);
+
+  const base = isSandbox
+    ? "https://iris-api-sandbox.circle.com"
+    : "https://iris-api.circle.com";
+
+  return `${base}${path}`;
 }
 
 export async function GET(req: Request) {
