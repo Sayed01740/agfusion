@@ -73,6 +73,8 @@ contract AGFusionEscrow {
     event TaskDisputed(uint256 indexed taskId, address indexed initiator, string reasonUri);
     event DisputeResolved(uint256 indexed taskId, address indexed arbitrator, bool favorAgent, uint256 amount);
     event TaskRefunded(uint256 indexed taskId, address indexed client, uint256 amount);
+    event FeeRecipientUpdated(address indexed newFeeRecipient);
+    event FeeBpsUpdated(uint256 newFeeBps);
 
     modifier onlyArbitrator() {
         require(msg.sender == arbitrator, "ONLY_ARBITRATOR");
@@ -95,6 +97,20 @@ contract AGFusionEscrow {
         feeRecipient = feeRecipient_;
     }
 
+    /// @notice Update fee recipient. Only callable by arbitrator (owner).
+    function setFeeRecipient(address newFeeRecipient) external onlyArbitrator {
+        require(newFeeRecipient != address(0), "INVALID_FEE_RECIPIENT");
+        feeRecipient = newFeeRecipient;
+        emit FeeRecipientUpdated(newFeeRecipient);
+    }
+
+    /// @notice Update protocol fee. Only callable by arbitrator (owner).
+    function setFeeBps(uint256 newFeeBps) external onlyArbitrator {
+        require(newFeeBps <= MAX_FEE_BPS, "FEE_TOO_HIGH");
+        feeBps = newFeeBps;
+        emit FeeBpsUpdated(newFeeBps);
+    }
+
     // --- Create Task (ERC-20 Token like Arc USDC, 6 decimals) ---
     function createTask(
         address agent,
@@ -106,6 +122,7 @@ contract AGFusionEscrow {
         require(agent != address(0) && agent != msg.sender, "INVALID_AGENT");
         require(token != address(0), "USE_NATIVE_METHOD");
         require(amount > 0, "ZERO_AMOUNT");
+        require(_isContract(token), "TOKEN_NOT_CONTRACT");
         require(durationSeconds >= 60, "DEADLINE_TOO_SHORT");
 
         _taskIdCounter++;
@@ -271,15 +288,27 @@ contract AGFusionEscrow {
         address token = task.token;
 
         if (token == address(0)) {
+            // Attempt fee transfer; on failure, add fee back to agent payout
             if (fee > 0) {
                 (bool feeOk, ) = payable(feeRecipient).call{value: fee}("");
-                require(feeOk, "FEE_TRANSFER_FAILED");
+                if (!feeOk) {
+                    net = total; // fee transfer failed — send full amount to agent
+                    fee = 0;
+                }
             }
             (bool ok, ) = payable(agent).call{value: net}("");
             require(ok, "NATIVE_TRANSFER_FAILED");
         } else {
             if (fee > 0) {
-                _safeTransfer(token, feeRecipient, fee);
+                // Attempt fee transfer; on failure, add fee back to agent payout
+                (bool feeOk, bytes memory feeData) = token.call(
+                    abi.encodeWithSelector(IERC20Minimal.transfer.selector, feeRecipient, fee)
+                );
+                bool feeTransferred = feeOk && (feeData.length == 0 || abi.decode(feeData, (bool)));
+                if (!feeTransferred) {
+                    net = total;
+                    fee = 0;
+                }
             }
             _safeTransfer(token, agent, net);
         }
@@ -317,6 +346,15 @@ contract AGFusionEscrow {
             abi.encodeWithSelector(IERC20Minimal.transferFrom.selector, from, to, amount)
         );
         require(success && (data.length == 0 || abi.decode(data, (bool))), "TRANSFER_FROM_FAILED");
+    }
+
+    /// @dev Returns true if `addr` has deployed bytecode (Arc-safe contract check).
+    function _isContract(address addr) internal view returns (bool) {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        return size > 0;
     }
 
     receive() external payable {}

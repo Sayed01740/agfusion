@@ -21,7 +21,8 @@ contract DeployAGFusionEscrow is Script {
         console2.log("Deploying AGFusionEscrow from:", msg.sender);
 
         vm.startBroadcast();
-        AGFusionEscrow escrow = new AGFusionEscrow();
+        // arbitrator: msg.sender, feeBps: 50 (0.5%), feeRecipient: msg.sender
+        AGFusionEscrow escrow = new AGFusionEscrow(msg.sender, 50, msg.sender);
         vm.stopBroadcast();
 
         console2.log("AGFusionEscrow deployed at:", address(escrow));

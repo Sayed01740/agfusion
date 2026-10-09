@@ -35,9 +35,13 @@ interface IERC20 {
 contract AGFusionDisperse {
     string public constant NAME = "AGFusionDisperse";
     string public constant VERSION = "1.0.0";
+    uint256 public constant MAX_BATCH_SIZE = 200;
 
     // --- Reentrancy guard (cheap, 1/2 pattern) ---
     uint256 private _entered = 1;
+
+    /// @notice Unclaimed native USDC credits per address (pull-payment model).
+    mapping(address => uint256) public nativeCredits;
 
     modifier nonReentrant() {
         require(_entered == 1, "REENTRANCY");
@@ -55,6 +59,7 @@ contract AGFusionDisperse {
     error InsufficientValue(uint256 provided, uint256 required);
     error NativeSendFailed(address to);
     error RefundFailed();
+    error BatchTooLarge(uint256 provided, uint256 maxAllowed);
 
     // --- Events ---
     event DispersedToken(
@@ -68,6 +73,7 @@ contract AGFusionDisperse {
         uint256 totalAmount,
         uint256 recipientCount
     );
+    event NativeWithdrawn(address indexed recipient, uint256 amount);
 
     /**
      * @notice Send an ERC-20 to many recipients in one transaction.
@@ -83,8 +89,10 @@ contract AGFusionDisperse {
         address[] calldata recipients,
         uint256[] calldata values
     ) external nonReentrant {
+        if (!_isContract(address(token))) revert TransferFailed();
         uint256 n = recipients.length;
         if (n == 0) revert EmptyRecipients();
+        if (n > MAX_BATCH_SIZE) revert BatchTooLarge(n, MAX_BATCH_SIZE);
         if (n != values.length) revert LengthMismatch();
 
         uint256 total;
@@ -113,8 +121,10 @@ contract AGFusionDisperse {
         address[] calldata recipients,
         uint256 value
     ) external nonReentrant {
+        if (!_isContract(address(token))) revert TransferFailed();
         uint256 n = recipients.length;
         if (n == 0) revert EmptyRecipients();
+        if (n > MAX_BATCH_SIZE) revert BatchTooLarge(n, MAX_BATCH_SIZE);
         if (value == 0) revert ZeroValue();
 
         for (uint256 i; i < n; ) {
@@ -129,11 +139,12 @@ contract AGFusionDisperse {
     }
 
     /**
-     * @notice Split the attached native value across many recipients in one tx.
-     * @dev On Arc the native asset is USDC. Any excess msg.value is refunded to
-     *      the caller. Validates the full sum before paying out.
+     * @notice Credit native USDC to many recipients. Recipients claim via withdraw().
+     * @dev    Pull-payment model: no individual recipient failure can revert the batch.
+     *         On Arc, native asset is USDC (18 decimals). Any excess msg.value is
+     *         refunded to the caller within the same transaction.
      * @param recipients  Destination addresses.
-     * @param values      Native amount (wei) for each recipient.
+     * @param values      Native amount (in wei, 18-decimal USDC) for each recipient.
      */
     function disperseNative(
         address[] calldata recipients,
@@ -142,6 +153,7 @@ contract AGFusionDisperse {
         uint256 n = recipients.length;
         if (n == 0) revert EmptyRecipients();
         if (n != values.length) revert LengthMismatch();
+        if (n > MAX_BATCH_SIZE) revert BatchTooLarge(n, MAX_BATCH_SIZE);
 
         uint256 total;
         for (uint256 i; i < n; ) {
@@ -154,20 +166,35 @@ contract AGFusionDisperse {
         }
         if (msg.value < total) revert InsufficientValue(msg.value, total);
 
+        // Credit each recipient (pull model — no external call in loop)
         for (uint256 i; i < n; ) {
-            (bool ok, ) = recipients[i].call{value: values[i]}("");
-            if (!ok) revert NativeSendFailed(recipients[i]);
             unchecked {
+                nativeCredits[recipients[i]] += values[i];
                 ++i;
             }
         }
 
+        // Refund excess
         uint256 refund = msg.value - total;
         if (refund > 0) {
             (bool ok, ) = msg.sender.call{value: refund}("");
             if (!ok) revert RefundFailed();
         }
+
         emit DispersedNative(msg.sender, total, n);
+    }
+
+    /**
+     * @notice Claim native USDC credits previously allocated by disperseNative.
+     * @dev    Any address can call this for itself. Arc native = USDC (18 decimals).
+     */
+    function withdraw() external nonReentrant {
+        uint256 amount = nativeCredits[msg.sender];
+        require(amount > 0, "NO_CREDITS");
+        nativeCredits[msg.sender] = 0;
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        if (!ok) revert NativeSendFailed(msg.sender);
+        emit NativeWithdrawn(msg.sender, amount);
     }
 
     /**
@@ -194,4 +221,15 @@ contract AGFusionDisperse {
             revert TransferFailed();
         }
     }
+
+    /// @dev Returns true if `addr` has deployed bytecode (Arc-safe contract check).
+    function _isContract(address addr) internal view returns (bool) {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        return size > 0;
+    }
+
+    receive() external payable {}
 }

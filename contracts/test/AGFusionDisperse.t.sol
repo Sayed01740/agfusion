@@ -140,7 +140,34 @@ contract AGFusionDisperseTest is Test {
         assertEq(quirky.balanceOf(r1), 400);
     }
 
-    function test_disperseNative_splitsAndRefundsDust() public {
+    function test_disperseToken_revertsOnNonContractToken() public {
+        address nonContract = address(0x9999);
+        address[] memory to = new address[](1);
+        to[0] = r1;
+        uint256[] memory v = new uint256[](1);
+        v[0] = 100;
+
+        vm.prank(sender);
+        vm.expectRevert(AGFusionDisperse.TransferFailed.selector);
+        disperse.disperseToken(IERC20(nonContract), to, v);
+    }
+
+    function test_disperseToken_revertsOnBatchTooLarge() public {
+        address[] memory to = new address[](201);
+        uint256[] memory v = new uint256[](201);
+        for (uint256 i = 0; i < 201; i++) {
+            to[i] = address(uint160(i + 1));
+            v[i] = 1;
+        }
+
+        vm.prank(sender);
+        vm.expectRevert(
+            abi.encodeWithSelector(AGFusionDisperse.BatchTooLarge.selector, 201, 200)
+        );
+        disperse.disperseToken(IERC20(address(token)), to, v);
+    }
+
+    function test_disperseNative_splitsAndRefundsDust_pullModel() public {
         address[] memory to = new address[](2);
         to[0] = r1;
         to[1] = r2;
@@ -153,9 +180,22 @@ contract AGFusionDisperseTest is Test {
         // Send 1 ether extra to verify refund.
         disperse.disperseNative{value: 4 ether}(to, v);
 
-        assertEq(r1.balance, 1 ether);
-        assertEq(r2.balance, 2 ether);
+        // Credits allocated in mapping (pull model)
+        assertEq(disperse.nativeCredits(r1), 1 ether);
+        assertEq(disperse.nativeCredits(r2), 2 ether);
         assertEq(sender.balance, 10 ether - 3 ether); // 1 ether excess refunded
+
+        // r1 withdraws
+        vm.prank(r1);
+        disperse.withdraw();
+        assertEq(r1.balance, 1 ether);
+        assertEq(disperse.nativeCredits(r1), 0);
+
+        // r2 withdraws
+        vm.prank(r2);
+        disperse.withdraw();
+        assertEq(r2.balance, 2 ether);
+        assertEq(disperse.nativeCredits(r2), 0);
     }
 
     function test_disperseNative_revertsOnInsufficientValue() public {
@@ -170,6 +210,12 @@ contract AGFusionDisperseTest is Test {
             abi.encodeWithSelector(AGFusionDisperse.InsufficientValue.selector, uint256(1 ether), uint256(5 ether))
         );
         disperse.disperseNative{value: 1 ether}(to, v);
+    }
+
+    function test_withdraw_revertsWhenNoCredits() public {
+        vm.prank(r1);
+        vm.expectRevert("NO_CREDITS");
+        disperse.withdraw();
     }
 
     function test_totalOf() public view {

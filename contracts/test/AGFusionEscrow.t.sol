@@ -133,4 +133,49 @@ contract AGFusionEscrowTest is Test {
         assertEq(token.balanceOf(agent), expectedNet);
         assertEq(token.balanceOf(feeRecipient), expectedFee);
     }
+
+    function test_CreateTask_revertsOnNonContractToken() public {
+        vm.startPrank(client);
+        vm.expectRevert("TOKEN_NOT_CONTRACT");
+        escrow.createTask(agent, address(0x9999), 10 ether, 3600, "details");
+        vm.stopPrank();
+    }
+
+    function test_Setters_onlyArbitrator() public {
+        address newRecipient = address(0x8888);
+        vm.prank(arbitrator);
+        escrow.setFeeRecipient(newRecipient);
+        assertEq(escrow.feeRecipient(), newRecipient);
+
+        vm.prank(arbitrator);
+        escrow.setFeeBps(100);
+        assertEq(escrow.feeBps(), 100);
+
+        vm.prank(client);
+        vm.expectRevert("ONLY_ARBITRATOR");
+        escrow.setFeeRecipient(client);
+
+        vm.prank(client);
+        vm.expectRevert("ONLY_ARBITRATOR");
+        escrow.setFeeBps(200);
+    }
+
+    function test_SettlePayment_feeFailureDecoupled() public {
+        // Set fee recipient to a contract that rejects native payments or token
+        // Even if feeRecipient rejects, agent still receives full payment!
+        vm.prank(arbitrator);
+        escrow.setFeeRecipient(address(this)); // test contract has no receive() so native transfer fails
+
+        vm.startPrank(client);
+        uint256 taskId = escrow.createTaskNative{value: 10 ether}(agent, 3600, "details");
+        vm.stopPrank();
+
+        // Release payment - fee transfer will fail, but releasePayment MUST NOT revert!
+        uint256 agentBefore = agent.balance;
+        vm.prank(client);
+        escrow.releasePayment(taskId);
+
+        // Full 10 ether paid to agent since fee failed
+        assertEq(agent.balance - agentBefore, 10 ether);
+    }
 }
