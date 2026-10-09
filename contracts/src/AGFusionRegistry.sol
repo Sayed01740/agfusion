@@ -3,23 +3,18 @@ pragma solidity ^0.8.24;
 
 /**
  * @title AGFusionRegistry
- * @notice On-chain project identity for AGFusion on Arc Testnet.
- * @dev Custom app contract — separate from Circle USDC/CCTP/App Kit contracts.
- *
- * Stores:
- *  - project metadata URI (website, logo, docs)
- *  - owner wallet
- *  - optional agent / product registrations linked to this project
- *
- * Deploy with Foundry on Arc Testnet (chainId 5042002). Gas is paid in USDC.
+ * @notice On-chain project identity for AGFusion on Arc Testnet (chainId 5042002).
+ * @dev Stores project metadata and registrar-gated agent/product module registrations.
  */
 contract AGFusionRegistry {
     string public constant PROJECT_NAME = "AGFusion";
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.1.0";
 
     address public owner;
     string public metadataURI;
     bool public active;
+
+    mapping(address => bool) public registrars;
 
     struct Registration {
         string name;
@@ -37,6 +32,8 @@ contract AGFusionRegistry {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event MetadataUpdated(string metadataURI);
     event ProjectActivated(bool active);
+    event RegistrarGranted(address indexed registrar);
+    event RegistrarRevoked(address indexed registrar);
     event Registered(
         uint256 indexed id,
         string name,
@@ -47,6 +44,7 @@ contract AGFusionRegistry {
     event RegistrationStatus(uint256 indexed id, bool active);
 
     error NotOwner();
+    error NotRegistrar();
     error EmptyString();
     error AlreadyExists();
     error InvalidId();
@@ -59,7 +57,6 @@ contract AGFusionRegistry {
 
     /**
      * @param metadataURI_ HTTPS/IPFS URI for project JSON
-     *        e.g. https://agfusion.vercel.app/identity/agfusion-agent.json
      */
     constructor(string memory metadataURI_) {
         if (bytes(metadataURI_).length == 0) revert EmptyString();
@@ -88,8 +85,20 @@ contract AGFusionRegistry {
         emit ProjectActivated(active_);
     }
 
+    function grantRegistrar(address registrar) external onlyOwner {
+        if (registrar == address(0)) revert ZeroAddress();
+        registrars[registrar] = true;
+        emit RegistrarGranted(registrar);
+    }
+
+    function revokeRegistrar(address registrar) external onlyOwner {
+        registrars[registrar] = false;
+        emit RegistrarRevoked(registrar);
+    }
+
     /**
      * @notice Register a product module or agent under AGFusion.
+     * @dev Gated: Only owner or authorized registrars can call this.
      * @param name Human label (e.g. "AGFusion Agent")
      * @param kind Category (e.g. "agent", "bridge-ui", "studio")
      * @param uri Metadata URI for this registration
@@ -99,6 +108,7 @@ contract AGFusionRegistry {
         string calldata kind,
         string calldata uri
     ) external returns (uint256 id) {
+        if (msg.sender != owner && !registrars[msg.sender]) revert NotRegistrar();
         if (bytes(name).length == 0 || bytes(kind).length == 0) revert EmptyString();
         bytes32 key = keccak256(abi.encodePacked(name, "|", kind));
         if (_idToIndex[key] != 0) revert AlreadyExists();

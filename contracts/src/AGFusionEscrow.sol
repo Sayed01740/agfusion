@@ -4,12 +4,8 @@ pragma solidity ^0.8.24;
 /**
  * @title AGFusionEscrow
  * @notice Production-grade on-chain escrow for AI Agents and Autonomous Tasks on Arc Network (chainId 5042002).
- * @dev Replaces simulation with verifiable on-chain lifecycle:
- *      1. Client creates escrow task and locks USDC (ERC-20 or native Arc USDC).
- *      2. AI Agent processes off-chain task and submits completion proof URI.
- *      3. Client releases payment upon verification.
- *      4. Automated refund if deadline expires before agent delivers.
- *      5. Non-custodial, reentrancy-guarded, and gas-efficient on Arc.
+ * @dev Supports both canonical ERC-20 USDC (6 decimals) and native Arc USDC (18 decimals).
+ *      Includes arbitrator dispute resolution, protocol fee support, and permissionless keeper refunds.
  */
 
 interface IERC20Minimal {
@@ -20,14 +16,19 @@ interface IERC20Minimal {
 
 contract AGFusionEscrow {
     string public constant NAME = "AGFusionEscrow";
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.1.0";
+    uint256 public constant MAX_FEE_BPS = 500; // 5.00% max fee
+
+    address public arbitrator;
+    uint256 public feeBps;
+    address public feeRecipient;
 
     enum TaskStatus {
         Active,      // Client funded, waiting for agent
         Submitted,   // Agent submitted proof, waiting for client release
-        Released,    // Client released payment to agent
-        Disputed,    // Dispute raised by either party
-        Refunded     // Refunded back to client after expiration
+        Released,    // Released to agent (minus protocol fee)
+        Disputed,    // Dispute raised by client or agent
+        Refunded     // Refunded back to client
     }
 
     struct Task {
@@ -68,11 +69,33 @@ contract AGFusionEscrow {
         string taskDetailsUri
     );
     event ProofSubmitted(uint256 indexed taskId, address indexed agent, string proofUri);
-    event PaymentReleased(uint256 indexed taskId, address indexed client, address indexed agent, uint256 amount);
+    event PaymentReleased(uint256 indexed taskId, address indexed client, address indexed agent, uint256 netAmount, uint256 feeAmount);
     event TaskDisputed(uint256 indexed taskId, address indexed initiator, string reasonUri);
+    event DisputeResolved(uint256 indexed taskId, address indexed arbitrator, bool favorAgent, uint256 amount);
     event TaskRefunded(uint256 indexed taskId, address indexed client, uint256 amount);
 
-    // --- Create Task (ERC-20 Token like Arc USDC) ---
+    modifier onlyArbitrator() {
+        require(msg.sender == arbitrator, "ONLY_ARBITRATOR");
+        _;
+    }
+
+    /**
+     * @notice Initialize escrow with designated arbitrator and protocol fee settings.
+     * @param arbitrator_ Address authorised to resolve disputes.
+     * @param feeBps_ Protocol fee in basis points (e.g. 50 = 0.5%, max 500 = 5%).
+     * @param feeRecipient_ Address collecting protocol fees.
+     */
+    constructor(address arbitrator_, uint256 feeBps_, address feeRecipient_) {
+        require(arbitrator_ != address(0), "INVALID_ARBITRATOR");
+        require(feeRecipient_ != address(0), "INVALID_FEE_RECIPIENT");
+        require(feeBps_ <= MAX_FEE_BPS, "FEE_TOO_HIGH");
+
+        arbitrator = arbitrator_;
+        feeBps = feeBps_;
+        feeRecipient = feeRecipient_;
+    }
+
+    // --- Create Task (ERC-20 Token like Arc USDC, 6 decimals) ---
     function createTask(
         address agent,
         address token,
@@ -112,7 +135,7 @@ contract AGFusionEscrow {
         emit TaskCreated(taskId, msg.sender, agent, token, amount, deadline, taskDetailsUri);
     }
 
-    // --- Create Task with Native USDC (Arc native asset is USDC) ---
+    // --- Create Task with Native USDC (Arc native gas asset, 18 decimals) ---
     function createTaskNative(
         address agent,
         uint256 durationSeconds,
@@ -160,7 +183,7 @@ contract AGFusionEscrow {
         emit ProofSubmitted(taskId, msg.sender, proofUri);
     }
 
-    // --- Client Releases Escrow Payment ---
+    // --- Client Releases Escrow Payment (Minus Protocol Fee) ---
     function releasePayment(uint256 taskId) external nonReentrant {
         Task storage task = tasks[taskId];
         require(task.id == taskId, "TASK_NOT_FOUND");
@@ -170,23 +193,11 @@ contract AGFusionEscrow {
             "NOT_RELEASABLE"
         );
 
-        uint256 amount = task.amount;
-        address agent = task.agent;
-        address token = task.token;
-
         task.status = TaskStatus.Released;
-
-        if (token == address(0)) {
-            (bool ok, ) = payable(agent).call{value: amount}("");
-            require(ok, "NATIVE_TRANSFER_FAILED");
-        } else {
-            _safeTransfer(token, agent, amount);
-        }
-
-        emit PaymentReleased(taskId, msg.sender, agent, amount);
+        _settlePayment(task);
     }
 
-    // --- Dispute Task ---
+    // --- Dispute Task (Client or Agent) ---
     function disputeTask(uint256 taskId, string calldata reasonUri) external {
         Task storage task = tasks[taskId];
         require(task.id == taskId, "TASK_NOT_FOUND");
@@ -200,11 +211,38 @@ contract AGFusionEscrow {
         emit TaskDisputed(taskId, msg.sender, reasonUri);
     }
 
-    // --- Refund Expired Task ---
+    // --- Arbitrator Resolves Dispute ---
+    function resolveDispute(uint256 taskId, bool favorAgent) external onlyArbitrator nonReentrant {
+        Task storage task = tasks[taskId];
+        require(task.id == taskId, "TASK_NOT_FOUND");
+        require(task.status == TaskStatus.Disputed, "NOT_DISPUTED");
+
+        if (favorAgent) {
+            task.status = TaskStatus.Released;
+            _settlePayment(task);
+            emit DisputeResolved(taskId, msg.sender, true, task.amount);
+        } else {
+            task.status = TaskStatus.Refunded;
+            uint256 amount = task.amount;
+            address client = task.client;
+            address token = task.token;
+
+            if (token == address(0)) {
+                (bool ok, ) = payable(client).call{value: amount}("");
+                require(ok, "NATIVE_REFUND_FAILED");
+            } else {
+                _safeTransfer(token, client, amount);
+            }
+
+            emit TaskRefunded(taskId, client, amount);
+            emit DisputeResolved(taskId, msg.sender, false, amount);
+        }
+    }
+
+    // --- Refund Expired Task (Permissionless - Triggerable by Anyone/Bot/Keeper) ---
     function refundExpired(uint256 taskId) external nonReentrant {
         Task storage task = tasks[taskId];
         require(task.id == taskId, "TASK_NOT_FOUND");
-        require(msg.sender == task.client, "ONLY_CLIENT");
         require(task.status == TaskStatus.Active, "NOT_ACTIVE");
         require(block.timestamp >= task.deadline, "DEADLINE_NOT_PASSED");
 
@@ -222,6 +260,31 @@ contract AGFusionEscrow {
         }
 
         emit TaskRefunded(taskId, client, amount);
+    }
+
+    // --- Internal Payment Settlement with Protocol Fee ---
+    function _settlePayment(Task storage task) internal {
+        uint256 total = task.amount;
+        uint256 fee = (total * feeBps) / 10000;
+        uint256 net = total - fee;
+        address agent = task.agent;
+        address token = task.token;
+
+        if (token == address(0)) {
+            if (fee > 0) {
+                (bool feeOk, ) = payable(feeRecipient).call{value: fee}("");
+                require(feeOk, "FEE_TRANSFER_FAILED");
+            }
+            (bool ok, ) = payable(agent).call{value: net}("");
+            require(ok, "NATIVE_TRANSFER_FAILED");
+        } else {
+            if (fee > 0) {
+                _safeTransfer(token, feeRecipient, fee);
+            }
+            _safeTransfer(token, agent, net);
+        }
+
+        emit PaymentReleased(task.id, task.client, agent, net, fee);
     }
 
     // --- View Helpers ---

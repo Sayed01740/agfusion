@@ -41,9 +41,13 @@ contract AGFusionEscrowTest is Test {
 
     address public client = address(0x1111);
     address public agent = address(0x2222);
+    address public arbitrator = address(0x3333);
+    address public feeRecipient = address(0x4444);
+    address public keeper = address(0x5555);
+    uint256 public feeBps = 50; // 0.5%
 
     function setUp() public {
-        escrow = new AGFusionEscrow();
+        escrow = new AGFusionEscrow(arbitrator, feeBps, feeRecipient);
         token = new MockToken();
 
         token.mint(client, 1000 ether);
@@ -69,15 +73,19 @@ contract AGFusionEscrowTest is Test {
         vm.prank(agent);
         escrow.submitProof(taskId, "ipfs://task-proof");
 
-        // Client releases payment
+        // Client releases payment (minus 0.5% fee)
         vm.prank(client);
         escrow.releasePayment(taskId);
 
-        assertEq(token.balanceOf(agent), 50 ether);
+        uint256 expectedFee = (50 ether * feeBps) / 10000;
+        uint256 expectedNet = 50 ether - expectedFee;
+
+        assertEq(token.balanceOf(agent), expectedNet);
+        assertEq(token.balanceOf(feeRecipient), expectedFee);
         assertEq(token.balanceOf(address(escrow)), 0);
     }
 
-    function test_RefundExpiredTask() public {
+    function test_RefundExpiredTask_PermissionlessKeeper() public {
         vm.startPrank(client);
         token.approve(address(escrow), 100 ether);
         uint256 taskId = escrow.createTask(
@@ -92,10 +100,37 @@ contract AGFusionEscrowTest is Test {
         // Warp time past deadline
         vm.warp(block.timestamp + 121);
 
-        vm.prank(client);
+        // Any third-party keeper/bot triggers refund for client
+        vm.prank(keeper);
         escrow.refundExpired(taskId);
 
         assertEq(token.balanceOf(client), 1000 ether);
         assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
+    function test_DisputeAndArbitratorResolve() public {
+        vm.startPrank(client);
+        token.approve(address(escrow), 100 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(token),
+            30 ether,
+            3600,
+            "ipfs://task-details"
+        );
+
+        // Client raises dispute
+        escrow.disputeTask(taskId, "ipfs://reason");
+        vm.stopPrank();
+
+        // Arbitrator resolves in favor of agent
+        vm.prank(arbitrator);
+        escrow.resolveDispute(taskId, true);
+
+        uint256 expectedFee = (30 ether * feeBps) / 10000;
+        uint256 expectedNet = 30 ether - expectedFee;
+
+        assertEq(token.balanceOf(agent), expectedNet);
+        assertEq(token.balanceOf(feeRecipient), expectedFee);
     }
 }
