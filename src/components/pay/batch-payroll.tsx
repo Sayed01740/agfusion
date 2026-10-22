@@ -92,6 +92,10 @@ export function BatchPayrollCard({ embedded = false }: { embedded?: boolean }) {
           recipient: row.address.trim(),
           recipientLabel: `Payroll · ${row.label}`,
           preferLive: true,
+          // Pin the sender so every sequential send in the batch uses
+          // the same funded wallet — not whatever account the injected
+          // provider exposes at the moment of each call.
+          fromAddress: walletAddress ?? undefined,
         });
         addTransaction(tx);
         setActiveTx(tx.id);

@@ -11,7 +11,7 @@
 
 import {
   createPublicClient,
-  formatEther,
+  formatUnits,
   http,
   encodeFunctionData,
   parseUnits,
@@ -90,7 +90,9 @@ export async function fetchArcNativeBalance(address: Address, isMainnet?: boolea
     transport: http(arcRpcUrl(isMainnet)),
   });
   const bal = await client.getBalance({ address });
-  return formatEther(bal);
+  // Arc exposes USDC as the native asset with 6 decimals (not 18 like ETH).
+  // Using formatEther here was incorrect and caused balances to always read as ~0.
+  return formatUnits(bal, USDC_DECIMALS);
 }
 
 export async function liveSendUsdcOnArc(params: {
@@ -100,6 +102,13 @@ export async function liveSendUsdcOnArc(params: {
   onStep?: (steps: TxStep[]) => void;
   /** Optional explicit provider (preferred when caller already has Rabby) */
   provider?: InjectedProvider;
+  /**
+   * Pin the sender address (e.g. from the app's wallet store).
+   * When provided, the balance check and the `from` field in the transaction
+   * always use this address — preventing the batch from accidentally checking
+   * a different account that happens to be exposed by the injected wallet.
+   */
+  fromAddress?: Address;
 }): Promise<TransactionRecord> {
   if (typeof window === "undefined") {
     throw new Error("Live send must run in the browser with your connected wallet.");
@@ -126,7 +135,11 @@ export async function liveSendUsdcOnArc(params: {
   emit();
 
   const accounts = await requestAccounts(provider);
-  const from = accounts[0] as Address | undefined;
+  // Prefer the pinned address from the caller (e.g. store's walletAddress).
+  // This ensures the batch always uses — and checks the balance of — the
+  // actually-connected funded wallet, not whatever account the injected
+  // provider happens to expose at call time.
+  const from: Address | undefined = params.fromAddress ?? (accounts[0] as Address | undefined);
   if (!from) throw new Error("No wallet account — connect Rabby or MetaMask first");
 
   steps[0].state = "success";

@@ -768,6 +768,8 @@ export async function runSendFlow(params: {
   recipientLabel?: string;
   onStep?: (steps: TxStep[]) => void;
   preferLive?: boolean;
+  /** Pin the sender address (passed down to liveSendUsdcOnArc). */
+  fromAddress?: string;
 }): Promise<TransactionRecord> {
   if (
     (preferLive() || params.preferLive) &&
@@ -779,6 +781,7 @@ export async function runSendFlow(params: {
         recipient: params.recipient,
         recipientLabel: params.recipientLabel,
         onStep: params.onStep,
+        fromAddress: params.fromAddress as import("viem").Address | undefined,
       });
     } catch (e) {
       console.warn("[AGFusion] live send failed:", e);
