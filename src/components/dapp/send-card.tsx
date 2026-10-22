@@ -32,7 +32,7 @@ export function SendCard({ connected }: { connected: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TransactionRecord | null>(null);
 
-  const bal = useArcBalance(token);
+  const bal = useArcBalance(token, meta.isMainnet);
   const recipientValid = recipient.trim() === "" || isAddress(recipient);
 
   async function onSend() {

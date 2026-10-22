@@ -51,12 +51,12 @@ export const ERC20_ABI = [
  * Pass isMainnet to override the IS_ARC_MAINNET default.
  */
 export function arcRpcUrl(isMainnet?: boolean): string {
-  if (typeof window !== "undefined") {
-    // The proxy handles both mainnet and testnet via the ?chain=arc key
-    return `${window.location.origin}/api/rpc?chain=arc`;
-  }
-  // Server side: use the real RPC based on detected or configured network
   const mainnet = isMainnet ?? IS_ARC_MAINNET;
+  if (typeof window !== "undefined") {
+    // Never read token balances from the build-time default when the wallet is
+    // connected to the other Arc network.
+    return `${window.location.origin}/api/rpc?chain=${mainnet ? "arc_mainnet" : "arc_testnet"}`;
+  }
   return mainnet
     ? (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.network")
     : (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.testnet.arc.network");

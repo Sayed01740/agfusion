@@ -15,7 +15,7 @@ import type { TransactionRecord, TxStep } from "@/types";
 /* Balance hook                                                            */
 /* ----------------------------------------------------------------------- */
 
-export function useArcBalance(token: ArcToken | null) {
+export function useArcBalance(token: ArcToken | null, isMainnet?: boolean) {
   const walletAddress = usePilotStore((s) => s.walletAddress);
   const [balance, setBalance] = useState<string>("0");
   const [loading, setLoading] = useState(false);
@@ -27,12 +27,17 @@ export function useArcBalance(token: ArcToken | null) {
     }
     setLoading(true);
     try {
-      const b = await readErc20Balance(token.address, walletAddress as `0x${string}`, token.decimals);
+      const b = await readErc20Balance(
+        token.address,
+        walletAddress as `0x${string}`,
+        token.decimals,
+        isMainnet,
+      );
       setBalance(b);
     } finally {
       setLoading(false);
     }
-  }, [walletAddress, token]);
+  }, [walletAddress, token, isMainnet]);
 
   useEffect(() => {
     void refresh();

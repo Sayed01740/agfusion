@@ -74,25 +74,47 @@ export async function getLiveWalletContext(): Promise<{
 
 /** Same-origin /api/rpc proxy URL (browser) or the raw RPC (server). */
 function arcRpcUrl(isMainnet?: boolean): string {
-  if (typeof window !== "undefined") {
-    return `${window.location.origin}/api/rpc?chain=arc`;
-  }
   const mainnet = isMainnet ?? IS_ARC_MAINNET;
+  if (typeof window !== "undefined") {
+    // The proxy supports explicit Arc mainnet and testnet pools. Using the
+    // build-time default here can read a different network than the connected wallet.
+    return `${window.location.origin}/api/rpc?chain=${mainnet ? "arc_mainnet" : "arc_testnet"}`;
+  }
   return mainnet
     ? (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.mainnet.arc.io")
     : (process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() || "https://rpc.testnet.arc.io");
 }
 
-export async function fetchArcNativeBalance(address: Address, isMainnet?: boolean): Promise<string> {
+const ARC_NATIVE_DECIMALS = 18;
+const ARC_USDC_GAS_RESERVE = "0.005";
+
+/** Format Arc's native USDC balance, whose RPC representation has 18 decimals. */
+export function formatArcNativeUsdcBalance(balance: bigint): string {
+  return formatUnits(balance, ARC_NATIVE_DECIMALS);
+}
+
+/** True when native USDC covers the send amount plus the network-fee reserve. */
+export function hasEnoughArcUsdcBalance(balance: bigint, amount: string): boolean {
+  try {
+    const amountNative = parseUnits(amount, ARC_NATIVE_DECIMALS);
+    const gasReserveNative = parseUnits(ARC_USDC_GAS_RESERVE, ARC_NATIVE_DECIMALS);
+    return balance >= amountNative + gasReserveNative;
+  } catch {
+    return false;
+  }
+}
+
+async function readArcNativeBalanceRaw(address: Address, isMainnet?: boolean): Promise<bigint> {
   const chain = (isMainnet ?? IS_ARC_MAINNET) ? arcMainnetChain : arcTestnetChain;
   const client = createPublicClient({
     chain,
     transport: http(arcRpcUrl(isMainnet)),
   });
-  const bal = await client.getBalance({ address });
-  // Arc exposes USDC as the native asset with 6 decimals (not 18 like ETH).
-  // Using formatEther here was incorrect and caused balances to always read as ~0.
-  return formatUnits(bal, USDC_DECIMALS);
+  return client.getBalance({ address });
+}
+
+export async function fetchArcNativeBalance(address: Address, isMainnet?: boolean): Promise<string> {
+  return formatArcNativeUsdcBalance(await readArcNativeBalanceRaw(address, isMainnet));
 }
 
 export async function liveSendUsdcOnArc(params: {
@@ -162,21 +184,21 @@ export async function liveSendUsdcOnArc(params: {
     throw new Error("Enter a valid USDC amount");
   }
 
-  // Pre-flight balance check: Ensure sender has enough USDC to cover amount and Arc gas fee
+  // eth_getBalance returns native USDC in 18-decimal units. Compare raw
+  // integers so a funded wallet is not misclassified by a 6/18-decimal mix-up.
   try {
-    const nativeBalStr = await fetchArcNativeBalance(from, meta.isMainnet);
-    const nativeBal = Number.parseFloat(nativeBalStr);
-    if (Number.isFinite(nativeBal)) {
-      const minRequired = numericAmount + 0.005;
-      if (nativeBal < minRequired) {
-        throw new Error(
-          `Insufficient balance on ${networkName} for ${from}. Balance is ${nativeBal.toFixed(4)} USDC, but transaction requires at least ${minRequired.toFixed(4)} USDC (including gas reserve). Please fund your wallet.`
-        );
-      }
+    const nativeBalRaw = await readArcNativeBalanceRaw(from, meta.isMainnet);
+    const minRequiredRaw =
+      parseUnits(params.amount, ARC_NATIVE_DECIMALS) +
+      parseUnits(ARC_USDC_GAS_RESERVE, ARC_NATIVE_DECIMALS);
+    if (!hasEnoughArcUsdcBalance(nativeBalRaw, params.amount)) {
+      throw new Error(
+        `Insufficient USDC balance on ${networkName} for ${from}. Balance is ${formatArcNativeUsdcBalance(nativeBalRaw)} USDC, but transaction requires at least ${formatArcNativeUsdcBalance(minRequiredRaw)} USDC (including gas reserve). Please fund this wallet on ${networkName}.`
+      );
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("Insufficient balance on")) {
+    if (msg.includes("Insufficient USDC balance on")) {
       throw err;
     }
   }
