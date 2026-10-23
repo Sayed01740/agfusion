@@ -26,16 +26,17 @@ export const AGFUSION_METADATA_URI =
 export const ERC8004_IDENTITY_REGISTRY =
   "0x8004A818BFB912233c491871b3d84c89A494BD9e";
 
+/** Return an empty URL until the corresponding Mainnet deployment is configured. */
 export function registryExplorerUrl(address = AGFUSION_REGISTRY): string {
-  return `${ARC_EXPLORER}/address/${address}`;
+  return address ? `${ARC_EXPLORER}/address/${address}` : "";
 }
 
 export function txExplorerUrl(hash = AGFUSION_DEPLOY_TX): string {
-  return `${ARC_EXPLORER}/tx/${hash}`;
+  return hash ? `${ARC_EXPLORER}/tx/${hash}` : "";
 }
 
 export function walletExplorerUrl(address = AGFUSION_DEPLOYER): string {
-  return `${ARC_EXPLORER}/address/${address}`;
+  return address ? `${ARC_EXPLORER}/address/${address}` : "";
 }
 
 /** Minimal ABI for UI / cast */
