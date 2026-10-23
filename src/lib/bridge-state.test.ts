@@ -82,7 +82,7 @@ describe("bridge-state", () => {
     expect(isBurnConfirmed(failed)).toBe(true);
   });
 
-  it("derives COMPLETED when mint succeeds", () => {
+  it("does not derive COMPLETED from SDK mint success without canonical settlement verification", () => {
     seed();
     const s = deriveBridgeState("tx1", [
       { name: "approve", state: "success", txHash: APPROVE },
@@ -90,8 +90,9 @@ describe("bridge-state", () => {
       { name: "fetchAttestation", state: "success" },
       { name: "mint", state: "success", txHash: MINT },
     ]);
-    expect(s.state).toBe("COMPLETED");
+    expect(s.state).toBe("DESTINATION_PENDING");
     expect(s.destinationTxHash).toBe(MINT);
+    expect(bridgeStateToSteps(s).at(-1)?.state).toBe("active");
     expect(isBurnConfirmed(s)).toBe(true);
   });
 
