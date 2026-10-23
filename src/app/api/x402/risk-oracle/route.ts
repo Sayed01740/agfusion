@@ -197,6 +197,14 @@ async function consumePayment(opts: {
 }
 
 export async function GET() {
+  // Risk-oracle payment recipient and default routes are currently Testnet-oriented.
+  // Fail closed on Mainnet until a dedicated Mainnet recipient and route policy are reviewed.
+  if (IS_ARC_MAINNET) {
+    return NextResponse.json(
+      { error: "service_unavailable", reason: "The x402 risk oracle is not configured for Arc Mainnet." },
+      { status: 503 },
+    );
+  }
   return NextResponse.json(
     paymentRequirements("agfusion://risk-oracle"),
     { status: 402 },
@@ -204,6 +212,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  // Do not accept payments against Testnet-derived defaults in a Mainnet build.
+  if (IS_ARC_MAINNET) {
+    return NextResponse.json(
+      { error: "service_unavailable", reason: "The x402 risk oracle is not configured for Arc Mainnet." },
+      { status: 503 },
+    );
+  }
   const rl = rateLimit(`x402-risk:${clientIp(req)}`, {
     windowMs: 60_000,
     max: 30,
