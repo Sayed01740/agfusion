@@ -278,9 +278,10 @@ contract AGFusionEscrowTest is Test {
 
         AGFusionEscrow.Task memory afterRetry = escrow.getTask(taskId);
         assertEq(uint256(afterRetry.status), uint256(AGFusionEscrow.TaskStatus.Released));
+        uint256 expectedFee = (20 ether * feeBps) / 10000;
         assertEq(toggleToken.balanceOf(address(escrow)), 0);
-        assertEq(toggleToken.balanceOf(agent), 20 ether);
-        assertEq(toggleToken.balanceOf(feeRecipient), 0);
+        assertEq(toggleToken.balanceOf(agent), 20 ether - expectedFee);
+        assertEq(toggleToken.balanceOf(feeRecipient), expectedFee);
     }
 
     function test_refundExpiredTransferFailurePreservesTaskAndFundsForRetry() public {
