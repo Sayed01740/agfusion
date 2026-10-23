@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /**
  * @title AGFusionRegistry
- * @notice On-chain project identity for AGFusion on Arc Testnet (chainId 5042002).
+ * @notice On-chain project identity for AGFusion on Arc Network (Mainnet chainId 5042 / Testnet chainId 5042002).
  * @dev Stores project metadata and registrar-gated agent/product module registrations.
  */
 contract AGFusionRegistry {
