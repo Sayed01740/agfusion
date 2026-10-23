@@ -58,7 +58,7 @@ async function readContract(address, abi, functionName) {
 }
 
 function requireAddress(label, value) {
-  if (!isAddress(value) || /^0x0{40}$/i.test(value)) {
+  if (!isAddress(value, { strict: false }) || /^0x0{40}$/i.test(value)) {
     throw new Error(`Missing or invalid ${label}; preflight will not assume a deployment address.`);
   }
 }
