@@ -92,8 +92,11 @@ export const SWAP_SYMBOLS: ArcTokenSymbol[] = ["USDC", "EURC", "cirBTC"];
 
 export function getToken(symbol: string, isMainnet: boolean = IS_ARC_MAINNET): ArcToken {
   const tokens = getArcTokens(isMainnet);
-  const t = tokens[symbol] || ARC_TOKENS[symbol];
-  if (!t) throw new Error(`Unknown Arc token: ${symbol}`);
+  const t = tokens[symbol];
+  if (!t) {
+    const network = isMainnet ? "Arc Mainnet" : "Arc Testnet";
+    throw new Error(`Unknown token for ${network}: ${symbol}`);
+  }
   return t;
 }
 
