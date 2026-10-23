@@ -70,27 +70,33 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
   }
 
   try {
-    const res = await fetch(ARC_RPC, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_getTransactionByHash",
-        params: [txHash],
-      }),
-      cache: "no-store",
-    });
-    const data = (await res.json()) as {
-      result?: {
-        from?: string;
-        to?: string;
-        value?: string;
-        hash?: string;
-      } | null;
+    const rpc = async (method: string, params: unknown[], id: number) => {
+      const response = await fetch(ARC_RPC, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`Arc RPC request failed (HTTP ${response.status}).`);
+      const payload = (await response.json()) as { result?: any; error?: { message?: string } };
+      if (payload.error) throw new Error(payload.error.message || "Arc RPC error.");
+      return payload.result;
     };
-    const tx = data.result;
-    if (!tx) return { ok: false, reason: "Transaction not found on Arc" };
+
+    const connectedChainId = await rpc("eth_chainId", [], 0);
+    if (BigInt(String(connectedChainId || "0x0")) !== BigInt(ARC_CHAIN_ID)) {
+      return { ok: false, reason: "Payment verification RPC is connected to the wrong chain." };
+    }
+
+    const tx = await rpc("eth_getTransactionByHash", [txHash], 1) as {
+      from?: string;
+      to?: string;
+      value?: string;
+      hash?: string;
+    } | null;
+    if (!tx || String(tx.hash || "").toLowerCase() !== txHash.toLowerCase()) {
+      return { ok: false, reason: "Transaction not found on the configured Arc chain" };
+    }
 
     const to = (tx.to || "").toLowerCase();
     const payTo = AGFUSION_DEPLOYER.toLowerCase();
@@ -114,27 +120,18 @@ async function verifyArcPayment(txHash: string, payer?: string): Promise<{
     }
 
     // A transaction is not a payment until its receipt exists and succeeds.
-    const rc = await fetch(ARC_RPC, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 2,
-        method: "eth_getTransactionReceipt",
-        params: [txHash],
-      }),
-      cache: "no-store",
-    });
-    const rcData = (await rc.json()) as {
-      result?: { status?: string } | null;
-    };
-    if (!rcData.result || rcData.result.status !== "0x1") {
-      return {
-        ok: false,
-        reason: rcData.result
-          ? "Payment transaction failed on-chain"
-          : "Payment transaction is not confirmed yet",
-      };
+    const receipt = await rpc("eth_getTransactionReceipt", [txHash], 2) as {
+      status?: string;
+      transactionHash?: string;
+    } | null;
+    if (
+      !receipt ||
+      String(receipt.transactionHash || "").toLowerCase() !== txHash.toLowerCase()
+    ) {
+      return { ok: false, reason: "Payment transaction is not confirmed yet." };
+    }
+    if (receipt.status !== "0x1") {
+      return { ok: false, reason: "Payment transaction failed on-chain." };
     }
 
     return {
