@@ -296,7 +296,9 @@ contract AGFusionEscrow {
     // --- Internal Payment Settlement with Protocol Fee ---
     function _settlePayment(Task storage task) internal {
         uint256 total = task.amount;
-        uint256 fee = (total * feeBps) / 10000;
+        // Divide before multiplying so a large valid escrow amount cannot
+        // overflow merely while calculating the protocol fee (feeBps <= 500).
+        uint256 fee = (total / 10000) * feeBps + ((total % 10000) * feeBps) / 10000;
         uint256 net = total - fee;
         address agent = task.agent;
         address token = task.token;
