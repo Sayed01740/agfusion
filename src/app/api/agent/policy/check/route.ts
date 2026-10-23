@@ -13,15 +13,23 @@ export async function POST(req: Request) {
     const amount = String(body?.amount || "");
     if (!ACTIONS.has(action)) return NextResponse.json({ allowed: false, reason: "Unsupported agent spending action." }, { status: 400 });
 
-    const walletAddress = String(body?.smartAccountAddress || "");
-    const isAgent = Boolean(body?.smartAccountAddress);
-    const operationId = String(body?.operationId || `check_${walletAddress}_${Date.now()}`);
+    const walletAddress = String(body?.smartAccountAddress || "").trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return NextResponse.json(
+        { allowed: false, reason: "A valid smart account address is required for an agent policy check." },
+        { status: 400 },
+      );
+    }
+    const operationId = String(body?.operationId || `check_${walletAddress.toLowerCase()}_${Date.now()}`);
+    // This endpoint is explicitly the agent-policy gate. Do not let a caller
+    // omit an address and get the non-agent exemption from a client-supplied
+    // Boolean; all requests here must pass through the spending limits.
     const decision = await enforceAgentSpendingPolicy({
       walletAddress,
       amount,
       action,
       recipient: body?.recipient ? String(body.recipient) : undefined,
-      isAgent,
+      isAgent: true,
       operationId,
     });
 
