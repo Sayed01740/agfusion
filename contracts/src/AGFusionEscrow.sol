@@ -146,8 +146,15 @@ contract AGFusionEscrow {
         _clientTasks[msg.sender].push(taskId);
         _agentTasks[agent].push(taskId);
 
-        // Pull tokens from client to escrow contract
+        // Require exact receipt so fee-on-transfer / deflationary tokens cannot
+        // create an escrow liability larger than the assets actually received.
+        uint256 balanceBefore = IERC20Minimal(token).balanceOf(address(this));
         _safeTransferFrom(token, msg.sender, address(this), amount);
+        uint256 balanceAfter = IERC20Minimal(token).balanceOf(address(this));
+        require(
+            balanceAfter >= balanceBefore && balanceAfter - balanceBefore == amount,
+            "UNSUPPORTED_TOKEN"
+        );
 
         emit TaskCreated(taskId, msg.sender, agent, token, amount, deadline, taskDetailsUri);
     }
