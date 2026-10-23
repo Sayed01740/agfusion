@@ -110,7 +110,7 @@ export async function sendArcToken(params: {
         params: [
           {
             from,
-            to: params.token.address,
+            to: networkToken.address,
             data,
             gas: `0x${TRANSFER_GAS.toString(16)}`,
             value: "0x0",
