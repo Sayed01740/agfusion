@@ -7,9 +7,9 @@
  * remains the sole signer.
  */
 import { encodeFunctionData, parseUnits, type Address } from "viem";
-import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
+import { explorerTxUrl, getArcNetworkMeta, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { arcPublicClient } from "@/lib/dapp/erc20";
-import { isAddress, type ArcToken } from "@/lib/dapp/tokens";
+import { getToken, isAddress, type ArcToken } from "@/lib/dapp/tokens";
 import {
   getChainId,
   getInjectedProvider,
@@ -54,9 +54,10 @@ export async function sendArcToken(params: {
   const provider = params.provider || (await getInjectedProvider());
   const detectedChainId =
     params.walletChainId ?? (await getChainId(provider));
-  const meta = getArcNetworkMeta(detectedChainId);
-  const networkLabel = meta.isMainnet ? "Arc Mainnet" : "Arc Testnet";
-  const activeChain = meta.isMainnet ? "Arc" : "Arc_Testnet";
+  let meta = getArcNetworkMeta(detectedChainId);
+  const targetChainId = meta.isArc
+    ? meta.chainId
+    : (IS_ARC_MAINNET ? 5042 : 5042002);
 
   const steps: TxStep[] = [
     { name: "Connect wallet", state: "active" },
@@ -79,16 +80,26 @@ export async function sendArcToken(params: {
   steps[1].state = "active";
   emit();
 
-  // Switch to the detected Arc network (mainnet or testnet)
-  await switchToArcNetwork(provider, meta.chainId as 5042 | 5042002);
+  // Switch to an Arc network, then re-read the wallet chain before selecting
+  // the network-specific token address and decimals.
+  await switchToArcNetwork(provider, targetChainId as 5042 | 5042002);
+  meta = getArcNetworkMeta(await getChainId(provider));
+  if (!meta.isArc || meta.chainId !== targetChainId) {
+    throw new Error("Wallet network could not be verified. No transfer was submitted.");
+  }
+  const networkToken = getToken(params.token.symbol, meta.isMainnet);
+  const networkLabel = meta.isMainnet ? "Arc Mainnet" : "Arc Testnet";
+  const activeChain = meta.isMainnet ? "Arc" : "Arc_Testnet";
+  steps[1].name = `Switch to ${networkLabel}`;
   steps[1].state = "success";
+  steps[2].name = `Sign & send ${networkToken.symbol}`;
   steps[2].state = "active";
   emit();
 
   const data = encodeFunctionData({
     abi: TRANSFER_ABI,
     functionName: "transfer",
-    args: [to as Address, parseUnits(params.amount.trim(), params.token.decimals)],
+    args: [to as Address, parseUnits(params.amount.trim(), networkToken.decimals)],
   });
 
   let hash: `0x${string}`;
@@ -145,12 +156,12 @@ export async function sendArcToken(params: {
     status,
     retryable: status === "retryable",
     amount: params.amount,
-    token: params.token.symbol,
+    token: networkToken.symbol,
     fromChain: activeChain,
     toChain: activeChain,
     recipient: to,
     recipientLabel: params.recipientLabel,
-    feeUsd: 0.04,
+    ...(meta.isMainnet ? {} : { feeUsd: 0.04 }),
     steps,
     txHash: hash,
     explorerUrl: explorerTxUrl(hash, meta.chainId),
