@@ -308,6 +308,9 @@ export async function getArcDexSwapQuote(params: {
   assertToken(tokenIn);
   assertToken(tokenOut);
   if (tokenIn === tokenOut) throw new Error("Choose two different tokens.");
+  if (params.chain === "Arc_Mainnet" || params.chain === "Arc") {
+    assertMainnetSwapReady(true);
+  }
 
   let provider: Provider | null = null;
   try {
@@ -458,6 +461,9 @@ export async function runProductionSwap(params: {
 }): Promise<TransactionRecord> {
   if (params.chain !== "Arc_Mainnet" && params.chain !== "Arc_Testnet" && params.chain !== "Arc") {
     throw new Error("Swap is only supported on Arc Mainnet and Arc Testnet.");
+  }
+  if (params.chain === "Arc_Mainnet" || params.chain === "Arc") {
+    assertMainnetSwapReady(true);
   }
 
   const tokenIn = params.tokenIn as ArcSwapToken;
