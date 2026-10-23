@@ -24,10 +24,12 @@ jobs:
         working-directory: contracts
         shell: bash
         run: |
+          # Serialize Foundry tests because deployment-guard tests mutate process
+          # environment variables with vm.setEnv; parallel tests can race.
           # Retry transient compiler-binary download failures; real test failures
           # still fail the job after the bounded retries.
           for attempt in 1 2 3; do
-            if forge test -vv; then
+            if forge test --threads 1 -vv; then
               exit 0
             else
               status=$?
