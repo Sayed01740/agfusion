@@ -33,10 +33,27 @@ or a dedicated project. Keep the current Testnet environment variables unchanged
   the intended multisig.
 - Run `npm run typecheck`, `npm test`, `npm run build`, and
   `forge test` from `contracts/` using the project's pinned toolchain.
+- Run `npm audit --omit=dev --audit-level=high` and review all remaining
+  moderate/low findings, not only the CI threshold.
 - Complete end-to-end low-value canary tests for send, swap, bridge, escrow,
   agent spending, identity registration, x402, and transaction reconciliation.
 - Do not launch a feature whose production dependencies or contract addresses
   have not been validated.
+
+## Dependency remediation status
+
+The isolated branch refreshes the lockfile and adds compatibility-scoped
+overrides for vulnerable transitive packages, including patched `@grpc/grpc-js`,
+`toml`, UUID, nested `bn.js`, plus the existing PostCSS and Undici baselines.
+These changes must pass the full application test/build suite before adoption.
+
+The audit has also identified transitive packages with no safe patch available
+inside their current dependency ranges, including `stream-json` 1.x and
+`elliptic`. Do not force a major transitive upgrade solely to make the audit
+green: `stream-json` 3.x changes subpath exports used by some consumers, and
+the elliptic advisory currently has no upstream patched version. Track these
+as explicit release blockers/risk acceptances and remove or replace the parent
+dependency when compatibility-safe remediation is available.
 
 ## Current implementation status
 
@@ -47,6 +64,6 @@ Implemented on the isolated feature branch:
 - Agent autonomous spending fails closed on Mainnet if persistent policy storage is unavailable.
 - CCTP v2 Mainnet addresses match Circle's current contract registry; Arc Testnet addresses remain on the sandbox configuration.
 - `npm run verify:arc-mainnet` performs a read-only RPC chain-ID and contract-bytecode preflight.
-- Next.js is pinned to a patched 15.5.28 baseline; dependency audit is still required because some transitive Circle/Solana SDK packages report advisories.
+- Next.js is pinned to a patched 15.5.28 baseline; production dependency audit and all current CI results must be green before release.
 
 These are migration safeguards, not proof that every product feature is Mainnet-ready. Fee estimates, app-specific contract addresses and ownership, API/provider integrations, database migrations, all user flows, and contract tests still need verification. Do not enable real-money flows until all validation gates above pass.
