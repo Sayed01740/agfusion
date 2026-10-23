@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 /**
  * @title AGFusionDisperse
  * @notice Single-transaction batch token sender ("multisend") for AGFusion on
- *         Arc Testnet (chainId 5042002). Lets a user pay many recipients with a
- *         SINGLE wallet signature.
+ *         Arc Network (Mainnet chainId 5042 / Testnet chainId 5042002). Lets a
+ *         user pay many recipients with a SINGLE wallet signature.
  *
  * @dev    Two batch modes:
  *          - disperseToken:  pulls an ERC-20 (e.g. Arc USDC at
@@ -22,8 +22,7 @@ pragma solidity ^0.8.24;
  *         disperseNative the full msg.value is paid out (or refunded) within the
  *         same transaction. A reentrancy guard protects the native path.
  *
- *         Deploy with Foundry on Arc Testnet. Gas is paid in USDC.
- *         See contracts/script/DeployAGFusionDisperse.s.sol.
+ *         Deploy with the network-specific guarded Foundry script. Gas is paid in USDC.
  */
 
 interface IERC20 {
