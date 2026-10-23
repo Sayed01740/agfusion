@@ -49,6 +49,24 @@ contract AGFusionRegistryTest is Test {
         assertEq(r.registrant, alice);
     }
 
+    function test_register_rejectsExactDuplicate() public {
+        reg.register("AGFusion", "agent", "ipfs://one");
+
+        vm.expectRevert(AGFusionRegistry.AlreadyExists.selector);
+        reg.register("AGFusion", "agent", "ipfs://two");
+    }
+
+    function test_register_distinguishesDelimiterContainingFields() public {
+        // These pairs collided under keccak256(abi.encodePacked(name, "|", kind)):
+        // "alpha|beta" + "gamma" and "alpha" + "beta|gamma".
+        uint256 first = reg.register("alpha|beta", "gamma", "ipfs://first");
+        uint256 second = reg.register("alpha", "beta|gamma", "ipfs://second");
+
+        assertEq(first, 0);
+        assertEq(second, 1);
+        assertEq(reg.registrationCount(), 2);
+    }
+
     function test_register_revertsUnauthorized() public {
         vm.prank(bob);
         vm.expectRevert(AGFusionRegistry.NotRegistrar.selector);
