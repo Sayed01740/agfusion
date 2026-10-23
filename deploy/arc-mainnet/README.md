@@ -61,6 +61,9 @@ Implemented on the isolated feature branch:
 - App config derives the network label and chain ID from the canonical Arc config.
 - Arc Mainnet RPC fallback uses the canonical `arc.io` endpoint; wallet network setup fails closed if the RPC cannot be validated.
 - Mainnet peer-chain RPC routing uses mainnet chain IDs and endpoints while Testnet defaults remain unchanged.
+- Public swap RPC fallbacks verify the returned chain ID before reading contract state.
+- CCTP bridging selects the source chain's configured TokenMessenger and rejects Mainnet/Testnet mixed-environment transfers.
+- Mainnet swap execution is deliberately disabled until a verified live quote provider and settlement contract are available; the previous illustrative reference rates are not executable quotes.
 - Agent autonomous spending fails closed on Mainnet if persistent policy storage is unavailable.
 - CCTP v2 Mainnet addresses match Circle's current contract registry; Arc Testnet addresses remain on the sandbox configuration.
 - `npm run verify:arc-mainnet` performs a read-only RPC chain-ID and contract-bytecode preflight.
