@@ -33,7 +33,8 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
   arc: IS_ARC_MAINNET
     ? [
         "https://rpc.mainnet.arc.io",
-        "https://rpc.arc.network",
+        "https://rpc.blockdaemon.mainnet.arc.io",
+        "https://rpc.drpc.mainnet.arc.io",
       ]
     : [
         "https://rpc.testnet.arc.io",
@@ -44,7 +45,8 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
       ],
   arc_mainnet: [
     "https://rpc.mainnet.arc.io",
-    "https://rpc.arc.network",
+    "https://rpc.blockdaemon.mainnet.arc.io",
+    "https://rpc.drpc.mainnet.arc.io",
   ],
   arc_testnet: [
     "https://rpc.testnet.arc.io",
