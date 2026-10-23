@@ -8,8 +8,8 @@ export function matchesExpectedChainId(
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return false;
 
-  const parsed = raw.startsWith("0x")
-    ? Number.parseInt(raw.slice(2), 16)
+  const parsed = /^0x[0-9a-f]+$/.test(raw)
+    ? Number(raw)
     : /^\d+$/.test(raw)
       ? Number(raw)
       : Number.NaN;
