@@ -8,7 +8,10 @@ optimizer_runs = 200
 evm_version = "cancun"
 
 [rpc_endpoints]
+# Existing Testnet profile is intentionally preserved.
 arc_testnet = "${ARC_TESTNET_RPC_URL}"
+# Additive Mainnet profile. Use only after verifying the endpoint returns chain ID 5042.
+arc_mainnet = "${ARC_MAINNET_RPC_URL}"
 
 [etherscan]
 arc_testnet = { key = "not-needed", url = "https://testnet.arcscan.app/api/", chain = 5042002 }
