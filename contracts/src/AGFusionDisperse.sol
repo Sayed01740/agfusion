@@ -158,8 +158,10 @@ contract AGFusionDisperse {
         for (uint256 i; i < n; ) {
             if (recipients[i] == address(0)) revert ZeroRecipient();
             if (values[i] == 0) revert ZeroValue();
+            // Keep the aggregate checked: wrapping here could underfund
+            // recipient credits while the total appears payable.
+            total += values[i];
             unchecked {
-                total += values[i];
                 ++i;
             }
         }
@@ -167,8 +169,10 @@ contract AGFusionDisperse {
 
         // Credit each recipient (pull model — no external call in loop)
         for (uint256 i; i < n; ) {
+            // Checked addition prevents duplicate recipients from wrapping
+            // their claimable balance.
+            nativeCredits[recipients[i]] += values[i];
             unchecked {
-                nativeCredits[recipients[i]] += values[i];
                 ++i;
             }
         }
