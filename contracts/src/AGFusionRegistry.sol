@@ -110,7 +110,9 @@ contract AGFusionRegistry {
     ) external returns (uint256 id) {
         if (msg.sender != owner && !registrars[msg.sender]) revert NotRegistrar();
         if (bytes(name).length == 0 || bytes(kind).length == 0) revert EmptyString();
-        bytes32 key = keccak256(abi.encodePacked(name, "|", kind));
+        // Hash each dynamic field with ABI length-prefixing so delimiter
+        // characters inside user-controlled names/kinds cannot collide.
+        bytes32 key = keccak256(abi.encode(name, kind));
         if (_idToIndex[key] != 0) revert AlreadyExists();
 
         id = _registrations.length;
