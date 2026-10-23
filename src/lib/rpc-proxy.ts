@@ -43,18 +43,24 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
         "https://rpc.drpc.testnet.arc.io",
         "https://rpc.quicknode.testnet.arc.io",
       ],
-  arc_mainnet: [
-    "https://rpc.mainnet.arc.io",
-    "https://rpc.blockdaemon.mainnet.arc.io",
-    "https://rpc.drpc.mainnet.arc.io",
-  ],
-  arc_testnet: [
-    "https://rpc.testnet.arc.io",
-    "https://rpc.testnet.arc.network",
-    "https://rpc.blockdaemon.testnet.arc.io",
-    "https://rpc.drpc.testnet.arc.io",
-    "https://rpc.quicknode.testnet.arc.io",
-  ],
+  // Expose only the configured Arc environment. A Mainnet deployment must not
+  // silently proxy requests into Testnet, and vice versa.
+  arc_mainnet: IS_ARC_MAINNET
+    ? [
+        "https://rpc.mainnet.arc.io",
+        "https://rpc.blockdaemon.mainnet.arc.io",
+        "https://rpc.drpc.mainnet.arc.io",
+      ]
+    : [],
+  arc_testnet: IS_ARC_MAINNET
+    ? []
+    : [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.testnet.arc.network",
+        "https://rpc.blockdaemon.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io",
+      ],
   base: IS_ARC_MAINNET
     ? ["https://mainnet.base.org", "https://base-rpc.publicnode.com"]
     : [
@@ -86,22 +92,24 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
         "https://sepolia.optimism.io",
         "https://11155420.rpc.thirdweb.com",
       ],
-  polygon: [
+  // These peer networks are currently testnet-only routes; disable them in a
+  // Mainnet build rather than silently using a testnet RPC pool.
+  polygon: IS_ARC_MAINNET ? [] : [
     "https://polygon-amoy-bor-rpc.publicnode.com",
     "https://rpc-amoy.polygon.technology",
     "https://80002.rpc.thirdweb.com",
   ],
-  avax: [
+  avax: IS_ARC_MAINNET ? [] : [
     "https://avalanche-fuji-c-chain-rpc.publicnode.com",
     "https://api.avax-test.network/ext/bc/C/rpc",
     "https://43113.rpc.thirdweb.com",
   ],
-  unichain: [
+  unichain: IS_ARC_MAINNET ? [] : [
     "https://unichain-sepolia.g.alchemy.com/v2/demo",
     "https://sepolia.unichain.org",
     "https://1301.rpc.thirdweb.com",
   ],
-  linea: [
+  linea: IS_ARC_MAINNET ? [] : [
     "https://linea-sepolia-rpc.publicnode.com",
     "https://rpc.sepolia.linea.build",
     "https://59141.rpc.thirdweb.com",
