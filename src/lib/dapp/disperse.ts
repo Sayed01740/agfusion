@@ -156,6 +156,11 @@ export async function runBatchDisperse(params: {
   emit();
 
   await switchToArcNetwork(provider, meta.chainId as 5042 | 5042002);
+  const confirmedMeta = getArcNetworkMeta(await getChainId(provider));
+  if (!confirmedMeta.isArc || confirmedMeta.chainId !== meta.chainId) {
+    throw new Error("Wallet network changed unexpectedly. No batch transaction was submitted.");
+  }
+  meta = confirmedMeta;
   steps[1].state = "success";
   steps[2].state = "active";
   emit();
