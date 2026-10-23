@@ -68,6 +68,21 @@ function sameAddress(actual, expected) {
 }
 
 try {
+  requireAddress("NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS", registryAddress);
+  requireAddress("NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS", escrowAddress);
+  requireAddress("NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS", disperseAddress);
+  requireAddress("AGFUSION_EXPECTED_REGISTRY_OWNER", expectedRegistryOwner);
+  requireAddress("AGFUSION_EXPECTED_ESCROW_ARBITRATOR", expectedArbitrator);
+  requireAddress("AGFUSION_EXPECTED_ESCROW_FEE_RECIPIENT", expectedFeeRecipient);
+
+  if (!/^\d+$/.test(expectedFeeBpsRaw)) {
+    throw new Error("AGFUSION_EXPECTED_ESCROW_FEE_BPS must be explicitly set to an integer from 0 to 500.");
+  }
+  const expectedFeeBps = Number(expectedFeeBpsRaw);
+  if (!Number.isSafeInteger(expectedFeeBps) || expectedFeeBps < 0 || expectedFeeBps > 500) {
+    throw new Error("AGFUSION_EXPECTED_ESCROW_FEE_BPS must be from 0 to 500.");
+  }
+
   const rawChainId = String(await rpc("eth_chainId")).trim().toLowerCase();
   const chainId = rawChainId.startsWith("0x")
     ? Number.parseInt(rawChainId.slice(2), 16)
@@ -85,21 +100,6 @@ try {
       throw new Error(`No contract bytecode for ${label} at ${address}`);
     }
     console.log(`PASS ${label}: ${(code.length - 2) / 2} bytes of bytecode`);
-  }
-
-  requireAddress("NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS", registryAddress);
-  requireAddress("NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS", escrowAddress);
-  requireAddress("NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS", disperseAddress);
-  requireAddress("AGFUSION_EXPECTED_REGISTRY_OWNER", expectedRegistryOwner);
-  requireAddress("AGFUSION_EXPECTED_ESCROW_ARBITRATOR", expectedArbitrator);
-  requireAddress("AGFUSION_EXPECTED_ESCROW_FEE_RECIPIENT", expectedFeeRecipient);
-
-  if (!/^\d+$/.test(expectedFeeBpsRaw)) {
-    throw new Error("AGFUSION_EXPECTED_ESCROW_FEE_BPS must be explicitly set to an integer from 0 to 500.");
-  }
-  const expectedFeeBps = Number(expectedFeeBpsRaw);
-  if (!Number.isSafeInteger(expectedFeeBps) || expectedFeeBps < 0 || expectedFeeBps > 500) {
-    throw new Error("AGFUSION_EXPECTED_ESCROW_FEE_BPS must be from 0 to 500.");
   }
 
   const appContracts = [
