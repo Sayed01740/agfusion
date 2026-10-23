@@ -30,9 +30,9 @@ const CCTP_V2_MSG_TRANSMITTER =
 // --- Production Mainnet CCTP v2 contracts (Circle Iris Production) ---
 // Source: https://developers.circle.com/stablecoins/docs/evm-smart-contracts
 const CCTP_V2_TOKEN_MESSENGER_MAINNET =
-  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5f" as const;
+  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" as const;
 const CCTP_V2_MSG_TRANSMITTER_MAINNET =
-  "0x81D40f21B21285853e618Cc442bB505f0D2c72AF" as const;
+  "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" as const;
 
 export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   Arc: {
