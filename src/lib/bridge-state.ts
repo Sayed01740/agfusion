@@ -313,9 +313,9 @@ export function bridgeStateToSteps(state: BridgeState | null | undefined): TxSte
     done || inState(["ATTESTATION_RECEIVED", "DESTINATION_PENDING", "DESTINATION_CONFIRMED"]) ? "success" : failAttest ? "error" : inState(["ATTESTATION_PENDING", "RECOVERABLE"]) ? "active" : "pending",
   );
 
-  const mintStep: TxStep = state.destinationTxHash || done
+  const mintStep: TxStep = done || state.state === "DESTINATION_CONFIRMED"
     ? mk("Destination Mint", "success", state.destinationTxHash)
-    : mk("Destination Mint", failMint ? "error" : inState(["DESTINATION_PENDING", "DESTINATION_CONFIRMED"]) ? "active" : "pending");
+    : mk("Destination Mint", failMint ? "error" : state.destinationTxHash || inState(["DESTINATION_PENDING", "DESTINATION_CONFIRMED"]) ? "active" : "pending", state.destinationTxHash);
 
   return [approveStep, burnStep, attestStep, mintStep];
 }
