@@ -10,7 +10,7 @@
  * without submitting another burn.
  */
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
-import { getCctpConfig } from "@/lib/cctp-chains";
+import { assertSameCctpEnvironment, getCctpConfig, isCctpTestnetChain } from "@/lib/cctp-chains";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { uid, shortenAddress } from "@/lib/utils";
 import { getInjectedProvider, getChainId, switchToChainId, EVM_CHAIN_PARAMS } from "@/sdk/wallet-adapter";
@@ -28,7 +28,6 @@ import {
 } from "@/lib/bridge-state";
 import { usePilotStore } from "@/store/pilot-store";
 
-const TOKEN_MESSENGER_V2 = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as const;
 const FORWARDING_HOOK = "0x636374702d666f72776172640000000000000000000000000000000000000000" as const;
 const IRIS_PROXY = "/api/circle/iris";
 // Iris indexing/forwarding is asynchronous. Keep the browser flow alive long
@@ -52,23 +51,6 @@ const BURN_ABI = [{ type: "function", name: "depositForBurnWithHook", stateMutab
   { name: "minFinalityThreshold", type: "uint32" }, { name: "hookData", type: "bytes" },
 ], outputs: [] }] as const;
 
-function isTestnetChain(chain: ChainId | string | number | undefined | null): boolean {
-  if (!chain) return false;
-  const s = String(chain).toLowerCase();
-  return (
-    s.includes("testnet") ||
-    s.includes("sepolia") ||
-    s.includes("fuji") ||
-    s.includes("amoy") ||
-    s === "5042002" ||
-    s === "84532" ||
-    s === "11155111" ||
-    s === "421614" ||
-    s === "43113" ||
-    s === "80002" ||
-    s === "11155420"
-  );
-}
 
 function notifyBridgeStep(
   txId: string | undefined,
@@ -266,10 +248,11 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   const source = getCctpConfig(params.fromChain);
   const destination = getCctpConfig(params.toChain);
   if (!source || !destination) throw new Error("Selected chains are not configured for CCTP v2.");
+  assertSameCctpEnvironment(params.fromChain, params.toChain);
   if (params.fromChain === params.toChain) throw new Error("Source and destination must be different chains.");
   if (!EVM_CHAIN_PARAMS[params.fromChain]) throw new Error(`Unsupported EVM source chain ${params.fromChain}.`);
 
-  const isSandbox = isTestnetChain(params.fromChain) || isTestnetChain(params.toChain);
+  const isSandbox = isCctpTestnetChain(params.fromChain);
 
   const provider = await getInjectedProvider();
   attachBridgeProviderDiagnostics(provider, "cctp-v2-forwarder", debugId);
@@ -306,7 +289,7 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   const totalAmount = transferAmount + fees.maxFee;
   recordBridgeDebug("cctp.amounts.calculated", { transferAmount: transferAmount.toString(), forwardFee: fees.forwardFee.toString(), protocolFee: fees.protocolFee.toString(), maxFee: fees.maxFee.toString(), totalAmount: totalAmount.toString() }, debugId, "Calculated transfer amount plus forwarding fees");
 
-  const allowanceData = encodeFunctionData({ abi: ALLOWANCE_ABI, functionName: "allowance", args: [address, TOKEN_MESSENGER_V2] });
+  const allowanceData = encodeFunctionData({ abi: ALLOWANCE_ABI, functionName: "allowance", args: [address, source.tokenMessenger] });
   const allowanceRaw = await rpc(provider, "eth_call", [{ to: source.usdc, data: allowanceData }, "latest"]);
   const allowance = BigInt(decodeFunctionResult({ abi: ALLOWANCE_ABI, functionName: "allowance", data: allowanceRaw }) as unknown as bigint);
   recordBridgeDebug("cctp.allowance", { allowance: allowance.toString(), required: totalAmount.toString(), usdc: source.usdc, tokenMessenger: TOKEN_MESSENGER_V2 }, debugId, "Read USDC allowance");
@@ -401,8 +384,10 @@ export async function runBridgeKitRecovery(params: { amount: string; fromChain: 
   const existing = params.failedTx?.bridgeResult as any;
   const burnTx = existing?.burnTxHash;
   const source = getCctpConfig(params.fromChain);
+  const destination = getCctpConfig(params.toChain);
   const recipient = params.recipient || params.failedTx?.recipient;
-  if (burnTx && source && recipient) {
+  if (burnTx && source && destination && recipient) {
+    assertSameCctpEnvironment(params.fromChain, params.toChain);
     assertAddress(recipient);
     const debugId = params.txId || params.failedTx?.id || uid("bridge-recovery");
     const isSandbox = isTestnetChain(params.fromChain) || isTestnetChain(params.toChain);
