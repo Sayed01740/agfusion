@@ -178,6 +178,43 @@ contract FeeOnTransferMockToken {
     }
 }
 
+contract RevertingFeeTransferMockToken {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    address public feeRecipient;
+
+    constructor(address feeRecipient_) {
+        feeRecipient = feeRecipient_;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(to != feeRecipient, "FEE_TRANSFER_REVERTED");
+        require(balanceOf[msg.sender] >= amount, "BAL");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        require(balanceOf[from] >= amount, "BAL");
+        uint256 a = allowance[from][msg.sender];
+        require(a >= amount, "ALLOWANCE");
+        if (a != type(uint256).max) allowance[from][msg.sender] = a - amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
 contract AGFusionEscrowTest is Test {
     AGFusionEscrow public escrow;
     MockToken public token;
@@ -538,6 +575,33 @@ contract AGFusionEscrowTest is Test {
         assertEq(falseFeeToken.balanceOf(agent), 10 ether);
         assertEq(falseFeeToken.balanceOf(feeRecipient), 0);
         assertEq(falseFeeToken.balanceOf(address(escrow)), 0);
+        AGFusionEscrow.Task memory task = escrow.getTask(taskId);
+        assertEq(uint256(task.status), uint256(AGFusionEscrow.TaskStatus.Released));
+    }
+
+    function test_SettlePayment_revertingFeeTransferDoesNotBlockAgentPayout() public {
+        RevertingFeeTransferMockToken revertingToken = new RevertingFeeTransferMockToken(feeRecipient);
+        revertingToken.mint(client, 100 ether);
+
+        vm.startPrank(client);
+        revertingToken.approve(address(escrow), 10 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(revertingToken),
+            10 ether,
+            3600,
+            "details"
+        );
+        vm.stopPrank();
+
+        vm.prank(client);
+        escrow.releasePayment(taskId);
+
+        uint256 expectedFee = (10 ether * feeBps) / 10000;
+        assertEq(revertingToken.balanceOf(agent), 10 ether);
+        assertEq(revertingToken.balanceOf(feeRecipient), 0);
+        assertEq(revertingToken.balanceOf(address(escrow)), 0);
+        assertEq(expectedFee, 0.05 ether);
         AGFusionEscrow.Task memory task = escrow.getTask(taskId);
         assertEq(uint256(task.status), uint256(AGFusionEscrow.TaskStatus.Released));
     }
