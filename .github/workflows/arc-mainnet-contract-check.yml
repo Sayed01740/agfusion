@@ -1,0 +1,42 @@
+name: Arc Mainnet contract checks
+
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/arc-mainnet-contract-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Install forge-std
+        working-directory: contracts
+        run: forge install foundry-rs/forge-std --no-commit
+      - name: Run Solidity tests and compile deployment scripts
+        working-directory: contracts
+        shell: bash
+        run: |
+          # Serialize Foundry tests because deployment-guard tests mutate process
+          # environment variables with vm.setEnv; parallel tests can race.
+          # Retry transient compiler-binary download failures; real test failures
+          # still fail the job after the bounded retries.
+          for attempt in 1 2 3; do
+            if forge test --threads 1 -vv; then
+              exit 0
+            else
+              status=$?
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Foundry attempt $attempt failed (exit $status); retrying after a short wait."
+              sleep 10
+            fi
+          done
+          exit 1

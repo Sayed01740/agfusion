@@ -1,20 +1,23 @@
-import { ARC_CHAIN_ID, ARC_EXPLORER } from "@/lib/arc-chain";
+import { ARC_CHAIN_ID, ARC_EXPLORER, IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 export { ARC_CHAIN_ID };
 
-/** Deployed AGFusionRegistry (Foundry Path A) */
-export const AGFUSION_REGISTRY =
-  process.env.NEXT_PUBLIC_AGFUSION_REGISTRY?.trim() ||
-  "0x76BB5678eC11Ae94b34Ed9cF90B25C9Eea440483";
+/** Deployed AGFusionRegistry. Never reuse the Testnet registry in a Mainnet build. */
+export const AGFUSION_REGISTRY = IS_ARC_MAINNET
+  ? process.env.NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS?.trim() || ""
+  : process.env.NEXT_PUBLIC_AGFUSION_REGISTRY?.trim() ||
+    "0x76BB5678eC11Ae94b34Ed9cF90B25C9Eea440483";
 
-/** Deployer / owner wallet that broadcast the deploy tx */
-export const AGFUSION_DEPLOYER =
-  process.env.NEXT_PUBLIC_AGFUSION_DEPLOYER?.trim() ||
-  "0xB00f41172c23d31571a3bE850AA0e81e58Ab8828";
+/** Deployer / owner wallet that broadcast the deploy tx. */
+export const AGFUSION_DEPLOYER = IS_ARC_MAINNET
+  ? process.env.NEXT_PUBLIC_AGFUSION_DEPLOYER_MAINNET?.trim() || ""
+  : process.env.NEXT_PUBLIC_AGFUSION_DEPLOYER?.trim() ||
+    "0xB00f41172c23d31571a3bE850AA0e81e58Ab8828";
 
-export const AGFUSION_DEPLOY_TX =
-  process.env.NEXT_PUBLIC_AGFUSION_DEPLOY_TX?.trim() ||
-  "0x2db9e1244770254ac0a80bc2d2052fe504965272f6dd076465203b6c32bfab99";
+export const AGFUSION_DEPLOY_TX = IS_ARC_MAINNET
+  ? process.env.NEXT_PUBLIC_AGFUSION_DEPLOY_TX_MAINNET?.trim() || ""
+  : process.env.NEXT_PUBLIC_AGFUSION_DEPLOY_TX?.trim() ||
+    "0x2db9e1244770254ac0a80bc2d2052fe504965272f6dd076465203b6c32bfab99";
 
 export const AGFUSION_METADATA_URI =
   "https://agfusion.vercel.app/identity/agfusion-agent.json";
@@ -23,16 +26,17 @@ export const AGFUSION_METADATA_URI =
 export const ERC8004_IDENTITY_REGISTRY =
   "0x8004A818BFB912233c491871b3d84c89A494BD9e";
 
+/** Return an empty URL until the corresponding Mainnet deployment is configured. */
 export function registryExplorerUrl(address = AGFUSION_REGISTRY): string {
-  return `${ARC_EXPLORER}/address/${address}`;
+  return address ? `${ARC_EXPLORER}/address/${address}` : "";
 }
 
 export function txExplorerUrl(hash = AGFUSION_DEPLOY_TX): string {
-  return `${ARC_EXPLORER}/tx/${hash}`;
+  return hash ? `${ARC_EXPLORER}/tx/${hash}` : "";
 }
 
 export function walletExplorerUrl(address = AGFUSION_DEPLOYER): string {
-  return `${ARC_EXPLORER}/address/${address}`;
+  return address ? `${ARC_EXPLORER}/address/${address}` : "";
 }
 
 /** Minimal ABI for UI / cast */

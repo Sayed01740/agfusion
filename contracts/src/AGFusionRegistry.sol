@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /**
  * @title AGFusionRegistry
- * @notice On-chain project identity for AGFusion on Arc Testnet (chainId 5042002).
+ * @notice On-chain project identity for AGFusion on Arc Network (Mainnet chainId 5042 / Testnet chainId 5042002).
  * @dev Stores project metadata and registrar-gated agent/product module registrations.
  */
 contract AGFusionRegistry {
@@ -110,7 +110,9 @@ contract AGFusionRegistry {
     ) external returns (uint256 id) {
         if (msg.sender != owner && !registrars[msg.sender]) revert NotRegistrar();
         if (bytes(name).length == 0 || bytes(kind).length == 0) revert EmptyString();
-        bytes32 key = keccak256(abi.encodePacked(name, "|", kind));
+        // Hash each dynamic field with ABI length-prefixing so delimiter
+        // characters inside user-controlled names/kinds cannot collide.
+        bytes32 key = keccak256(abi.encode(name, kind));
         if (_idToIndex[key] != 0) revert AlreadyExists();
 
         id = _registrations.length;

@@ -82,7 +82,7 @@ describe("bridge-state", () => {
     expect(isBurnConfirmed(failed)).toBe(true);
   });
 
-  it("derives COMPLETED when mint succeeds", () => {
+  it("does not derive COMPLETED from SDK mint success without canonical settlement verification", () => {
     seed();
     const s = deriveBridgeState("tx1", [
       { name: "approve", state: "success", txHash: APPROVE },
@@ -90,8 +90,9 @@ describe("bridge-state", () => {
       { name: "fetchAttestation", state: "success" },
       { name: "mint", state: "success", txHash: MINT },
     ]);
-    expect(s.state).toBe("COMPLETED");
+    expect(s.state).toBe("DESTINATION_PENDING");
     expect(s.destinationTxHash).toBe(MINT);
+    expect(bridgeStateToSteps(s).at(-1)?.state).toBe("active");
     expect(isBurnConfirmed(s)).toBe(true);
   });
 
@@ -204,14 +205,29 @@ describe("bridge-state invariants", () => {
     expect(updated?.walletType).toBe("evm");
   });
 
-  it("a completed bridge can never return to pending", () => {
+  it("does not show destination mint as successful from a hash alone", () => {
+    seed("tx-mint-pending");
+    const pending = updateBridgeState("tx-mint-pending", {
+      state: "DESTINATION_PENDING",
+      destinationTxHash: MINT,
+    });
+    expect(pending).not.toBeNull();
+    expect(bridgeStateToSteps(pending).at(-1)?.state).toBe("active");
+
+    const completed = updateBridgeState("tx-mint-pending", {
+      state: "COMPLETED",
+    });
+    expect(bridgeStateToSteps(completed).at(-1)?.state).toBe("success");
+  });
+
+  it("a verified completed bridge can never return to pending", () => {
     seed("tx-done");
-    deriveBridgeState("tx-done", [
-      { name: "approve", state: "success", txHash: APPROVE },
-      { name: "burn", state: "success", txHash: BURN },
-      { name: "fetchAttestation", state: "success" },
-      { name: "mint", state: "success", txHash: MINT },
-    ]);
+    updateBridgeState("tx-done", {
+      state: "COMPLETED",
+      approvalTxHash: APPROVE,
+      burnTxHash: BURN,
+      destinationTxHash: MINT,
+    });
     const after = deriveBridgeState("tx-done", [
       { name: "mint", state: "error", message: "late error" },
     ]);

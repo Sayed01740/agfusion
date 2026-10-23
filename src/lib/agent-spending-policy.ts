@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { getPrisma, isDbConfigured } from "@/lib/db";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 export type AgentSpendAction = "bridge" | "swap" | "send" | "route" | "unified_spend" | "x402";
 
@@ -152,6 +153,16 @@ export async function enforceAgentSpendingPolicy(params: {
   const operationId = params.operationId || `op_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
   if (!isDbConfigured()) {
+    // Preserve existing Testnet behavior, but never approve autonomous
+    // Mainnet spending without persistent budget accounting.
+    if (IS_ARC_MAINNET || policy.failClosedWithoutDb) {
+      return {
+        allowed: false,
+        reason: "Agent policy storage is unavailable; refusing to broadcast an autonomous payment.",
+        policy,
+        spent: emptySpent,
+      };
+    }
     return {
       allowed: true,
       reason: "Agent policy approved (in-memory mode).",
@@ -178,20 +189,36 @@ export async function enforceAgentSpendingPolicy(params: {
       // Serialize budget checks per wallet. The reservation is inserted in the
       // same transaction, so concurrent requests cannot both observe the same
       // remaining budget and then pass independently.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${walletAddress}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${walletAddress}))`;
 
       await tx.$executeRaw`
         DELETE FROM "AgentSpendReservation"
         WHERE "expiresAt" <= ${now}
       `;
 
-      const existing = await tx.$queryRaw<Array<{ amount: string; expiresAt: Date }>>`
-        SELECT "amount", "expiresAt"
+      const existing = await tx.$queryRaw<Array<{ amount: string; expiresAt: Date; walletAddress: string }>>`
+        SELECT "amount", "expiresAt", "walletAddress"
         FROM "AgentSpendReservation"
         WHERE "operationId" = ${operationId}
         LIMIT 1
       `;
       if (existing.length > 0 && existing[0].expiresAt > now) {
+        // An idempotency key must be bound to the same wallet and exact amount.
+        // Otherwise a caller could reuse another operation's reservation to
+        // bypass per-transaction or aggregate budget checks.
+        const reservedAmount = Number(existing[0].amount);
+        if (
+          existing[0].walletAddress.toLowerCase() !== walletAddress ||
+          !Number.isFinite(reservedAmount) ||
+          reservedAmount !== amount
+        ) {
+          return {
+            allowed: false,
+            reason: "Operation ID is already reserved for a different wallet or amount.",
+            policy,
+            spent: emptySpent,
+          };
+        }
         const [daily, weekly, monthly] = await Promise.all([
           sumAgentSpend(tx, walletAddress, startOfUtcDay(now)),
           sumAgentSpend(tx, walletAddress, startOfUtcWeek(now)),
@@ -258,7 +285,7 @@ export async function enforceAgentSpendingPolicy(params: {
       action: params.action,
       dbConfigured: Boolean(process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL),
     });
-    if (policy.failClosedWithoutDb) {
+    if (IS_ARC_MAINNET || policy.failClosedWithoutDb) {
       return {
         allowed: false,
         reason: "Agent policy storage is unavailable; refusing to broadcast an autonomous payment.",

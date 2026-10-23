@@ -3,7 +3,7 @@
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { getAppKit } from "@/sdk/appkit-client";
 import { createAppKitAdapterFromBrowser, getChainId, switchToChainId } from "@/sdk/wallet-adapter";
-import { cctpConfigByChainId, getCctpConfig } from "@/lib/cctp-chains";
+import { assertSameCctpEnvironment, cctpConfigByChainId, getCctpConfig } from "@/lib/cctp-chains";
 import { runBridgeKitFlow } from "@/blockchain/bridge-kit-service";
 import { explorerTxUrl } from "@/lib/arc-chain";
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
@@ -63,6 +63,9 @@ export async function executeCircleCctpBridge(params: {
   const sourceConfig = getCctpConfig(fromChain);
   const destinationConfig = getCctpConfig(params.toChain);
   if (!sourceConfig || !destinationConfig) throw new Error("Selected chains are not configured for Circle CCTP.");
+  // Apply the same environment boundary to the AppKit route as the direct CCTP path.
+  assertSameCctpEnvironment(fromChain, params.toChain);
+  if (fromChain === params.toChain) throw new Error("Source and destination must be different chains.");
 
   await switchToChainId(wired.provider, fromChain);
 

@@ -218,6 +218,20 @@ contract AGFusionDisperseTest is Test {
         disperse.withdraw();
     }
 
+    function test_disperseNative_revertsOnOverflowingTotal() public {
+        address[] memory to = new address[](2);
+        to[0] = r1;
+        to[1] = r2;
+        uint256[] memory v = new uint256[](2);
+        v[0] = type(uint256).max;
+        v[1] = 1;
+
+        vm.deal(sender, 10 ether);
+        vm.prank(sender);
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", uint256(0x11)));
+        disperse.disperseNative{value: 1 ether}(to, v);
+    }
+
     function test_totalOf() public view {
         uint256[] memory v = new uint256[](3);
         v[0] = 10;

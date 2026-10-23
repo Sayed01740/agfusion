@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /**
  * @title AGFusionEscrow
- * @notice Production-grade on-chain escrow for AI Agents and Autonomous Tasks on Arc Network (chainId 5042002).
+ * @notice On-chain escrow for AI Agents and Autonomous Tasks on Arc Network (Mainnet chainId 5042 / Testnet chainId 5042002).
  * @dev Supports both canonical ERC-20 USDC (6 decimals) and native Arc USDC (18 decimals).
  *      Includes arbitrator dispute resolution, protocol fee support, and permissionless keeper refunds.
  */
@@ -146,8 +146,15 @@ contract AGFusionEscrow {
         _clientTasks[msg.sender].push(taskId);
         _agentTasks[agent].push(taskId);
 
-        // Pull tokens from client to escrow contract
+        // Require exact receipt so fee-on-transfer / deflationary tokens cannot
+        // create an escrow liability larger than the assets actually received.
+        uint256 balanceBefore = IERC20Minimal(token).balanceOf(address(this));
         _safeTransferFrom(token, msg.sender, address(this), amount);
+        uint256 balanceAfter = IERC20Minimal(token).balanceOf(address(this));
+        require(
+            balanceAfter >= balanceBefore && balanceAfter - balanceBefore == amount,
+            "UNSUPPORTED_TOKEN"
+        );
 
         emit TaskCreated(taskId, msg.sender, agent, token, amount, deadline, taskDetailsUri);
     }
@@ -192,6 +199,7 @@ contract AGFusionEscrow {
         require(task.id == taskId, "TASK_NOT_FOUND");
         require(msg.sender == task.agent, "ONLY_ASSIGNED_AGENT");
         require(task.status == TaskStatus.Active, "INVALID_STATUS");
+        require(block.timestamp < task.deadline, "DEADLINE_PASSED");
         require(bytes(proofUri).length > 0, "EMPTY_PROOF");
 
         task.status = TaskStatus.Submitted;
@@ -222,6 +230,12 @@ contract AGFusionEscrow {
         require(
             task.status == TaskStatus.Active || task.status == TaskStatus.Submitted,
             "CANNOT_DISPUTE"
+        );
+        // An expired task with no submitted proof must remain eligible for the
+        // permissionless refund path; do not let a late dispute freeze it.
+        require(
+            task.status != TaskStatus.Active || block.timestamp < task.deadline,
+            "DEADLINE_PASSED"
         );
 
         task.status = TaskStatus.Disputed;
@@ -282,7 +296,9 @@ contract AGFusionEscrow {
     // --- Internal Payment Settlement with Protocol Fee ---
     function _settlePayment(Task storage task) internal {
         uint256 total = task.amount;
-        uint256 fee = (total * feeBps) / 10000;
+        // Divide before multiplying so a large valid escrow amount cannot
+        // overflow merely while calculating the protocol fee (feeBps <= 500).
+        uint256 fee = (total / 10000) * feeBps + ((total % 10000) * feeBps) / 10000;
         uint256 net = total - fee;
         address agent = task.agent;
         address token = task.token;
@@ -301,10 +317,7 @@ contract AGFusionEscrow {
         } else {
             if (fee > 0) {
                 // Attempt fee transfer; on failure, add fee back to agent payout
-                (bool feeOk, bytes memory feeData) = token.call(
-                    abi.encodeWithSelector(IERC20Minimal.transfer.selector, feeRecipient, fee)
-                );
-                bool feeTransferred = feeOk && (feeData.length == 0 || abi.decode(feeData, (bool)));
+                bool feeTransferred = _tryTransferFee(token, feeRecipient, fee);
                 if (!feeTransferred) {
                     net = total;
                     fee = 0;
@@ -334,6 +347,23 @@ contract AGFusionEscrow {
     }
 
     // --- Safe ERC-20 internal helpers ---
+    /// @dev Fee transfers are best-effort: malformed optional return data is a
+    /// failed fee transfer, not a reason to block the agent's payout.
+    function _tryTransferFee(address token, address to, uint256 amount) internal returns (bool) {
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, amount)
+        );
+        if (!success) return false;
+        if (data.length == 0) return true;
+        if (data.length < 32) return false;
+
+        uint256 returnValue;
+        assembly {
+            returnValue := mload(add(data, 32))
+        }
+        return returnValue == 1;
+    }
+
     function _safeTransfer(address token, address to, uint256 amount) internal {
         (bool success, bytes memory data) = token.call(
             abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, amount)

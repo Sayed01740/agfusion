@@ -5,6 +5,7 @@
  */
 import type { Address } from "viem";
 import { IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { getNetworkContractAddress } from "@/lib/network-contract-address";
 
 export type ArcToken = {
   symbol: string;
@@ -91,8 +92,11 @@ export const SWAP_SYMBOLS: ArcTokenSymbol[] = ["USDC", "EURC", "cirBTC"];
 
 export function getToken(symbol: string, isMainnet: boolean = IS_ARC_MAINNET): ArcToken {
   const tokens = getArcTokens(isMainnet);
-  const t = tokens[symbol] || ARC_TOKENS[symbol];
-  if (!t) throw new Error(`Unknown Arc token: ${symbol}`);
+  const t = tokens[symbol];
+  if (!t) {
+    const network = isMainnet ? "Arc Mainnet" : "Arc Testnet";
+    throw new Error(`Unknown token for ${network}: ${symbol}`);
+  }
   return t;
 }
 
@@ -101,16 +105,23 @@ export function getToken(symbol: string, isMainnet: boolean = IS_ARC_MAINNET): A
  * deploys contracts/src/AGFusionDisperse.sol and sets the env var. Empty until
  * then — the Batch panel falls back to sequential sends automatically.
  */
-export const DISPERSE_ADDRESS = (
-  process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS || ""
-).trim();
+export function getDisperseAddressForNetwork(isMainnet: boolean = IS_ARC_MAINNET): string {
+  return getNetworkContractAddress(
+    isMainnet,
+    process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS,
+    process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS,
+  ) || "";
+}
+
+/** Build-time convenience for UI status; transaction paths should pass the detected wallet network. */
+export const DISPERSE_ADDRESS = getDisperseAddressForNetwork();
 
 export function isAddress(value: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(value.trim());
 }
 
-export function isDisperseConfigured(): boolean {
-  return isAddress(DISPERSE_ADDRESS);
+export function isDisperseConfigured(isMainnet: boolean = IS_ARC_MAINNET): boolean {
+  return isAddress(getDisperseAddressForNetwork(isMainnet));
 }
 
 /** Bridge routes offered in the UI (Circle CCTP pairs). */
