@@ -193,7 +193,7 @@ async function waitForwardedMint(
     }
 
     const messages: IrisMessage[] = Array.isArray(response?.messages) ? response.messages : [];
-    const message = messages.find((candidate) => String(candidate?.transactionHash || "").toLowerCase() === burnTx.toLowerCase()) || messages[0];
+    const message = messages.find((candidate) => String(candidate?.transactionHash || "").toLowerCase() === burnTx.toLowerCase());
     recordBridgeDebug("cctp.iris.poll.response", { attempt, messageCount: messages.length, status: message?.status, forwardState: message?.forwardState, forwardTxHash: message?.forwardTxHash, eventNonce: message?.eventNonce, transactionHash: message?.transactionHash, hasAttestation: Boolean(message?.attestation) }, debugId, `Circle Iris poll ${attempt}/${IRIS_MAX_POLLS}`);
 
     if (message?.attestation && !message?.forwardTxHash) {
