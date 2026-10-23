@@ -139,7 +139,7 @@ export async function fetchEscrowTask(taskId: number, isMainnet: boolean = IS_AR
   const escrowAddress = getEscrowAddressForNetwork(isMainnet);
   if (!escrowAddress) return null;
   try {
-    const raw = (await arcPublicClient().readContract({
+    const raw = (await arcPublicClient(isMainnet).readContract({
       address: escrowAddress,
       abi: ESCROW_ABI,
       functionName: "getTask",
@@ -378,7 +378,7 @@ export async function runReleaseEscrowPayment(taskId: number): Promise<string> {
     params: [{ from: user, to: escrowContract, data }],
   })) as string;
 
-  await arcPublicClient().waitForTransactionReceipt({
+  await arcPublicClient(meta.isMainnet).waitForTransactionReceipt({
     hash: txHash as `0x${string}`,
   });
 
