@@ -29,7 +29,7 @@ try {
   const rawChainId = String(await rpc("eth_chainId")).trim().toLowerCase();
   const chainId = rawChainId.startsWith("0x")
     ? Number.parseInt(rawChainId.slice(2), 16)
-    : /^\\d+$/.test(rawChainId)
+    : /^\d+$/.test(rawChainId)
       ? Number(rawChainId)
       : Number.NaN;
   if (!Number.isSafeInteger(chainId) || chainId !== expectedChainId) {
