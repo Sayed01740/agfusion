@@ -1,0 +1,24 @@
+name: Arc Mainnet read-only preflight
+
+on:
+  push:
+    branches:
+      - feat/arc-mainnet-isolated
+    paths:
+      - "scripts/verify-arc-mainnet.mjs"
+      - ".github/workflows/arc-mainnet-read-only-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run read-only Arc Mainnet preflight
+        run: node scripts/verify-arc-mainnet.mjs
