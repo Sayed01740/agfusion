@@ -79,6 +79,43 @@ contract MalformedFeeReturnMockToken {
     }
 }
 
+contract ToggleTransferMockToken {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    bool public failTransfers;
+
+    function setFailTransfers(bool value) external {
+        failTransfers = value;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(!failTransfers, "TRANSFER_BLOCKED");
+        require(balanceOf[msg.sender] >= amount, "BAL");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        require(balanceOf[from] >= amount, "BAL");
+        uint256 a = allowance[from][msg.sender];
+        require(a >= amount, "ALLOWANCE");
+        if (a != type(uint256).max) allowance[from][msg.sender] = a - amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
 contract FeeOnTransferMockToken {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
@@ -168,6 +205,79 @@ contract AGFusionEscrowTest is Test {
         assertEq(token.balanceOf(agent), expectedNet);
         assertEq(token.balanceOf(feeRecipient), expectedFee);
         assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
+    function test_refundExpiredTransferFailurePreservesTaskAndFundsForRetry() public {
+        ToggleTransferMockToken toggleToken = new ToggleTransferMockToken();
+        toggleToken.mint(client, 100 ether);
+
+        vm.startPrank(client);
+        toggleToken.approve(address(escrow), 20 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(toggleToken),
+            20 ether,
+            120,
+            "details"
+        );
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 121);
+        toggleToken.setFailTransfers(true);
+
+        vm.prank(keeper);
+        vm.expectRevert(bytes("TRANSFER_FAILED"));
+        escrow.refundExpired(taskId);
+
+        AGFusionEscrow.Task memory afterFailedRefund = escrow.getTask(taskId);
+        assertEq(uint256(afterFailedRefund.status), uint256(AGFusionEscrow.TaskStatus.Active));
+        assertEq(toggleToken.balanceOf(address(escrow)), 20 ether);
+        assertEq(toggleToken.balanceOf(client), 80 ether);
+
+        toggleToken.setFailTransfers(false);
+        vm.prank(keeper);
+        escrow.refundExpired(taskId);
+
+        AGFusionEscrow.Task memory afterRetry = escrow.getTask(taskId);
+        assertEq(uint256(afterRetry.status), uint256(AGFusionEscrow.TaskStatus.Refunded));
+        assertEq(toggleToken.balanceOf(address(escrow)), 0);
+        assertEq(toggleToken.balanceOf(client), 100 ether);
+    }
+
+    function test_disputeRefundTransferFailurePreservesDisputeForRetry() public {
+        ToggleTransferMockToken toggleToken = new ToggleTransferMockToken();
+        toggleToken.mint(client, 100 ether);
+
+        vm.startPrank(client);
+        toggleToken.approve(address(escrow), 20 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(toggleToken),
+            20 ether,
+            3600,
+            "details"
+        );
+        escrow.disputeTask(taskId, "reason");
+        vm.stopPrank();
+
+        toggleToken.setFailTransfers(true);
+        vm.prank(arbitrator);
+        vm.expectRevert(bytes("TRANSFER_FAILED"));
+        escrow.resolveDispute(taskId, false);
+
+        AGFusionEscrow.Task memory afterFailedResolution = escrow.getTask(taskId);
+        assertEq(uint256(afterFailedResolution.status), uint256(AGFusionEscrow.TaskStatus.Disputed));
+        assertEq(toggleToken.balanceOf(address(escrow)), 20 ether);
+        assertEq(toggleToken.balanceOf(client), 80 ether);
+
+        toggleToken.setFailTransfers(false);
+        vm.prank(arbitrator);
+        escrow.resolveDispute(taskId, false);
+
+        AGFusionEscrow.Task memory afterResolution = escrow.getTask(taskId);
+        assertEq(uint256(afterResolution.status), uint256(AGFusionEscrow.TaskStatus.Refunded));
+        assertEq(toggleToken.balanceOf(address(escrow)), 0);
+        assertEq(toggleToken.balanceOf(client), 100 ether);
     }
 
     function test_RefundExpiredTask_PermissionlessKeeper() public {
