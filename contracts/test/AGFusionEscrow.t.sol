@@ -35,6 +35,31 @@ contract MockToken {
     }
 }
 
+contract FeeOnTransferMockToken {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        require(balanceOf[from] >= amount, "BAL");
+        uint256 a = allowance[from][msg.sender];
+        require(a >= amount, "ALLOWANCE");
+        if (a != type(uint256).max) allowance[from][msg.sender] = a - amount;
+        balanceOf[from] -= amount;
+        // Simulate a 10% transfer fee / deflationary token.
+        balanceOf[to] += amount - amount / 10;
+        return true;
+    }
+}
+
 contract AGFusionEscrowTest is Test {
     AGFusionEscrow public escrow;
     MockToken public token;
@@ -52,6 +77,22 @@ contract AGFusionEscrowTest is Test {
 
         token.mint(client, 1000 ether);
         vm.deal(client, 100 ether);
+    }
+
+    function test_CreateTask_revertsWhenTokenTransfersLessThanRequested() public {
+        FeeOnTransferMockToken feeToken = new FeeOnTransferMockToken();
+        feeToken.mint(client, 100 ether);
+
+        vm.startPrank(client);
+        feeToken.approve(address(escrow), 10 ether);
+        vm.expectRevert(bytes("UNSUPPORTED_TOKEN"));
+        escrow.createTask(agent, address(feeToken), 10 ether, 3600, "details");
+        vm.stopPrank();
+
+        // Revert must roll back both the token movement and task creation.
+        assertEq(feeToken.balanceOf(client), 100 ether);
+        assertEq(feeToken.balanceOf(address(escrow)), 0);
+        assertEq(escrow.totalTasks(), 0);
     }
 
     function test_CreateAndReleaseTask_Token() public {
