@@ -66,6 +66,12 @@ describe("isolated Arc network configuration", () => {
     expect(rpc.EXPECTED_CHAIN_IDS.op).toBe("0xa");
     expect(rpc.RPC_UPSTREAMS.arc[0]).toBe("https://rpc.mainnet.arc.io");
     expect(config.maxTransferAmount()).toBe(100);
+    vi.stubEnv("MAX_TRANSFER_AMOUNT", "999999");
+    expect(config.maxTransferAmount()).toBe(100);
+    vi.stubEnv("MAX_TRANSFER_AMOUNT", "not-a-number");
+    expect(config.maxTransferAmount()).toBe(100);
+    vi.stubEnv("MAX_TRANSFER_AMOUNT", "-1");
+    expect(config.maxTransferAmount()).toBe(100);
   });
 });
   it("refuses Mainnet wallet setup when the configured RPC reports the wrong chain", async () => {
