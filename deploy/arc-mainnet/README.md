@@ -40,8 +40,12 @@ or a dedicated project. Keep the current Testnet environment variables unchanged
 
 ## Current implementation status
 
-The first isolated code change makes `src/lib/config.ts` derive the public and
-internal network label/chain ID from `src/lib/arc-chain.ts`. The Testnet values
-remain the same when Testnet is selected. This is not a full Mainnet migration:
-bridge peer-chain routing, CCTP aliases, spending policy, contracts, fees,
-secrets, and deployment verification still require separate changes and tests.
+Implemented on the isolated feature branch:
+- App config derives the network label and chain ID from the canonical Arc config.
+- Arc Mainnet RPC fallback uses the canonical `arc.io` endpoint; wallet network setup fails closed if the RPC cannot be validated.
+- Mainnet peer-chain RPC routing uses mainnet chain IDs and endpoints while Testnet defaults remain unchanged.
+- Agent autonomous spending fails closed on Mainnet if persistent policy storage is unavailable.
+- CCTP v2 Mainnet addresses match Circle's current contract registry; Arc Testnet addresses remain on the sandbox configuration.
+- `npm run verify:arc-mainnet` performs a read-only RPC chain-ID and contract-bytecode preflight.
+
+These are migration safeguards, not proof that every product feature is Mainnet-ready. Fee estimates, app-specific contract addresses and ownership, API/provider integrations, database migrations, all user flows, and contract tests still need verification. Do not enable real-money flows until all validation gates above pass.
