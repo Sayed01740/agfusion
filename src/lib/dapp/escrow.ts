@@ -12,7 +12,7 @@ import {
 import { explorerTxUrl, getArcNetworkMeta, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { getNetworkContractAddress } from "@/lib/network-contract-address";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
-import { ARC_TOKENS, type ArcToken } from "@/lib/dapp/tokens";
+import { ARC_TOKENS, getToken, type ArcToken } from "@/lib/dapp/tokens";
 import {
   getChainId,
   getInjectedProvider,
@@ -199,6 +199,9 @@ export async function runCreateEscrowTask({
     throw new Error("Wallet network does not match the configured Arc environment.");
   }
 
+  // Resolve the token from the verified active network, never trust a stale UI/build-time address.
+  const networkToken = getToken(networkToken.symbol, meta.isMainnet);
+
   const accounts = await requestAccounts(provider);
   const user = accounts[0]?.toLowerCase() as Address;
   if (!user) throw new Error("Wallet not connected.");
@@ -212,13 +215,13 @@ export async function runCreateEscrowTask({
     );
   }
 
-  const parsedAmount = parseUnits(amount, token.decimals);
-  const tokenAddr = token.address.toLowerCase() as Address;
+  const parsedAmount = parseUnits(amount, networkToken.decimals);
+  const tokenAddr = networkToken.address.toLowerCase() as Address;
   const isNative = tokenAddr === "0x0000000000000000000000000000000000000000";
 
   const steps: TxStep[] = [
-    { name: `Check ${token.symbol} allowance`, state: "active" },
-    { name: `Deposit ${amount} ${token.symbol} into Arc Agent Escrow`, state: "pending" },
+    { name: `Check ${networkToken.symbol} allowance`, state: "active" },
+    { name: `Deposit ${amount} ${networkToken.symbol} into Arc Agent Escrow`, state: "pending" },
   ];
   const emit = () => onStep?.([...steps]);
   emit();
@@ -227,7 +230,7 @@ export async function runCreateEscrowTask({
     const currentAllowance = await readAllowance(tokenAddr, user, escrowContract, meta.isMainnet);
     if (currentAllowance < parsedAmount) {
       steps[0] = {
-        name: `Approve ${token.symbol} for Escrow`,
+        name: `Approve ${networkToken.symbol} for Escrow`,
         state: "active",
         message: "Sign approval in wallet",
       };
@@ -258,7 +261,7 @@ export async function runCreateEscrowTask({
         hash: approveTxHash as `0x${string}`,
       });
     }
-    steps[0] = { name: `${token.symbol} Approved`, state: "success" };
+    steps[0] = { name: `${networkToken.symbol} Approved`, state: "success" };
     emit();
   } else {
     steps[0] = { name: "Native USDC", state: "success" };
@@ -267,7 +270,7 @@ export async function runCreateEscrowTask({
 
   // 2. Create Task Transaction
   steps[1] = {
-    name: `Deposit ${amount} ${token.symbol} into Arc Escrow`,
+    name: `Deposit ${amount} ${networkToken.symbol} into Arc Escrow`,
     state: "active",
     message: "Confirm in wallet",
   };
@@ -331,7 +334,7 @@ export async function runCreateEscrowTask({
     type: "send",
     status: ok ? "success" : "error",
     amount,
-    token: token.symbol,
+    token: networkToken.symbol,
     fromChain: chain,
     toChain: chain,
     recipient: agentAddress,
