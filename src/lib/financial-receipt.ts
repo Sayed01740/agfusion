@@ -75,7 +75,7 @@ function hasCctpMintAndWithdraw(receipt: any, recipient: string, expectedAmount:
     const addr = normalizeAddress(String(log?.address || ""));
     if (addr !== messenger && addr !== usdc) return false;
     const topic0 = String(log?.topics?.[0] || "").toLowerCase();
-    if (topic0 !== MINT_AND_WITHDRAW_TOPIC && topic0 !== MINT_AND_WITHDRAW_V2_TOPIC && topic0 !== MINT_TOPIC && topic0 !== TRANSFER_TOPIC) return false;
+    if (topic0 !== MINT_AND_WITHDRAW_TOPIC && topic0 !== MINT_AND_WITHDRAW_V2_TOPIC && topic0 !== MINT_TOPIC) return false;
     const topics: string[] = (log?.topics || []).map((t: any) => normalizeAddress(String(t || "")));
     if (!topics.some((t) => t === target)) return false;
     const amt = eventAmount(log);
