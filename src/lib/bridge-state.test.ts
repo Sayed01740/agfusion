@@ -220,14 +220,14 @@ describe("bridge-state invariants", () => {
     expect(bridgeStateToSteps(completed).at(-1)?.state).toBe("success");
   });
 
-  it("a completed bridge can never return to pending", () => {
+  it("a verified completed bridge can never return to pending", () => {
     seed("tx-done");
-    deriveBridgeState("tx-done", [
-      { name: "approve", state: "success", txHash: APPROVE },
-      { name: "burn", state: "success", txHash: BURN },
-      { name: "fetchAttestation", state: "success" },
-      { name: "mint", state: "success", txHash: MINT },
-    ]);
+    updateBridgeState("tx-done", {
+      state: "COMPLETED",
+      approvalTxHash: APPROVE,
+      burnTxHash: BURN,
+      destinationTxHash: MINT,
+    });
     const after = deriveBridgeState("tx-done", [
       { name: "mint", state: "error", message: "late error" },
     ]);
