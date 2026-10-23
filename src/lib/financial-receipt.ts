@@ -39,7 +39,7 @@ function eventAmount(log: any): bigint | null {
   }
 }
 
-function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: string | undefined, usdcAddress: string, allowRelayerFee = false): boolean {
+function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: string | undefined, usdcAddress: string): boolean {
   const logs = Array.isArray(receipt?.logs) ? receipt.logs : [];
   const target = normalizeAddress(recipient);
   const usdc = normalizeAddress(usdcAddress);
@@ -49,16 +49,7 @@ function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: stri
     if (String(log?.topics?.[0] || "").toLowerCase() !== TRANSFER_TOPIC) return false;
     if (normalizeAddress(String(log?.topics?.[2] || "")) !== target) return false;
     if (expected === null) return false;
-    if (exactAmount(log?.data, expected)) return true;
-    if (allowRelayerFee) {
-      try {
-        const val = BigInt(String(log?.data || "0x0"));
-        return val > 0n && val <= expected && val >= (expected * 80n) / 100n;
-      } catch {
-        return false;
-      }
-    }
-    return false;
+    return exactAmount(log?.data, expected);
   });
 }
 
@@ -89,8 +80,7 @@ function hasCctpMintAndWithdraw(receipt: any, recipient: string, expectedAmount:
 
     const amt = eventAmount(log);
     if (amt === null) return false;
-    if (amt === expected) return true;
-    return amt > 0n && amt <= expected && amt >= (expected * 80n) / 100n;
+    return amt === expected;
   });
 }
 
@@ -141,7 +131,7 @@ export async function finalizeVerifiedTransaction(record: TransactionRecord, cha
     return { ...record, status: "retryable", retryable: true, message: `${record.message || "Transaction"} · Destination recipient is unavailable.`, steps: appendStep(record, { name: "Destination settlement event", state: "pending", txHash: record.txHash, message: "Recipient is required to verify the destination settlement." }) };
   }
 
-  const transferVerified = hasUsdcTransferTo(verified.receipt, recipient, record.amount, config.usdc, forwardedBridge);
+  const transferVerified = hasUsdcTransferTo(verified.receipt, recipient, record.amount, config.usdc);
   const mintVerified = forwardedBridge ? hasCctpMintAndWithdraw(verified.receipt, recipient, record.amount, config.usdc, config.tokenMessenger) : false;
 
   if (!transferVerified && !mintVerified) {
