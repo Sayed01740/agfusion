@@ -5,7 +5,7 @@
  * Run: npm run verify:arc-mainnet
  */
 const rpcUrl = (process.env.ARC_MAINNET_RPC_URL || "https://rpc.mainnet.arc.io").trim();
-const expectedChainId = "0x13b2";
+const expectedChainId = 5042;
 const checks = [
   ["CCTP TokenMessengerV2", "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"],
   ["CCTP MessageTransmitterV2", "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"],
@@ -26,11 +26,16 @@ async function rpc(method, params = []) {
 }
 
 try {
-  const chainId = String(await rpc("eth_chainId")).toLowerCase();
-  if (chainId !== expectedChainId) {
-    throw new Error(`Wrong chain ID ${chainId}; expected ${expectedChainId}. No write operations were attempted.`);
+  const rawChainId = String(await rpc("eth_chainId")).trim().toLowerCase();
+  const chainId = rawChainId.startsWith("0x")
+    ? Number.parseInt(rawChainId.slice(2), 16)
+    : /^\\d+$/.test(rawChainId)
+      ? Number(rawChainId)
+      : Number.NaN;
+  if (!Number.isSafeInteger(chainId) || chainId !== expectedChainId) {
+    throw new Error(`Wrong chain ID ${rawChainId}; expected Arc Mainnet chain ID 5042 (0x13b2). No write operations were attempted.`);
   }
-  console.log(`PASS chain ID: ${chainId} (Arc Mainnet)`);
+  console.log(`PASS chain ID: ${rawChainId} (Arc Mainnet / 5042)`);
 
   let failed = false;
   for (const [label, address] of checks) {
@@ -39,7 +44,8 @@ try {
       console.error(`FAIL ${label}: no contract bytecode at ${address}`);
       failed = true;
     } else {
-      console.log(`PASS ${label}: bytecode exists at ${address}`);
+      const byteLength = (code.length - 2) / 2;
+      console.log(`PASS ${label}: ${byteLength} bytes of bytecode at ${address}`);
     }
   }
   if (failed) process.exitCode = 1;
