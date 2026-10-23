@@ -55,14 +55,16 @@ contract MalformedFeeReturnMockToken {
 
     function transfer(address to, uint256 amount) external returns (bool) {
         require(balanceOf[msg.sender] >= amount, "BAL");
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
         if (to == malformedRecipient) {
+            // Simulate a token that returns malformed data and does not move
+            // funds on this attempted fee transfer.
             assembly {
                 mstore(0, 1)
                 return(31, 1)
             }
         }
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
         return true;
     }
 
