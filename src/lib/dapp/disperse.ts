@@ -266,7 +266,7 @@ export async function runBatchDisperse(params: {
     toChain: activeChain,
     recipient: `${recipients.length} recipients`,
     recipientLabel: `Batch · ${recipients.length} payouts`,
-    feeUsd: 0.04,
+    ...(meta.isMainnet ? {} : { feeUsd: 0.04 }),
     steps,
     txHash: hash,
     explorerUrl: explorerTxUrl(hash, meta.chainId),
