@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getPrisma, isDbConfigured } from "@/lib/db";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 /**
  * HTTP 402 payment-gated endpoint for the Arc Testnet agent telemetry demo.
@@ -118,6 +120,14 @@ async function verifyPayment(txHash: string): Promise<{ ok: boolean; reason?: st
 }
 
 async function handleX402(req: Request) {
+  const rl = rateLimit(`x402-agent-service:${clientIp(req)}`, {
+    windowMs: 60_000,
+    max: 30,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+
   const paymentTx = req.headers.get("x-payment-tx");
 
   // Session headers are not accepted as authentication until a real session
@@ -126,6 +136,40 @@ async function handleX402(req: Request) {
 
   const verification = await verifyPayment(paymentTx);
   if (!verification.ok) return paymentRequired(verification.reason);
+
+  // A confirmed payment is single-use for this endpoint. Require persistent
+  // storage and a unique tx hash so concurrent replays cannot both succeed.
+  if (!isDbConfigured()) {
+    return paymentRequired("Payment replay protection requires the database to be configured.");
+  }
+  try {
+    const prisma = getPrisma();
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "X402Payment" (
+        "id" TEXT PRIMARY KEY,
+        "txHash" TEXT NOT NULL UNIQUE,
+        "resource" TEXT NOT NULL,
+        "payer" TEXT,
+        "amountWei" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "X402Payment" ("id", "txHash", "resource", "payer", "amountWei") VALUES ($1, $2, $3, $4, $5)`,
+      `x402_agent_${crypto.randomUUID()}`,
+      paymentTx.toLowerCase(),
+      "agfusion://agent-service",
+      null,
+      PRICE_WEI.toString(),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const reason = /unique|duplicate/i.test(message)
+      ? "This payment transaction has already been consumed."
+      : "Could not persist payment replay protection; access was not granted.";
+    console.warn("[AGFusion][x402] payment consumption failed closed", error);
+    return paymentRequired(reason);
+  }
 
   return NextResponse.json(
     {
