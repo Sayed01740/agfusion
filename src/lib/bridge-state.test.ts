@@ -204,6 +204,21 @@ describe("bridge-state invariants", () => {
     expect(updated?.walletType).toBe("evm");
   });
 
+  it("does not show destination mint as successful from a hash alone", () => {
+    seed("tx-mint-pending");
+    const pending = updateBridgeState("tx-mint-pending", {
+      state: "DESTINATION_PENDING",
+      destinationTxHash: MINT,
+    });
+    expect(pending).not.toBeNull();
+    expect(bridgeStateToSteps(pending).at(-1)?.state).toBe("active");
+
+    const completed = updateBridgeState("tx-mint-pending", {
+      state: "COMPLETED",
+    });
+    expect(bridgeStateToSteps(completed).at(-1)?.state).toBe("success");
+  });
+
   it("a completed bridge can never return to pending", () => {
     seed("tx-done");
     deriveBridgeState("tx-done", [
