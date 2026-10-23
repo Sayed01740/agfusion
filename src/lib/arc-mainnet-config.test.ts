@@ -9,6 +9,10 @@ describe("isolated Arc network configuration", () => {
   it("preserves the existing Testnet chain, RPC and CCTP addresses", async () => {
     vi.stubEnv("NEXT_PUBLIC_ARC_NETWORK", "testnet");
     vi.stubEnv("NEXT_PUBLIC_ARC_CHAIN_ID", "5042002");
+    vi.stubEnv("NEXT_PUBLIC_ARC_CHAIN_HEX", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_RPC_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_WS_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_EXPLORER_URL", "");
     vi.resetModules();
 
     const arc = await import("./arc-chain");
@@ -31,6 +35,10 @@ describe("isolated Arc network configuration", () => {
   it("selects Mainnet IDs, RPCs and Circle-registered CCTP v2 contracts", async () => {
     vi.stubEnv("NEXT_PUBLIC_ARC_NETWORK", "mainnet");
     vi.stubEnv("NEXT_PUBLIC_ARC_CHAIN_ID", "5042");
+    vi.stubEnv("NEXT_PUBLIC_ARC_CHAIN_HEX", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_RPC_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_WS_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_EXPLORER_URL", "");
     vi.resetModules();
 
     const arc = await import("./arc-chain");
