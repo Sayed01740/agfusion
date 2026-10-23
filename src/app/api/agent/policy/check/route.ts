@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { enforceAgentSpendingPolicy, type AgentSpendAction } from "@/lib/agent-spending-policy";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,6 +8,14 @@ export const dynamic = "force-dynamic";
 const ACTIONS = new Set<AgentSpendAction>(["bridge", "swap", "send", "route", "unified_spend", "x402"]);
 
 export async function POST(req: Request) {
+  const rl = rateLimit(`agent-policy-check:${clientIp(req)}`, {
+    windowMs: 60_000,
+    max: 20,
+  });
+  if (!rl.ok) {
+    return NextResponse.json({ allowed: false, reason: "rate_limited" }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
     const action = String(body?.action || "") as AgentSpendAction;
@@ -21,6 +30,12 @@ export async function POST(req: Request) {
       );
     }
     const operationId = String(body?.operationId || `check_${walletAddress.toLowerCase()}_${Date.now()}`);
+    if (operationId.length > 128 || !/^[a-zA-Z0-9:_-]+$/.test(operationId)) {
+      return NextResponse.json(
+        { allowed: false, reason: "Invalid operation ID." },
+        { status: 400 },
+      );
+    }
     // This endpoint is explicitly the agent-policy gate. Do not let a caller
     // omit an address and get the non-agent exemption from a client-supplied
     // Boolean; all requests here must pass through the spending limits.
