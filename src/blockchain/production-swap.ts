@@ -4,6 +4,7 @@ import { explorerTxUrl, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 import { shortenAddress, uid } from "@/lib/utils";
 import { matchesExpectedChainId } from "@/lib/chain-id-validation";
+import { assertMainnetSwapReady } from "@/lib/mainnet-swap-readiness";
 import { encodeFunctionData, formatUnits, parseUnits } from "viem";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -292,39 +293,6 @@ async function resolveTargetArcChain(
   };
 }
 
-/**
- * Real-time RFQ rate calculation for Arc Mainnet StableFX.
- * StableFX uses Request-For-Quote (RFQ) execution with zero slippage settlement on Arc.
- */
-function getStableFxMainnetQuote(amount: string, tokenIn: ArcSwapToken, tokenOut: ArcSwapToken): QuoteResult {
-  const n = Number(amount);
-  // Canonical market FX reference rates (EUR/USD ~1.082)
-  const RATES: Record<string, number> = {
-    "USDC-EURC": 0.9242,
-    "EURC-USDC": 1.0820,
-    "USDC-cirBTC": 0.00001053,
-    "cirBTC-USDC": 95000.0,
-    "EURC-cirBTC": 0.00001142,
-    "cirBTC-EURC": 87560.0,
-  };
-
-  const key = `${tokenIn}-${tokenOut}`;
-  const rate = RATES[key];
-  if (!rate) {
-    throw new Error(`Unsupported token pair ${tokenIn} → ${tokenOut} on Arc Mainnet.`);
-  }
-
-  const out = n * rate;
-  const decimals = DISPLAY_DECIMALS[tokenOut];
-  const formattedOut = out.toFixed(decimals > 6 ? 8 : 6);
-
-  return {
-    amountOut: formattedOut,
-    route: "Arc StableFX (Zero Slippage RFQ)",
-    slippageBps: 0,
-    path: [TOKENS_BY_CHAIN.Arc_Mainnet[tokenIn], TOKENS_BY_CHAIN.Arc_Mainnet[tokenOut]],
-  };
-}
 
 export async function getArcDexSwapQuote(params: {
   amount: string;
@@ -345,10 +313,8 @@ export async function getArcDexSwapQuote(params: {
 
   const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
 
-  // --- Arc Mainnet (StableFX Settlement) ---
-  if (isMainnet) {
-    return getStableFxMainnetQuote(params.amount, tokenIn, tokenOut);
-  }
+  // Fail closed until a verified live RFQ provider and settlement contract exist.
+  assertMainnetSwapReady(isMainnet);
 
   // --- Arc Testnet (ApexiSwap DEX Settlement) ---
   // On Arc Testnet, the active on-chain liquidity pool is USDC ↔ EURC
@@ -501,6 +467,8 @@ export async function runProductionSwap(params: {
   const provider = await getInjectedProvider();
   const accounts = await requestAccounts(provider);
   const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  // Check readiness before requesting a chain switch or preparing any transaction.
+  assertMainnetSwapReady(isMainnet);
 
   await switchToChainId(provider, targetChain);
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
