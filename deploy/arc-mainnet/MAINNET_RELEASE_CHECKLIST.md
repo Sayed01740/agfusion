@@ -41,3 +41,16 @@ This checklist is a release control, not deployment authorization. Keep this bra
 ## Current status
 
 CI passing means automated checks passed; it does not mean Mainnet contracts are deployed, independently audited, or ready for real funds. The expected addresses/settings remain intentionally blank until verified deployments exist. No Mainnet deployment or transaction is authorized by this checklist.
+
+### Latest automated evidence
+
+Reviewed against isolated branch commit `e6a0f98ba1b3acc44b5b507fcd034e41d7d62e7e`:
+
+- [CI / application build and tests](https://github.com/Sayed01740/agfusion/actions/runs/40019278732): success.
+- [Foundry contract checks](https://github.com/Sayed01740/agfusion/actions/runs/40019279113): success.
+- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40019278729): success.
+- [Read-only preflight script validation](https://github.com/Sayed01740/agfusion/actions/runs/40019273475): success, including fail-closed tests for missing configuration, duplicate contract addresses, zero addresses, and invalid fee settings.
+
+These workflow results verify code and automated tests only. The preflight workflow does **not** run the live Mainnet contract verification. That live check remains blocked until the actual deployed Registry, Escrow, and Disperse addresses and independently approved expected owner/arbitrator/fee settings are supplied. Do not fill these values with guesses.
+
+The latest commit remains on Draft PR #21. Keep Mainnet swaps disabled, preserve Testnet configuration, and do not merge, deploy, change production variables, or broadcast transactions until all release gates and explicit human approval are complete.
