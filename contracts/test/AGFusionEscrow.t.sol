@@ -244,6 +244,45 @@ contract AGFusionEscrowTest is Test {
         assertEq(token.balanceOf(address(escrow)), 0);
     }
 
+    function test_releasePaymentTransferFailurePreservesTaskAndFundsForRetry() public {
+        ToggleTransferMockToken toggleToken = new ToggleTransferMockToken();
+        toggleToken.mint(client, 100 ether);
+
+        vm.startPrank(client);
+        toggleToken.approve(address(escrow), 20 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(toggleToken),
+            20 ether,
+            3600,
+            "details"
+        );
+        vm.stopPrank();
+
+        // A failed fee transfer is handled as best-effort, but if the
+        // subsequent agent payout also fails, the whole settlement must roll back.
+        toggleToken.setFailTransfers(true);
+        vm.prank(client);
+        vm.expectRevert(bytes("TRANSFER_FAILED"));
+        escrow.releasePayment(taskId);
+
+        AGFusionEscrow.Task memory afterFailedRelease = escrow.getTask(taskId);
+        assertEq(uint256(afterFailedRelease.status), uint256(AGFusionEscrow.TaskStatus.Active));
+        assertEq(toggleToken.balanceOf(address(escrow)), 20 ether);
+        assertEq(toggleToken.balanceOf(agent), 0);
+        assertEq(toggleToken.balanceOf(feeRecipient), 0);
+
+        toggleToken.setFailTransfers(false);
+        vm.prank(client);
+        escrow.releasePayment(taskId);
+
+        AGFusionEscrow.Task memory afterRetry = escrow.getTask(taskId);
+        assertEq(uint256(afterRetry.status), uint256(AGFusionEscrow.TaskStatus.Released));
+        assertEq(toggleToken.balanceOf(address(escrow)), 0);
+        assertEq(toggleToken.balanceOf(agent), 20 ether);
+        assertEq(toggleToken.balanceOf(feeRecipient), 0);
+    }
+
     function test_refundExpiredTransferFailurePreservesTaskAndFundsForRetry() public {
         ToggleTransferMockToken toggleToken = new ToggleTransferMockToken();
         toggleToken.mint(client, 100 ether);
