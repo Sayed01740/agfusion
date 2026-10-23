@@ -31,7 +31,8 @@ export function agentRateLimitConfig() {
 }
 
 export function maxTransferAmount(): number {
-  // Keep the existing Testnet default; use a conservative default for Mainnet.\n  return Number(process.env.MAX_TRANSFER_AMOUNT || (IS_ARC_MAINNET ? 100 : 10_000));
+  // Keep the existing Testnet default; use a conservative default for Mainnet.
+  return Number(process.env.MAX_TRANSFER_AMOUNT || (IS_ARC_MAINNET ? 100 : 10_000));
 }
 
 /**
