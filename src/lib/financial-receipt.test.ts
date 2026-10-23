@@ -71,6 +71,40 @@ describe("finalizeVerifiedTransaction", () => {
     ]);
   });
 
+  it("keeps forwarded CCTP bridges retryable without canonical destination settlement proof", async () => {
+    mockedVerify.mockResolvedValue({
+      status: "success",
+      receipt: { logs: [] },
+    });
+
+    const record = {
+      ...baseBridgeRecord(),
+      bridgeResult: { forwardTxHash: TX },
+    };
+    const result = await finalizeVerifiedTransaction(record, "Arc_Testnet");
+
+    expect(result.status).toBe("retryable");
+    expect(result.retryable).toBe(true);
+    expect(result.message).toContain("no canonical USDC settlement event");
+  });
+
+  it("accepts a forwarded CCTP bridge only when destination USDC settlement is proven", async () => {
+    mockedVerify.mockResolvedValue({
+      status: "success",
+      receipt: { logs: [transferLog("5")] },
+    });
+
+    const record = {
+      ...baseBridgeRecord(),
+      bridgeResult: { forwardTxHash: TX },
+    };
+    const result = await finalizeVerifiedTransaction(record, "Arc_Testnet");
+
+    expect(result.status).toBe("success");
+    expect(result.retryable).toBe(false);
+    expect(result.steps.some((step) => step.name === "CCTP MintAndWithdraw event")).toBe(true);
+  });
+
   it("fails closed when the receipt is unavailable", async () => {
     mockedVerify.mockResolvedValue({ status: "not_found", receipt: null });
 
