@@ -18,6 +18,7 @@ describe("isolated Arc network configuration", () => {
     const arc = await import("./arc-chain");
     const cctp = await import("./cctp-chains");
     const rpc = await import("./rpc-proxy");
+    const config = await import("./config");
 
     expect(arc.ARC_CHAIN_ID).toBe(5042002);
     expect(arc.ARC_NETWORK_NAME).toBe("Arc Testnet");
@@ -30,6 +31,7 @@ describe("isolated Arc network configuration", () => {
     );
     expect(rpc.EXPECTED_CHAIN_IDS.base).toBe("0x14a34");
     expect(rpc.RPC_UPSTREAMS.arc[0]).toBe("https://rpc.testnet.arc.io");
+    expect(config.maxTransferAmount()).toBe(10_000);
   });
 
   it("selects Mainnet IDs, RPCs and Circle-registered CCTP v2 contracts", async () => {
@@ -44,6 +46,7 @@ describe("isolated Arc network configuration", () => {
     const arc = await import("./arc-chain");
     const cctp = await import("./cctp-chains");
     const rpc = await import("./rpc-proxy");
+    const config = await import("./config");
 
     expect(arc.ARC_CHAIN_ID).toBe(5042);
     expect(arc.ARC_NETWORK_NAME).toBe("Arc Mainnet");
@@ -62,5 +65,6 @@ describe("isolated Arc network configuration", () => {
     expect(rpc.EXPECTED_CHAIN_IDS.arb).toBe("0xa4b1");
     expect(rpc.EXPECTED_CHAIN_IDS.op).toBe("0xa");
     expect(rpc.RPC_UPSTREAMS.arc[0]).toBe("https://rpc.mainnet.arc.io");
+    expect(config.maxTransferAmount()).toBe(100);
   });
 });
