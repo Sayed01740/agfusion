@@ -47,5 +47,6 @@ Implemented on the isolated feature branch:
 - Agent autonomous spending fails closed on Mainnet if persistent policy storage is unavailable.
 - CCTP v2 Mainnet addresses match Circle's current contract registry; Arc Testnet addresses remain on the sandbox configuration.
 - `npm run verify:arc-mainnet` performs a read-only RPC chain-ID and contract-bytecode preflight.
+- Next.js is pinned to a patched 15.5.28 baseline; dependency audit is still required because some transitive Circle/Solana SDK packages report advisories.
 
 These are migration safeguards, not proof that every product feature is Mainnet-ready. Fee estimates, app-specific contract addresses and ownership, API/provider integrations, database migrations, all user flows, and contract tests still need verification. Do not enable real-money flows until all validation gates above pass.
