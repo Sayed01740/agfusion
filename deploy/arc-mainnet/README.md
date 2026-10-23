@@ -44,7 +44,8 @@ or a dedicated project. Keep the current Testnet environment variables unchanged
 
 The isolated branch refreshes the lockfile and adds overrides for patched
 transitive packages, including `@grpc/grpc-js`, `toml`, UUID, nested `bn.js`,
-plus the existing PostCSS and Undici baselines. The legacy `jayson` dependency
+and `@prisma/config`'s patched `deepmerge-ts` 8.0.2 override, plus the existing
+PostCSS and Undici baselines. The legacy `jayson` dependency
 was moved to 5.x to remove its vulnerable `stream-json` 1.x dependency; this
 major override must pass the full test/build suite and bridge/wallet smoke tests
 before adoption.
