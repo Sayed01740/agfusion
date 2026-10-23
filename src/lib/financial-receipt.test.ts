@@ -102,7 +102,7 @@ describe("finalizeVerifiedTransaction", () => {
 
     expect(result.status).toBe("success");
     expect(result.retryable).toBe(false);
-    expect(result.steps.some((step) => step.name === "CCTP MintAndWithdraw event")).toBe(true);
+    expect(result.steps.some((step) => step.name === "USDC Transfer event")).toBe(true);
   });
 
   it("fails closed when the receipt is unavailable", async () => {
