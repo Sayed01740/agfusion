@@ -19,3 +19,8 @@ jobs:
       - run: npm ci --legacy-peer-deps
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
+      - name: Report remaining development and transitive advisories
+        shell: bash
+        run: |
+          npm audit --json > /tmp/npm-audit-all.json || true
+          node -e 'const r=require("/tmp/npm-audit-all.json"); for (const [name, v] of Object.entries(r.vulnerabilities || {})) console.log(`${v.severity}: ${name}; direct=${v.isDirect}; range=${v.range}; fix=${JSON.stringify(v.fixAvailable)}`);'
