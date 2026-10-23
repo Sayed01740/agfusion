@@ -68,3 +68,26 @@ describe("isolated Arc network configuration", () => {
     expect(config.maxTransferAmount()).toBe(100);
   });
 });
+  it("refuses Mainnet wallet setup when the configured RPC reports the wrong chain", async () => {
+    vi.stubEnv("NEXT_PUBLIC_ARC_NETWORK", "mainnet");
+    vi.stubEnv("NEXT_PUBLIC_ARC_CHAIN_ID", "5042");
+    vi.stubEnv("NEXT_PUBLIC_ARC_CHAIN_HEX", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_RPC_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_WS_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_ARC_EXPLORER_URL", "");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ jsonrpc: "2.0", id: 1, result: "0x1" }),
+      })),
+    );
+    vi.resetModules();
+
+    const arc = await import("./arc-chain");
+    await expect(arc.getArcWalletAddParams()).rejects.toThrow(
+      "Arc Mainnet RPC validation failed",
+    );
+  });
+
