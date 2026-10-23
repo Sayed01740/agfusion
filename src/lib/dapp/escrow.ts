@@ -200,7 +200,7 @@ export async function runCreateEscrowTask({
   }
 
   // Resolve the token from the verified active network, never trust a stale UI/build-time address.
-  const networkToken = getToken(networkToken.symbol, meta.isMainnet);
+  const networkToken = getToken(token.symbol, meta.isMainnet);
 
   const accounts = await requestAccounts(provider);
   const user = accounts[0]?.toLowerCase() as Address;
