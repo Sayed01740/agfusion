@@ -9,19 +9,22 @@ import {DeployAGFusionDisperseMainnet} from "../script/DeployAGFusionDisperseMai
 contract ArcMainnetDeploymentGuardTest is Test {
     function test_registryDeploymentRejectsNonMainnet() public {
         vm.chainId(31337);
+        DeployAGFusionRegistryMainnet script = new DeployAGFusionRegistryMainnet();
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "ARC_MAINNET_ONLY"));
-        new DeployAGFusionRegistryMainnet().run();
+        script.run();
     }
 
     function test_escrowDeploymentRejectsNonMainnet() public {
         vm.chainId(31337);
+        DeployAGFusionEscrowMainnet script = new DeployAGFusionEscrowMainnet();
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "ARC_MAINNET_ONLY"));
-        new DeployAGFusionEscrowMainnet().run();
+        script.run();
     }
 
     function test_disperseDeploymentRejectsNonMainnet() public {
         vm.chainId(31337);
+        DeployAGFusionDisperseMainnet script = new DeployAGFusionDisperseMainnet();
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "ARC_MAINNET_ONLY"));
-        new DeployAGFusionDisperseMainnet().run();
+        script.run();
     }
 }
