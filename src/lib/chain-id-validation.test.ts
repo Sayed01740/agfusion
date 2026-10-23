@@ -13,6 +13,7 @@ describe("matchesExpectedChainId", () => {
     expect(matchesExpectedChainId("not-a-chain", 5042)).toBe(false);
     expect(matchesExpectedChainId("", 5042)).toBe(false);
     expect(matchesExpectedChainId("0x", 5042)).toBe(false);
+    expect(matchesExpectedChainId("0x13b2garbage", 5042)).toBe(false);
     expect(matchesExpectedChainId("999999999999999999999999", 5042)).toBe(false);
   });
 });
