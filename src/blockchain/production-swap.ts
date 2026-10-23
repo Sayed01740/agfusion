@@ -3,6 +3,7 @@ import { getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wal
 import { explorerTxUrl, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 import { shortenAddress, uid } from "@/lib/utils";
+import { matchesExpectedChainId } from "@/lib/chain-id-validation";
 import { encodeFunctionData, formatUnits, parseUnits } from "viem";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -131,9 +132,15 @@ async function ethCall(
     } catch {}
   }
 
-  // 3. Fallback across public Arc upstreams
+  // 3. Fallback across public Arc upstreams. Verify each endpoint's chain
+  // before reading contract state so a stale or misconfigured URL cannot feed
+  // data from a different network into a transaction quote.
   const upstreams = isMainnet
-    ? ["https://rpc.mainnet.arc.network", "https://rpc.mainnet.arc.io", "https://rpc.arc.network"]
+    ? [
+        "https://rpc.mainnet.arc.io",
+        "https://rpc.blockdaemon.mainnet.arc.io",
+        "https://rpc.drpc.mainnet.arc.io",
+      ]
     : [
         "https://rpc.testnet.arc.network",
         "https://rpc.testnet.arc.io",
@@ -141,9 +148,22 @@ async function ethCall(
         "https://rpc.quicknode.testnet.arc.io",
         "https://rpc.blockdaemon.testnet.arc.io",
       ];
+  const expectedChainId = isMainnet ? 5042 : 5042002;
 
   for (const url of upstreams) {
     try {
+      const chainResponse = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
+      });
+      if (!chainResponse.ok) continue;
+      const chainJson = (await chainResponse.json()) as { result?: unknown };
+      if (!matchesExpectedChainId(chainJson.result, expectedChainId)) {
+        console.warn(`[AGFusion] Skipping RPC fallback with unexpected chain ID: ${url}`);
+        continue;
+      }
+
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
