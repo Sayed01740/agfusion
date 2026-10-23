@@ -75,6 +75,11 @@ try {
   requireAddress("AGFUSION_EXPECTED_ESCROW_ARBITRATOR", expectedArbitrator);
   requireAddress("AGFUSION_EXPECTED_ESCROW_FEE_RECIPIENT", expectedFeeRecipient);
 
+  const deploymentAddresses = [registryAddress, escrowAddress, disperseAddress].map((address) => address.toLowerCase());
+  if (new Set(deploymentAddresses).size !== deploymentAddresses.length) {
+    throw new Error("Registry, Escrow, and Disperse must use three distinct deployed contract addresses.");
+  }
+
   if (!/^\d+$/.test(expectedFeeBpsRaw)) {
     throw new Error("AGFUSION_EXPECTED_ESCROW_FEE_BPS must be explicitly set to an integer from 0 to 500.");
   }
