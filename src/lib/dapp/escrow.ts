@@ -12,7 +12,7 @@ import {
 import { explorerTxUrl, getArcNetworkMeta, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { getNetworkContractAddress } from "@/lib/network-contract-address";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
-import { ARC_TOKENS, getToken, type ArcToken } from "@/lib/dapp/tokens";
+import { ARC_MAINNET_TOKENS, ARC_TESTNET_TOKENS, ARC_TOKENS, getToken, type ArcToken } from "@/lib/dapp/tokens";
 import {
   getChainId,
   getInjectedProvider,
@@ -155,7 +155,7 @@ export async function fetchEscrowTask(taskId: number, isMainnet: boolean = IS_AR
         raw.amount,
         String(raw.token).toLowerCase() === "0x0000000000000000000000000000000000000000"
           ? 18
-          : Object.values(ARC_TOKENS).find(
+          : Object.values(isMainnet ? ARC_MAINNET_TOKENS : ARC_TESTNET_TOKENS).find(
               (configuredToken) => configuredToken.address.toLowerCase() === String(raw.token).toLowerCase(),
             )?.decimals ?? 6,
       ),
