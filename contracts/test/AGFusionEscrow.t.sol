@@ -178,6 +178,35 @@ contract AGFusionEscrowTest is Test {
         assertEq(uint256(task.status), uint256(AGFusionEscrow.TaskStatus.Refunded));
     }
 
+    function test_disputeTask_revertsAfterExpiredActiveDeadlineAndRefundRemainsAvailable() public {
+        vm.startPrank(client);
+        token.approve(address(escrow), 20 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(token),
+            20 ether,
+            120,
+            "ipfs://task-details"
+        );
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 121);
+
+        // Neither party can freeze an expired, unsubmitted task by opening
+        // a dispute after the deadline.
+        vm.prank(agent);
+        vm.expectRevert(bytes("DEADLINE_PASSED"));
+        escrow.disputeTask(taskId, "ipfs://late-dispute");
+
+        vm.prank(keeper);
+        escrow.refundExpired(taskId);
+
+        assertEq(token.balanceOf(client), 1000 ether);
+        assertEq(token.balanceOf(address(escrow)), 0);
+        AGFusionEscrow.Task memory task = escrow.getTask(taskId);
+        assertEq(uint256(task.status), uint256(AGFusionEscrow.TaskStatus.Refunded));
+    }
+
     function test_DisputeAndArbitratorResolve() public {
         vm.startPrank(client);
         token.approve(address(escrow), 100 ether);
