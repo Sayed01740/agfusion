@@ -1,7 +1,7 @@
 /**
- * Shared CCTP v2 testnet chain configuration for AGFusion.
+ * Shared CCTP v2 Mainnet and Testnet chain configuration for AGFusion.
  *
- * Contract/domain data is pinned to Circle's published testnet configuration.
+ * Contract/domain data is pinned to Circle's published network configuration.
  * Runtime RPC health is handled separately by rpc-proxy.ts.
  */
 
@@ -262,6 +262,37 @@ export const CIRCLE_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
 
 export function getCctpConfig(appKitName: string): CctpChainConfig | null {
   return CCTP_CHAIN_CONFIG[appKitName] ?? null;
+}
+
+/** Identify whether a CCTP chain is part of Circle's sandbox/testnet environment. */
+export function isCctpTestnetChain(
+  chain: ChainId | string | number | undefined | null,
+): boolean {
+  if (chain === undefined || chain === null || chain === "") return false;
+  const value = String(chain).toLowerCase();
+  return (
+    value.includes("testnet") ||
+    value.includes("sepolia") ||
+    value.includes("fuji") ||
+    value.includes("amoy") ||
+    value === "5042002" ||
+    value === "84532" ||
+    value === "11155111" ||
+    value === "421614" ||
+    value === "43113" ||
+    value === "80002" ||
+    value === "11155420"
+  );
+}
+
+/** Prevent cross-environment transfers between production and sandbox CCTP domains. */
+export function assertSameCctpEnvironment(
+  sourceChain: ChainId | string | number,
+  destinationChain: ChainId | string | number,
+): void {
+  if (isCctpTestnetChain(sourceChain) !== isCctpTestnetChain(destinationChain)) {
+    throw new Error("CCTP bridging between Mainnet and Testnet is not supported.");
+  }
 }
 
 export function cctpConfigByChainId(chainId: number): CctpChainConfig | null {
