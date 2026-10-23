@@ -42,18 +42,18 @@ or a dedicated project. Keep the current Testnet environment variables unchanged
 
 ## Dependency remediation status
 
-The isolated branch refreshes the lockfile and adds compatibility-scoped
-overrides for vulnerable transitive packages, including patched `@grpc/grpc-js`,
-`toml`, UUID, nested `bn.js`, plus the existing PostCSS and Undici baselines.
-These changes must pass the full application test/build suite before adoption.
+The isolated branch refreshes the lockfile and adds overrides for patched
+transitive packages, including `@grpc/grpc-js`, `toml`, UUID, nested `bn.js`,
+plus the existing PostCSS and Undici baselines. The legacy `jayson` dependency
+was moved to 5.x to remove its vulnerable `stream-json` 1.x dependency; this
+major override must pass the full test/build suite and bridge/wallet smoke tests
+before adoption.
 
-The audit has also identified transitive packages with no safe patch available
-inside their current dependency ranges, including `stream-json` 1.x and
-`elliptic`. Do not force a major transitive upgrade solely to make the audit
-green: `stream-json` 3.x changes subpath exports used by some consumers, and
-the elliptic advisory currently has no upstream patched version. Track these
-as explicit release blockers/risk acceptances and remove or replace the parent
-dependency when compatibility-safe remediation is available.
+The elliptic advisory currently has no upstream patched version. Keep this
+finding visible in the release review; do not claim a clean audit means all
+cryptographic dependencies are free of risk. Reassess it when an upstream fix
+or a compatible replacement for the dependent Circle/Ethers packages is
+available.
 
 ## Current implementation status
 
