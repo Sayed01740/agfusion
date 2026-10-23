@@ -133,7 +133,7 @@ export async function runBatchDisperse(params: {
   }
 
   const spender = getDisperseAddressForNetwork(meta.isMainnet) as Address;
-  const networkToken = getToken(networkToken.symbol, meta.isMainnet);
+  const networkToken = getToken(params.token.symbol, meta.isMainnet);
   const { recipients, values, total, totalDisplay } = validateBatch(params.rows, networkToken);
   const networkLabel = meta.isMainnet ? "Arc Mainnet" : "Arc Testnet";
   const activeChain: "Arc" | "Arc_Testnet" = meta.isMainnet ? "Arc" : "Arc_Testnet";
