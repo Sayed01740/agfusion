@@ -189,7 +189,7 @@ export async function enforceAgentSpendingPolicy(params: {
       // Serialize budget checks per wallet. The reservation is inserted in the
       // same transaction, so concurrent requests cannot both observe the same
       // remaining budget and then pass independently.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${walletAddress}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${walletAddress}))`;
 
       await tx.$executeRaw`
         DELETE FROM "AgentSpendReservation"
