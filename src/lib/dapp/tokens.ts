@@ -102,18 +102,23 @@ export function getToken(symbol: string, isMainnet: boolean = IS_ARC_MAINNET): A
  * deploys contracts/src/AGFusionDisperse.sol and sets the env var. Empty until
  * then — the Batch panel falls back to sequential sends automatically.
  */
-export const DISPERSE_ADDRESS = getNetworkContractAddress(
-  IS_ARC_MAINNET,
-  process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS,
-  process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS,
-) || "";
+export function getDisperseAddressForNetwork(isMainnet: boolean = IS_ARC_MAINNET): string {
+  return getNetworkContractAddress(
+    isMainnet,
+    process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS,
+    process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS,
+  ) || "";
+}
+
+/** Build-time convenience for UI status; transaction paths should pass the detected wallet network. */
+export const DISPERSE_ADDRESS = getDisperseAddressForNetwork();
 
 export function isAddress(value: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(value.trim());
 }
 
-export function isDisperseConfigured(): boolean {
-  return isAddress(DISPERSE_ADDRESS);
+export function isDisperseConfigured(isMainnet: boolean = IS_ARC_MAINNET): boolean {
+  return isAddress(getDisperseAddressForNetwork(isMainnet));
 }
 
 /** Bridge routes offered in the UI (Circle CCTP pairs). */
