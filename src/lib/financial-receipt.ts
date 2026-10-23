@@ -62,7 +62,7 @@ function hasUsdcTransferTo(receipt: any, recipient: string, expectedAmount: stri
   });
 }
 
-/** Canonical CCTP destination settlement proof; arbitrary logs are never accepted. */
+/** Canonical CCTP destination settlement proof; event fields are checked by ABI position. */
 function hasCctpMintAndWithdraw(receipt: any, recipient: string, expectedAmount: string | undefined, usdcAddress: string, tokenMessenger: string): boolean {
   const logs = Array.isArray(receipt?.logs) ? receipt.logs : [];
   const target = normalizeAddress(recipient);
@@ -73,11 +73,20 @@ function hasCctpMintAndWithdraw(receipt: any, recipient: string, expectedAmount:
 
   return logs.some((log: any) => {
     const addr = normalizeAddress(String(log?.address || ""));
-    if (addr !== messenger && addr !== usdc) return false;
     const topic0 = String(log?.topics?.[0] || "").toLowerCase();
-    if (topic0 !== MINT_AND_WITHDRAW_TOPIC && topic0 !== MINT_AND_WITHDRAW_V2_TOPIC && topic0 !== MINT_TOPIC) return false;
     const topics: string[] = (log?.topics || []).map((t: any) => normalizeAddress(String(t || "")));
-    if (!topics.some((t) => t === target)) return false;
+
+    // CCTP TokenMessenger MintAndWithdraw: topic[1] is mintRecipient.
+    // Do not match topic[2], which is mintToken, as if it were the recipient.
+    if (topic0 === MINT_AND_WITHDRAW_TOPIC || topic0 === MINT_AND_WITHDRAW_V2_TOPIC) {
+      if (addr !== messenger || topics[1] !== target) return false;
+    } else if (topic0 === MINT_TOPIC) {
+      // USDC Mint event: topic[2] is the recipient.
+      if (addr !== usdc || topics[2] !== target) return false;
+    } else {
+      return false;
+    }
+
     const amt = eventAmount(log);
     if (amt === null) return false;
     if (amt === expected) return true;
