@@ -66,7 +66,7 @@ export async function POST(req: Request) {
 
   if (body.execute) {
     if (!body.confirmed || !body.confirmToken || !body.confirmationPreview) return NextResponse.json({ error: "confirm_required", message: "A fresh confirmation capability and action preview are required." }, { status: 403 });
-    const valid = consumeConfirmationToken({ token: body.confirmToken, wallet: wallet.address, action: { preview: previewAction(body.confirmationPreview) } });
+    const valid = await consumeConfirmationToken({ token: body.confirmToken, wallet: wallet.address, action: { preview: previewAction(body.confirmationPreview) } });
     if (!valid) return NextResponse.json({ error: "confirmation_mismatch", message: "Confirmation expired or does not match the reviewed action. Re-plan and confirm again." }, { status: 403 });
     const policyAction = previewPolicyAction(body.confirmationPreview);
     if (policyAction) {
