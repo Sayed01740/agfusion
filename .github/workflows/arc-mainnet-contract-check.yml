@@ -1,0 +1,25 @@
+name: Arc Mainnet contract checks
+
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/arc-mainnet-contract-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Install forge-std
+        working-directory: contracts
+        run: forge install foundry-rs/forge-std --no-commit
+      - name: Run Solidity tests and compile deployment scripts
+        working-directory: contracts
+        run: forge test -vv
