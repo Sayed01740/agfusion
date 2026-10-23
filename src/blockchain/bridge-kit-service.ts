@@ -219,11 +219,11 @@ async function waitForwardedMint(
       if (verified.status === "success") {
         recordBridgeDebug("cctp.destination.receipt.confirmed", { mintTx, destinationChain, recipient, amount }, debugId, "Destination mint receipt confirmed");
         recordBridgeDebug("cctp.iris.forwarded.confirmed", { burnTx, mintTx }, debugId, "Circle Forwarding Service confirmed destination mint");
-        notifyBridgeStep(txId, "COMPLETED", {
+        notifyBridgeStep(txId, "DESTINATION_PENDING", {
           approvalTxHash: approvalTx,
           burnTxHash: burnTx,
           destinationTxHash: mintTx,
-          message: "Destination mint confirmed!",
+          message: "Destination receipt confirmed; canonical USDC settlement verification is still required.",
         });
         return mintTx;
       }
@@ -382,9 +382,10 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   const settlement = await finalizeVerifiedTransaction(candidate, params.toChain);
   if (settlement.status !== "success") {
     notifyBridgeStep(debugId, "RECOVERABLE", { approvalTxHash: approvalTx, burnTxHash: burnTx, destinationTxHash: mintTx, message: "Destination transaction is confirmed, but canonical USDC settlement proof is still pending." });
-    return settlement;
+    return { ...settlement, bridgeState: loadBridgeState(debugId) ?? finalBridgeState ?? undefined };
   }
-  return settlement;
+  notifyBridgeStep(debugId, "COMPLETED", { approvalTxHash: approvalTx, burnTxHash: burnTx, destinationTxHash: mintTx, message: "Destination receipt and canonical USDC settlement verified on-chain." });
+  return { ...settlement, bridgeState: loadBridgeState(debugId) ?? undefined };
 }
 
 export async function runBridgeKitRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; failedTx?: TransactionRecord | null; txId?: string }): Promise<TransactionRecord> {
@@ -407,7 +408,32 @@ export async function runBridgeKitRecovery(params: { amount: string; fromChain: 
       const pendingMessage = `Existing source burn ${burnTx} is confirmed, but Circle Iris has not returned the destination mint yet. No new burn was submitted.`;
       return { ...(params.failedTx as TransactionRecord), id: debugId, status: "retryable", retryable: true, txHash: burnTx, explorerUrl: explorerTxUrl(burnTx), steps, message: pendingMessage, bridgeResult: { ...(params.failedTx?.bridgeResult as any), burnTxHash: burnTx, settlementPending: true }, bridgeState: finalBridgeState ?? undefined };
     }
-    return { ...(params.failedTx as TransactionRecord), id: debugId, status: "success", retryable: false, txHash: mintTx, explorerUrl: explorerTxUrl(mintTx), steps, message: `Recovered existing burn ${burnTx}; destination mint ${mintTx} confirmed.`, bridgeResult: { ...(params.failedTx?.bridgeResult as any), burnTxHash: burnTx, forwardTxHash: mintTx, settlementPending: false }, bridgeState: finalBridgeState ?? undefined };
+    const candidate: TransactionRecord = {
+      ...(params.failedTx as TransactionRecord),
+      id: debugId,
+      type: "bridge",
+      status: "retryable",
+      retryable: true,
+      amount: params.amount,
+      token: "USDC",
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      recipient,
+      txHash: mintTx,
+      explorerUrl: explorerTxUrl(mintTx),
+      steps,
+      message: `Recovered existing burn ${burnTx}; destination receipt found. Verifying canonical USDC settlement.`,
+      executionMode: "live",
+      bridgeResult: { ...(params.failedTx?.bridgeResult as any), burnTxHash: burnTx, forwardTxHash: mintTx, settlementPending: true },
+      bridgeState: finalBridgeState ?? undefined,
+    };
+    const settlement = await finalizeVerifiedTransaction(candidate, params.toChain);
+    if (settlement.status === "success") {
+      notifyBridgeStep(debugId, "COMPLETED", { burnTxHash: burnTx, destinationTxHash: mintTx, message: "Recovered bridge settlement verified on-chain." });
+      return { ...settlement, bridgeState: loadBridgeState(debugId) ?? undefined };
+    }
+    notifyBridgeStep(debugId, "RECOVERABLE", { burnTxHash: burnTx, destinationTxHash: mintTx, message: "Destination receipt found, but canonical USDC settlement proof remains pending." });
+    return { ...settlement, bridgeState: loadBridgeState(debugId) ?? undefined };
   }
   return runBridgeKitFlow({ amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient, txId: params.txId });
 }
