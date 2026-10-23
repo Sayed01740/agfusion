@@ -22,7 +22,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply non-breaking security fixes to lockfile
-        run: npm audit fix --package-lock-only --legacy-peer-deps
+        run: npm audit fix --package-lock-only --legacy-peer-deps || echo "Some advisories may remain; preserving any compatible lockfile fixes for review."
       - name: Commit lockfile if changed
         run: |
           if git diff --quiet -- package-lock.json; then
