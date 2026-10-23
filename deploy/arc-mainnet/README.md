@@ -33,7 +33,7 @@ or a dedicated project. Keep the current Testnet environment variables unchanged
   the intended multisig.
 - Run `npm run typecheck`, `npm test`, `npm run build`, and
   `forge test` from `contracts/` using the project's pinned toolchain.
-- Run `npm audit --omit=dev --audit-level=high` and review all remaining
+- Run `npm audit --omit=dev --audit-level=moderate` and review all remaining
   moderate/low findings, not only the CI threshold.
 - Complete end-to-end low-value canary tests for send, swap, bridge, escrow,
   agent spending, identity registration, x402, and transaction reconciliation.
