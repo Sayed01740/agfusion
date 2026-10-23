@@ -80,9 +80,18 @@ forge script script/DeployAGFusionDisperseMainnet.s.sol:DeployAGFusionDisperseMa
 ```
 
 Record each deployed address and transaction hash, verify the deployed bytecode
-and constructor/ownership settings, and only then configure the corresponding
-Mainnet environment variables in an isolated Vercel deployment. Do not overwrite
-the existing Testnet environment or reuse Testnet contract addresses.
+and constructor/ownership settings, and only then configure these network-specific
+frontend variables in an isolated Vercel deployment:
+
+- `NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS`
+- `NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS`
+- `NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS`
+- `NEXT_PUBLIC_ARC_MAINNET_RPC_URL`
+
+The frontend deliberately does not fall back to Testnet escrow or disperse
+addresses when a Mainnet address is absent. Leave Mainnet contract variables
+empty until the corresponding contract has actually been deployed and verified.
+Do not overwrite the existing Testnet environment or reuse Testnet contract addresses.
 
 ## Deploy to Arc Testnet (Chain ID 5042002)
 
