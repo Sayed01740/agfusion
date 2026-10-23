@@ -21,11 +21,11 @@ export const ARC_NETWORK_NAME = IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet";
 
 export const ARC_RPC =
   process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() ||
-  (IS_ARC_MAINNET ? "https://rpc.mainnet.arc.network" : "https://rpc.testnet.arc.network");
+  (IS_ARC_MAINNET ? "https://rpc.mainnet.arc.io" : "https://rpc.testnet.arc.network");
 
 export const ARC_WS =
   process.env.NEXT_PUBLIC_ARC_WS_URL?.trim() ||
-  (IS_ARC_MAINNET ? "wss://rpc.mainnet.arc.network" : "wss://rpc.testnet.arc.network");
+  (IS_ARC_MAINNET ? "wss://rpc.mainnet.arc.io" : "wss://rpc.testnet.arc.network");
 
 // Backward compatibility alias for testnet RPC exports
 export const ARC_TESTNET_RPC = ARC_RPC;
