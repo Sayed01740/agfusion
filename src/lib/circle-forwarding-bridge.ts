@@ -66,7 +66,12 @@ export async function runCircleEmailWalletForwardingBridge(params: { amount: str
     if (verified.status === "success") {
       const completedState = { ...state, state: "COMPLETED" as const, destinationTxHash: mintHash, error: undefined, updatedAt: Date.now() };
       saveBridgeState(completedState);
-      return { ...verified, bridgeState: completedState };
+      const verifiedSteps = (verified.steps || []).map((step) =>
+        /mint|receive|destination/i.test(step.name || "") && step.txHash?.toLowerCase() === mintHash.toLowerCase()
+          ? { ...step, state: "success" as const, message: "Destination mint receipt and canonical USDC settlement verified on-chain." }
+          : step,
+      );
+      return { ...verified, steps: verifiedSteps, bridgeState: completedState };
     }
     const pendingState = { ...state, state: "DESTINATION_PENDING" as const, destinationTxHash: mintHash, error: verified.message, updatedAt: Date.now() };
     saveBridgeState(pendingState);
