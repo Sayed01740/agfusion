@@ -64,3 +64,32 @@ test("rejects an invalid expected fee before contacting RPC", () => {
   assert.match(result.stderr, /AGFUSION_EXPECTED_ESCROW_FEE_BPS must be from 0 to 500/);
   assert.doesNotMatch(result.stderr, /fetch failed|ECONNREFUSED|RPC HTTP/);
 });
+test("rejects a zero deployment address before contacting RPC", () => {
+  const result = runPreflight({
+    NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS: "0x0000000000000000000000000000000000000000",
+    NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS: validAddress2,
+    NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS: validAddress3,
+    AGFUSION_EXPECTED_REGISTRY_OWNER: validAddress,
+    AGFUSION_EXPECTED_ESCROW_ARBITRATOR: validAddress2,
+    AGFUSION_EXPECTED_ESCROW_FEE_RECIPIENT: validAddress3,
+    AGFUSION_EXPECTED_ESCROW_FEE_BPS: "100",
+  });
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /Missing or invalid NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS/);
+  assert.doesNotMatch(result.stderr, /fetch failed|ECONNREFUSED|RPC HTTP/);
+});
+
+test("rejects a missing expected control address before contacting RPC", () => {
+  const result = runPreflight({
+    NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS: validAddress,
+    NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS: validAddress2,
+    NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS: validAddress3,
+    AGFUSION_EXPECTED_REGISTRY_OWNER: "",
+    AGFUSION_EXPECTED_ESCROW_ARBITRATOR: validAddress2,
+    AGFUSION_EXPECTED_ESCROW_FEE_RECIPIENT: validAddress3,
+    AGFUSION_EXPECTED_ESCROW_FEE_BPS: "100",
+  });
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /Missing or invalid AGFUSION_EXPECTED_REGISTRY_OWNER/);
+  assert.doesNotMatch(result.stderr, /fetch failed|ECONNREFUSED|RPC HTTP/);
+});
