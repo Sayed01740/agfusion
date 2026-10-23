@@ -6,6 +6,7 @@ import { createAppKitAdapterFromBrowser, getInjectedProvider, switchToChainId, g
 import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import { attachBridgeProviderDiagnostics, installBridgeGlobalDiagnostics, recordBridgeDebug, startBridgeDebugSession } from "@/lib/bridge-debug";
 import { initBridgeState, loadBridgeState, saveBridgeState, type BridgeState } from "@/lib/bridge-state";
+import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 
 type SdkStep = { name?: string; state?: string; txHash?: string; errorMessage?: string; error?: unknown; forwarded?: boolean; explorerUrl?: string; data?: unknown; [key: string]: unknown };
 type SdkBridgeResult = { state?: "pending" | "success" | "error" | string; steps?: SdkStep[]; amount?: string; source?: unknown; destination?: unknown; provider?: string; [key: string]: unknown };
@@ -18,7 +19,7 @@ function assertAddress(address: string): void { if (!/^0x[a-fA-F0-9]{40}$/.test(
 function isCompleted(result: SdkBridgeResult): boolean { const mint = findStep(result.steps, ["mint", "receive", "destination"]); return result.state === "success" && !!mint && mint.state === "success"; }
 function buildRecord(result: SdkBridgeResult, state: BridgeState, params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient: string }): TransactionRecord {
   const steps = toTxSteps(result.steps); const mintHash = findHash(result.steps, ["mint", "receive", "destination"]); const burnHash = findHash(result.steps, ["burn"]); const completed = isCompleted(result);
-  return { id: state.txId, type: "bridge", status: completed ? "success" : result.state === "error" ? "error" : "retryable", retryable: !completed, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, feeUsd: 0, steps: steps.length ? steps : [{ name: "CCTP bridge", state: "pending" }], txHash: mintHash || burnHash, explorerUrl: mintHash ? explorerTxUrl(mintHash, params.toChain as string) : burnHash ? explorerTxUrl(burnHash, params.fromChain as string) : undefined, createdAt: new Date(state.createdAt).toISOString(), message: completed ? `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Circle Forwarding Service confirmed the destination mint.` : result.state === "error" ? findStep(result.steps, ["error"])?.errorMessage || "Bridge failed." : "Source burn confirmed; Circle Forwarding Service has not yet confirmed the destination mint.", executionMode: "live", bridgeResult: result, bridgeState: state };
+  return { id: state.txId, type: "bridge", status: "retryable", retryable: true, amount: params.amount, token: "USDC", fromChain: params.fromChain, toChain: params.toChain, recipient: params.recipient, feeUsd: 0, steps: steps.length ? steps : [{ name: "CCTP bridge", state: "pending" }], txHash: mintHash || burnHash, explorerUrl: mintHash ? explorerTxUrl(mintHash, params.toChain as string) : burnHash ? explorerTxUrl(burnHash, params.fromChain as string) : undefined, createdAt: new Date(state.createdAt).toISOString(), message: completed ? `Circle SDK reported a destination mint for ${params.amount} USDC ${params.fromChain} → ${params.toChain}; verifying the destination receipt on-chain.` : result.state === "error" ? findStep(result.steps, ["error"])?.errorMessage || "Bridge failed." : "Source burn confirmed; Circle Forwarding Service has not yet confirmed the destination mint.", executionMode: "live", bridgeResult: result, bridgeState: state };
 }
 
 export async function runCircleEmailWalletForwardingBridge(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; txId?: string }): Promise<TransactionRecord> {
@@ -55,11 +56,21 @@ export async function runCircleEmailWalletForwardingBridge(params: { amount: str
     log("appkit.bridge.return", result);
     const burnHash = findHash(result.steps, ["burn"]); const mintHash = findHash(result.steps, ["mint", "receive", "destination"]); const completed = isCompleted(result);
     log("bridge.result.analysis", { state: result.state, burnHash, mintHash, completed, forwarding: true, steps: result.steps });
-    state = { ...state, burnTxHash: burnHash || state.burnTxHash, attestationData: result, state: completed ? "COMPLETED" : burnHash ? "RECOVERABLE" : "FAILED", error: completed ? undefined : "Destination mint has not been confirmed yet.", updatedAt: Date.now() }; saveBridgeState(state);
+    state = { ...state, burnTxHash: burnHash || state.burnTxHash, destinationTxHash: mintHash || state.destinationTxHash, attestationData: result, state: mintHash ? "DESTINATION_PENDING" : burnHash ? "RECOVERABLE" : "FAILED", error: mintHash ? "Destination receipt is awaiting on-chain verification." : "Destination mint has not been confirmed yet.", updatedAt: Date.now() }; saveBridgeState(state);
     const record = buildRecord(result, state, { amount: params.amount, fromChain: params.fromChain, toChain: params.toChain, recipient });
     log("bridge.record.created", { status: record.status, txHash: record.txHash, steps: record.steps, message: record.message });
     if (!completed && result.state === "error") { const failed = result.steps?.find((step) => step.state === "error"); throw new Error(failed?.errorMessage || "Circle CCTP bridge failed."); }
-    return record;
+    if (!mintHash) return { ...record, status: "retryable", retryable: true, message: "Circle SDK did not provide a destination transaction hash; settlement remains pending and will not be marked successful." };
+    const candidate = { ...record, status: "retryable" as const, retryable: true, txHash: mintHash, bridgeResult: { ...result, forwardTxHash: mintHash } };
+    const verified = await finalizeVerifiedTransaction(candidate, params.toChain);
+    if (verified.status === "success") {
+      const completedState = { ...state, state: "COMPLETED" as const, destinationTxHash: mintHash, error: undefined, updatedAt: Date.now() };
+      saveBridgeState(completedState);
+      return { ...verified, bridgeState: completedState };
+    }
+    const pendingState = { ...state, state: "DESTINATION_PENDING" as const, destinationTxHash: mintHash, error: verified.message, updatedAt: Date.now() };
+    saveBridgeState(pendingState);
+    return { ...verified, bridgeState: pendingState };
   } catch (error) { log("bridge.fatal", { error }, error instanceof Error ? error.message : String(error)); throw error instanceof Error ? error : new Error(String(error)); }
   finally { if (wildcardHandler && kit) { try { kit.off("*", wildcardHandler); } catch {} } stopGlobal(); log("diagnostics.end"); }
 }
