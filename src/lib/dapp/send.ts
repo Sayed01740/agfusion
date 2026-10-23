@@ -61,7 +61,7 @@ export async function sendArcToken(params: {
 
   const steps: TxStep[] = [
     { name: "Connect wallet", state: "active" },
-    { name: `Switch to ${networkLabel}`, state: "pending" },
+    { name: "Switch to Arc network", state: "pending" },
     { name: `Sign & send ${params.token.symbol}`, state: "pending" },
     { name: "Confirm finality", state: "pending" },
   ];
