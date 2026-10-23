@@ -1,4 +1,4 @@
-name: Refresh patched dependency lockfile
+name: Prepare patched dependency lockfile for review
 
 on:
   push:
@@ -8,32 +8,41 @@ on:
       - "package.json"
   workflow_dispatch:
 
+# Dependency installation/audit must never have permission to push to the repository.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  refresh-lockfile:
+  prepare-lockfile:
     if: github.repository == 'Sayed01740/agfusion'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/arc-mainnet-isolated
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Apply non-breaking security fixes to lockfile
-        run: npm audit fix --package-lock-only --legacy-peer-deps || echo "Some advisories may remain; preserving any compatible lockfile fixes for review."
-      - name: Commit lockfile if changed
+      - name: Prepare compatible security fixes locally
+        run: npm audit fix --package-lock-only --legacy-peer-deps
+      - name: Detect proposed lockfile changes
+        id: diff
+        shell: bash
         run: |
           if git diff --quiet -- package-lock.json; then
-            echo "Lockfile already up to date."
-            exit 0
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No lockfile changes were proposed."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Lockfile changes are ready for human review; no repository files were pushed."
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "chore: refresh patched dependency lockfile"
-          git push origin "HEAD:feat/arc-mainnet-isolated"
+      - name: Upload proposed lockfile for review
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: proposed-patched-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
