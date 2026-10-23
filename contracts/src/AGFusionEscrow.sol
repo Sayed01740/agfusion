@@ -231,6 +231,12 @@ contract AGFusionEscrow {
             task.status == TaskStatus.Active || task.status == TaskStatus.Submitted,
             "CANNOT_DISPUTE"
         );
+        // An expired task with no submitted proof must remain eligible for the
+        // permissionless refund path; do not let a late dispute freeze it.
+        require(
+            task.status != TaskStatus.Active || block.timestamp < task.deadline,
+            "DEADLINE_PASSED"
+        );
 
         task.status = TaskStatus.Disputed;
         emit TaskDisputed(taskId, msg.sender, reasonUri);
