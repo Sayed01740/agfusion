@@ -257,7 +257,7 @@ export function deriveBridgeState(
 
   let derived: BridgeStateName = existing.state;
   const anyError = steps.some((s) => s.state === "error");
-  if (mintOk) derived = "COMPLETED";
+  if (mintOk) derived = "DESTINATION_PENDING";
   else if (anyError) derived = "FAILED";
   else if (burnOk && attestOk) derived = "DESTINATION_PENDING";
   else if (burnOk) derived = "ATTESTATION_PENDING";
