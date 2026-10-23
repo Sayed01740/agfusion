@@ -21,8 +21,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Refresh compatible lockfile resolutions
-        run: npm install --package-lock-only --legacy-peer-deps
+      - name: Apply non-breaking security fixes to lockfile
+        run: npm audit fix --package-lock-only --legacy-peer-deps
       - name: Commit lockfile if changed
         run: |
           if git diff --quiet -- package-lock.json; then
