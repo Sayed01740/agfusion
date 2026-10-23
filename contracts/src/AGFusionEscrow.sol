@@ -199,6 +199,7 @@ contract AGFusionEscrow {
         require(task.id == taskId, "TASK_NOT_FOUND");
         require(msg.sender == task.agent, "ONLY_ASSIGNED_AGENT");
         require(task.status == TaskStatus.Active, "INVALID_STATUS");
+        require(block.timestamp < task.deadline, "DEADLINE_PASSED");
         require(bytes(proofUri).length > 0, "EMPTY_PROOF");
 
         task.status = TaskStatus.Submitted;
