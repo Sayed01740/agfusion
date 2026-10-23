@@ -475,7 +475,7 @@ export async function runProductionSwap(params: {
 
   await switchToChainId(provider, targetChain);
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
-  const amountIn = normalizeAmount(params.amount, tokenIn);
+  const amountIn = normalizeAmount(params.amount, tokenIn, isMainnet);
   const quote = await getArcDexSwapQuote({ ...params, chain: targetChain });
 
   const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut, isMainnet));
