@@ -19,7 +19,8 @@ import {
 import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
 import {
-  DISPERSE_ADDRESS,
+  getDisperseAddressForNetwork,
+  getToken,
   isAddress,
   isDisperseConfigured,
   type ArcToken,
@@ -114,28 +115,33 @@ export async function runBatchDisperse(params: {
   if (typeof window === "undefined") {
     throw new Error("Batch send must run in the browser with your connected wallet.");
   }
-  if (!isDisperseConfigured()) {
-    throw new Error(
-      "Disperse contract not configured. Deploy AGFusionDisperse and set NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS.",
-    );
-  }
-
-  const spender = DISPERSE_ADDRESS as Address;
-  const { recipients, values, total, totalDisplay } = validateBatch(params.rows, params.token);
-
   const id = uid("tx");
 
-  // ── Detect network early so we can label steps correctly ──────────────────
+  // Detect the active network before resolving either the token or contract.
   const provider = params.provider || (await getInjectedProvider());
-  const detectedChainId = await getChainId(provider);
-  const meta = getArcNetworkMeta(detectedChainId);
+  let meta = getArcNetworkMeta(await getChainId(provider));
+  if (!meta.isArc) {
+    await switchToArcNetwork(provider);
+    meta = getArcNetworkMeta(await getChainId(provider));
+  }
+  if (!meta.isArc) throw new Error("Wallet is not connected to Arc Mainnet or Arc Testnet.");
+
+  if (!isDisperseConfigured(meta.isMainnet)) {
+    throw new Error(meta.isMainnet
+      ? "Mainnet Disperse is not configured. Set NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS to the reviewed Mainnet deployment."
+      : "Testnet Disperse is not configured. Set NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS.");
+  }
+
+  const spender = getDisperseAddressForNetwork(meta.isMainnet) as Address;
+  const networkToken = getToken(networkToken.symbol, meta.isMainnet);
+  const { recipients, values, total, totalDisplay } = validateBatch(params.rows, networkToken);
   const networkLabel = meta.isMainnet ? "Arc Mainnet" : "Arc Testnet";
   const activeChain: "Arc" | "Arc_Testnet" = meta.isMainnet ? "Arc" : "Arc_Testnet";
 
   const steps: TxStep[] = [
     { name: "Connect wallet", state: "active" },
     { name: `Switch to ${networkLabel}`, state: "pending" },
-    { name: `Approve ${params.token.symbol}`, state: "pending" },
+    { name: `Approve ${networkToken.symbol}`, state: "pending" },
     { name: `Send to ${recipients.length} recipients`, state: "pending" },
     { name: "Confirm finality", state: "pending" },
   ];
@@ -158,7 +164,7 @@ export async function runBatchDisperse(params: {
 
   // --- Step 1: approval (only when the current allowance is insufficient) ---
   let approvalTxHash: `0x${string}` | undefined;
-  const allowance = await readAllowance(params.token.address, from, spender);
+  const allowance = await readAllowance(networkToken.address, from, spender, meta.isMainnet);
   if (allowance < total) {
     try {
       approvalTxHash = String(
@@ -167,7 +173,7 @@ export async function runBatchDisperse(params: {
           params: [
             {
               from,
-              to: params.token.address,
+              to: networkToken.address,
               data: encodeApprove(spender),
               gas: `0x${APPROVE_GAS.toString(16)}`,
               value: "0x0",
@@ -194,7 +200,7 @@ export async function runBatchDisperse(params: {
   const data = encodeFunctionData({
     abi: DISPERSE_ABI,
     functionName: "disperseToken",
-    args: [params.token.address, recipients, values],
+    args: [networkToken.address, recipients, values],
   });
 
   let hash: `0x${string}`;
@@ -250,7 +256,7 @@ export async function runBatchDisperse(params: {
     status,
     retryable: status === "retryable",
     amount: totalDisplay,
-    token: params.token.symbol,
+    token: networkToken.symbol,
     fromChain: activeChain,
     toChain: activeChain,
     recipient: `${recipients.length} recipients`,
@@ -260,7 +266,7 @@ export async function runBatchDisperse(params: {
     txHash: hash,
     explorerUrl: explorerTxUrl(hash),
     createdAt: new Date().toISOString(),
-    message: `Single-signature batch of ${recipients.length} ${params.token.symbol} payouts — ${finalityMessage}`,
+    message: `Single-signature batch of ${recipients.length} ${networkToken.symbol} payouts — ${finalityMessage}`,
     executionMode: "live",
   };
 }
