@@ -315,10 +315,7 @@ contract AGFusionEscrow {
         } else {
             if (fee > 0) {
                 // Attempt fee transfer; on failure, add fee back to agent payout
-                (bool feeOk, bytes memory feeData) = token.call(
-                    abi.encodeWithSelector(IERC20Minimal.transfer.selector, feeRecipient, fee)
-                );
-                bool feeTransferred = feeOk && (feeData.length == 0 || abi.decode(feeData, (bool)));
+                bool feeTransferred = _tryTransferFee(token, feeRecipient, fee);
                 if (!feeTransferred) {
                     net = total;
                     fee = 0;
@@ -348,6 +345,23 @@ contract AGFusionEscrow {
     }
 
     // --- Safe ERC-20 internal helpers ---
+    /// @dev Fee transfers are best-effort: malformed optional return data is a
+    /// failed fee transfer, not a reason to block the agent's payout.
+    function _tryTransferFee(address token, address to, uint256 amount) internal returns (bool) {
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, amount)
+        );
+        if (!success) return false;
+        if (data.length == 0) return true;
+        if (data.length < 32) return false;
+
+        uint256 returnValue;
+        assembly {
+            returnValue := mload(add(data, 32))
+        }
+        return returnValue == 1;
+    }
+
     function _safeTransfer(address token, address to, uint256 amount) internal {
         (bool success, bytes memory data) = token.call(
             abi.encodeWithSelector(IERC20Minimal.transfer.selector, to, amount)
