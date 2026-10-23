@@ -143,7 +143,7 @@ describe("finalizeVerifiedTransaction", () => {
   it("rejects a CCTP event where only the mint-token topic matches the recipient", async () => {
     mockedVerify.mockResolvedValue({
       status: "success",
-      receipt: { logs: [mintAndWithdrawLog(RECIPIENT === USDC ? USDC : "0x2222222222222222222222222222222222222222", RECIPIENT, "5")] },
+      receipt: { logs: [mintAndWithdrawLog("0x2222222222222222222222222222222222222222", RECIPIENT, "5")] },
     });
 
     const record = {
