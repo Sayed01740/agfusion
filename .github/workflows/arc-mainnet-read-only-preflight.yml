@@ -6,6 +6,7 @@ on:
       - feat/arc-mainnet-isolated
     paths:
       - "scripts/verify-arc-mainnet.mjs"
+      - "scripts/verify-arc-mainnet.test.mjs"
       - ".github/workflows/arc-mainnet-read-only-preflight.yml"
   workflow_dispatch:
 
@@ -25,3 +26,5 @@ jobs:
         run: npm ci --legacy-peer-deps
       - name: Validate read-only preflight script syntax
         run: node --check scripts/verify-arc-mainnet.mjs
+      - name: Test fail-closed configuration validation
+        run: node --test scripts/verify-arc-mainnet.test.mjs
