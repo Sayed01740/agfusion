@@ -47,6 +47,16 @@ export async function POST(req: Request) {
   }
 
   const claimedSmartAccount = body.wallet?.smartAccountAddress?.toLowerCase();
+  // Until a trusted server-side smart-account ownership mapping is available,
+  // do not execute from a client-claimed account different from the SIWE wallet.
+  // Otherwise the budget could be charged to one address while funds leave another.
+  if (body.execute && claimedSmartAccount && claimedSmartAccount !== session?.address.toLowerCase()) {
+    return NextResponse.json(
+      { error: "smart_account_owner_unverified", message: "Execution from a separate smart account is disabled until its ownership is verified." },
+      { status: 403 },
+    );
+  }
+
   const wallet = {
     ...body.wallet,
     address: session?.address || body.wallet?.address || null,
