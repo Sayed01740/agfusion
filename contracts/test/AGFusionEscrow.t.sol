@@ -303,6 +303,33 @@ contract AGFusionEscrowTest is Test {
         escrow.setFeeBps(200);
     }
 
+    function test_SettlePayment_handlesMaximumUintAmountWithoutFeeOverflow() public {
+        MockToken hugeToken = new MockToken();
+        uint256 amount = type(uint256).max;
+        hugeToken.mint(client, amount);
+
+        vm.startPrank(client);
+        hugeToken.approve(address(escrow), amount);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(hugeToken),
+            amount,
+            3600,
+            "details"
+        );
+        vm.stopPrank();
+
+        uint256 expectedFee = (amount / 10000) * feeBps + ((amount % 10000) * feeBps) / 10000;
+        uint256 expectedNet = amount - expectedFee;
+
+        vm.prank(client);
+        escrow.releasePayment(taskId);
+
+        assertEq(hugeToken.balanceOf(agent), expectedNet);
+        assertEq(hugeToken.balanceOf(feeRecipient), expectedFee);
+        assertEq(hugeToken.balanceOf(address(escrow)), 0);
+    }
+
     function test_SettlePayment_malformedFeeReturnDoesNotBlockAgentPayout() public {
         MalformedFeeReturnMockToken malformedToken = new MalformedFeeReturnMockToken();
         malformedToken.mint(client, 100 ether);
