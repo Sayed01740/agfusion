@@ -101,11 +101,17 @@ export async function getArcWalletAddParams(): Promise<{
     const live = await fetchArcChainIdFromRpc(rpc);
     chainId = live.hex;
     if (live.decimal !== ARC_CHAIN_ID) {
-      console.warn(
-        `[AGFusion] RPC chainId decimal ${live.decimal} != expected ${ARC_CHAIN_ID}`,
-      );
+      const message = `[AGFusion] RPC chainId decimal ${live.decimal} != expected ${ARC_CHAIN_ID}`;
+      // Mainnet must fail closed rather than offer a wallet configuration for
+      // an RPC endpoint that points at a different chain. Keep Testnet's
+      // existing warning/fallback behavior unchanged.
+      if (IS_ARC_MAINNET) throw new Error(message);
+      console.warn(message);
     }
   } catch (e) {
+    if (IS_ARC_MAINNET) {
+      throw new Error("[AGFusion] Arc Mainnet RPC validation failed; refusing wallet network setup.", { cause: e });
+    }
     console.warn("[AGFusion] using static chainId hex; RPC probe failed", e);
   }
 
