@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /**
  * @title AGFusionEscrow
- * @notice Production-grade on-chain escrow for AI Agents and Autonomous Tasks on Arc Network (chainId 5042002).
+ * @notice On-chain escrow for AI Agents and Autonomous Tasks on Arc Network (Mainnet chainId 5042 / Testnet chainId 5042002).
  * @dev Supports both canonical ERC-20 USDC (6 decimals) and native Arc USDC (18 decimals).
  *      Includes arbitrator dispute resolution, protocol fee support, and permissionless keeper refunds.
  */
