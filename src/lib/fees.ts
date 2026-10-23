@@ -51,7 +51,8 @@ export function quoteSendFee(amount?: string): FeeQuote {
       },
     ],
     headline: formatUsdc(gas + SEND_PROTOCOL),
-    tip: IS_ARC_MAINNET\n      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
+    tip: IS_ARC_MAINNET
+      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
       : "Gas is a line item in USDC, not a volatile token market.",
   };
 }
@@ -77,7 +78,8 @@ export function quoteBridgeFee(amount?: string): FeeQuote {
       },
     ],
     headline: formatUsdc(total),
-    tip: IS_ARC_MAINNET\n      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
+    tip: IS_ARC_MAINNET
+      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
       : "Predictable dollar-based costs for transfer + settlement.",
   };
 }
@@ -95,7 +97,8 @@ export function quoteSwapFee(amount?: string): FeeQuote {
       { id: "gas", label: "Network gas (USDC)", amountUsdc: gas },
     ],
     headline: formatUsdc(total),
-    tip: IS_ARC_MAINNET\n      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
+    tip: IS_ARC_MAINNET
+      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
       : "USDC ↔ EURC with transparent, USDC-denominated fees.",
   };
 }
@@ -114,7 +117,8 @@ export function quoteX402Fee(tool = "risk_oracle"): FeeQuote {
       },
     ],
     headline: formatUsdc(amount, 6),
-    tip: IS_ARC_MAINNET\n      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
+    tip: IS_ARC_MAINNET
+      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
       : "Machine-to-machine payment — sub-cent, USDC on Arc.",
   };
 }
@@ -133,7 +137,8 @@ export function quotePayrollBatchFee(recipientCount: number): FeeQuote {
       },
     ],
     headline: formatUsdc(gas),
-    tip: IS_ARC_MAINNET\n      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
+    tip: IS_ARC_MAINNET
+      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
       : "Scheduled / multi-send payroll — each leg settles in USDC gas.",
   };
 }
@@ -147,7 +152,8 @@ export function feeFromUsd(feeUsd?: number): FeeQuote {
       { id: "total", label: "Estimated total (USDC)", amountUsdc: n },
     ],
     headline: formatUsdc(n),
-    tip: IS_ARC_MAINNET\n      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
+    tip: IS_ARC_MAINNET
+      ? "Illustrative estimate only, not a live provider quote. Verify final fees before signing."
       : "Quoted in USDC on Arc — budgetable by finance teams.",
   };
 }
