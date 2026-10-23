@@ -23,15 +23,20 @@ import {
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { uid } from "@/lib/utils";
 
-export const ESCROW_ADDRESS: Address | undefined = getNetworkContractAddress(
-  IS_ARC_MAINNET,
-  process.env.NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS,
-  process.env.NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS,
-  process.env.NEXT_PUBLIC_ESCROW_CONTRACT,
-) as Address | undefined;
+export function getEscrowAddressForNetwork(isMainnet: boolean = IS_ARC_MAINNET): Address | undefined {
+  return getNetworkContractAddress(
+    isMainnet,
+    process.env.NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS,
+    process.env.NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS,
+    process.env.NEXT_PUBLIC_ESCROW_CONTRACT,
+  ) as Address | undefined;
+}
 
-export function isEscrowConfigured(): boolean {
-  return Boolean(ESCROW_ADDRESS);
+/** Build-time convenience for UI status; transaction paths should use the detected wallet network. */
+export const ESCROW_ADDRESS: Address | undefined = getEscrowAddressForNetwork();
+
+export function isEscrowConfigured(isMainnet: boolean = IS_ARC_MAINNET): boolean {
+  return Boolean(getEscrowAddressForNetwork(isMainnet));
 }
 
 export const ESCROW_ABI = [
@@ -130,11 +135,12 @@ export type OnChainEscrowTask = {
 
 const STATUS_MAP = ["Active", "Submitted", "Released", "Disputed", "Refunded"] as const;
 
-export async function fetchEscrowTask(taskId: number): Promise<OnChainEscrowTask | null> {
-  if (!ESCROW_ADDRESS) return null;
+export async function fetchEscrowTask(taskId: number, isMainnet: boolean = IS_ARC_MAINNET): Promise<OnChainEscrowTask | null> {
+  const escrowAddress = getEscrowAddressForNetwork(isMainnet);
+  if (!escrowAddress) return null;
   try {
     const raw = (await arcPublicClient().readContract({
-      address: ESCROW_ADDRESS,
+      address: escrowAddress,
       abi: ESCROW_ABI,
       functionName: "getTask",
       args: [BigInt(taskId)],
@@ -184,17 +190,20 @@ export async function runCreateEscrowTask({
   const provider = await getInjectedProvider();
   if (!provider) throw new Error("No browser wallet detected.");
 
-  const currentChainId = await getChainId(provider);
-  const meta = getArcNetworkMeta(currentChainId);
-  if (!meta.isArc) {
-    await switchToArcNetwork(provider);
+  let meta = getArcNetworkMeta(await getChainId(provider));
+  if (!meta.isArc || meta.isMainnet !== IS_ARC_MAINNET) {
+    await switchToArcNetwork(provider, IS_ARC_MAINNET ? 5042 : 5042002);
+    meta = getArcNetworkMeta(await getChainId(provider));
+  }
+  if (!meta.isArc || meta.isMainnet !== IS_ARC_MAINNET) {
+    throw new Error("Wallet network does not match the configured Arc environment.");
   }
 
   const accounts = await requestAccounts(provider);
   const user = accounts[0]?.toLowerCase() as Address;
   if (!user) throw new Error("Wallet not connected.");
 
-  const escrowContract = ESCROW_ADDRESS;
+  const escrowContract = getEscrowAddressForNetwork(meta.isMainnet);
   if (!escrowContract) {
     throw new Error(
       IS_ARC_MAINNET
@@ -215,7 +224,7 @@ export async function runCreateEscrowTask({
   emit();
 
   if (!isNative) {
-    const currentAllowance = await readAllowance(tokenAddr, user, escrowContract);
+    const currentAllowance = await readAllowance(tokenAddr, user, escrowContract, meta.isMainnet);
     if (currentAllowance < parsedAmount) {
       steps[0] = {
         name: `Approve ${token.symbol} for Escrow`,
@@ -245,7 +254,7 @@ export async function runCreateEscrowTask({
       };
       emit();
 
-      await arcPublicClient().waitForTransactionReceipt({
+      await arcPublicClient(meta.isMainnet).waitForTransactionReceipt({
         hash: approveTxHash as `0x${string}`,
       });
     }
@@ -303,7 +312,7 @@ export async function runCreateEscrowTask({
   };
   emit();
 
-  const receipt = await arcPublicClient().waitForTransactionReceipt({
+  const receipt = await arcPublicClient(meta.isMainnet).waitForTransactionReceipt({
     hash: txHash as `0x${string}`,
   });
 
@@ -339,8 +348,21 @@ export async function runReleaseEscrowPayment(taskId: number): Promise<string> {
   const provider = await getInjectedProvider();
   if (!provider) throw new Error("No browser wallet detected.");
 
-  const escrowContract = ESCROW_ADDRESS;
-  if (!escrowContract) throw new Error("Escrow contract not configured.");
+  let meta = getArcNetworkMeta(await getChainId(provider));
+  if (!meta.isArc || meta.isMainnet !== IS_ARC_MAINNET) {
+    await switchToArcNetwork(provider, IS_ARC_MAINNET ? 5042 : 5042002);
+    meta = getArcNetworkMeta(await getChainId(provider));
+  }
+  if (!meta.isArc || meta.isMainnet !== IS_ARC_MAINNET) {
+    throw new Error("Wallet network does not match the configured Arc environment.");
+  }
+
+  const escrowContract = getEscrowAddressForNetwork(meta.isMainnet);
+  if (!escrowContract) {
+    throw new Error(meta.isMainnet
+      ? "Mainnet escrow is not configured. Set NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS."
+      : "Testnet escrow contract is not configured.");
+  }
 
   const accounts = await requestAccounts(provider);
   const user = accounts[0]?.toLowerCase() as Address;
