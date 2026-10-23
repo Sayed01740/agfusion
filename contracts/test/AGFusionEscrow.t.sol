@@ -35,6 +35,48 @@ contract MockToken {
     }
 }
 
+contract MalformedFeeReturnMockToken {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    address public malformedRecipient;
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function setMalformedRecipient(address recipient) external {
+        malformedRecipient = recipient;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(balanceOf[msg.sender] >= amount, "BAL");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        if (to == malformedRecipient) {
+            assembly {
+                mstore(0, 1)
+                return(31, 1)
+            }
+        }
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        require(balanceOf[from] >= amount, "BAL");
+        uint256 a = allowance[from][msg.sender];
+        require(a >= amount, "ALLOWANCE");
+        if (a != type(uint256).max) allowance[from][msg.sender] = a - amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
 contract FeeOnTransferMockToken {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
@@ -257,6 +299,34 @@ contract AGFusionEscrowTest is Test {
         vm.prank(client);
         vm.expectRevert("ONLY_ARBITRATOR");
         escrow.setFeeBps(200);
+    }
+
+    function test_SettlePayment_malformedFeeReturnDoesNotBlockAgentPayout() public {
+        MalformedFeeReturnMockToken malformedToken = new MalformedFeeReturnMockToken();
+        malformedToken.mint(client, 100 ether);
+        malformedToken.setMalformedRecipient(feeRecipient);
+
+        vm.startPrank(client);
+        malformedToken.approve(address(escrow), 10 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(malformedToken),
+            10 ether,
+            3600,
+            "details"
+        );
+        vm.stopPrank();
+
+        vm.prank(client);
+        escrow.releasePayment(taskId);
+
+        // A short/malformed optional bool return from the fee transfer is
+        // treated as fee failure; the full amount is paid to the agent.
+        assertEq(malformedToken.balanceOf(agent), 10 ether);
+        assertEq(malformedToken.balanceOf(feeRecipient), 0);
+        assertEq(malformedToken.balanceOf(address(escrow)), 0);
+        AGFusionEscrow.Task memory task = escrow.getTask(taskId);
+        assertEq(uint256(task.status), uint256(AGFusionEscrow.TaskStatus.Released));
     }
 
     function test_SettlePayment_feeFailureDecoupled() public {
