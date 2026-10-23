@@ -71,7 +71,7 @@ try {
   const rawChainId = String(await rpc("eth_chainId")).trim().toLowerCase();
   const chainId = rawChainId.startsWith("0x")
     ? Number.parseInt(rawChainId.slice(2), 16)
-    : /^\\d+$/.test(rawChainId)
+    : /^\d+$/.test(rawChainId)
       ? Number(rawChainId)
       : Number.NaN;
   if (!Number.isSafeInteger(chainId) || chainId !== expectedChainId) {
@@ -94,7 +94,7 @@ try {
   requireAddress("AGFUSION_EXPECTED_ESCROW_ARBITRATOR", expectedArbitrator);
   requireAddress("AGFUSION_EXPECTED_ESCROW_FEE_RECIPIENT", expectedFeeRecipient);
 
-  if (!/^\\d+$/.test(expectedFeeBpsRaw)) {
+  if (!/^\d+$/.test(expectedFeeBpsRaw)) {
     throw new Error("AGFUSION_EXPECTED_ESCROW_FEE_BPS must be explicitly set to an integer from 0 to 500.");
   }
   const expectedFeeBps = Number(expectedFeeBpsRaw);
