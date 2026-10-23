@@ -1,8 +1,11 @@
 /**
  * AGFusion final policy: LIVE ONLY.
  * Public config is intentionally minimal — no internal infra details.
+ *
+ * Network identity comes from the canonical Arc chain module so Mainnet
+ * config does not require changing the working Testnet code path.
  */
-
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME } from "@/lib/arc-chain";
 import { llmPublicStatus } from "@/lib/llm-config";
 
 export type AppExecutionMode = "demo" | "live";
@@ -33,8 +36,7 @@ export function maxTransferAmount(): number {
 
 /**
  * Safe for browsers / unauthenticated clients.
- * Never expose the full Circle kit key here (was scrapeable on /api/config).
- * Browser uses NEXT_PUBLIC_KIT_KEY or user paste in Stablecoin FX.
+ * Never expose the full Circle kit key here.
  */
 export function getAppConfigPublic() {
   const raw = (
@@ -44,7 +46,6 @@ export function getAppConfigPublic() {
   ).trim();
 
   const kitKeyConfigured = Boolean(raw);
-  // Last 4 of secret segment only — enough to confirm "saved", not reusable
   let kitKeyHint: string | null = null;
   if (raw) {
     const parts = raw.replace(/^KIT_KEY:/i, "").split(":");
@@ -54,12 +55,12 @@ export function getAppConfigPublic() {
 
   return {
     product: "AGFusion",
-    network: "Arc Testnet",
-    chainId: 5042002,
+    network: ARC_NETWORK_NAME,
+    chainId: ARC_CHAIN_ID,
     liveOnly: true,
     kitKeyConfigured,
     kitKeyHint,
-    /** @deprecated never return full key — use NEXT_PUBLIC_KIT_KEY or paste */
+    /** @deprecated never return full key — use a provider-approved browser key or user paste */
     kitKey: null as string | null,
     ...(() => {
       const s = llmPublicStatus();
@@ -70,9 +71,7 @@ export function getAppConfigPublic() {
         llmProvidersAvailable: s.providersAvailable,
         anthropicKeyShapeOk: s.anthropicKeyShapeOk,
         llmBaseHost: s.baseUrlHost,
-        /** Length of server LLM key (not the key itself) */
         llmKeyLen: s.llmKeyLen,
-        /** First 4 chars only — e.g. "sk-a" — to confirm paste shape */
         llmKeyPrefix: s.llmKeyPrefix,
       };
     })(),
@@ -84,7 +83,7 @@ export function getAppConfigInternal() {
   return {
     executionMode: "live" as const,
     allowDemo: false,
-    chainId: 5042002,
+    chainId: ARC_CHAIN_ID,
     maxTransferAmount: maxTransferAmount(),
     version: "1.0.0-final",
   };
