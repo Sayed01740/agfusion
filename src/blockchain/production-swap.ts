@@ -85,10 +85,10 @@ export function normalizeSlippageBps(value: number): number {
   return bps;
 }
 
-function normalizeAmount(amount: string, token: ArcSwapToken): bigint {
+function normalizeAmount(amount: string, token: ArcSwapToken, isMainnet = false): bigint {
   const n = Number(amount);
   if (!amount || !Number.isFinite(n) || n <= 0) throw new Error("Enter a valid swap amount.");
-  return parseUnits(amount, ROUTER_DECIMALS[token]);
+  return parseUnits(amount, effectiveDecimals(token, isMainnet));
 }
 
 /**
@@ -197,7 +197,10 @@ function effectiveAddress(token: ArcSwapToken, isMainnet: boolean): `0x${string}
   return token === "USDC" ? TESTNET_WUSDC : TOKENS_BY_CHAIN.Arc_Testnet[token];
 }
 
-function effectiveDecimals(token: ArcSwapToken): number {
+function effectiveDecimals(token: ArcSwapToken, isMainnet = false): number {
+  // Arc Mainnet's native USDC ERC-20 interface uses 6 decimals. The Testnet
+  // wrapped USDC pool uses 18 decimals; never reuse its scaling on Mainnet.
+  if (isMainnet && token === "USDC") return 6;
   return ROUTER_DECIMALS[token];
 }
 
@@ -324,7 +327,7 @@ export async function getArcDexSwapQuote(params: {
     );
   }
 
-  const amountIn = normalizeAmount(params.amount, tokenIn);
+  const amountIn = normalizeAmount(params.amount, tokenIn, isMainnet);
   const a = effectiveAddress(tokenIn, false);
   const b = effectiveAddress(tokenOut, false);
   const paths: `0x${string}`[][] = [];
@@ -359,7 +362,7 @@ export async function getArcDexSwapQuote(params: {
   const best = candidates[0];
 
   return {
-    amountOut: formatUnits(best.out, effectiveDecimals(tokenOut)),
+    amountOut: formatUnits(best.out, effectiveDecimals(tokenOut, false)),
     route: best.path.length === 2 ? "ApexiSwap Direct Pool" : "ApexiSwap via WUSDC",
     slippageBps: DEFAULT_SLIPPAGE_BPS,
     path: best.path,
@@ -475,7 +478,7 @@ export async function runProductionSwap(params: {
   const amountIn = normalizeAmount(params.amount, tokenIn);
   const quote = await getArcDexSwapQuote({ ...params, chain: targetChain });
 
-  const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut));
+  const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut, isMainnet));
   const minOut = isMainnet ? quotedOut : (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = (await blockTimestamp(provider)) + 300n;
 
