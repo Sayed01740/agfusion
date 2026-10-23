@@ -19,7 +19,7 @@ contract DeployAGFusionDisperseMainnet is Script {
         AGFusionDisperse disperse = new AGFusionDisperse();
         vm.stopBroadcast();
 
-        require(disperse.VERSION().length > 0, "DEPLOYMENT_CHECK_FAILED");
+        require(bytes(disperse.VERSION()).length > 0, "DEPLOYMENT_CHECK_FAILED");
         console2.log("AGFusionDisperse deployed at:", address(disperse));
         console2.log("Version:", disperse.VERSION());
     }
