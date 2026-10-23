@@ -124,6 +124,23 @@ describe("finalizeVerifiedTransaction", () => {
     expect(result.steps.some((step) => step.name === "USDC Transfer event")).toBe(true);
   });
 
+  it("rejects a partial forwarded USDC Transfer instead of accepting a fee-sized amount", async () => {
+    mockedVerify.mockResolvedValue({
+      status: "success",
+      receipt: { logs: [transferLog("4.5")] },
+    });
+
+    const record = {
+      ...baseBridgeRecord(),
+      bridgeResult: { forwardTxHash: TX },
+    };
+    const result = await finalizeVerifiedTransaction(record, "Arc_Testnet");
+
+    expect(result.status).toBe("retryable");
+    expect(result.retryable).toBe(true);
+    expect(result.message).toContain("no canonical USDC settlement event");
+  });
+
   it("accepts a CCTP MintAndWithdraw event only when topic[1] is the recipient", async () => {
     mockedVerify.mockResolvedValue({
       status: "success",
@@ -138,6 +155,23 @@ describe("finalizeVerifiedTransaction", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps.some((step) => step.name === "CCTP MintAndWithdraw event")).toBe(true);
+  });
+
+  it("rejects a partial CCTP MintAndWithdraw amount", async () => {
+    mockedVerify.mockResolvedValue({
+      status: "success",
+      receipt: { logs: [mintAndWithdrawLog(RECIPIENT, USDC, "4.5")] },
+    });
+
+    const record = {
+      ...baseBridgeRecord(),
+      bridgeResult: { forwardTxHash: TX },
+    };
+    const result = await finalizeVerifiedTransaction(record, "Arc_Testnet");
+
+    expect(result.status).toBe("retryable");
+    expect(result.retryable).toBe(true);
+    expect(result.message).toContain("no canonical USDC settlement event");
   });
 
   it("rejects a CCTP event where only the mint-token topic matches the recipient", async () => {
