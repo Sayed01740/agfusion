@@ -5,7 +5,7 @@
  * Network identity comes from the canonical Arc chain module so Mainnet
  * config does not require changing the working Testnet code path.
  */
-import { ARC_CHAIN_ID, ARC_NETWORK_NAME } from "@/lib/arc-chain";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { llmPublicStatus } from "@/lib/llm-config";
 
 export type AppExecutionMode = "demo" | "live";
@@ -31,7 +31,7 @@ export function agentRateLimitConfig() {
 }
 
 export function maxTransferAmount(): number {
-  return Number(process.env.MAX_TRANSFER_AMOUNT || 10_000);
+  // Keep the existing Testnet default; use a conservative default for Mainnet.\n  return Number(process.env.MAX_TRANSFER_AMOUNT || (IS_ARC_MAINNET ? 100 : 10_000));
 }
 
 /**
