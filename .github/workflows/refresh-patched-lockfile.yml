@@ -1,6 +1,11 @@
 name: Refresh patched dependency lockfile
 
 on:
+  push:
+    branches:
+      - feat/arc-mainnet-isolated
+    paths:
+      - "package.json"
   workflow_dispatch:
 
 permissions:
