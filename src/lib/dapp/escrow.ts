@@ -12,7 +12,7 @@ import {
 import { explorerTxUrl, getArcNetworkMeta, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { getNetworkContractAddress } from "@/lib/network-contract-address";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
-import { ARC_TOKENS, isAddress, type ArcToken } from "@/lib/dapp/tokens";
+import { ARC_TOKENS, type ArcToken } from "@/lib/dapp/tokens";
 import {
   getChainId,
   getInjectedProvider,
