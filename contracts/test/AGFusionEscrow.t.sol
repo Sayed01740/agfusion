@@ -358,6 +358,45 @@ contract AGFusionEscrowTest is Test {
         assertEq(toggleToken.balanceOf(client), 100 ether);
     }
 
+    function test_disputeAgentSettlementFailurePreservesDisputeForRetry() public {
+        ToggleTransferMockToken toggleToken = new ToggleTransferMockToken();
+        toggleToken.mint(client, 100 ether);
+
+        vm.startPrank(client);
+        toggleToken.approve(address(escrow), 20 ether);
+        uint256 taskId = escrow.createTask(
+            agent,
+            address(toggleToken),
+            20 ether,
+            3600,
+            "details"
+        );
+        escrow.disputeTask(taskId, "reason");
+        vm.stopPrank();
+
+        toggleToken.setFailTransfers(true);
+        vm.prank(arbitrator);
+        vm.expectRevert(bytes("TRANSFER_FAILED"));
+        escrow.resolveDispute(taskId, true);
+
+        AGFusionEscrow.Task memory afterFailedResolution = escrow.getTask(taskId);
+        assertEq(uint256(afterFailedResolution.status), uint256(AGFusionEscrow.TaskStatus.Disputed));
+        assertEq(toggleToken.balanceOf(address(escrow)), 20 ether);
+        assertEq(toggleToken.balanceOf(agent), 0);
+        assertEq(toggleToken.balanceOf(feeRecipient), 0);
+
+        toggleToken.setFailTransfers(false);
+        vm.prank(arbitrator);
+        escrow.resolveDispute(taskId, true);
+
+        uint256 expectedFee = (20 ether * feeBps) / 10000;
+        AGFusionEscrow.Task memory afterRetry = escrow.getTask(taskId);
+        assertEq(uint256(afterRetry.status), uint256(AGFusionEscrow.TaskStatus.Released));
+        assertEq(toggleToken.balanceOf(address(escrow)), 0);
+        assertEq(toggleToken.balanceOf(agent), 20 ether - expectedFee);
+        assertEq(toggleToken.balanceOf(feeRecipient), expectedFee);
+    }
+
     function test_disputeRefundTransferFailurePreservesDisputeForRetry() public {
         ToggleTransferMockToken toggleToken = new ToggleTransferMockToken();
         toggleToken.mint(client, 100 ether);
