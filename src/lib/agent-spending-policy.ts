@@ -196,13 +196,29 @@ export async function enforceAgentSpendingPolicy(params: {
         WHERE "expiresAt" <= ${now}
       `;
 
-      const existing = await tx.$queryRaw<Array<{ amount: string; expiresAt: Date }>>`
-        SELECT "amount", "expiresAt"
+      const existing = await tx.$queryRaw<Array<{ amount: string; expiresAt: Date; walletAddress: string }>>`
+        SELECT "amount", "expiresAt", "walletAddress"
         FROM "AgentSpendReservation"
         WHERE "operationId" = ${operationId}
         LIMIT 1
       `;
       if (existing.length > 0 && existing[0].expiresAt > now) {
+        // An idempotency key must be bound to the same wallet and exact amount.
+        // Otherwise a caller could reuse another operation's reservation to
+        // bypass per-transaction or aggregate budget checks.
+        const reservedAmount = Number(existing[0].amount);
+        if (
+          existing[0].walletAddress.toLowerCase() !== walletAddress ||
+          !Number.isFinite(reservedAmount) ||
+          reservedAmount !== amount
+        ) {
+          return {
+            allowed: false,
+            reason: "Operation ID is already reserved for a different wallet or amount.",
+            policy,
+            spent: emptySpent,
+          };
+        }
         const [daily, weekly, monthly] = await Promise.all([
           sumAgentSpend(tx, walletAddress, startOfUtcDay(now)),
           sumAgentSpend(tx, walletAddress, startOfUtcWeek(now)),
