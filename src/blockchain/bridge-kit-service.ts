@@ -18,6 +18,7 @@ import { getActiveWalletMeta } from "@/sdk/active-wallet";
 import { attachBridgeProviderDiagnostics, recordBridgeDebug } from "@/lib/bridge-debug";
 import { encodeFunctionData, decodeFunctionResult, pad } from "viem";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
+import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import {
   updateBridgeState,
   loadBridgeState,
@@ -358,11 +359,11 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
     };
   }
 
-  return {
+  const candidate: TransactionRecord = {
     id: params.txId || debugId,
     type: "bridge",
-    status: "success",
-    retryable: false,
+    status: "retryable",
+    retryable: true,
     amount: params.amount,
     token: "USDC",
     fromChain: params.fromChain,
@@ -373,11 +374,17 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
     txHash: mintTx,
     explorerUrl: explorerTxUrl(mintTx),
     createdAt: new Date().toISOString(),
-    message: `Bridged ${params.amount} USDC ${params.fromChain} → ${params.toChain}. Source burn ${burnTx} confirmed; Circle Forwarding Service destination mint ${mintTx} confirmed.`,
+    message: `Circle Forwarding Service reported destination mint ${mintTx}. Verifying the canonical destination settlement event before marking this bridge successful.`,
     executionMode: "live",
     bridgeResult: { burnTxHash: burnTx, forwardTxHash: mintTx, approvalTxHash: approvalTx, sourceDomain: source.domain, destinationDomain: destination.domain, maxFee: fees.maxFee.toString(), forwardingFee: fees.forwardFee.toString(), protocolFee: fees.protocolFee.toString(), hookData: FORWARDING_HOOK },
     bridgeState: finalBridgeState ?? undefined,
   };
+  const settlement = await finalizeVerifiedTransaction(candidate, params.toChain);
+  if (settlement.status !== "success") {
+    notifyBridgeStep(debugId, "RECOVERABLE", { approvalTxHash: approvalTx, burnTxHash: burnTx, destinationTxHash: mintTx, message: "Destination transaction is confirmed, but canonical USDC settlement proof is still pending." });
+    return settlement;
+  }
+  return settlement;
 }
 
 export async function runBridgeKitRecovery(params: { amount: string; fromChain: ChainId; toChain: ChainId; recipient?: string; failedTx?: TransactionRecord | null; txId?: string }): Promise<TransactionRecord> {
