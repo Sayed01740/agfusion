@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma, isDbConfigured } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 /**
  * HTTP 402 payment-gated endpoint for the Arc Testnet agent telemetry demo.
@@ -120,6 +121,15 @@ async function verifyPayment(txHash: string): Promise<{ ok: boolean; reason?: st
 }
 
 async function handleX402(req: Request) {
+  // This telemetry demo is explicitly Testnet-only. Fail closed on Mainnet
+  // rather than advertising a Testnet recipient/chain from a production build.
+  if (IS_ARC_MAINNET) {
+    return NextResponse.json(
+      { error: "service_unavailable", reason: "This x402 telemetry demo is configured for Arc Testnet only." },
+      { status: 503 },
+    );
+  }
+
   const rl = rateLimit(`x402-agent-service:${clientIp(req)}`, {
     windowMs: 60_000,
     max: 30,
