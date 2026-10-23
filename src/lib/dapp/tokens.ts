@@ -5,6 +5,7 @@
  */
 import type { Address } from "viem";
 import { IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { getNetworkContractAddress } from "@/lib/network-contract-address";
 
 export type ArcToken = {
   symbol: string;
@@ -101,9 +102,11 @@ export function getToken(symbol: string, isMainnet: boolean = IS_ARC_MAINNET): A
  * deploys contracts/src/AGFusionDisperse.sol and sets the env var. Empty until
  * then — the Batch panel falls back to sequential sends automatically.
  */
-export const DISPERSE_ADDRESS = (
-  process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS || ""
-).trim();
+export const DISPERSE_ADDRESS = getNetworkContractAddress(
+  IS_ARC_MAINNET,
+  process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS,
+  process.env.NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS,
+) || "";
 
 export function isAddress(value: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(value.trim());
