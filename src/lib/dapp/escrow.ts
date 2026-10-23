@@ -9,7 +9,8 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
+import { explorerTxUrl, getArcNetworkMeta, IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { getNetworkContractAddress } from "@/lib/network-contract-address";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
 import { ARC_TOKENS, isAddress, type ArcToken } from "@/lib/dapp/tokens";
 import {
@@ -22,12 +23,12 @@ import {
 import type { ChainId, TransactionRecord, TxStep } from "@/types";
 import { uid } from "@/lib/utils";
 
-export const ESCROW_ADDRESS: Address | undefined = (() => {
-  const env =
-    process.env.NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS ||
-    process.env.NEXT_PUBLIC_ESCROW_CONTRACT;
-  return env && isAddress(env) ? (env.toLowerCase() as Address) : undefined;
-})();
+export const ESCROW_ADDRESS: Address | undefined = getNetworkContractAddress(
+  IS_ARC_MAINNET,
+  process.env.NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS,
+  process.env.NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS,
+  process.env.NEXT_PUBLIC_ESCROW_CONTRACT,
+) as Address | undefined;
 
 export function isEscrowConfigured(): boolean {
   return Boolean(ESCROW_ADDRESS);
@@ -144,7 +145,14 @@ export async function fetchEscrowTask(taskId: number): Promise<OnChainEscrowTask
       client: raw.client,
       agent: raw.agent,
       token: raw.token,
-      amountFormatted: formatUnits(raw.amount, 18),
+      amountFormatted: formatUnits(
+        raw.amount,
+        String(raw.token).toLowerCase() === "0x0000000000000000000000000000000000000000"
+          ? 18
+          : Object.values(ARC_TOKENS).find(
+              (configuredToken) => configuredToken.address.toLowerCase() === String(raw.token).toLowerCase(),
+            )?.decimals ?? 6,
+      ),
       createdAt: Number(raw.createdAt),
       deadline: Number(raw.deadline),
       status: STATUS_MAP[raw.status] ?? "Active",
@@ -189,7 +197,9 @@ export async function runCreateEscrowTask({
   const escrowContract = ESCROW_ADDRESS;
   if (!escrowContract) {
     throw new Error(
-      "Escrow contract address not configured. Please set NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS."
+      IS_ARC_MAINNET
+        ? "Mainnet escrow is not configured. Set NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS to the reviewed Mainnet deployment."
+        : "Escrow contract address not configured. Set NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS."
     );
   }
 
