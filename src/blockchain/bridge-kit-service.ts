@@ -292,12 +292,12 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
   const allowanceData = encodeFunctionData({ abi: ALLOWANCE_ABI, functionName: "allowance", args: [address, source.tokenMessenger] });
   const allowanceRaw = await rpc(provider, "eth_call", [{ to: source.usdc, data: allowanceData }, "latest"]);
   const allowance = BigInt(decodeFunctionResult({ abi: ALLOWANCE_ABI, functionName: "allowance", data: allowanceRaw }) as unknown as bigint);
-  recordBridgeDebug("cctp.allowance", { allowance: allowance.toString(), required: totalAmount.toString(), usdc: source.usdc, tokenMessenger: TOKEN_MESSENGER_V2 }, debugId, "Read USDC allowance");
+  recordBridgeDebug("cctp.allowance", { allowance: allowance.toString(), required: totalAmount.toString(), usdc: source.usdc, tokenMessenger: source.tokenMessenger }, debugId, "Read USDC allowance");
 
   let approvalTx: string | undefined;
   if (allowance < totalAmount) {
     notifyBridgeStep(debugId, "APPROVAL_PENDING", { message: "Approve USDC spending in your wallet..." });
-    const approveData = encodeFunctionData({ abi: APPROVE_ABI, functionName: "approve", args: [TOKEN_MESSENGER_V2, totalAmount] });
+    const approveData = encodeFunctionData({ abi: APPROVE_ABI, functionName: "approve", args: [source.tokenMessenger, totalAmount] });
     approvalTx = await sendTx(provider, address, source.usdc, approveData, debugId, "cctp.approval");
     notifyBridgeStep(debugId, "APPROVAL_PENDING", { approvalTxHash: approvalTx, message: `USDC approval submitted: ${shortenAddress(approvalTx)}` });
     const receipt = await waitReceipt(provider, approvalTx);
@@ -315,7 +315,7 @@ export async function runBridgeKitFlow(params: { amount: string; fromChain: Chai
     functionName: "depositForBurnWithHook",
     args: [totalAmount, destination.domain, pad(recipient as `0x${string}`, { size: 32 }), source.usdc, pad("0x", { size: 32 }), fees.maxFee, fees.finalityThreshold, FORWARDING_HOOK],
   });
-  const burnTx = await sendTx(provider, address, TOKEN_MESSENGER_V2, burnData, debugId, "cctp.burn");
+  const burnTx = await sendTx(provider, address, source.tokenMessenger, burnData, debugId, "cctp.burn");
   notifyBridgeStep(debugId, "BURN_PENDING", { approvalTxHash: approvalTx, burnTxHash: burnTx, message: `CCTP burn submitted: ${shortenAddress(burnTx)}` });
   const burnReceipt = await waitReceipt(provider, burnTx);
   if (String(burnReceipt?.status).toLowerCase() !== "0x1") throw new Error(`CCTP burn failed: ${burnTx}`);
@@ -390,7 +390,7 @@ export async function runBridgeKitRecovery(params: { amount: string; fromChain: 
     assertSameCctpEnvironment(params.fromChain, params.toChain);
     assertAddress(recipient);
     const debugId = params.txId || params.failedTx?.id || uid("bridge-recovery");
-    const isSandbox = isTestnetChain(params.fromChain) || isTestnetChain(params.toChain);
+    const isSandbox = isCctpTestnetChain(params.fromChain) || isCctpTestnetChain(params.toChain);
     recordBridgeDebug("cctp.recovery.existing-burn", { burnTx, sourceDomain: source.domain, destinationChain: params.toChain, recipient, isSandbox }, debugId, "Recovering existing confirmed CCTP burn without reburning");
     notifyBridgeStep(debugId, "ATTESTATION_PENDING", { approvalTxHash: existing?.approvalTxHash, burnTxHash: burnTx, message: "Checking Circle Iris for existing burn settlement..." });
     const mintTx = await waitForwardedMint(source.domain, burnTx, params.toChain, recipient, params.amount, debugId, debugId, existing?.approvalTxHash, isSandbox);
