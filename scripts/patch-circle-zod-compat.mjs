@@ -36,7 +36,7 @@ function walk(dir) {
     const before = fs.readFileSync(fullPath, "utf8");
     // Rewrite only actual import/require specifiers that equal the bare module name.
     const after = before.replace(
-      /(\\bfrom\\s*|\\bimport\\s*\\(\\s*|\\brequire\\s*\\(\\s*)(["'])zod\\2/g,
+      /(\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)(["'])zod\2/g,
       (_match, prefix, quote) => {
         importsRewritten += 1;
         return prefix + quote + "zod/v3" + quote;
@@ -51,5 +51,9 @@ if (importsRewritten === 0) {
   throw new Error("No Circle Zod imports were rewritten; package layout may have changed.");
 }
 console.log(
-  `[AGFusion] Circle Zod compatibility patch: rewrote ${importsRewritten} import(s) across ${filesVisited} source files to zod/v3.`,
+  "[AGFusion] Circle Zod compatibility patch: rewrote " +
+  importsRewritten +
+  " import(s) across " +
+  filesVisited +
+  " source files to zod/v3.",
 );
