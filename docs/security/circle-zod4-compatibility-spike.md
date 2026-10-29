@@ -37,3 +37,16 @@ Identify a vendor-supported Circle App Kit / adapter dependency set that removes
 - Circle's public example lockfile: https://github.com/circlefin/circle-bridge-kit-transfer/blob/master/package-lock.json
 - Zod advisory: https://github.com/advisories/GHSA-mrhx-c7xc-m3w5
 - Elliptic advisory: https://github.com/advisories/GHSA-848j-6mx2-7j84
+
+
+## Additional upstream integration check (2026-10-29)
+
+- Circle's published integration guidance says App Kit `>=1.11.0` is relevant to browser compatibility/polyfill behavior. This is not a security guarantee and does not mean transitive Zod 3 copies are removed.
+- Circle's App Kit FAQ says Swap is currently server-side only and requires a Kit Key; do not expose that key in browser code. Testnet smoke testing must use a dedicated Preview/Testnet configuration and must never copy Production secrets.
+- Circle's FAQ lists Arc Testnet swap support for USDC, EURC, and cirBTC and notes liquidity is limited. The smoke test should verify that a supported pair is estimable before attempting any user-approved execution; the existing prepare-only smoke test does not sign or broadcast.
+- Latest official ecosystem release notes surfaced during this review describe App Kit and adapter releases, but do not claim a Zod 4 migration or resolution of the cited Zod advisory. A release bump alone is not sufficient evidence.
+
+References:
+- Circle App Kit browser guidance: https://github.com/circlefin/skills/blob/master/plugins/circle/skills/swap-tokens/SKILL.md
+- Circle App Kit FAQ (swap runtime and Testnet token support): https://community.arc.io/public/blogs/app-kit-faqs-2026-07-07
+- Circle October release notes: https://community.arc.io/public/forum/boards/arc-announcements-and-updates-fki/posts/new-stablecoin-kits-releases-ttfwelhyb7
