@@ -17,6 +17,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - name: Check npm registry signatures and provenance (diagnostic)
+        continue-on-error: true
+        run: npm audit signatures
       - name: Audit all dependencies (production and development)
         id: production_audit
         continue-on-error: true
