@@ -65,3 +65,35 @@ try {
 } finally {
   HmacDRBG.prototype.generate = originalGenerate;
 }
+
+const hash = require(require.resolve("hash.js", {
+  paths: [dirname(ellipticEntry)],
+}));
+const p256 = new elliptic.ec({
+  curve: elliptic.curves.p256,
+  hash: hash.sha256,
+});
+const rfc6979PrivateKey =
+  "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721";
+const rfc6979PublicKey = {
+  x: "60fed4ba255a9d31c961eb74c6356d68c049b8923b61fa6ce669622e60f29fb6",
+  y: "7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299",
+};
+const rfc6979Digest = hash.sha256().update("sample").digest();
+const rfc6979Signature = p256.sign(rfc6979Digest, rfc6979PrivateKey);
+assert.equal(
+  rfc6979Signature.r.toString(16),
+  "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716",
+  "P-256 RFC 6979 SHA-256 known-answer r vector must match",
+);
+assert.equal(
+  rfc6979Signature.s.toString(16),
+  "f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8",
+  "P-256 RFC 6979 SHA-256 known-answer s vector must match",
+);
+assert.equal(
+  p256.verify(rfc6979Digest, rfc6979Signature, rfc6979PublicKey),
+  true,
+  "P-256 RFC 6979 known-answer signature must verify",
+);
+console.log("PASS: P-256 RFC 6979 SHA-256 known-answer signature matches r/s and verifies.");
