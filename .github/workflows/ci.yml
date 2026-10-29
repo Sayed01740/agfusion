@@ -14,7 +14,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --package-lock-only --legacy-peer-deps --ignore-scripts --no-audit
       - run: npm ci --legacy-peer-deps
       - run: npm run test:circle-sdk-compat
       - run: npm run typecheck
