@@ -4,6 +4,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerKitKey } from "@/lib/circle-kit-server";
 import { readLimitedJson } from "@/lib/read-limited-json";
 import { collectTransactions } from "@/lib/bounded-transaction-collector";
+import { boundedJsonSafe } from "@/lib/bounded-json-safe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,16 +28,7 @@ const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
 const SUPPORTED_TOKENS = ["USDC", "EURC"] as const;
 type SupportedToken = (typeof SUPPORTED_TOKENS)[number];
 
-function jsonSafe(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
-  if (Array.isArray(value)) return value.map(jsonSafe);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) out[key] = jsonSafe(item);
-    return out;
-  }
-  return value;
-}
+const jsonSafe = boundedJsonSafe;
 
 
 export async function POST(req: Request) {
