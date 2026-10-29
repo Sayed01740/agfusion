@@ -42,23 +42,27 @@ This checklist is a release control, not deployment authorization. Keep this bra
 
 ## Current status
 
-Automated application and Foundry checks pass on the latest isolated branch commit, but the production dependency audit currently fails. Mainnet is **not release-ready**. The expected addresses/settings remain intentionally blank until verified deployments exist. No Mainnet deployment or transaction is authorized by this checklist.
+Application typecheck, tests, production build, and Foundry contract checks pass on the latest isolated branch commit. The production dependency audit still fails, so Mainnet is **not release-ready**. The expected addresses/settings remain intentionally blank until verified deployments exist. No Mainnet deployment or transaction is authorized by this checklist.
 
 ### Latest automated evidence
 
-Reviewed against isolated branch commit `0170a1aa86a22d789ba03fd3860e388530c07cac`:
+Reviewed against isolated branch commit `1d0ea6ae05815a352253dd57cd29e03de6bc8ae3`:
 
-- [CI / application typecheck, tests, and production build](https://github.com/Sayed01740/agfusion/actions/runs/40859376425): **passed**; includes tests for the new bounded JSON reader.
-- [Foundry contract checks and deployment-script compilation](https://github.com/Sayed01740/agfusion/actions/runs/40859376751): **passed**.
-- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40859376679): **failed**. `npm audit --omit=dev --audit-level=moderate` reports 23 findings (7 low, 16 high), including the Zod advisory GHSA-mrhx-c7xc-m3w5 in the Circle App Kit dependency tree. The automated `npm audit fix --force` recommendation would downgrade `@circle-fin/app-kit` to 1.0.0, a breaking change; this was not applied. Investigate a compatible upstream fix or a tested, narrowly scoped remediation before considering release.
+- [CI / application typecheck, tests, and production build](https://github.com/Sayed01740/agfusion/actions/runs/40862193358): **passed** on this commit.
+- [Arc Mainnet contract checks and deployment-script compilation](https://github.com/Sayed01740/agfusion/actions/runs/40862193214): **passed** on this commit.
+- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40862193238): **failed** on this commit. `npm audit --omit=dev --audit-level=moderate` reports 23 findings (7 low, 16 high). The Zod advisory GHSA-mrhx-c7xc-m3w5 is present in the root and nested Circle SDK dependency tree; other findings include vulnerable transitive `@ethersproject` packages and `elliptic`. The suggested automatic fix would downgrade `@circle-fin/app-kit` to 1.0.0, a breaking change, and was not applied.
 - [Read-only preflight script validation](https://github.com/Sayed01740/agfusion/actions/runs/40019273475): success, including fail-closed tests for missing configuration, duplicate contract addresses, zero addresses, and invalid fee settings. This is script/test validation, not a live Mainnet RPC preflight.
 
 These workflow results verify code and automated tests only. The live Mainnet contract verification has **not** been executed because the actual deployed Registry, Escrow, and Disperse addresses and independently approved expected owner/arbitrator/fee settings have not been supplied. Do not fill these values with guesses.
 
 Additional hardening on this branch: `src/lib/read-limited-json.ts` enforces a byte ceiling while streaming request bodies, with unit tests for valid JSON, malformed JSON, declared oversize, and streamed oversize. The AI agent endpoint applies a 64 KiB limit and Circle swap preparation applies a 16 KiB limit before parsing. This is defense-in-depth; it does not remove the vulnerable nested Zod copies from the Circle SDK dependency tree.
 
-### Dependency compatibility experiment (not merged)
+### Dependency compatibility investigation
 
-A separate draft experiment, [PR #22](https://github.com/Sayed01740/agfusion/pull/22), replaced all Zod copies with Zod 4.6.7. `npm audit --omit=dev --audit-level=moderate` passed in that isolated experiment, and TypeScript typecheck passed after updating the `z.record` call. However, application tests then failed at Circle App Kit import time with `TypeError: z.function(...).returns is not a function`, confirming that the installed Circle App Kit bundle still relies on a Zod 3 API. The global override is therefore incompatible and must not be merged. PR #22 is being closed as a failed experiment; the release audit blocker remains open until a compatible upstream or narrowly scoped, fully tested fix is available.
+The Zod 4.6.7 global override experiment is **not merged**. It cleared the Zod audit finding in that isolated experiment and typecheck passed after updating a `z.record` call, but application tests failed at Circle App Kit import time with `TypeError: z.function(...).returns is not a function`. Do not reapply this override or suppress the audit finding.
 
-Next step: obtain a compatible Circle SDK dependency fix or complete a reviewed, tested remediation for the remaining nested Zod advisories without forcing a breaking SDK downgrade, then rerun CI, Foundry checks, and the production audit. Separately, obtain the real deployment addresses and independently approved control settings before running the read-only live Mainnet preflight. Keep Mainnet swaps disabled, preserve Testnet configuration, and do not merge, deploy, change production variables, or broadcast transactions until all release gates and explicit human approval are complete.
+The current lockfile resolves `@circle-fin/app-kit@1.19.0` and `@circle-fin/adapter-viem-v2@1.19.3`, while the Circle packages still install nested Zod 3.25.67 copies. The public advisory identifies Zod versions below 4.6.6 as affected; upgrading only to another Zod 3 patch does not satisfy that fixed-version range. The current latest App Kit package metadata therefore does not provide a demonstrated compatible Zod 4 remediation. Forcing Zod 4 globally breaks Circle App Kit, while `npm audit fix --force` proposes a breaking downgrade to App Kit 1.0.0. Neither option is acceptable.
+
+Next safe step: check for a Circle-maintained release that explicitly supports Zod 4 or a vendor-confirmed remediation for the affected transitive dependency tree. If none exists, retain the audit blocker and prepare a documented vendor escalation / risk review rather than patching the third-party bundle or weakening the audit gate. Any candidate fix must pass the complete app test suite, production build, Foundry checks, and production audit before it is considered.
+
+Separately, obtain the real deployment addresses and independently approved control settings before running the read-only live Mainnet preflight. Keep Mainnet swaps disabled, preserve Testnet configuration, and do not merge, deploy, change production variables, or broadcast transactions until all release gates and explicit human approval are complete.
