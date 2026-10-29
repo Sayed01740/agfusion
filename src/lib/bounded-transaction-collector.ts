@@ -3,6 +3,8 @@ export type PreparedTransaction = { to: string; data: string; value?: string };
 const MAX_TRAVERSAL_DEPTH = 24;
 const MAX_VISITED_NODES = 2048;
 const MAX_TRANSACTIONS = 64;
+const MAX_CALLDATA_HEX_LENGTH = 2 + 2 * 64 * 1024;
+const MAX_VALUE_LENGTH = 128;
 
 /**
  * Extract executable transaction payloads from an SDK estimate without
@@ -49,6 +51,7 @@ export function collectTransactions(value: unknown): PreparedTransaction[] {
       to &&
       data &&
       /^0x[0-9a-fA-F]{40}$/.test(to) &&
+      data.length <= MAX_CALLDATA_HEX_LENGTH &&
       /^0x[0-9a-fA-F]*$/.test(data)
     ) {
       const valueField = typeof obj.value === "string"
@@ -56,10 +59,14 @@ export function collectTransactions(value: unknown): PreparedTransaction[] {
         : typeof obj.amount === "string"
           ? obj.amount
           : undefined;
-      const key = `${to.toLowerCase()}:${data.toLowerCase()}:${valueField || "0"}`;
-      if (!seen.has(key) && out.length < MAX_TRANSACTIONS) {
-        seen.add(key);
-        out.push({ to, data, ...(valueField ? { value: valueField } : {}) });
+      if (valueField !== undefined && valueField.length > MAX_VALUE_LENGTH) {
+        // Ignore transaction payloads with an unbounded value field.
+      } else {
+        const key = `${to.toLowerCase()}:${data.toLowerCase()}:${valueField || "0"}`;
+        if (!seen.has(key) && out.length < MAX_TRANSACTIONS) {
+          seen.add(key);
+          out.push({ to, data, ...(valueField ? { value: valueField } : {}) });
+        }
       }
     }
 
