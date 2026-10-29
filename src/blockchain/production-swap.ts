@@ -3,6 +3,8 @@ import { getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wal
 import { explorerTxUrl, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 import { shortenAddress, uid } from "@/lib/utils";
+import { matchesExpectedChainId } from "@/lib/chain-id-validation";
+import { assertMainnetSwapReady } from "@/lib/mainnet-swap-readiness";
 import { encodeFunctionData, formatUnits, parseUnits } from "viem";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -83,10 +85,10 @@ export function normalizeSlippageBps(value: number): number {
   return bps;
 }
 
-function normalizeAmount(amount: string, token: ArcSwapToken): bigint {
+function normalizeAmount(amount: string, token: ArcSwapToken, isMainnet = false): bigint {
   const n = Number(amount);
   if (!amount || !Number.isFinite(n) || n <= 0) throw new Error("Enter a valid swap amount.");
-  return parseUnits(amount, ROUTER_DECIMALS[token]);
+  return parseUnits(amount, effectiveDecimals(token, isMainnet));
 }
 
 /**
@@ -131,9 +133,15 @@ async function ethCall(
     } catch {}
   }
 
-  // 3. Fallback across public Arc upstreams
+  // 3. Fallback across public Arc upstreams. Verify each endpoint's chain
+  // before reading contract state so a stale or misconfigured URL cannot feed
+  // data from a different network into a transaction quote.
   const upstreams = isMainnet
-    ? ["https://rpc.mainnet.arc.network", "https://rpc.mainnet.arc.io", "https://rpc.arc.network"]
+    ? [
+        "https://rpc.mainnet.arc.io",
+        "https://rpc.blockdaemon.mainnet.arc.io",
+        "https://rpc.drpc.mainnet.arc.io",
+      ]
     : [
         "https://rpc.testnet.arc.network",
         "https://rpc.testnet.arc.io",
@@ -141,9 +149,22 @@ async function ethCall(
         "https://rpc.quicknode.testnet.arc.io",
         "https://rpc.blockdaemon.testnet.arc.io",
       ];
+  const expectedChainId = isMainnet ? 5042 : 5042002;
 
   for (const url of upstreams) {
     try {
+      const chainResponse = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
+      });
+      if (!chainResponse.ok) continue;
+      const chainJson = (await chainResponse.json()) as { result?: unknown };
+      if (!matchesExpectedChainId(chainJson.result, expectedChainId)) {
+        console.warn(`[AGFusion] Skipping RPC fallback with unexpected chain ID: ${url}`);
+        continue;
+      }
+
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -176,7 +197,10 @@ function effectiveAddress(token: ArcSwapToken, isMainnet: boolean): `0x${string}
   return token === "USDC" ? TESTNET_WUSDC : TOKENS_BY_CHAIN.Arc_Testnet[token];
 }
 
-function effectiveDecimals(token: ArcSwapToken): number {
+function effectiveDecimals(token: ArcSwapToken, isMainnet = false): number {
+  // Arc Mainnet's native USDC ERC-20 interface uses 6 decimals. The Testnet
+  // wrapped USDC pool uses 18 decimals; never reuse its scaling on Mainnet.
+  if (isMainnet && token === "USDC") return 6;
   return ROUTER_DECIMALS[token];
 }
 
@@ -272,39 +296,6 @@ async function resolveTargetArcChain(
   };
 }
 
-/**
- * Real-time RFQ rate calculation for Arc Mainnet StableFX.
- * StableFX uses Request-For-Quote (RFQ) execution with zero slippage settlement on Arc.
- */
-function getStableFxMainnetQuote(amount: string, tokenIn: ArcSwapToken, tokenOut: ArcSwapToken): QuoteResult {
-  const n = Number(amount);
-  // Canonical market FX reference rates (EUR/USD ~1.082)
-  const RATES: Record<string, number> = {
-    "USDC-EURC": 0.9242,
-    "EURC-USDC": 1.0820,
-    "USDC-cirBTC": 0.00001053,
-    "cirBTC-USDC": 95000.0,
-    "EURC-cirBTC": 0.00001142,
-    "cirBTC-EURC": 87560.0,
-  };
-
-  const key = `${tokenIn}-${tokenOut}`;
-  const rate = RATES[key];
-  if (!rate) {
-    throw new Error(`Unsupported token pair ${tokenIn} → ${tokenOut} on Arc Mainnet.`);
-  }
-
-  const out = n * rate;
-  const decimals = DISPLAY_DECIMALS[tokenOut];
-  const formattedOut = out.toFixed(decimals > 6 ? 8 : 6);
-
-  return {
-    amountOut: formattedOut,
-    route: "Arc StableFX (Zero Slippage RFQ)",
-    slippageBps: 0,
-    path: [TOKENS_BY_CHAIN.Arc_Mainnet[tokenIn], TOKENS_BY_CHAIN.Arc_Mainnet[tokenOut]],
-  };
-}
 
 export async function getArcDexSwapQuote(params: {
   amount: string;
@@ -317,6 +308,9 @@ export async function getArcDexSwapQuote(params: {
   assertToken(tokenIn);
   assertToken(tokenOut);
   if (tokenIn === tokenOut) throw new Error("Choose two different tokens.");
+  if (params.chain === "Arc_Mainnet" || params.chain === "Arc") {
+    assertMainnetSwapReady(true);
+  }
 
   let provider: Provider | null = null;
   try {
@@ -325,10 +319,8 @@ export async function getArcDexSwapQuote(params: {
 
   const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
 
-  // --- Arc Mainnet (StableFX Settlement) ---
-  if (isMainnet) {
-    return getStableFxMainnetQuote(params.amount, tokenIn, tokenOut);
-  }
+  // Fail closed until a verified live RFQ provider and settlement contract exist.
+  assertMainnetSwapReady(isMainnet);
 
   // --- Arc Testnet (ApexiSwap DEX Settlement) ---
   // On Arc Testnet, the active on-chain liquidity pool is USDC ↔ EURC
@@ -338,7 +330,7 @@ export async function getArcDexSwapQuote(params: {
     );
   }
 
-  const amountIn = normalizeAmount(params.amount, tokenIn);
+  const amountIn = normalizeAmount(params.amount, tokenIn, isMainnet);
   const a = effectiveAddress(tokenIn, false);
   const b = effectiveAddress(tokenOut, false);
   const paths: `0x${string}`[][] = [];
@@ -373,7 +365,7 @@ export async function getArcDexSwapQuote(params: {
   const best = candidates[0];
 
   return {
-    amountOut: formatUnits(best.out, effectiveDecimals(tokenOut)),
+    amountOut: formatUnits(best.out, effectiveDecimals(tokenOut, false)),
     route: best.path.length === 2 ? "ApexiSwap Direct Pool" : "ApexiSwap via WUSDC",
     slippageBps: DEFAULT_SLIPPAGE_BPS,
     path: best.path,
@@ -470,6 +462,9 @@ export async function runProductionSwap(params: {
   if (params.chain !== "Arc_Mainnet" && params.chain !== "Arc_Testnet" && params.chain !== "Arc") {
     throw new Error("Swap is only supported on Arc Mainnet and Arc Testnet.");
   }
+  if (params.chain === "Arc_Mainnet" || params.chain === "Arc") {
+    assertMainnetSwapReady(true);
+  }
 
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
@@ -481,13 +476,15 @@ export async function runProductionSwap(params: {
   const provider = await getInjectedProvider();
   const accounts = await requestAccounts(provider);
   const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  // Check readiness before requesting a chain switch or preparing any transaction.
+  assertMainnetSwapReady(isMainnet);
 
   await switchToChainId(provider, targetChain);
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
-  const amountIn = normalizeAmount(params.amount, tokenIn);
+  const amountIn = normalizeAmount(params.amount, tokenIn, isMainnet);
   const quote = await getArcDexSwapQuote({ ...params, chain: targetChain });
 
-  const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut));
+  const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut, isMainnet));
   const minOut = isMainnet ? quotedOut : (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = (await blockTimestamp(provider)) + 300n;
 

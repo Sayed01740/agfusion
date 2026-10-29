@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 import {
   ARC_EXPECTED_CHAIN_ID_HEX,
+  RPC_UPSTREAMS,
   healthCheck,
   isWriteMethod,
   parseJsonRpc,
@@ -50,6 +52,23 @@ function malformedJsonResponse(): () => Promise<unknown> {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("RPC network isolation", () => {
+  it("does not expose the opposite Arc environment's RPC pool", () => {
+    expect(IS_ARC_MAINNET ? RPC_UPSTREAMS.arc_testnet : RPC_UPSTREAMS.arc_mainnet).toEqual([]);
+  });
+
+  it("does not expose testnet-only peer RPC pools in a Mainnet build", () => {
+    if (IS_ARC_MAINNET) {
+      expect(RPC_UPSTREAMS.polygon).toEqual([]);
+      expect(RPC_UPSTREAMS.avax).toEqual([]);
+      expect(RPC_UPSTREAMS.unichain).toEqual([]);
+      expect(RPC_UPSTREAMS.linea).toEqual([]);
+    } else {
+      expect(RPC_UPSTREAMS.polygon.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("rpc-proxy failover (Phase 2)", () => {

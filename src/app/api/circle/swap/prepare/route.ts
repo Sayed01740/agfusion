@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerKitKey } from "@/lib/circle-kit-server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,18 +92,18 @@ export async function POST(req: Request) {
   });
   if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
-  let body: {
+  const requestBody = await readLimitedJson(req, 16 * 1024);
+  if (!requestBody.ok) return NextResponse.json({ error: requestBody.error }, { status: requestBody.status });
+  if (!requestBody.value || typeof requestBody.value !== "object" || Array.isArray(requestBody.value)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const body = requestBody.value as {
     address?: unknown;
     amount?: unknown;
     tokenIn?: unknown;
     tokenOut?: unknown;
     chainId?: unknown;
   };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
 
   const address = String(body.address || "").trim();
   const amount = String(body.amount || "").trim();

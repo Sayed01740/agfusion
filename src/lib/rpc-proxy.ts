@@ -16,10 +16,12 @@ export const EXPECTED_CHAIN_IDS: Record<string, string> = {
   arc: ARC_EXPECTED_CHAIN_ID_HEX,
   arc_mainnet: "0x13b2",
   arc_testnet: "0x4cef52",
-  base: "0x14a34",
-  eth: "0xaa36a7",
-  arb: "0x66eee",
-  op: "0xaa37dc",
+  // The selected AG Fusion deployment determines peer-chain network.
+  // Testnet defaults remain unchanged; Mainnet deployments use production IDs.
+  base: IS_ARC_MAINNET ? "0x2105" : "0x14a34",
+  eth: IS_ARC_MAINNET ? "0x1" : "0xaa36a7",
+  arb: IS_ARC_MAINNET ? "0xa4b1" : "0x66eee",
+  op: IS_ARC_MAINNET ? "0xa" : "0xaa37dc",
   polygon: "0x13882",
   avax: "0xa869",
   unichain: "0x515",
@@ -31,7 +33,8 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
   arc: IS_ARC_MAINNET
     ? [
         "https://rpc.mainnet.arc.io",
-        "https://rpc.arc.network",
+        "https://rpc.blockdaemon.mainnet.arc.io",
+        "https://rpc.drpc.mainnet.arc.io",
       ]
     : [
         "https://rpc.testnet.arc.io",
@@ -40,56 +43,73 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
         "https://rpc.drpc.testnet.arc.io",
         "https://rpc.quicknode.testnet.arc.io",
       ],
-  arc_mainnet: [
-    "https://rpc.mainnet.arc.io",
-    "https://rpc.arc.network",
-  ],
-  arc_testnet: [
-    "https://rpc.testnet.arc.io",
-    "https://rpc.testnet.arc.network",
-    "https://rpc.blockdaemon.testnet.arc.io",
-    "https://rpc.drpc.testnet.arc.io",
-    "https://rpc.quicknode.testnet.arc.io",
-  ],
-  base: [
-    // Base's public endpoint is rate-limited, so keep it as a last resort.
-    "https://base-sepolia-rpc.publicnode.com",
-    "https://base-sepolia.g.alchemy.com/v2/demo",
-    "https://84532.rpc.thirdweb.com",
-    "https://sepolia.base.org",
-  ],
-  eth: [
-    "https://ethereum-sepolia-rpc.publicnode.com",
-    "https://rpc.sepolia.org",
-    "https://rpc2.sepolia.org",
-    "https://11155111.rpc.thirdweb.com",
-  ],
-  arb: [
-    "https://arbitrum-sepolia-rpc.publicnode.com",
-    "https://sepolia-rollup.arbitrum.io/rpc",
-    "https://421614.rpc.thirdweb.com",
-  ],
-  op: [
-    "https://optimism-sepolia-rpc.publicnode.com",
-    "https://sepolia.optimism.io",
-    "https://11155420.rpc.thirdweb.com",
-  ],
-  polygon: [
+  // Expose only the configured Arc environment. A Mainnet deployment must not
+  // silently proxy requests into Testnet, and vice versa.
+  arc_mainnet: IS_ARC_MAINNET
+    ? [
+        "https://rpc.mainnet.arc.io",
+        "https://rpc.blockdaemon.mainnet.arc.io",
+        "https://rpc.drpc.mainnet.arc.io",
+      ]
+    : [],
+  arc_testnet: IS_ARC_MAINNET
+    ? []
+    : [
+        "https://rpc.testnet.arc.io",
+        "https://rpc.testnet.arc.network",
+        "https://rpc.blockdaemon.testnet.arc.io",
+        "https://rpc.drpc.testnet.arc.io",
+        "https://rpc.quicknode.testnet.arc.io",
+      ],
+  base: IS_ARC_MAINNET
+    ? ["https://mainnet.base.org", "https://base-rpc.publicnode.com"]
+    : [
+        // Base's public endpoint is rate-limited, so keep it as a last resort.
+        "https://base-sepolia-rpc.publicnode.com",
+        "https://base-sepolia.g.alchemy.com/v2/demo",
+        "https://84532.rpc.thirdweb.com",
+        "https://sepolia.base.org",
+      ],
+  eth: IS_ARC_MAINNET
+    ? ["https://ethereum-rpc.publicnode.com", "https://cloudflare-eth.com"]
+    : [
+        "https://ethereum-sepolia-rpc.publicnode.com",
+        "https://rpc.sepolia.org",
+        "https://rpc2.sepolia.org",
+        "https://11155111.rpc.thirdweb.com",
+      ],
+  arb: IS_ARC_MAINNET
+    ? ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com"]
+    : [
+        "https://arbitrum-sepolia-rpc.publicnode.com",
+        "https://sepolia-rollup.arbitrum.io/rpc",
+        "https://421614.rpc.thirdweb.com",
+      ],
+  op: IS_ARC_MAINNET
+    ? ["https://mainnet.optimism.io", "https://optimism-rpc.publicnode.com"]
+    : [
+        "https://optimism-sepolia-rpc.publicnode.com",
+        "https://sepolia.optimism.io",
+        "https://11155420.rpc.thirdweb.com",
+      ],
+  // These peer networks are currently testnet-only routes; disable them in a
+  // Mainnet build rather than silently using a testnet RPC pool.
+  polygon: IS_ARC_MAINNET ? [] : [
     "https://polygon-amoy-bor-rpc.publicnode.com",
     "https://rpc-amoy.polygon.technology",
     "https://80002.rpc.thirdweb.com",
   ],
-  avax: [
+  avax: IS_ARC_MAINNET ? [] : [
     "https://avalanche-fuji-c-chain-rpc.publicnode.com",
     "https://api.avax-test.network/ext/bc/C/rpc",
     "https://43113.rpc.thirdweb.com",
   ],
-  unichain: [
+  unichain: IS_ARC_MAINNET ? [] : [
     "https://unichain-sepolia.g.alchemy.com/v2/demo",
     "https://sepolia.unichain.org",
     "https://1301.rpc.thirdweb.com",
   ],
-  linea: [
+  linea: IS_ARC_MAINNET ? [] : [
     "https://linea-sepolia-rpc.publicnode.com",
     "https://rpc.sepolia.linea.build",
     "https://59141.rpc.thirdweb.com",

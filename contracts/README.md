@@ -45,35 +45,53 @@ AGFUSION_METADATA_URI=https://agfusion.vercel.app/identity/agfusion-agent.json
 forge test -vv
 ```
 
-## Deploy to Arc Mainnet (Chain ID 5042)
+## Arc Mainnet deployment (Chain ID 5042)
+
+**Do not broadcast these scripts until the contracts have passed independent
+review, Foundry tests, and a documented deployment approval.** These scripts
+are chain-guarded but the guard does not replace a security audit or multisig
+review. Never send private keys in chat or commit them to Git.
+
+Configure these values locally in a secure shell or secret manager:
 
 ```bash
-# PowerShell
-$env:ARC_RPC_URL="https://rpc.mainnet.arc.io"
-$env:PRIVATE_KEY="0xYOUR_MAINNET_DEPLOYER_PRIVATE_KEY"
-$env:AGFUSION_METADATA_URI="https://agfusion.vercel.app/identity/agfusion-agent.json"
-
-forge script script/DeployAGFusionRegistry.s.sol:DeployAGFusionRegistry `
-  --rpc-url $env:ARC_RPC_URL `
-  --chain-id 5042 `
-  --broadcast `
-  -vvvv
+export ARC_MAINNET_RPC_URL="https://rpc.mainnet.arc.io"
+export PRIVATE_KEY="0x<MAINNET_DEPLOYER_KEY>"
+export AGFUSION_METADATA_URI="https://<approved-domain>/identity/agfusion-agent.json"
+export AGFUSION_OWNER="0x<reviewed-multisig-address>"
+export AGFUSION_ARBITRATOR="0x<reviewed-arbitrator-or-multisig>"
+export AGFUSION_FEE_RECIPIENT="0x<approved-treasury-address>"
+export AGFUSION_ESCROW_FEE_BPS="50"
 ```
 
-Or bash:
+Run a read-only network preflight from the repository root before deployment:
+
 ```bash
-forge script script/DeployAGFusionRegistry.s.sol:DeployAGFusionRegistry \
-  --rpc-url https://rpc.mainnet.arc.io \
-  --chain-id 5042 \
-  --private-key $PRIVATE_KEY \
-  --broadcast \
-  -vvvv
+npm run verify:arc-mainnet
 ```
 
-Save the printed address and add to your `.env.local` / Vercel environment:
-```ini
-NEXT_PUBLIC_AGFUSION_REGISTRY=0x...
+After approval, the Mainnet-specific scripts enforce `block.chainid == 5042`:
+
+```bash
+cd contracts
+forge script script/DeployAGFusionRegistryMainnet.s.sol:DeployAGFusionRegistryMainnet --rpc-url "$ARC_MAINNET_RPC_URL" --chain-id 5042 --private-key "$PRIVATE_KEY" --broadcast -vvvv
+forge script script/DeployAGFusionEscrowMainnet.s.sol:DeployAGFusionEscrowMainnet --rpc-url "$ARC_MAINNET_RPC_URL" --chain-id 5042 --private-key "$PRIVATE_KEY" --broadcast -vvvv
+forge script script/DeployAGFusionDisperseMainnet.s.sol:DeployAGFusionDisperseMainnet --rpc-url "$ARC_MAINNET_RPC_URL" --chain-id 5042 --private-key "$PRIVATE_KEY" --broadcast -vvvv
 ```
+
+Record each deployed address and transaction hash, verify the deployed bytecode
+and constructor/ownership settings, and only then configure these network-specific
+frontend variables in an isolated Vercel deployment:
+
+- `NEXT_PUBLIC_AGFUSION_REGISTRY_MAINNET_ADDRESS`
+- `NEXT_PUBLIC_AGFUSION_ESCROW_MAINNET_ADDRESS`
+- `NEXT_PUBLIC_AGFUSION_DISPERSE_MAINNET_ADDRESS`
+- `NEXT_PUBLIC_ARC_MAINNET_RPC_URL`
+
+The frontend deliberately does not fall back to Testnet escrow or disperse
+addresses when a Mainnet address is absent. Leave Mainnet contract variables
+empty until the corresponding contract has actually been deployed and verified.
+Do not overwrite the existing Testnet environment or reuse Testnet contract addresses.
 
 ## Deploy to Arc Testnet (Chain ID 5042002)
 

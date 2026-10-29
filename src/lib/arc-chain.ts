@@ -21,11 +21,11 @@ export const ARC_NETWORK_NAME = IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet";
 
 export const ARC_RPC =
   process.env.NEXT_PUBLIC_ARC_RPC_URL?.trim() ||
-  (IS_ARC_MAINNET ? "https://rpc.mainnet.arc.network" : "https://rpc.testnet.arc.network");
+  (IS_ARC_MAINNET ? "https://rpc.mainnet.arc.io" : "https://rpc.testnet.arc.network");
 
 export const ARC_WS =
   process.env.NEXT_PUBLIC_ARC_WS_URL?.trim() ||
-  (IS_ARC_MAINNET ? "wss://rpc.mainnet.arc.network" : "wss://rpc.testnet.arc.network");
+  (IS_ARC_MAINNET ? "wss://rpc.mainnet.arc.io" : "wss://rpc.testnet.arc.network");
 
 // Backward compatibility alias for testnet RPC exports
 export const ARC_TESTNET_RPC = ARC_RPC;
@@ -101,11 +101,17 @@ export async function getArcWalletAddParams(): Promise<{
     const live = await fetchArcChainIdFromRpc(rpc);
     chainId = live.hex;
     if (live.decimal !== ARC_CHAIN_ID) {
-      console.warn(
-        `[AGFusion] RPC chainId decimal ${live.decimal} != expected ${ARC_CHAIN_ID}`,
-      );
+      const message = `[AGFusion] RPC chainId decimal ${live.decimal} != expected ${ARC_CHAIN_ID}`;
+      // Mainnet must fail closed rather than offer a wallet configuration for
+      // an RPC endpoint that points at a different chain. Keep Testnet's
+      // existing warning/fallback behavior unchanged.
+      if (IS_ARC_MAINNET) throw new Error(message);
+      console.warn(message);
     }
   } catch (e) {
+    if (IS_ARC_MAINNET) {
+      throw new Error("[AGFusion] Arc Mainnet RPC validation failed; refusing wallet network setup.", { cause: e });
+    }
     console.warn("[AGFusion] using static chainId hex; RPC probe failed", e);
   }
 

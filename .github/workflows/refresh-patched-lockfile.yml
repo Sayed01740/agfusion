@@ -1,0 +1,48 @@
+name: Prepare patched dependency lockfile for review
+
+on:
+  push:
+    branches:
+      - feat/arc-mainnet-isolated
+    paths:
+      - "package.json"
+  workflow_dispatch:
+
+# Dependency installation/audit must never have permission to push to the repository.
+permissions:
+  contents: read
+
+jobs:
+  prepare-lockfile:
+    if: github.repository == 'Sayed01740/agfusion'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/arc-mainnet-isolated
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Prepare compatible security fixes locally
+        run: npm audit fix --package-lock-only --legacy-peer-deps
+      - name: Detect proposed lockfile changes
+        id: diff
+        shell: bash
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No lockfile changes were proposed."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Lockfile changes are ready for human review; no repository files were pushed."
+          fi
+      - name: Upload proposed lockfile for review
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: proposed-patched-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7

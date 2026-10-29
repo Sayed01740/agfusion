@@ -1,7 +1,7 @@
 /**
- * Shared CCTP v2 testnet chain configuration for AGFusion.
+ * Shared CCTP v2 Mainnet and Testnet chain configuration for AGFusion.
  *
- * Contract/domain data is pinned to Circle's published testnet configuration.
+ * Contract/domain data is pinned to Circle's published network configuration.
  * Runtime RPC health is handled separately by rpc-proxy.ts.
  */
 
@@ -30,9 +30,9 @@ const CCTP_V2_MSG_TRANSMITTER =
 // --- Production Mainnet CCTP v2 contracts (Circle Iris Production) ---
 // Source: https://developers.circle.com/stablecoins/docs/evm-smart-contracts
 const CCTP_V2_TOKEN_MESSENGER_MAINNET =
-  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5f" as const;
+  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" as const;
 const CCTP_V2_MSG_TRANSMITTER_MAINNET =
-  "0x81D40f21B21285853e618Cc442bB505f0D2c72AF" as const;
+  "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" as const;
 
 export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   Arc: {
@@ -41,8 +41,8 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     circleBlockchain: "ARC",
     domain: 26,
     usdc: "0x3600000000000000000000000000000000000000",
-    tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
-    messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 1,
     rpcProxyKey: "arc_mainnet",
     explorerUrl: "https://explorer.arc.io",
@@ -262,6 +262,37 @@ export const CIRCLE_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
 
 export function getCctpConfig(appKitName: string): CctpChainConfig | null {
   return CCTP_CHAIN_CONFIG[appKitName] ?? null;
+}
+
+/** Identify whether a CCTP chain is part of Circle's sandbox/testnet environment. */
+export function isCctpTestnetChain(
+  chain: ChainId | string | number | undefined | null,
+): boolean {
+  if (chain === undefined || chain === null || chain === "") return false;
+  const value = String(chain).toLowerCase();
+  return (
+    value.includes("testnet") ||
+    value.includes("sepolia") ||
+    value.includes("fuji") ||
+    value.includes("amoy") ||
+    value === "5042002" ||
+    value === "84532" ||
+    value === "11155111" ||
+    value === "421614" ||
+    value === "43113" ||
+    value === "80002" ||
+    value === "11155420"
+  );
+}
+
+/** Prevent cross-environment transfers between production and sandbox CCTP domains. */
+export function assertSameCctpEnvironment(
+  sourceChain: ChainId | string | number,
+  destinationChain: ChainId | string | number,
+): void {
+  if (isCctpTestnetChain(sourceChain) !== isCctpTestnetChain(destinationChain)) {
+    throw new Error("CCTP bridging between Mainnet and Testnet is not supported.");
+  }
 }
 
 export function cctpConfigByChainId(chainId: number): CctpChainConfig | null {

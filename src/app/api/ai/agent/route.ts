@@ -11,6 +11,7 @@ import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { enforceAgentSpendingPolicy, releaseAgentSpendReservation, type AgentSpendAction } from "@/lib/agent-spending-policy";
 import { agentRequestSchema } from "@/lib/validation";
 import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +32,9 @@ function previewPolicyAction(preview: Record<string, unknown> | undefined): Agen
 
 export async function POST(req: Request) {
   const ip = clientIp(req); const limits = agentRateLimitConfig();
-  let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
-  const parsed = agentRequestSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const requestBody = await readLimitedJson(req, 64 * 1024);
+  if (!requestBody.ok) return NextResponse.json({ error: requestBody.error }, { status: requestBody.status });
+  const parsed = agentRequestSchema.safeParse(requestBody.value); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   const body = parsed.data;
   const session = await getSessionUser();
 
@@ -47,6 +49,16 @@ export async function POST(req: Request) {
   }
 
   const claimedSmartAccount = body.wallet?.smartAccountAddress?.toLowerCase();
+  // Until a trusted server-side smart-account ownership mapping is available,
+  // do not execute from a client-claimed account different from the SIWE wallet.
+  // Otherwise the budget could be charged to one address while funds leave another.
+  if (body.execute && claimedSmartAccount && claimedSmartAccount !== session?.address.toLowerCase()) {
+    return NextResponse.json(
+      { error: "smart_account_owner_unverified", message: "Execution from a separate smart account is disabled until its ownership is verified." },
+      { status: 403 },
+    );
+  }
+
   const wallet = {
     ...body.wallet,
     address: session?.address || body.wallet?.address || null,
@@ -56,7 +68,7 @@ export async function POST(req: Request) {
 
   if (body.execute) {
     if (!body.confirmed || !body.confirmToken || !body.confirmationPreview) return NextResponse.json({ error: "confirm_required", message: "A fresh confirmation capability and action preview are required." }, { status: 403 });
-    const valid = consumeConfirmationToken({ token: body.confirmToken, wallet: wallet.address, action: { preview: previewAction(body.confirmationPreview) } });
+    const valid = await consumeConfirmationToken({ token: body.confirmToken, wallet: wallet.address, action: { preview: previewAction(body.confirmationPreview) } });
     if (!valid) return NextResponse.json({ error: "confirmation_mismatch", message: "Confirmation expired or does not match the reviewed action. Re-plan and confirm again." }, { status: 403 });
     const policyAction = previewPolicyAction(body.confirmationPreview);
     if (policyAction) {

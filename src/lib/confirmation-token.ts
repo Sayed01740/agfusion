@@ -1,8 +1,11 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
+import { getPrisma, isDbConfigured } from "@/lib/db";
 
 const TOKEN_VERSION = "v1";
 const TTL_SECONDS = 10 * 60;
-const consumedTokens = new Set<string>();
+// Development-only fallback. Production consumes confirmation capabilities in
+// PostgreSQL so serverless instances cannot independently accept the same token.
+const consumedTokens = new Map<string, number>();
 
 type ConfirmationPayload = {
   v: typeof TOKEN_VERSION;
@@ -95,15 +98,61 @@ export function verifyConfirmationToken(input: {
   }
 }
 
-/** Verify and consume a capability. Warm server instances reject replayed tokens. */
-export function consumeConfirmationToken(input: {
+/**
+ * Verify and atomically consume a one-time capability. Production requires the
+ * shared database to prevent replay across separate serverless instances.
+ */
+export async function consumeConfirmationToken(input: {
   token?: string | null;
   wallet?: string | null;
   action: Record<string, unknown>;
-}): boolean {
+}): Promise<boolean> {
   const token = String(input.token || "");
-  if (!verifyConfirmationToken(input) || consumedTokens.has(token)) return false;
-  consumedTokens.add(token);
-  if (consumedTokens.size > 2000) consumedTokens.clear();
-  return true;
+  if (!verifyConfirmationToken(input)) return false;
+
+  if (isDbConfigured()) {
+    try {
+      const prisma = getPrisma();
+      const expiresAt = new Date(Date.now() + TTL_SECONDS * 1000);
+      const tokenHash = createHash("sha256").update(token).digest("hex");
+      await prisma.$executeRaw`
+        CREATE TABLE IF NOT EXISTS "ConsumedConfirmationToken" (
+          "tokenHash" TEXT PRIMARY KEY,
+          "expiresAt" TIMESTAMP(3) NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      await prisma.$executeRaw`
+        DELETE FROM "ConsumedConfirmationToken"
+        WHERE "expiresAt" <= ${new Date()}
+      `;
+      const inserted = await prisma.$queryRaw<Array<{ tokenHash: string }>>`
+        INSERT INTO "ConsumedConfirmationToken" ("tokenHash", "expiresAt")
+        VALUES (${tokenHash}, ${expiresAt})
+        ON CONFLICT ("tokenHash") DO NOTHING
+        RETURNING "tokenHash"
+      `;
+      return inserted.length === 1;
+    } catch (error) {
+      console.warn("[AGFusion][Confirmation] persistent token consumption failed closed", error);
+      return false;
+    }
+  }
+
+  // Production must not silently fall back to per-instance replay protection.
+  if (process.env.NODE_ENV === "production") return false;
+
+  const now = Math.floor(Date.now() / 1000);
+  for (const [usedToken, expiry] of consumedTokens) {
+    if (expiry <= now) consumedTokens.delete(usedToken);
+  }
+  if (consumedTokens.has(token)) return false;
+  const dot = token.lastIndexOf(".");
+  try {
+    const payload = JSON.parse(Buffer.from(token.slice(0, dot), "base64url").toString("utf8")) as ConfirmationPayload;
+    consumedTokens.set(token, payload.exp);
+    return true;
+  } catch {
+    return false;
+  }
 }
