@@ -18,9 +18,17 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - name: Audit production dependencies
+        id: production_audit
+        continue-on-error: true
         run: npm audit --omit=dev --audit-level=moderate
-      - name: Report remaining development and transitive advisories
+      - name: Report development and transitive advisories
+        if: always()
         shell: bash
         run: |
           npm audit --json > /tmp/npm-audit-all.json || true
-          node -e 'const r=require("/tmp/npm-audit-all.json"); for (const [name, v] of Object.entries(r.vulnerabilities || {})) console.log(`${v.severity}: ${name}; direct=${v.isDirect}; range=${v.range}; fix=${JSON.stringify(v.fixAvailable)}`);'
+          node -e 'const r=require("/tmp/npm-audit-all.json"); for (const [name, v] of Object.entries(r.vulnerabilities || {})) console.log(JSON.stringify({severity:v.severity, package:name, direct:v.isDirect, range:v.range, installedAt:v.nodes, fixAvailable:v.fixAvailable, advisories:(v.via || []).filter(x => typeof x === "object").map(x => ({title:x.title,url:x.url,range:x.range}))}));'
+      - name: Enforce production audit gate
+        if: steps.production_audit.outcome == 'failure'
+        run: |
+          echo "::error::Production dependency audit failed. Review the detailed advisory report above; do not force breaking dependency changes just to clear the audit."
+          exit 1
