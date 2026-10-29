@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
 import {
   consumeConfirmationToken,
   issueConfirmationToken,
 } from "@/lib/confirmation-token";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const previewSchema = z.record(z.string(), z.unknown()).refine(
+  (preview) => Object.keys(preview).length <= 40 && JSON.stringify(preview).length <= 8 * 1024,
+  "Preview is too large",
+);
+const bodySchema = z.object({
+  mode: z.enum(["issue", "consume"]).optional(),
+  confirmToken: z.string().max(200).optional(),
+  wallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
+  preview: previewSchema,
+});
 
 /**
  * Confirmation capability endpoint.
@@ -17,23 +30,24 @@ export const dynamic = "force-dynamic";
  * that capability immediately before opening the wallet.
  */
 export async function POST(req: Request) {
+  const bodyResult = await readLimitedJson(req, 16 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_json" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+
+  const parsed = bodySchema.safeParse(bodyResult.value);
+  if (!parsed.success) {
+    return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 });
+  }
+
   try {
-    const body = (await req.json()) as {
-      mode?: "issue" | "consume";
-      confirmToken?: string;
-      preview?: Record<string, unknown>;
-    };
-
+    const body = parsed.data;
     const session = await getSessionUser();
-    const bodyWallet = typeof (body as any).wallet === "string" && /^0x[a-fA-F0-9]{40}$/i.test((body as any).wallet) ? (body as any).wallet.toLowerCase() : undefined;
+    const bodyWallet = body.wallet?.toLowerCase();
     const wallet = session?.address || bodyWallet;
-
-    if (!body.preview || typeof body.preview !== "object") {
-      return NextResponse.json(
-        { ok: false, error: "confirmation_required" },
-        { status: 400 },
-      );
-    }
 
     const preview = { ...body.preview };
     delete preview.confirmToken;
@@ -45,26 +59,18 @@ export async function POST(req: Request) {
           {
             ok: false,
             error: "wallet_session_required",
-            message:
-              "Connect the wallet used for this transaction before confirming.",
+            message: "Connect the wallet used for this transaction before confirming.",
           },
           { status: 401 },
         );
       }
 
-      const confirmToken = issueConfirmationToken({
-        wallet,
-        action: { preview },
-      });
-
+      const confirmToken = issueConfirmationToken({ wallet, action: { preview } });
       return NextResponse.json({ ok: true, confirmToken });
     }
 
     if (!body.confirmToken) {
-      return NextResponse.json(
-        { ok: false, error: "confirmation_required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ ok: false, error: "confirmation_required" }, { status: 400 });
     }
 
     const valid = consumeConfirmationToken({
@@ -78,8 +84,7 @@ export async function POST(req: Request) {
         {
           ok: false,
           error: "confirmation_expired",
-          message:
-            "This confirmation is expired, already used, or does not match the reviewed transaction. Re-plan the transaction.",
+          message: "This confirmation is expired, already used, or does not match the reviewed transaction. Re-plan the transaction.",
         },
         { status: 403 },
       );
@@ -87,9 +92,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json(
-      { ok: false, error: "confirmation_failed" },
-      { status: 400 },
-    );
+    return NextResponse.json({ ok: false, error: "confirmation_failed" }, { status: 400 });
   }
 }
