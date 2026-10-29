@@ -16,6 +16,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm install --package-lock-only --legacy-peer-deps --ignore-scripts --no-audit
       - run: npm ci --legacy-peer-deps
       - name: Audit production dependencies
         id: production_audit
