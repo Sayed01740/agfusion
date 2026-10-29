@@ -16,6 +16,19 @@ assert(
   `bounded array parsed ${arrayElementsVisited} elements before rejecting an oversized input`,
 );
 
+let exactArrayElementsVisited = 0;
+const exactArrayElement = z.any().superRefine(() => {
+  exactArrayElementsVisited += 1;
+});
+const wrongExactLengthArray = z.array(exactArrayElement).length(8).safeParse(
+  Array.from({ length: 256 }, (_, i) => i),
+);
+assert(!wrongExactLengthArray.success, "array violating exact length should fail");
+assert(
+  exactArrayElementsVisited === 0,
+  `exact-length array parsed ${exactArrayElementsVisited} elements before rejecting an oversized input`,
+);
+
 let setElementsVisited = 0;
 const setElement = z.any().superRefine(() => {
   setElementsVisited += 1;
