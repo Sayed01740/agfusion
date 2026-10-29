@@ -50,3 +50,25 @@ References:
 - Circle App Kit browser guidance: https://github.com/circlefin/skills/blob/master/plugins/circle/skills/swap-tokens/SKILL.md
 - Circle App Kit FAQ (swap runtime and Testnet token support): https://community.arc.io/public/blogs/app-kit-faqs-2026-07-07
 - Circle October release notes: https://community.arc.io/public/forum/boards/arc-announcements-and-updates-fki/posts/new-stablecoin-kits-releases-ttfwelhyb7
+
+
+## Exact CI audit triage (run #182)
+
+The failed audit job's JSON summary identifies the following package families. This is a triage record, not a claim that any issue has been fixed.
+
+| Finding group | Evidence in CI report | Safe next action |
+|---|---|---|
+| Zod | High; range `<4.6.6`; 16 nested/root install locations across Circle App Kit, adapters, kits and providers | Determine whether vendor releases remove the nested Zod 3 instances; then run API compatibility tests and inspect the complete resolved tree |
+| Elliptic | Low; `elliptic <=6.6.1`; no safe remediation demonstrated by this report | Trace the introducing dependency and check its upstream maintenance/advisory status; do not invent a patched version |
+| Ethers v5 subpackages | Low findings in ABI, abstract-provider, abstract-signer, hash, signing-key and transactions | Trace which Circle packages require these versions and test any vendor-supported upgrade independently |
+| Circle packages | High aggregate findings propagated through adapter, App Kit, borrow/bridge/earn/onramp kits and multiple providers | Do not assume every package-level finding is a distinct direct exploit; resolve the underlying dependency edges and rerun audit |
+
+The audit's automatic fix suggestion is a semver-major downgrade of `@circle-fin/app-kit` to `1.0.0`; this is rejected as unsafe without a deliberate migration and compatibility review. Some transitive provider findings report a fix as available, but that alone does not prove the resulting graph is compatible with AGFusion. Test a candidate on an isolated branch before adopting it.
+
+## Validation evidence boundary
+
+- CI run #777 for the previous documentation-only commit passed typecheck, unit tests, and production build.
+- Dependency audit run #182 failed at the enforcement step; the report totals 23 findings (7 low, 16 high).
+- The audit log was inspected to capture package locations and suggested fixes. No dependency was changed in this step.
+- The research branch's newest documentation commit still requires its own CI result; do not infer a run result from a previous commit.
+- No live Circle Testnet call was performed and no Mainnet transaction was signed or broadcast.
