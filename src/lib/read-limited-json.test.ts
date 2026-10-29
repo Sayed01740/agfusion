@@ -33,6 +33,33 @@ describe("readLimitedJson", () => {
     });
   });
 
+  it("enforces the stream limit when Content-Length understates the body", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(JSON.stringify({ message: "x".repeat(100) })));
+        controller.close();
+      },
+    });
+    const req = new Request("http://localhost/api/test", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": "1" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+    await expect(readLimitedJson(req, 32)).resolves.toEqual({
+      ok: false,
+      reason: "too_large",
+    });
+  });
+
+  it("accepts a body exactly at the byte limit", async () => {
+    const body = '{"ok":true}';
+    await expect(readLimitedJson(request(body), new TextEncoder().encode(body).byteLength)).resolves.toEqual({
+      ok: true,
+      value: { ok: true },
+    });
+  });
+
   it("rejects malformed JSON", async () => {
     await expect(readLimitedJson(request('{"broken":'), 32)).resolves.toEqual({
       ok: false,
