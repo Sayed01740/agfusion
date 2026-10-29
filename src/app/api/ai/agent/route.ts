@@ -11,6 +11,7 @@ import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { enforceAgentSpendingPolicy, releaseAgentSpendReservation, type AgentSpendAction } from "@/lib/agent-spending-policy";
 import { agentRequestSchema } from "@/lib/validation";
 import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +32,9 @@ function previewPolicyAction(preview: Record<string, unknown> | undefined): Agen
 
 export async function POST(req: Request) {
   const ip = clientIp(req); const limits = agentRateLimitConfig();
-  let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
-  const parsed = agentRequestSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const requestBody = await readLimitedJson(req, 64 * 1024);
+  if (!requestBody.ok) return NextResponse.json({ error: requestBody.error }, { status: requestBody.status });
+  const parsed = agentRequestSchema.safeParse(requestBody.value); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   const body = parsed.data;
   const session = await getSessionUser();
 
