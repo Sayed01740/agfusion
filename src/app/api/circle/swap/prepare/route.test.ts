@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getServerKitKey: vi.fn<() => string | null>(() => undefined),
+  getServerKitKey: vi.fn<() => string | null>(() => null),
   estimateSwap: vi.fn(),
 }));
 
