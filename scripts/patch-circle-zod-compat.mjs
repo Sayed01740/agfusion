@@ -50,7 +50,7 @@ walk(circleRoot);
 if (importsRewritten === 0) {
   // A previous run can already have rewritten all imports.
   const appKit = path.resolve("node_modules/@circle-fin/app-kit/index.mjs");
-  if (!fs.existsSync(appKit) || !fs.readFileSync(appKit, "utf8").includes('from "zod/v3"')) {
+  if (!fs.existsSync(appKit) || !fs.readFileSync(appKit, "utf8").includes("zod/v3")) {
     throw new Error("No Circle Zod imports were rewritten; package layout may have changed.");
   }
 }
