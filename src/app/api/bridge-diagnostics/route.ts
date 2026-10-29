@@ -48,10 +48,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "sessionId_and_event_required" }, { status: 400 });
   }
 
-  const event = redact(body.event);
-  const saved = await logBridgeDiagnosticEvent(event, body.sessionId, body.walletAddress as string | undefined);
-  console.info("[AGFUSION_BRIDGE_DIAGNOSTIC]", JSON.stringify({ sessionId: body.sessionId, event }));
-  return NextResponse.json({ ok: true, saved, storage: saved ? "database" : "browser_only", receivedAt: new Date().toISOString() });
+  try {
+    const event = redact(body.event);
+    const saved = await logBridgeDiagnosticEvent(event, body.sessionId, body.walletAddress as string | undefined);
+    console.info("[AGFUSION_BRIDGE_DIAGNOSTIC]", JSON.stringify({ sessionId: body.sessionId, event }));
+    return NextResponse.json({ ok: true, saved, storage: saved ? "database" : "browser_only", receivedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error("[AGFUSION_BRIDGE_DIAGNOSTIC_ERROR]", error);
+    return NextResponse.json({ ok: false, error: "invalid_diagnostic_payload" }, { status: 400 });
+  }
 }
 
 export async function GET(request: Request) {
