@@ -38,7 +38,7 @@ These paths are user-influenced (e.g. amount, recipient, selected action) but or
 
 The mapped fork's `lib/elliptic/ec/index.js` passes the raw HMAC-DRBG byte array to `_truncateToN` in the default nonce path, so the array's byte length (including a leading zero) is preserved for bit-length truncation. The `options.k` override path remains separate.
 
-AGFusion adds `scripts/test-mapped-elliptic-leading-zero.mjs`, which resolves the actual nested module from `@ethersproject/signing-key`, injects a controlled P-521 DRBG output beginning with a zero byte, independently calculates expected ECDSA `r` and `s`, checks both values and verifies the resulting signature. This test passed in CI run #803.
+AGFusion adds `scripts/test-mapped-elliptic-leading-zero.mjs`, which resolves the actual nested module from `@ethersproject/signing-key`, injects a controlled P-521 DRBG output beginning with a zero byte, independently calculates expected ECDSA `r` and `s`, checks both values and verifies the resulting signature. The same harness also checks the P-256 / SHA-256 RFC 6979 known-answer vector (`r`, `s`, and public-key verification). Both checks passed in CI run #805.
 
 The test is targeted regression evidence only. It does not establish full cryptographic correctness, side-channel resistance, or the correctness of all curves and edge cases.
 
