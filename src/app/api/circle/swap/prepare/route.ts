@@ -61,7 +61,20 @@ export async function POST(req: Request) {
   if (!isAddress(address)) {
     return NextResponse.json({ error: "invalid_wallet_address" }, { status: 400 });
   }
-  if (!amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+  // Reject oversized or non-decimal inputs before passing them to the SDK.
+  // Avoid exponent notation and cap precision to the maximum supported token precision.
+  const amountParts = amount.split(".");
+  const validDecimalAmount =
+    amount.length <= 80 &&
+    /^\d+(?:\.\d+)?$/.test(amount) &&
+    amountParts.length <= 2 &&
+    (amountParts[1]?.length ?? 0) <= 18;
+
+  if (
+    !validDecimalAmount ||
+    !Number.isFinite(Number(amount)) ||
+    Number(amount) <= 0
+  ) {
     return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
   }
   if (
