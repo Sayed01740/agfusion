@@ -3,6 +3,9 @@ import { isAddress } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerKitKey } from "@/lib/circle-kit-server";
 import { readLimitedJson } from "@/lib/read-limited-json";
+import { collectTransactions } from "@/lib/bounded-transaction-collector";
+import { boundedJsonSafe } from "@/lib/bounded-json-safe";
+import { assertMainnetSwapReady, MAINNET_SWAP_NOT_READY_MESSAGE } from "@/lib/mainnet-swap-readiness";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,64 +29,8 @@ const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
 const SUPPORTED_TOKENS = ["USDC", "EURC"] as const;
 type SupportedToken = (typeof SUPPORTED_TOKENS)[number];
 
-function jsonSafe(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
-  if (Array.isArray(value)) return value.map(jsonSafe);
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) out[key] = jsonSafe(item);
-    return out;
-  }
-  return value;
-}
+const jsonSafe = boundedJsonSafe;
 
-function collectTransactions(
-  value: unknown,
-  out: Array<{ to: string; data: string; value?: string }> = [],
-) {
-  if (Array.isArray(value)) {
-    for (const item of value) collectTransactions(item, out);
-    return out;
-  }
-  if (!value || typeof value !== "object") return out;
-  const obj = value as Record<string, unknown>;
-  const to =
-    typeof obj.to === "string"
-      ? obj.to
-      : typeof obj.contractAddress === "string"
-        ? obj.contractAddress
-        : undefined;
-  const data =
-    typeof obj.data === "string"
-      ? obj.data
-      : typeof obj.callData === "string"
-        ? obj.callData
-        : undefined;
-  if (
-    to &&
-    data &&
-    /^0x[0-9a-fA-F]{40}$/.test(to) &&
-    /^0x[0-9a-fA-F]*$/.test(data)
-  ) {
-    const valueField =
-      typeof obj.value === "string"
-        ? obj.value
-        : typeof obj.amount === "string"
-          ? obj.amount
-          : undefined;
-    const key = `${to.toLowerCase()}:${data.toLowerCase()}:${valueField || "0"}`;
-    if (
-      !out.some(
-        (tx) =>
-          `${tx.to.toLowerCase()}:${tx.data.toLowerCase()}:${tx.value || "0"}` === key,
-      )
-    ) {
-      out.push({ to, data, ...(valueField ? { value: valueField } : {}) });
-    }
-  }
-  for (const child of Object.values(obj)) collectTransactions(child, out);
-  return out;
-}
 
 export async function POST(req: Request) {
   const rl = rateLimit(`circle-swap-prepare:${clientIp(req)}`, {
@@ -131,6 +78,16 @@ export async function POST(req: Request) {
     );
   }
 
+  const requestIsMainnet = chainId === ARC_MAINNET_CHAIN_ID;
+  try {
+    assertMainnetSwapReady(requestIsMainnet);
+  } catch {
+    return NextResponse.json(
+      { error: MAINNET_SWAP_NOT_READY_MESSAGE },
+      { status: 503 },
+    );
+  }
+
   const kitKey = getServerKitKey();
   if (!kitKey) {
     console.error("[AGFusion] Circle App Kit key is missing from server environment.");
@@ -152,7 +109,6 @@ export async function POST(req: Request) {
     ]);
 
     // Determine which Arc chain we are on for this request
-    const requestIsMainnet = chainId === ARC_MAINNET_CHAIN_ID;
     const arcViemChainId = requestIsMainnet ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
     const arcViemName = requestIsMainnet ? "Arc Mainnet" : "Arc Testnet";
     const arcViemRpc = requestIsMainnet
@@ -226,7 +182,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        chainId: ARC_CHAIN_ID,
+        chainId: arcViemChainId,
         address,
         tokenIn,
         tokenOut,
