@@ -41,13 +41,13 @@ import { MAINNET_SWAP_NOT_READY_MESSAGE } from "@/lib/mainnet-swap-readiness";
 
 const MOCK_TX_TO = "0x0000000000000000000000000000000000000002";
 
-function requestFor(chainId: number) {
+function requestFor(chainId: number, amount = "1") {
   return new Request("http://localhost/api/circle/swap/prepare", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       address: "0x0000000000000000000000000000000000000001",
-      amount: "1",
+      amount,
       tokenIn: "USDC",
       tokenOut: "EURC",
       chainId,
@@ -64,7 +64,23 @@ describe("POST /api/circle/swap/prepare chain readiness", () => {
     });
   });
 
-  it("rejects Arc Mainnet before Circle SDK initialization while readiness is false", async () => {
+  it.each([
+    ["zero", "0"],
+    ["negative", "-1"],
+    ["exponent notation", "1e3"],
+    ["leading decimal point", ".5"],
+    ["trailing decimal point", "1."],
+    ["more than 18 decimal places", "1.1234567890123456789"],
+    ["oversized input", "1".repeat(81)],
+    ["non-numeric input", "NaN"],
+  ])("rejects invalid amount (%s) before initializing Circle SDK", async (_label, amount) => {
+    const response = await POST(requestFor(5042002, amount));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_amount" });
+    expect(mocks.estimateSwap).not.toHaveBeenCalled();
+  });
+
+  it("rejects Arc Mainnet before Circle SDK initialization while readiness is false", async () =>
     const response = await POST(requestFor(5042));
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
