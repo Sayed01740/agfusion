@@ -19,7 +19,8 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "verify:arc-mainnet": "node scripts/verify-arc-mainnet.mjs",
-    "test:circle-sdk-compat": "node scripts/patch-circle-zod-compat.mjs && node scripts/check-circle-app-kit-runtime.mjs && node scripts/test-zod-v3-security.mjs"
+    "test:circle-sdk-compat": "node scripts/patch-circle-zod-compat.mjs && node scripts/check-circle-app-kit-runtime.mjs && node scripts/test-zod-v3-security.mjs",
+    "test:elliptic-leading-zero": "node scripts/test-mapped-elliptic-leading-zero.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.13.0",
