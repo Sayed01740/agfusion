@@ -3,6 +3,7 @@ import { isAddress } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerKitKey } from "@/lib/circle-kit-server";
 import { readLimitedJson } from "@/lib/read-limited-json";
+import { collectTransactions } from "@/lib/bounded-transaction-collector";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,53 +38,6 @@ function jsonSafe(value: unknown): unknown {
   return value;
 }
 
-function collectTransactions(
-  value: unknown,
-  out: Array<{ to: string; data: string; value?: string }> = [],
-) {
-  if (Array.isArray(value)) {
-    for (const item of value) collectTransactions(item, out);
-    return out;
-  }
-  if (!value || typeof value !== "object") return out;
-  const obj = value as Record<string, unknown>;
-  const to =
-    typeof obj.to === "string"
-      ? obj.to
-      : typeof obj.contractAddress === "string"
-        ? obj.contractAddress
-        : undefined;
-  const data =
-    typeof obj.data === "string"
-      ? obj.data
-      : typeof obj.callData === "string"
-        ? obj.callData
-        : undefined;
-  if (
-    to &&
-    data &&
-    /^0x[0-9a-fA-F]{40}$/.test(to) &&
-    /^0x[0-9a-fA-F]*$/.test(data)
-  ) {
-    const valueField =
-      typeof obj.value === "string"
-        ? obj.value
-        : typeof obj.amount === "string"
-          ? obj.amount
-          : undefined;
-    const key = `${to.toLowerCase()}:${data.toLowerCase()}:${valueField || "0"}`;
-    if (
-      !out.some(
-        (tx) =>
-          `${tx.to.toLowerCase()}:${tx.data.toLowerCase()}:${tx.value || "0"}` === key,
-      )
-    ) {
-      out.push({ to, data, ...(valueField ? { value: valueField } : {}) });
-    }
-  }
-  for (const child of Object.values(obj)) collectTransactions(child, out);
-  return out;
-}
 
 export async function POST(req: Request) {
   const rl = rateLimit(`circle-swap-prepare:${clientIp(req)}`, {
