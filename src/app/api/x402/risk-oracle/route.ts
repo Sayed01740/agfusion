@@ -25,6 +25,7 @@ import {
 } from "@/lib/arc-chain";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getPrisma, isDbConfigured } from "@/lib/db";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -215,18 +216,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  let body: {
+  const bodyResult = await readLimitedJson(req, 8 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_json" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  const raw = bodyResult.value;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const body = raw as {
     amount?: string;
     fromChain?: string;
     toChain?: string;
     paymentTxHash?: string;
     payer?: string;
   };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
 
   const amount = String(body.amount || "100");
   const fromChain = (resolveChain(body.fromChain || "Base_Sepolia") ||

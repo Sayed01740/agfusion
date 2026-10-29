@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, setSessionCookie } from "@/lib/session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { getCircleApiKey, isValidUserToken } from "@/lib/circle-pw-server";
 
 export const runtime = "nodejs";
@@ -19,12 +20,18 @@ export async function POST(req: Request) {
   });
   if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
-  let body: { userToken?: unknown; address?: unknown };
-  try {
-    body = await req.json();
-  } catch {
+  const bodyResult = await readLimitedJson(req, 8192);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_json" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  const raw = bodyResult.value;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  const body = raw as { userToken?: unknown; address?: unknown };
 
   if (!isValidUserToken(body.userToken)) {
     return NextResponse.json({ error: "invalid_user_token" }, { status: 400 });
