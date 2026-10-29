@@ -46,15 +46,19 @@ Automated application and Foundry checks pass on the latest isolated branch comm
 
 ### Latest automated evidence
 
-Reviewed against isolated branch commit `40310583a3a0a8ce282fdb13247853bb86792dc7`:
+Reviewed against isolated branch commit `0170a1aa86a22d789ba03fd3860e388530c07cac`:
 
-- [CI / application typecheck, tests, and production build](https://github.com/Sayed01740/agfusion/actions/runs/40859258136): running at last check; includes tests for the new bounded JSON reader.
-- [Foundry contract checks and deployment-script compilation](https://github.com/Sayed01740/agfusion/actions/runs/40859258138): success.
-- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40859258141): **failed**. `npm audit --omit=dev --audit-level=moderate` reports 23 findings (7 low, 16 high), including the Zod advisory GHSA-mrhx-c7xc-m3w5 in the Circle App Kit dependency tree. The automated `npm audit fix --force` recommendation would downgrade `@circle-fin/app-kit` to 1.0.0, a breaking change; this was not applied. Investigate a compatible upstream fix or a tested, narrowly scoped remediation before considering release.
+- [CI / application typecheck, tests, and production build](https://github.com/Sayed01740/agfusion/actions/runs/40859376425): **passed**; includes tests for the new bounded JSON reader.
+- [Foundry contract checks and deployment-script compilation](https://github.com/Sayed01740/agfusion/actions/runs/40859376751): **passed**.
+- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40859376679): **failed**. `npm audit --omit=dev --audit-level=moderate` reports 23 findings (7 low, 16 high), including the Zod advisory GHSA-mrhx-c7xc-m3w5 in the Circle App Kit dependency tree. The automated `npm audit fix --force` recommendation would downgrade `@circle-fin/app-kit` to 1.0.0, a breaking change; this was not applied. Investigate a compatible upstream fix or a tested, narrowly scoped remediation before considering release.
 - [Read-only preflight script validation](https://github.com/Sayed01740/agfusion/actions/runs/40019273475): success, including fail-closed tests for missing configuration, duplicate contract addresses, zero addresses, and invalid fee settings. This is script/test validation, not a live Mainnet RPC preflight.
 
 These workflow results verify code and automated tests only. The live Mainnet contract verification has **not** been executed because the actual deployed Registry, Escrow, and Disperse addresses and independently approved expected owner/arbitrator/fee settings have not been supplied. Do not fill these values with guesses.
 
 Additional hardening on this branch: `src/lib/read-limited-json.ts` enforces a byte ceiling while streaming request bodies, with unit tests for valid JSON, malformed JSON, declared oversize, and streamed oversize. The AI agent endpoint applies a 64 KiB limit and Circle swap preparation applies a 16 KiB limit before parsing. This is defense-in-depth; it does not remove the vulnerable nested Zod copies from the Circle SDK dependency tree.
+
+### Dependency compatibility experiment (not merged)
+
+A separate draft experiment, [PR #22](https://github.com/Sayed01740/agfusion/pull/22), replaced all Zod copies with Zod 4.6.7. `npm audit --omit=dev --audit-level=moderate` passed in that isolated experiment, and TypeScript typecheck passed after updating the `z.record` call. However, application tests then failed at Circle App Kit import time with `TypeError: z.function(...).returns is not a function`, confirming that the installed Circle App Kit bundle still relies on a Zod 3 API. The global override is therefore incompatible and must not be merged. PR #22 is being closed as a failed experiment; the release audit blocker remains open until a compatible upstream or narrowly scoped, fully tested fix is available.
 
 Next step: obtain a compatible Circle SDK dependency fix or complete a reviewed, tested remediation for the remaining nested Zod advisories without forcing a breaking SDK downgrade, then rerun CI, Foundry checks, and the production audit. Separately, obtain the real deployment addresses and independently approved control settings before running the read-only live Mainnet preflight. Keep Mainnet swaps disabled, preserve Testnet configuration, and do not merge, deploy, change production variables, or broadcast transactions until all release gates and explicit human approval are complete.
