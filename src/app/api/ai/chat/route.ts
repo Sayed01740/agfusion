@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { orchestrateUserMessage } from "@/ai/orchestrator";
 import { resolveLlmConfig } from "@/lib/llm-config";
 import { sanitizeAgentText } from "@/lib/sanitize";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
+
+const bodySchema = z.object({
+  message: z.string().trim().min(1).max(4000),
+  execute: z.boolean().optional().default(false),
+});
 
 /**
  * AI chat + action orchestration.
@@ -11,48 +18,43 @@ export const runtime = "nodejs";
  * when a server LLM key is present.
  */
 export async function POST(req: Request) {
+  const bodyResult = await readLimitedJson(req, 16 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_json" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+
+  const parsed = bodySchema.safeParse(bodyResult.value);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const { message, execute } = parsed.data;
   try {
-    const body = await req.json();
-    const message = String(body.message || "").trim();
-    const execute = Boolean(body.execute);
-
-    if (!message) {
-      return NextResponse.json({ error: "message required" }, { status: 400 });
-    }
-
     let result = await orchestrateUserMessage(message, { execute });
 
     const llm = resolveLlmConfig();
     if (llm && !execute) {
       try {
-        const enriched = await enrichWithLlm(
-          message,
-          result.message.content,
-          llm,
-        );
+        const enriched = await enrichWithLlm(message, result.message.content, llm);
         if (enriched) {
-          // LLM text is rendered client-side via dangerouslySetInnerHTML —
-          // always sanitize before returning it.
+          // LLM text is rendered client-side via dangerouslySetInnerHTML — always sanitize.
           result = {
             ...result,
-            message: {
-              ...result.message,
-              content: sanitizeAgentText(enriched),
-            },
+            message: { ...result.message, content: sanitizeAgentText(enriched) },
           };
         }
       } catch {
-        // Keep deterministic orchestrator output
+        // Keep deterministic orchestrator output.
       }
     }
 
     return NextResponse.json(result);
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "orchestration failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "orchestration failed" }, { status: 500 });
   }
 }
 
