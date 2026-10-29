@@ -22,6 +22,17 @@ describe("collectTransactions", () => {
     expect(collectTransactions([{ to: "not-an-address", data: "0x12" }])).toEqual([]);
   });
 
+  it("rejects calldata larger than 64 KiB", () => {
+    expect(collectTransactions([{
+      to: validTx(1).to,
+      data: "0x" + "a".repeat(64 * 1024 + 1),
+    }])).toEqual([]);
+  });
+
+  it("rejects an excessively long transaction value", () => {
+    expect(collectTransactions([{ ...validTx(1), value: "9".repeat(129) }])).toEqual([]);
+  });
+
   it("caps the number of returned transactions at 64", () => {
     expect(collectTransactions(Array.from({ length: 100 }, (_, i) => validTx(i + 1)))).toHaveLength(64);
   });
