@@ -8,6 +8,7 @@ import { listLlmConfigs, type LlmConfig } from "@/lib/llm-config";
 import { HELP_SYSTEM, anthropicMessages } from "@/lib/claude-client";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { sanitizeAgentText } from "@/lib/sanitize";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,14 +126,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  const bodyResult = await readLimitedJson(req, 8 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_json" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
   }
 
-  const parsed = bodySchema.safeParse(raw);
+  const parsed = bodySchema.safeParse(bodyResult.value);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }

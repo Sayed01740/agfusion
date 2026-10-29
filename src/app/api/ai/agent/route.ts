@@ -10,6 +10,7 @@ import { persistTransaction, logAgentRun } from "@/lib/tx-store";
 import { finalizeVerifiedTransaction } from "@/lib/financial-receipt";
 import { enforceAgentSpendingPolicy, releaseAgentSpendReservation, type AgentSpendAction } from "@/lib/agent-spending-policy";
 import { agentRequestSchema } from "@/lib/validation";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { redactToolTrace, redactTransactionForClient } from "@/lib/public-api";
 
 export const runtime = "nodejs";
@@ -31,8 +32,15 @@ function previewPolicyAction(preview: Record<string, unknown> | undefined): Agen
 
 export async function POST(req: Request) {
   const ip = clientIp(req); const limits = agentRateLimitConfig();
-  let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: "invalid_request" }, { status: 400 }); }
-  const parsed = agentRequestSchema.safeParse(raw); if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const bodyResult = await readLimitedJson(req, 16 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: "invalid_request" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  const parsed = agentRequestSchema.safeParse(bodyResult.value);
+  if (!parsed.success) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   const body = parsed.data;
   const session = await getSessionUser();
 
