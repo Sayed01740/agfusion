@@ -232,7 +232,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         ok: true,
-        chainId: ARC_CHAIN_ID,
+        chainId,
         address,
         tokenIn,
         tokenOut,
