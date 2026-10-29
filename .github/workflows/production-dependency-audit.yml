@@ -47,6 +47,67 @@ jobs:
               : [],
           }, null, 2));
           NODE
+      - name: Extract exact @mapped/elliptic provenance source metadata (diagnostic)
+        continue-on-error: true
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          (async () => {
+            const dist = JSON.parse(fs.readFileSync("/tmp/mapped-elliptic-dist.json", "utf8"));
+            const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+            const entry = lock.packages["node_modules/@ethersproject/signing-key/node_modules/elliptic"];
+            const url = dist.attestations?.url;
+            if (!url) throw new Error("Registry did not provide an attestation URL for @mapped/elliptic@6.6.10");
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Attestation endpoint returned HTTP ${response.status}`);
+            const body = await response.json();
+            const envelopes = (body.attestations || []).map((item) => ({
+              predicateType: item.predicateType || item.bundle?.dsseEnvelope?.payloadType || null,
+              payload: item.bundle?.dsseEnvelope?.payload || null,
+            })).filter((item) => item.payload);
+            const statements = envelopes.map((item) => ({
+              predicateType: item.predicateType,
+              statement: JSON.parse(Buffer.from(item.payload, "base64").toString("utf8")),
+            }));
+            const expectedSha512 = entry?.integrity?.startsWith("sha512-")
+              ? Buffer.from(entry.integrity.slice("sha512-".length), "base64").toString("hex")
+              : null;
+            const provenance = statements.find((item) =>
+              item.predicateType === "https://slsa.dev/provenance/v1" ||
+              item.statement.predicateType === "https://slsa.dev/provenance/v1"
+            );
+            if (!provenance) throw new Error("No SLSA provenance statement payload found for the exact package version");
+            const statement = provenance.statement;
+            const subject = (statement.subject || []).find((item) =>
+              String(item.name || "").includes("@mapped/elliptic@6.6.10")
+            ) || (statement.subject || [])[0];
+            const predicate = statement.predicate || {};
+            const buildDefinition = predicate.buildDefinition || {};
+            const workflow = buildDefinition.externalParameters?.workflow || {};
+            const resolved = buildDefinition.resolvedDependencies || [];
+            const gitDependencies = resolved.filter((item) => item.digest?.gitCommit).map((item) => ({
+              uri: item.uri,
+              gitCommit: item.digest.gitCommit,
+            }));
+            console.log(JSON.stringify({
+              package: "@mapped/elliptic@6.6.10",
+              lockfileIntegritySha512Hex: expectedSha512,
+              attestedSubjectName: subject?.name || null,
+              attestedSubjectSha512Hex: subject?.digest?.sha512 || null,
+              subjectDigestMatchesLockfile: Boolean(expectedSha512 && subject?.digest?.sha512 === expectedSha512),
+              predicateType: statement.predicateType || provenance.predicateType,
+              sourceRepository: workflow.repository || null,
+              sourceRef: workflow.ref || null,
+              buildWorkflowPath: workflow.path || null,
+              sourceGitCommits: gitDependencies,
+              invocationId: predicate.runDetails?.metadata?.invocationId || null,
+            }, null, 2));
+          })().catch((error) => {
+            console.error(error?.stack || String(error));
+            process.exitCode = 1;
+          });
+          NODE
       - name: Audit all dependencies (production and development)
         id: production_audit
         continue-on-error: true
