@@ -1,6 +1,6 @@
 # Circle SDK / Zod 4 compatibility spike
 
-**Status:** investigation only; no dependency changes proposed.
+**Status:** dependency-audit remediation candidate validated on an isolated Draft PR; not merged, production-deployed, or live-Testnet validated. Full npm audit is clean on the committed lockfile. Community-fork and custom compatibility-patch review remains required.
 
 ## Goal
 
@@ -72,3 +72,28 @@ The audit's automatic fix suggestion is a semver-major downgrade of `@circle-fin
 - The audit log was inspected to capture package locations and suggested fixes. No dependency was changed in this step.
 - The research branch's newest documentation commit still requires its own CI result; do not infer a run result from a previous commit.
 - No live Circle Testnet call was performed and no Mainnet transaction was signed or broadcast.
+
+
+## Remediation candidate results (2026-10-29)
+
+The isolated branch `security/audit-remediation-zod4-elliptic` now carries a committed `package-lock.json` and the audit workflow checks that lockfile directly via `npm ci`—it no longer generates a replacement lockfile in CI.
+
+- Candidate graph: `zod@4.6.7` pinned through the root dependency and override; transitive `elliptic` resolved to `@mapped/elliptic@6.6.10`, a community-maintained fork rather than an upstream `elliptic` release.
+- Circle compatibility: the build script redirects Circle SDK imports to Zod's `zod/v3` compatibility export and applies a small build-time backport of early-rejection guards for bounded Zod v3 arrays and sets. This is an application-maintained compatibility patch, not a Circle-issued patch.
+- Regression evidence: `npm run test:circle-sdk-compat` verifies Circle App Kit / adapter import and initialization plus that bounded arrays/sets reject over-limit inputs before element parsing.
+- Verified latest run on the committed-lockfile path: CI run #793 passed `npm ci`, compatibility/security regression checks, typecheck, all 179 tests across 28 test files, and production build. Dependency audit run #198 passed `npm audit --audit-level=moderate` across production and development dependencies; `npm ci` also reported zero vulnerabilities.
+- Live Circle Testnet smoke test remains unperformed because dedicated Preview/Testnet configuration is not available. The route tests currently use mocked estimator responses and are not live integration proof.
+- Risk boundary: a zero-result npm audit establishes the reported dependency graph is clear according to the current npm advisory database; it does not certify a third-party fork or a custom parser patch independently. The Zod collection guards cover schemas with explicit upper bounds; unbounded schemas require separate input-size/issue-count controls where reachable.
+- Mainnet swap remains disabled. No merge, production deployment, transaction signing, or broadcast has occurred.
+
+### Follow-up before merge
+
+1. Review the `@mapped/elliptic` fork source and provenance, preferably replace it with an upstream release or migrate the introducing dependency to a maintained crypto implementation if feasible.
+2. Perform security review of `scripts/patch-circle-zod-compat.mjs`, including fail-closed behavior across package upgrades and bounded-collection tests.
+3. Obtain dedicated Preview/Testnet credentials/configuration and run the documented prepare-only live smoke test without signing or broadcasting.
+4. Keep this PR Draft until those reviews and integration checks are complete.
+
+Audit evidence:
+- CI run #793: https://github.com/Sayed01740/agfusion/actions/runs/40885989397
+- Full dependency audit run #198: https://github.com/Sayed01740/agfusion/actions/runs/40885989387
+- Draft remediation PR #29: https://github.com/Sayed01740/agfusion/pull/29
