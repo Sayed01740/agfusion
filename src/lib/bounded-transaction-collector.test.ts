@@ -25,7 +25,7 @@ describe("collectTransactions", () => {
   it("rejects calldata larger than 64 KiB", () => {
     expect(collectTransactions([{
       to: validTx(1).to,
-      data: "0x" + "a".repeat(64 * 1024 + 1),
+      data: "0x" + "a".repeat(2 * (64 * 1024 + 1)),
     }])).toEqual([]);
   });
 
