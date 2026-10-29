@@ -44,13 +44,13 @@ CI passing means automated checks passed; it does not mean Mainnet contracts are
 
 ### Latest automated evidence
 
-Reviewed against isolated branch commit `e6a0f98ba1b3acc44b5b507fcd034e41d7d62e7e`:
+Reviewed against isolated branch commit `a5a7b27ab08351cdaa3933feb8c1364608d036c8`:
 
-- [CI / application build and tests](https://github.com/Sayed01740/agfusion/actions/runs/40019278732): success.
-- [Foundry contract checks](https://github.com/Sayed01740/agfusion/actions/runs/40019279113): success.
-- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40019278729): success.
-- [Read-only preflight script validation](https://github.com/Sayed01740/agfusion/actions/runs/40019273475): success, including fail-closed tests for missing configuration, duplicate contract addresses, zero addresses, and invalid fee settings.
+- [CI / application build and tests](https://github.com/Sayed01740/agfusion/actions/runs/40019780302): success.
+- [Foundry contract checks](https://github.com/Sayed01740/agfusion/actions/runs/40019780293): success.
+- [Production dependency security audit](https://github.com/Sayed01740/agfusion/actions/runs/40019780382): success.
+- [Read-only preflight script validation](https://github.com/Sayed01740/agfusion/actions/runs/40019273475): success, including fail-closed tests for missing configuration, duplicate contract addresses, zero addresses, and invalid fee settings. This is script/test validation, not a live Mainnet RPC preflight.
 
-These workflow results verify code and automated tests only. The preflight workflow does **not** run the live Mainnet contract verification. That live check remains blocked until the actual deployed Registry, Escrow, and Disperse addresses and independently approved expected owner/arbitrator/fee settings are supplied. Do not fill these values with guesses.
+These workflow results verify code and automated tests only. The live Mainnet contract verification has **not** been executed because the actual deployed Registry, Escrow, and Disperse addresses and independently approved expected owner/arbitrator/fee settings have not been supplied. Do not fill these values with guesses.
 
 The latest commit remains on Draft PR #21. Keep Mainnet swaps disabled, preserve Testnet configuration, and do not merge, deploy, change production variables, or broadcast transactions until all release gates and explicit human approval are complete.
