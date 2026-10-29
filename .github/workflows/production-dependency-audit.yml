@@ -40,6 +40,8 @@ jobs:
             integrityMatches: Boolean(entry?.integrity && entry.integrity === dist.integrity),
             registrySignatureCount: Array.isArray(dist.signatures) ? dist.signatures.length : 0,
             provenanceAttestationPresent: Boolean(dist.attestations),
+            attestationUrl: dist.attestations?.url ?? null,
+            provenanceMetadata: dist.attestations?.provenance ?? null,
             attestationKeys: dist.attestations && typeof dist.attestations === "object"
               ? Object.keys(dist.attestations)
               : [],
