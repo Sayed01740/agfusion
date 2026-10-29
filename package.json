@@ -41,7 +41,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.10",
     "viem": "^2.31.0",
-    "zod": "^3.25.67",
+    "zod": "^4.6.7",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
@@ -72,6 +72,7 @@
     "jayson": "^5.0.0",
     "@prisma/config": {
       "deepmerge-ts": "^8.0.2"
-    }
+    },
+    "zod": "$zod"
   }
 }
