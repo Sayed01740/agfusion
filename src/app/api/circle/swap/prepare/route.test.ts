@@ -3,6 +3,16 @@ import { POST } from "./route";
 
 const mocks = vi.hoisted(() => ({
   getServerKitKey: vi.fn(),
+  estimateSwap: vi.fn(),
+}));
+
+vi.mock("@circle-fin/app-kit", () => ({
+  AppKit: class {
+    estimateSwap = mocks.estimateSwap;
+  },
+}));
+vi.mock("@circle-fin/adapter-viem-v2", () => ({
+  createViemAdapterFromProvider: vi.fn(async () => ({ mocked: true })),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -26,6 +36,36 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     expect(response.status).toBe(413);
     expect(await response.json()).toEqual({ error: "request_too_large" });
     expect(mocks.getServerKitKey).not.toHaveBeenCalled();
+  });
+
+
+  it.each([
+    [5042002, "Arc Testnet"],
+    [5042, "Arc Mainnet"],
+  ])("returns the requested chain ID (%s) rather than the runtime default", async (chainId) => {
+    mocks.getServerKitKey.mockReturnValue("test-kit-key");
+    mocks.estimateSwap.mockResolvedValue({
+      transactions: [{
+        to: "0x1111111111111111111111111111111111111111",
+        data: "0x1234",
+      }],
+    });
+
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "1",
+        tokenIn: "USDC",
+        tokenOut: "EURC",
+        chainId,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).chainId).toBe(chainId);
+    expect(mocks.estimateSwap).toHaveBeenCalledOnce();
   });
 
   it("rejects non-object JSON before reading swap fields", async () => {
