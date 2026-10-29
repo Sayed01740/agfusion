@@ -30,7 +30,7 @@ export const walletContextSchema = z.object({
   forceDemo: z.boolean().optional(),
 });
 
-export const confirmationPreviewSchema = z.record(z.unknown());
+export const confirmationPreviewSchema = z.record(z.string(), z.unknown());
 
 export const agentRequestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
