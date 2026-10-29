@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import {
   fetchOwnedWallet,
   getCircleApiKey,
@@ -24,12 +25,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  let body: { userToken?: unknown; walletId?: unknown; address?: unknown };
-  try {
-    body = await req.json();
-  } catch {
+  const bodyResult = await readLimitedJson(req, 16 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_request" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  const raw = bodyResult.value;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
+  const body = raw as { userToken?: unknown; walletId?: unknown; address?: unknown };
 
   const { userToken, walletId, address } = body;
   if (!isValidUserToken(userToken)) {

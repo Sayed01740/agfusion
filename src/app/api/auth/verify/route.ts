@@ -7,6 +7,7 @@ import {
 } from "@/lib/siwe";
 import { createSession, setSessionCookie } from "@/lib/session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,14 +20,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  const bodyResult = await readLimitedJson(req, 16 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_request" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
   }
 
-  const parsed = siweVerifySchema.safeParse(body);
+  const parsed = siweVerifySchema.safeParse(bodyResult.value);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
