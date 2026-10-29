@@ -5,6 +5,7 @@ import { getServerKitKey } from "@/lib/circle-kit-server";
 import { readLimitedJson } from "@/lib/read-limited-json";
 import { collectTransactions } from "@/lib/bounded-transaction-collector";
 import { boundedJsonSafe } from "@/lib/bounded-json-safe";
+import { assertMainnetSwapReady, MAINNET_SWAP_NOT_READY_MESSAGE } from "@/lib/mainnet-swap-readiness";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,6 +78,16 @@ export async function POST(req: Request) {
     );
   }
 
+  const requestIsMainnet = chainId === ARC_MAINNET_CHAIN_ID;
+  try {
+    assertMainnetSwapReady(requestIsMainnet);
+  } catch {
+    return NextResponse.json(
+      { error: MAINNET_SWAP_NOT_READY_MESSAGE },
+      { status: 503 },
+    );
+  }
+
   const kitKey = getServerKitKey();
   if (!kitKey) {
     console.error("[AGFusion] Circle App Kit key is missing from server environment.");
@@ -98,7 +109,6 @@ export async function POST(req: Request) {
     ]);
 
     // Determine which Arc chain we are on for this request
-    const requestIsMainnet = chainId === ARC_MAINNET_CHAIN_ID;
     const arcViemChainId = requestIsMainnet ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
     const arcViemName = requestIsMainnet ? "Arc Mainnet" : "Arc Testnet";
     const arcViemRpc = requestIsMainnet
