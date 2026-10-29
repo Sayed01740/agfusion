@@ -80,7 +80,7 @@ describe("POST /api/circle/swap/prepare chain readiness", () => {
     expect(mocks.estimateSwap).not.toHaveBeenCalled();
   });
 
-  it("rejects Arc Mainnet before Circle SDK initialization while readiness is false", async () =>
+  it("rejects Arc Mainnet before Circle SDK initialization while readiness is false", async () => {
     const response = await POST(requestFor(5042));
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
