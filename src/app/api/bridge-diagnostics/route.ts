@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { listBridgeDiagnosticEvents, logBridgeDiagnosticEvent } from "@/lib/tx-store";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,19 +24,34 @@ function redact(value: unknown): unknown {
 export async function POST(request: Request) {
   const rl = rateLimit(`bridgeDiag:${clientIp(request)}`, { windowMs: 60_000, max: 300 });
   if (!rl.ok) return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
-  const contentLength = Number(request.headers.get("content-length") || 0);
-  if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ ok: false, error: "payload_too_large" }, { status: 413 });
-  try {
-    const body = (await request.json()) as { sessionId?: string; event?: unknown; walletAddress?: string };
-    if (!body.sessionId || !body.event) return NextResponse.json({ ok: false, error: "sessionId_and_event_required" }, { status: 400 });
-    const event = redact(body.event);
-    const saved = await logBridgeDiagnosticEvent(event, body.sessionId, body.walletAddress);
-    console.info("[AGFUSION_BRIDGE_DIAGNOSTIC]", JSON.stringify({ sessionId: body.sessionId, event }));
-    return NextResponse.json({ ok: true, saved, storage: saved ? "database" : "browser_only", receivedAt: new Date().toISOString() });
-  } catch (error) {
-    console.error("[AGFUSION_BRIDGE_DIAGNOSTIC_ERROR]", error);
+
+  const bodyResult = await readLimitedJson(request, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: bodyResult.reason === "too_large" ? "payload_too_large" : "invalid_diagnostic_payload" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+
+  const raw = bodyResult.value;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return NextResponse.json({ ok: false, error: "invalid_diagnostic_payload" }, { status: 400 });
   }
+
+  const body = raw as { sessionId?: unknown; event?: unknown; walletAddress?: unknown };
+  if (
+    typeof body.sessionId !== "string" ||
+    !body.sessionId ||
+    !body.event ||
+    (body.walletAddress !== undefined && typeof body.walletAddress !== "string")
+  ) {
+    return NextResponse.json({ ok: false, error: "sessionId_and_event_required" }, { status: 400 });
+  }
+
+  const event = redact(body.event);
+  const saved = await logBridgeDiagnosticEvent(event, body.sessionId, body.walletAddress as string | undefined);
+  console.info("[AGFUSION_BRIDGE_DIAGNOSTIC]", JSON.stringify({ sessionId: body.sessionId, event }));
+  return NextResponse.json({ ok: true, saved, storage: saved ? "database" : "browser_only", receivedAt: new Date().toISOString() });
 }
 
 export async function GET(request: Request) {
