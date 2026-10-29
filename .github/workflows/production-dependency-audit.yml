@@ -1,4 +1,4 @@
-name: Production dependency security audit
+name: Full dependency security audit
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  production-audit:
+  dependency-audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         run: |
           npm audit --json > /tmp/npm-audit-all.json || true
           node -e 'const r=require("/tmp/npm-audit-all.json"); for (const [name, v] of Object.entries(r.vulnerabilities || {})) console.log(JSON.stringify({severity:v.severity, package:name, direct:v.isDirect, range:v.range, installedAt:v.nodes, fixAvailable:v.fixAvailable, advisories:(v.via || []).filter(x => typeof x === "object").map(x => ({title:x.title,url:x.url,range:x.range}))}));'
-      - name: Enforce production audit gate
+      - name: Enforce full dependency audit gate
         if: steps.production_audit.outcome == 'failure'
         run: |
           echo "::error::Dependency security audit failed. Review the detailed advisory report above; do not force breaking dependency changes just to clear the audit."
