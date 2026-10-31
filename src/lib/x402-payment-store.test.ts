@@ -102,7 +102,7 @@ describe("consumeX402ChallengeAndRecordPayment", () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const create = vi.fn().mockResolvedValue({ id: "payment-atomic-1" });
     const tx = { x402Challenge: { updateMany }, x402Payment: { create } };
-    const transaction = vi.fn(async (callback) => callback(tx as never));
+    const transaction = vi.fn(async (callback: (client: unknown) => Promise<unknown>) => callback(tx));
     prisma.mockReturnValue({ $transaction: transaction } as never);
 
     await expect(consumeX402ChallengeAndRecordPayment(input)).resolves.toEqual({
