@@ -40,7 +40,7 @@ export async function consumeX402RateLimit(
     return { ok: false, reason: "invalid_request" };
   }
 
-  const hmacSecret = process.env.AGFUSION_X402_RATE_LIMIT_SECRET;
+  const hmacSecret = process.env.AGFUSION_X402_RATE_LIMIT_SECRET?.trim();
   if (!hmacSecret || hmacSecret.length < 32) {
     return { ok: false, reason: "configuration_unavailable" };
   }
