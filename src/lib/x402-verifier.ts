@@ -19,18 +19,25 @@ type RpcLog = {
   address?: string;
   topics?: string[];
   data?: string;
+  removed?: boolean;
 };
 
 type RpcReceipt = {
   transactionHash?: string;
   status?: string;
   blockNumber?: string;
+  blockHash?: string;
   logs?: RpcLog[];
+};
+
+type RpcBlock = {
+  hash?: string;
+  number?: string;
 };
 
 export type X402Verification =
   | { ok: true; txHash: string; payer: string; recipient: string; amount: string; blockNumber: string; chainId: 5042002 }
-  | { ok: false; reason: "invalid_hash" | "rpc_unavailable" | "wrong_chain" | "not_mined" | "reverted" | "receipt_mismatch" | "payment_not_found" | "ambiguous_payment" };
+  | { ok: false; reason: "invalid_hash" | "rpc_unavailable" | "wrong_chain" | "not_mined" | "reverted" | "receipt_mismatch" | "block_not_canonical" | "payment_not_found" | "ambiguous_payment" };
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const HASH_RE = /^0x[a-fA-F0-9]{64}$/;
@@ -76,20 +83,38 @@ export async function verifyArcTestnetUsdcPayment(opts: {
     const receipt = await rpc("eth_getTransactionReceipt", [txHash]) as RpcReceipt | null;
     if (!receipt) return { ok: false, reason: "not_mined" };
     if (receipt.status !== "0x1") return { ok: false, reason: "reverted" };
+
     const receiptBlockNumber = receipt.blockNumber;
+    const receiptBlockHash = receipt.blockHash;
     if (
       receipt.transactionHash?.toLowerCase() !== txHash ||
       !receiptBlockNumber ||
-      !/^0x[0-9a-fA-F]+$/.test(receiptBlockNumber)
+      !/^0x[0-9a-fA-F]+$/.test(receiptBlockNumber) ||
+      !receiptBlockHash ||
+      !HASH_RE.test(receiptBlockHash)
     ) {
       return { ok: false, reason: "receipt_mismatch" };
     }
 
+    // Ensure the receipt still points to the canonical block at its height.
+    // This is a consistency check, not a substitute for a chain-specific
+    // finalized-block guarantee.
+    const canonicalBlock = await rpc("eth_getBlockByNumber", [receiptBlockNumber, false]) as RpcBlock | null;
+    if (
+      !canonicalBlock?.hash ||
+      canonicalBlock.hash.toLowerCase() !== receiptBlockHash.toLowerCase() ||
+      canonicalBlock.number?.toLowerCase() !== receiptBlockNumber.toLowerCase()
+    ) {
+      return { ok: false, reason: "block_not_canonical" };
+    }
+
     const matching = (receipt.logs || []).filter((log) =>
+      log.removed !== true &&
       log.address?.toLowerCase() === X402_ARC_TESTNET.token &&
-      log.topics?.[0]?.toLowerCase() === X402_ARC_TESTNET.transferTopic &&
-      topicAddress(log.topics?.[1]) !== null &&
-      topicAddress(log.topics?.[2]) === recipient
+      log.topics?.length === 3 &&
+      log.topics[0]?.toLowerCase() === X402_ARC_TESTNET.transferTopic &&
+      topicAddress(log.topics[1]) !== null &&
+      topicAddress(log.topics[2]) === recipient
     );
 
     if (matching.length > 1) return { ok: false, reason: "ambiguous_payment" };
