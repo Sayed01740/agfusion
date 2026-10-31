@@ -79,6 +79,38 @@ model Transaction {
   @@index([txHash])
 }
 
+model X402Payment {
+  id          String   @id @default(cuid())
+  txHash      String   @unique
+  payer       String
+  recipient   String
+  token       String
+  amount      String
+  chainId     Int
+  blockNumber String
+  createdAt   DateTime @default(now())
+
+  @@index([payer])
+  @@index([createdAt])
+}
+
+
+model X402Challenge {
+  id        String   @id @default(cuid())
+  nonce     String   @unique
+  serviceId String
+  chainId   Int
+  token     String
+  recipient String
+  amount    String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([serviceId, expiresAt])
+  @@index([expiresAt])
+}
+
 model AgentRun {
   id            String   @id @default(cuid())
   userId        String?
