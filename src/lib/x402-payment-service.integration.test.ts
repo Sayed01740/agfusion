@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { getX402ChallengeForVerification } from "@/lib/x402-challenge";
-import { consumeX402ChallengeAndRecordPayment } from "@/lib/x402-payment-store";
 import { verifyArcTestnetUsdcPayment, X402_ARC_TESTNET } from "@/lib/x402-verifier";
 import { settleX402Payment } from "./x402-payment-service";
 
@@ -59,7 +57,7 @@ function arcRpcFetch(overrides: {
   }) as typeof fetch;
 }
 
-describe("x402 settlement with the real Arc receipt verifier", () => {
+describe("x402 settlement with the production Arc receipt verifier and mocked RPC", () => {
   it("verifies the real RPC response shape before consuming and recording the challenge", async () => {
     const loadChallenge = vi.fn().mockResolvedValue({ ok: true, challenge });
     const consumePayment = vi.fn().mockResolvedValue({ ok: true, id: "payment-row" });
