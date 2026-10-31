@@ -93,7 +93,7 @@ COMMIT;
 
 ## Verify after apply
 
-1. Confirm both tables, all columns, nullability, and timestamp precision.
+1. Confirm all three tables, their columns, nullability, and timestamp precision.
 2. Confirm unique indexes on `X402Payment.txHash` and `X402Challenge.nonce`.
 3. Confirm the five non-unique indexes listed above, including the rate-limit expiry index.
 4. Confirm the rate-limit table has the composite primary key on (keyHash, windowStart) and an integer counter.
@@ -101,7 +101,8 @@ COMMIT;
    disposable database first. Do not create a real payment.
 6. Only after a separate security review should the endpoint be considered for
    activation. The HTTP layer must derive client identity from a trusted hosting
-   platform source, not an arbitrary client-controlled request body or header. A successful schema rollout alone does not enable payments.
+   platform source, not an arbitrary client-controlled request body or header.
+   A successful schema rollout alone does not enable payments.
 
 ## Rollback
 
