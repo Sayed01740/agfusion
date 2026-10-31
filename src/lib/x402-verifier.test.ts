@@ -106,10 +106,11 @@ describe("verifyArcTestnetUsdcPayment", () => {
   });
 
   it("fails closed when the RPC fails", async () => {
+    const failingFetch = (async () => ({ ok: false, status: 503 })) as unknown as typeof fetch;
     const result = await verifyArcTestnetUsdcPayment({
       txHash: TX,
       recipient: RECIPIENT,
-      fetchImpl: (async () => ({ ok: false, status: 503 })) as typeof fetch,
+      fetchImpl: failingFetch,
     });
     expect(result).toEqual({ ok: false, reason: "rpc_unavailable" });
   });
