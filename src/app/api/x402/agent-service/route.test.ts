@@ -3,7 +3,7 @@ import { GET, POST } from "./route";
 
 describe("/api/x402/agent-service fail-closed behavior", () => {
   it("advertises a disabled Arc Testnet USDC challenge without inviting payment", async () => {
-    const response = await GET(new Request("http://localhost/api/x402/agent-service"));
+    const response = await GET();
     const body = await response.json();
 
     expect(response.status).toBe(402);
