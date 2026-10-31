@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   getPrisma: vi.fn(),
@@ -15,7 +15,11 @@ const configured = vi.mocked(isDbConfigured);
 const prisma = vi.mocked(getPrisma);
 const now = new Date("2026-11-01T12:34:56.000Z");
 
-afterEach(() => vi.clearAllMocks());
+beforeEach(() => vi.stubEnv("AGFUSION_X402_RATE_LIMIT_SECRET", "test-secret-".padEnd(40, "x")));
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
+});
 
 describe("consumeX402RateLimit", () => {
   it("increments a shared fixed-window bucket atomically and hashes the identity", async () => {
@@ -57,6 +61,16 @@ describe("consumeX402RateLimit", () => {
       reason: "rate_limited",
       retryAfterSeconds: 4,
     });
+  });
+
+  it("fails closed when the HMAC secret is missing", async () => {
+    vi.stubEnv("AGFUSION_X402_RATE_LIMIT_SECRET", "");
+    configured.mockReturnValue(true);
+
+    await expect(consumeX402RateLimit({
+      identity: "client-1", limit: 5, windowMs: 60_000, now,
+    })).resolves.toEqual({ ok: false, reason: "configuration_unavailable" });
+    expect(prisma).not.toHaveBeenCalled();
   });
 
   it("fails closed when PostgreSQL is not configured", async () => {
