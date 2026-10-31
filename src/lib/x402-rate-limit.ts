@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { getPrisma, isDbConfigured } from "@/lib/db";
 
 export type X402RateLimitResult =
   | { ok: true; remaining: number; resetAt: string }
   | { ok: false; reason: "rate_limited"; retryAfterSeconds: number }
-  | { ok: false; reason: "database_unavailable" | "invalid_request" };
+  | { ok: false; reason: "database_unavailable" | "invalid_request" | "configuration_unavailable" };
 
 export type X402RateLimitOptions = {
   /** Stable client identity from a trusted server/platform source, never a raw client body field. */
@@ -40,6 +40,10 @@ export async function consumeX402RateLimit(
     return { ok: false, reason: "invalid_request" };
   }
 
+  const hmacSecret = process.env.AGFUSION_X402_RATE_LIMIT_SECRET;
+  if (!hmacSecret || hmacSecret.length < 32) {
+    return { ok: false, reason: "configuration_unavailable" };
+  }
   if (!isDbConfigured()) {
     return { ok: false, reason: "database_unavailable" };
   }
@@ -48,7 +52,7 @@ export async function consumeX402RateLimit(
   const windowStartMs = Math.floor(now.getTime() / options.windowMs) * options.windowMs;
   const windowStart = new Date(windowStartMs);
   const resetAt = new Date(windowStartMs + options.windowMs);
-  const keyHash = createHash("sha256").update(identity).digest("hex");
+  const keyHash = createHmac("sha256", hmacSecret).update(identity).digest("hex");
 
   try {
     const rows = await getPrisma().$queryRaw<Array<{ count: number }>>`
