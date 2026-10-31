@@ -1,6 +1,6 @@
 # x402 PostgreSQL schema rollout (manual, not yet applied)
 
-This SQL is a reviewed rollout artifact for the two x402 tables added to
+This SQL is a reviewed rollout artifact for the three x402 tables added to
 `prisma/schema.prisma`. It is intentionally kept outside
 `prisma/migrations`: this repository has no existing Prisma migration
 history, so introducing a partial migration history must be planned separately.
@@ -68,6 +68,18 @@ CREATE INDEX "X402Challenge_serviceId_expiresAt_idx"
 CREATE INDEX "X402Challenge_expiresAt_idx"
   ON "X402Challenge"("expiresAt");
 
+CREATE TABLE "X402RateLimitBucket" (
+  "keyHash" TEXT NOT NULL,
+  "windowStart" TIMESTAMP(3) NOT NULL,
+  "count" INTEGER NOT NULL DEFAULT 0,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "X402RateLimitBucket_pkey"
+    PRIMARY KEY ("keyHash", "windowStart")
+);
+
+CREATE INDEX "X402RateLimitBucket_expiresAt_idx"
+  ON "X402RateLimitBucket"("expiresAt");
+
 COMMIT;
 ```
 
@@ -75,10 +87,11 @@ COMMIT;
 
 1. Confirm both tables, all columns, nullability, and timestamp precision.
 2. Confirm unique indexes on `X402Payment.txHash` and `X402Challenge.nonce`.
-3. Confirm the four non-unique indexes listed above.
-4. Run Prisma schema validation and a read/write integration test against a
+3. Confirm the five non-unique indexes listed above, including the rate-limit expiry index.
+4. Confirm the rate-limit table has the composite primary key on (keyHash, windowStart) and an integer counter.
+5. Run Prisma schema validation and a read/write integration test against a
    disposable database first. Do not create a real payment.
-5. Only after a separate security review should the endpoint be considered for
+6. Only after a separate security review should the endpoint be considered for
    activation. A successful schema rollout alone does not enable payments.
 
 ## Rollback
@@ -88,6 +101,7 @@ confirmed the tables contain no data, execute:
 
 ```sql
 BEGIN;
+DROP TABLE "X402RateLimitBucket";
 DROP TABLE "X402Challenge";
 DROP TABLE "X402Payment";
 COMMIT;
