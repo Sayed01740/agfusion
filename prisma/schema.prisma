@@ -111,6 +111,16 @@ model X402Challenge {
   @@index([expiresAt])
 }
 
+model X402RateLimitBucket {
+  keyHash    String
+  windowStart DateTime
+  count      Int      @default(0)
+  expiresAt  DateTime
+
+  @@id([keyHash, windowStart])
+  @@index([expiresAt])
+}
+
 model AgentRun {
   id            String   @id @default(cuid())
   userId        String?
