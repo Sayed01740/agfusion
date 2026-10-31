@@ -14,10 +14,11 @@ const challengeIds: string[] = [];
 const paymentHashes: string[] = [];
 
 const recipient = "0x1111111111111111111111111111111111111111";
+const previousRecipient = process.env.AGFUSION_X402_RECIPIENT;
 const payer = "0x2222222222222222222222222222222222222222";
 
 async function issueChallenge() {
-  const result = await createX402Challenge({ recipient });
+  const result = await createX402Challenge();
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error(`Challenge creation failed: ${result.reason}`);
   challengeIds.push(result.challenge.id);
@@ -37,6 +38,10 @@ function payment(txHash: string) {
 }
 
 describe.skipIf(!enabled)("x402 disposable PostgreSQL integration", () => {
+  beforeAll(() => {
+    process.env.AGFUSION_X402_RECIPIENT = recipient;
+  });
+
   afterEach(async () => {
     if (!prisma) return;
     if (paymentHashes.length) {
@@ -51,6 +56,8 @@ describe.skipIf(!enabled)("x402 disposable PostgreSQL integration", () => {
 
   afterAll(async () => {
     if (prisma) await prisma.$disconnect();
+    if (previousRecipient === undefined) delete process.env.AGFUSION_X402_RECIPIENT;
+    else process.env.AGFUSION_X402_RECIPIENT = previousRecipient;
   });
 
   it("persists a challenge and retrieves its authoritative payment tuple", async () => {
