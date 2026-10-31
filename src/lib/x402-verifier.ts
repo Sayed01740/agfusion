@@ -94,11 +94,12 @@ export async function verifyArcTestnetUsdcPayment(opts: {
 
     if (matching.length > 1) return { ok: false, reason: "ambiguous_payment" };
     const transfer = matching[0];
-    if (!transfer || !/^0x[0-9a-fA-F]{64}$/.test(transfer.data || "")) {
+    const transferData = transfer?.data;
+    if (!transferData || !/^0x[0-9a-fA-F]{64}$/.test(transferData)) {
       return { ok: false, reason: "payment_not_found" };
     }
 
-    const amount = BigInt(transfer.data);
+    const amount = BigInt(transferData);
     if (amount !== BigInt(X402_ARC_TESTNET.amount)) {
       return { ok: false, reason: "payment_not_found" };
     }
