@@ -41,8 +41,10 @@ describe("consumeX402RateLimit", () => {
     expect(queryRaw).toHaveBeenCalledOnce();
     const values = queryRaw.mock.calls[0].slice(1);
     expect(values).not.toContain("trusted-client-ip");
-    expect(values).toContain(new Date("2026-11-01T12:34:00.000Z"));
-    expect(values).toContain(new Date("2026-11-01T12:35:00.000Z"));
+    const dates = values.filter((value): value is Date => value instanceof Date)
+      .map((value) => value.getTime());
+    expect(dates).toContain(new Date("2026-11-01T12:34:00.000Z").getTime());
+    expect(dates).toContain(new Date("2026-11-01T12:35:00.000Z").getTime());
   });
 
   it("rejects requests after the fixed-window limit is reached", async () => {
