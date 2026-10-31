@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma, isDbConfigured } from "@/lib/db";
+import { getX402Recipient } from "@/lib/x402-config";
 import { X402_ARC_TESTNET } from "@/lib/x402-verifier";
 
 export const X402_AGENT_SERVICE_ID = "agfusion-agent-feed:v1";
@@ -20,21 +21,21 @@ export type X402ChallengeResult =
         expiresAt: string;
       };
     }
-  | { ok: false; reason: "database_unavailable" | "invalid_recipient" };
+  | {
+      ok: false;
+      reason: "database_unavailable" | "missing_recipient" | "invalid_recipient";
+    };
 
 /**
- * Persist an immutable, short-lived challenge. Issuing a challenge does not
- * authorize access or imply that payment should be sent while the endpoint is
- * disabled. The endpoint must remain fail-closed until schema rollout and the
- * atomic consume + payment-record transaction are implemented and reviewed.
+ * Persist an immutable, short-lived challenge using only the server-owned
+ * settlement recipient. Issuing a challenge does not authorize access.
+ * The HTTP endpoint remains disabled until the activation gates are approved.
  */
 export async function createX402Challenge(opts: {
-  recipient: string;
   now?: Date;
-}): Promise<X402ChallengeResult> {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(opts.recipient)) {
-    return { ok: false, reason: "invalid_recipient" };
-  }
+} = {}): Promise<X402ChallengeResult> {
+  const recipientConfig = getX402Recipient();
+  if (!recipientConfig.ok) return recipientConfig;
   if (!isDbConfigured()) {
     return { ok: false, reason: "database_unavailable" };
   }
@@ -42,6 +43,7 @@ export async function createX402Challenge(opts: {
   const now = opts.now ?? new Date();
   const expiresAt = new Date(now.getTime() + X402_CHALLENGE_TTL_MS);
   const nonce = randomUUID();
+  const recipient = recipientConfig.recipient;
 
   try {
     const row = await getPrisma().x402Challenge.create({
@@ -50,7 +52,7 @@ export async function createX402Challenge(opts: {
         serviceId: X402_AGENT_SERVICE_ID,
         chainId: X402_ARC_TESTNET.chainId,
         token: X402_ARC_TESTNET.token,
-        recipient: opts.recipient.toLowerCase(),
+        recipient,
         amount: X402_ARC_TESTNET.amount,
         expiresAt,
       },
@@ -65,7 +67,7 @@ export async function createX402Challenge(opts: {
         serviceId: X402_AGENT_SERVICE_ID,
         chainId: X402_ARC_TESTNET.chainId,
         token: X402_ARC_TESTNET.token,
-        recipient: opts.recipient.toLowerCase(),
+        recipient,
         amount: X402_ARC_TESTNET.amount,
         decimals: X402_ARC_TESTNET.decimals,
         expiresAt: row.expiresAt.toISOString(),
@@ -76,7 +78,6 @@ export async function createX402Challenge(opts: {
     return { ok: false, reason: "database_unavailable" };
   }
 }
-
 
 export type X402ChallengeForVerification =
   | {
