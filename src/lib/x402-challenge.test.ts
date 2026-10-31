@@ -85,3 +85,83 @@ describe("createX402Challenge", () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 });
+
+
+describe("getX402ChallengeForVerification", () => {
+  const lookupInput = {
+    id: "challenge-row-1",
+    nonce: "persisted-nonce",
+    now: new Date("2026-10-31T18:00:00.000Z"),
+  };
+
+  it("returns only the authoritative, unexpired stored payment tuple", async () => {
+    configured.mockReturnValue(true);
+    const findFirst = vi.fn().mockResolvedValue({
+      id: lookupInput.id,
+      nonce: lookupInput.nonce,
+      serviceId: X402_AGENT_SERVICE_ID,
+      chainId: X402_ARC_TESTNET.chainId,
+      token: X402_ARC_TESTNET.token.toUpperCase(),
+      recipient: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      amount: X402_ARC_TESTNET.amount,
+    });
+    prisma.mockReturnValue({ x402Challenge: { findFirst } } as never);
+
+    const { getX402ChallengeForVerification } = await import("./x402-challenge");
+    const result = await getX402ChallengeForVerification(lookupInput);
+
+    expect(result).toEqual({
+      ok: true,
+      challenge: {
+        id: lookupInput.id,
+        nonce: lookupInput.nonce,
+        serviceId: X402_AGENT_SERVICE_ID,
+        chainId: X402_ARC_TESTNET.chainId,
+        token: X402_ARC_TESTNET.token,
+        recipient: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        amount: X402_ARC_TESTNET.amount,
+      },
+    });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: lookupInput.id,
+        nonce: lookupInput.nonce,
+        serviceId: X402_AGENT_SERVICE_ID,
+        expiresAt: { gt: lookupInput.now },
+        consumedAt: null,
+      },
+      select: {
+        id: true,
+        nonce: true,
+        serviceId: true,
+        chainId: true,
+        token: true,
+        recipient: true,
+        amount: true,
+      },
+    });
+  });
+
+  it("rejects absent, expired, consumed, or mismatched stored challenges", async () => {
+    configured.mockReturnValue(true);
+    const findFirst = vi.fn().mockResolvedValue(null);
+    prisma.mockReturnValue({ x402Challenge: { findFirst } } as never);
+    const { getX402ChallengeForVerification } = await import("./x402-challenge");
+
+    await expect(getX402ChallengeForVerification(lookupInput)).resolves.toEqual({
+      ok: false,
+      reason: "challenge_invalid",
+    });
+  });
+
+  it("fails closed when the database is unavailable", async () => {
+    configured.mockReturnValue(false);
+    const { getX402ChallengeForVerification } = await import("./x402-challenge");
+
+    await expect(getX402ChallengeForVerification(lookupInput)).resolves.toEqual({
+      ok: false,
+      reason: "database_unavailable",
+    });
+    expect(prisma).not.toHaveBeenCalled();
+  });
+});
