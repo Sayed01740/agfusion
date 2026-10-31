@@ -76,10 +76,11 @@ export async function verifyArcTestnetUsdcPayment(opts: {
     const receipt = await rpc("eth_getTransactionReceipt", [txHash]) as RpcReceipt | null;
     if (!receipt) return { ok: false, reason: "not_mined" };
     if (receipt.status !== "0x1") return { ok: false, reason: "reverted" };
+    const receiptBlockNumber = receipt.blockNumber;
     if (
       receipt.transactionHash?.toLowerCase() !== txHash ||
-      !receipt.blockNumber ||
-      !/^0x[0-9a-fA-F]+$/.test(receipt.blockNumber)
+      !receiptBlockNumber ||
+      !/^0x[0-9a-fA-F]+$/.test(receiptBlockNumber)
     ) {
       return { ok: false, reason: "receipt_mismatch" };
     }
@@ -111,7 +112,7 @@ export async function verifyArcTestnetUsdcPayment(opts: {
       payer,
       recipient,
       amount: amount.toString(),
-      blockNumber: BigInt(receipt.blockNumber).toString(),
+      blockNumber: BigInt(receiptBlockNumber).toString(),
       chainId: 5042002,
     };
   } catch {
