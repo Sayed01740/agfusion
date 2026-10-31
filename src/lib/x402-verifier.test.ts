@@ -129,6 +129,20 @@ describe("verifyArcTestnetUsdcPayment", () => {
     }
   });
 
+
+  it("rejects a mint event from the zero address as payment", async () => {
+    const receipt = validReceipt();
+    (receipt.logs as Array<{ topics: string[] }>)[0].topics[1] = pad(
+      "0x0000000000000000000000000000000000000000",
+    );
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX,
+      recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", receipt),
+    });
+    expect(result).toEqual({ ok: false, reason: "payment_not_found" });
+  });
+
   it("rejects duplicate matching transfers as ambiguous", async () => {
     const receipt = validReceipt();
     (receipt.logs as unknown[]).push((receipt.logs as unknown[])[0]);
