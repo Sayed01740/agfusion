@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 
 /**
- * x402 Agent Service.
- *
- * This endpoint is intentionally fail-closed until on-chain ERC-20 payment
- * verification and replay protection are implemented. A client-supplied
- * transaction hash or browser-local session policy is not payment proof.
+ * x402 Agent Service remains intentionally disabled. No recipient or payment
+ * instructions are advertised until server configuration, schema rollout,
+ * and activation review are complete.
  */
-
-const SERVICE_RECIPIENT =
-  process.env.NEXT_PUBLIC_AGFUSION_REGISTRY ||
-  "0x76bb5678ec11ae94b34ed9cf90b25c9eea440483";
-
 function paymentRequired() {
   return NextResponse.json(
     {
@@ -28,12 +21,11 @@ function paymentRequired() {
         chain: "Arc Testnet",
         chainId: 5042002,
         token: "0x3600000000000000000000000000000000000000",
-        recipient: SERVICE_RECIPIENT,
         rpc: "https://rpc.testnet.arc.network",
         explorer: "https://testnet.arcscan.app",
       },
       description:
-        "The paid agent feed is temporarily unavailable while on-chain payment verification is being implemented. Do not send funds for this endpoint.",
+        "The paid agent feed is temporarily unavailable. No recipient or payment instructions are published. Do not send funds for this endpoint.",
     },
     {
       status: 402,
@@ -43,7 +35,6 @@ function paymentRequired() {
         "X-Payment-Token": "USDC",
         "X-Payment-Amount": "0.001",
         "X-Payment-Decimals": "6",
-        "X-Payment-Recipient": SERVICE_RECIPIENT,
         "X-Payment-ChainId": "5042002",
       },
     },
