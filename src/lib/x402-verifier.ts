@@ -114,6 +114,7 @@ export async function verifyArcTestnetUsdcPayment(opts: {
       log.topics?.length === 3 &&
       log.topics[0]?.toLowerCase() === X402_ARC_TESTNET.transferTopic &&
       topicAddress(log.topics[1]) !== null &&
+      topicAddress(log.topics[1]) !== "0x0000000000000000000000000000000000000000" &&
       topicAddress(log.topics[2]) === recipient
     );
 
