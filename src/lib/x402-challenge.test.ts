@@ -15,31 +15,41 @@ import { X402_ARC_TESTNET } from "./x402-verifier";
 
 const configured = vi.mocked(isDbConfigured);
 const prisma = vi.mocked(getPrisma);
+const VALID_RECIPIENT = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("createX402Challenge", () => {
-  it("rejects invalid recipients before touching the database", async () => {
-    const result = await createX402Challenge({ recipient: "0x_bad" });
+  it("fails closed when the server-only recipient is missing", async () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", "");
+    vi.stubEnv("NEXT_PUBLIC_AGFUSION_REGISTRY", VALID_RECIPIENT);
+    const result = await createX402Challenge();
+    expect(result).toEqual({ ok: false, reason: "missing_recipient" });
+    expect(prisma).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid server-only recipient", async () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", "0x_bad");
+    const result = await createX402Challenge();
     expect(result).toEqual({ ok: false, reason: "invalid_recipient" });
     expect(prisma).not.toHaveBeenCalled();
   });
 
   it("fails closed when PostgreSQL is unavailable", async () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", VALID_RECIPIENT);
     configured.mockReturnValue(false);
-    const result = await createX402Challenge({
-      recipient: "0x1111111111111111111111111111111111111111",
-    });
+    const result = await createX402Challenge();
     expect(result).toEqual({ ok: false, reason: "database_unavailable" });
     expect(prisma).not.toHaveBeenCalled();
   });
 
-  it("persists a five-minute challenge bound to one service and payment tuple", async () => {
+  it("persists a five-minute challenge bound to the server recipient and payment tuple", async () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     configured.mockReturnValue(true);
     const now = new Date("2026-10-31T18:00:00.000Z");
-    const recipient = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     const create = vi.fn().mockImplementation(async ({ data }) => ({
       id: "challenge-row-1",
       nonce: data.nonce,
@@ -47,7 +57,7 @@ describe("createX402Challenge", () => {
     }));
     prisma.mockReturnValue({ x402Challenge: { create } } as never);
 
-    const result = await createX402Challenge({ recipient, now });
+    const result = await createX402Challenge({ now });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -56,7 +66,7 @@ describe("createX402Challenge", () => {
       serviceId: X402_AGENT_SERVICE_ID,
       chainId: X402_ARC_TESTNET.chainId,
       token: X402_ARC_TESTNET.token,
-      recipient: recipient.toLowerCase(),
+      recipient: VALID_RECIPIENT,
       amount: "1000",
       decimals: 6,
       expiresAt: new Date(now.getTime() + X402_CHALLENGE_TTL_MS).toISOString(),
@@ -67,25 +77,26 @@ describe("createX402Challenge", () => {
       serviceId: X402_AGENT_SERVICE_ID,
       chainId: 5042002,
       token: X402_ARC_TESTNET.token,
-      recipient: recipient.toLowerCase(),
+      recipient: VALID_RECIPIENT,
       amount: "1000",
       expiresAt: new Date(now.getTime() + X402_CHALLENGE_TTL_MS),
     });
   });
 
   it("fails closed when challenge persistence throws", async () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", VALID_RECIPIENT);
     configured.mockReturnValue(true);
     const create = vi.fn().mockRejectedValue(new Error("database offline"));
     prisma.mockReturnValue({ x402Challenge: { create } } as never);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    await expect(createX402Challenge({
-      recipient: "0x1111111111111111111111111111111111111111",
-    })).resolves.toEqual({ ok: false, reason: "database_unavailable" });
+    await expect(createX402Challenge()).resolves.toEqual({
+      ok: false,
+      reason: "database_unavailable",
+    });
     expect(warn).toHaveBeenCalledOnce();
   });
 });
-
 
 describe("getX402ChallengeForVerification", () => {
   const lookupInput = {
@@ -118,7 +129,7 @@ describe("getX402ChallengeForVerification", () => {
         serviceId: X402_AGENT_SERVICE_ID,
         chainId: X402_ARC_TESTNET.chainId,
         token: X402_ARC_TESTNET.token,
-        recipient: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        recipient: VALID_RECIPIENT,
         amount: X402_ARC_TESTNET.amount,
       },
     });
