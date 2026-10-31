@@ -1,3 +1,4 @@
+import { X402_AGENT_SERVICE_ID } from "@/lib/x402-challenge";
 import { getPrisma, isDbConfigured } from "@/lib/db";
 
 export type X402PaymentRecord = {
@@ -57,7 +58,6 @@ export async function recordX402Payment(
 export type X402ChallengeConsumption = {
   challengeId: string;
   nonce: string;
-  serviceId: string;
   payment: X402PaymentRecord;
   now?: Date;
 };
@@ -88,7 +88,7 @@ export async function consumeX402ChallengeAndRecordPayment(
         where: {
           id: input.challengeId,
           nonce: input.nonce,
-          serviceId: input.serviceId,
+          serviceId: X402_AGENT_SERVICE_ID,
           chainId: payment.chainId,
           token: payment.token.toLowerCase(),
           recipient: payment.recipient.toLowerCase(),
