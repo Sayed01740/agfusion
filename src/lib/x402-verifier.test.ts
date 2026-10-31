@@ -117,7 +117,7 @@ describe("verifyArcTestnetUsdcPayment", () => {
 
   it("rejects removed logs and malformed Transfer event topics", async () => {
     const removed = validReceipt();
-    (removed.logs as Array<{ removed: boolean }>)[0].removed = true;
+    (removed.logs as unknown as Array<{ removed: boolean }>)[0].removed = true;
     const malformed = validReceipt();
     (malformed.logs as Array<{ topics: string[] }>)[0].topics.pop();
 
