@@ -25,8 +25,8 @@ payment processing.
 - [ ] Take and verify a restorable backup before any persistent schema change.
 - [ ] Obtain explicit owner approval and have an authorized operator apply the
   reviewed SQL to the intended **Testnet** application database.
-- [ ] Verify both tables, all columns, nullability, timestamp precision, and
-  unique/non-unique indexes after rollout.
+- [ ] Verify all three tables, all columns, nullability, timestamp precision,
+  and unique/non-unique indexes after rollout.
 - [ ] Run a read/write smoke test against that database without sending a
   blockchain transaction.
 - [ ] Confirm the application runtime database role has only the permissions
@@ -38,6 +38,9 @@ payment processing.
 
 - [ ] Add a dedicated challenge-creation operation only after the server-only
   recipient and database gates pass.
+- [ ] Keep challenge issuance behind a server-only feature flag that defaults
+  to disabled. Missing, malformed, or false configuration must not issue a
+  challenge or reveal a payment destination.
 - [ ] Generate a cryptographically random nonce server-side and persist the
   complete authoritative tuple: service ID, chain ID, token, recipient,
   amount, and expiry.
@@ -47,8 +50,18 @@ payment processing.
 - [ ] Return no payment instructions when configuration or database readiness
   checks fail.
 
-## 4. Settlement request boundary
+## 4. Trusted client identity and settlement request boundary
 
+- [ ] Select and document the actual hosting platform's trusted client-IP
+  mechanism before wiring rate limiting into an HTTP route. Verify the
+  platform's current documentation and deployment behavior.
+- [ ] Never use a caller-controlled body field or arbitrary
+  `x-forwarded-for`, `x-real-ip`, or custom header as the rate-limit identity
+  without a platform guarantee that the value is sanitized and overwritten
+  at the trusted edge.
+- [ ] If the platform cannot provide a trustworthy identity, keep the
+  challenge/settlement routes disabled rather than silently falling back to a
+  spoofable value.
 - [ ] Define a strict JSON object schema for the settlement request. Accept only
   challenge ID, nonce, and transaction hash; reject unknown fields.
 - [ ] Apply a streaming request-body size limit before parsing JSON. Do not
