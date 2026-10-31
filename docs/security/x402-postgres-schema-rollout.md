@@ -7,6 +7,14 @@ history, so introducing a partial migration history must be planned separately.
 
 ## Preconditions
 
+- Configure `AGFUSION_X402_RATE_LIMIT_SECRET` as a server-only random secret
+  with at least 32 characters before using the rate limiter. Never expose it
+  through a `NEXT_PUBLIC_*` variable or commit it to the repository.
+- The rate limiter stores an HMAC-SHA-256 identity digest, not the raw client
+  identity. The secret must remain stable across all serverless instances and
+  deployments that share this database; rotating it resets the effective
+  identity namespace for active rate-limit windows.
+
 - Confirm the target is the intended Arc Testnet application database.
 - Take and verify a restorable database backup.
 - Compare the target schema with the current Prisma schema and check that these
@@ -92,7 +100,8 @@ COMMIT;
 5. Run Prisma schema validation and a read/write integration test against a
    disposable database first. Do not create a real payment.
 6. Only after a separate security review should the endpoint be considered for
-   activation. A successful schema rollout alone does not enable payments.
+   activation. The HTTP layer must derive client identity from a trusted hosting
+   platform source, not an arbitrary client-controlled request body or header. A successful schema rollout alone does not enable payments.
 
 ## Rollback
 
