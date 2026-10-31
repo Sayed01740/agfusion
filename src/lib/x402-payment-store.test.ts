@@ -92,7 +92,6 @@ describe("consumeX402ChallengeAndRecordPayment", () => {
   const input = {
     challengeId: "challenge-1",
     nonce: "nonce-1",
-    serviceId: "agfusion-agent-feed:v1",
     payment,
     now: new Date("2026-10-31T18:00:00.000Z"),
   };
