@@ -102,11 +102,11 @@ export async function getX402ChallengeForVerification(input: {
   nonce: string;
   now?: Date;
 }): Promise<X402ChallengeForVerification> {
-  if (!input.id || !input.nonce || !isDbConfigured()) {
-    return {
-      ok: false,
-      reason: isDbConfigured() ? "challenge_invalid" : "database_unavailable",
-    };
+  if (!input.id || !input.nonce) {
+    return { ok: false, reason: "challenge_invalid" };
+  }
+  if (!isDbConfigured()) {
+    return { ok: false, reason: "database_unavailable" };
   }
 
   try {
@@ -135,7 +135,7 @@ export async function getX402ChallengeForVerification(input: {
       row.chainId !== X402_ARC_TESTNET.chainId ||
       row.token.toLowerCase() !== X402_ARC_TESTNET.token ||
       row.amount !== X402_ARC_TESTNET.amount ||
-      !/^0x[a-f0-9]{40}$/.test(row.recipient)
+      !/^0x[a-f0-9]{40}$/i.test(row.recipient)
     ) {
       return { ok: false, reason: "challenge_invalid" };
     }
