@@ -1,5 +1,3 @@
-import { X402_ARC_TESTNET } from "@/lib/x402-verifier";
-
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 export type X402RecipientConfig =
@@ -22,10 +20,4 @@ export function getX402Recipient(): X402RecipientConfig {
   }
 
   return { ok: true, recipient: configured.toLowerCase() };
-}
-
-/** Guard against accidental drift between config and verifier constants. */
-export function isX402TestnetRecipient(value: string): boolean {
-  return ADDRESS_RE.test(value) && value === value.toLowerCase() &&
-    X402_ARC_TESTNET.chainId === 5042002;
 }
