@@ -1,98 +1,75 @@
 import { NextResponse } from "next/server";
 
 /**
- * HTTP 402 (Payment Required) Standard Endpoint for Agent-to-Agent Micro-transactions.
- * Built for Arc Network's high-speed, sub-cent native USDC economy.
+ * x402 Agent Service.
+ *
+ * This endpoint is intentionally fail-closed until on-chain ERC-20 payment
+ * verification and replay protection are implemented. A client-supplied
+ * transaction hash or browser-local session policy is not payment proof.
  */
 
 const SERVICE_RECIPIENT =
   process.env.NEXT_PUBLIC_AGFUSION_REGISTRY ||
   "0x76bb5678ec11ae94b34ed9cf90b25c9eea440483";
 
-export async function GET(req: Request) {
-  return handleX402(req);
-}
-
-export async function POST(req: Request) {
-  return handleX402(req);
-}
-
-async function handleX402(req: Request) {
-  const paymentTx = req.headers.get("x-payment-tx");
-  const sessionToken = req.headers.get("x-session-auth");
-
-  // If no payment proof provided, return standard HTTP 402
-  if (!paymentTx && !sessionToken) {
-    return NextResponse.json(
-      {
-        protocol: "x402-v1",
-        status: 402,
-        title: "Payment Required for AI Agent Telemetry",
-        price: {
-          amount: "0.001",
-          asset: "USDC",
-          decimals: 18,
-          fiatEquivalentUsd: "$0.001",
-        },
-        settlement: {
-          chain: "Arc Testnet",
-          chainId: 5042002,
-          recipient: SERVICE_RECIPIENT,
-          rpc: "https://rpc.testnet.arc.network",
-          explorer: "https://testnet.arcscan.app",
-        },
-        description:
-          "High-frequency algorithmic liquidity and routing intelligence feed. Pay 0.001 USDC on Arc Network.",
-        instructions:
-          "Execute 0.001 USDC transfer on Arc Network to settlement recipient, then resubmit with header 'X-Payment-Tx: <txHash>'",
-      },
-      {
-        status: 402,
-        headers: {
-          "X-Payment-Required": "true",
-          "X-Payment-Token": "USDC",
-          "X-Payment-Amount": "0.001",
-          "X-Payment-Recipient": SERVICE_RECIPIENT,
-          "X-Payment-ChainId": "5042002",
-        },
-      }
-    );
-  }
-
-  // Payment proof verified (or session key authenticated)
+function paymentRequired() {
   return NextResponse.json(
     {
-      status: 200,
       protocol: "x402-v1",
-      authorized: true,
-      paymentProof: paymentTx || "session_authorized",
-      timestamp: Date.now(),
-      data: {
-        agentFeedId: "arc-intel-stream-alpha",
-        networkHealth: "optimal",
-        arcTestnetBlockTimeMs: 400,
-        averageGasCostUsdc: "0.00012",
-        crossChainLiquidityCctp: {
-          arcToSepoliaAvailable: "1,500,000 USDC",
-          settlementLatencySec: 12,
-        },
-        recommendedRoutes: [
-          { token: "USDC", pool: "Uniswap-V2-Arc", slippageBps: 2 },
-          { token: "EURC", pool: "Circle-Native", slippageBps: 4 },
-        ],
-        agentTelemetry: {
-          activeErc8004Agents: 42,
-          totalMicropaymentsSettledToday: 1384,
-          savingsVsEthereumL1: "99.98%",
-        },
+      status: 402,
+      title: "Payment verification is not yet available",
+      paymentEnabled: false,
+      price: {
+        amount: "0.001",
+        asset: "USDC",
+        decimals: 6,
       },
+      settlement: {
+        chain: "Arc Testnet",
+        chainId: 5042002,
+        token: "0x3600000000000000000000000000000000000000",
+        recipient: SERVICE_RECIPIENT,
+        rpc: "https://rpc.testnet.arc.network",
+        explorer: "https://testnet.arcscan.app",
+      },
+      description:
+        "The paid agent feed is temporarily unavailable while on-chain payment verification is being implemented. Do not send funds for this endpoint.",
     },
     {
-      status: 200,
+      status: 402,
       headers: {
-        "X-Payment-Status": "Settled",
+        "X-Payment-Required": "true",
+        "X-Payment-Enabled": "false",
+        "X-Payment-Token": "USDC",
+        "X-Payment-Amount": "0.001",
+        "X-Payment-Decimals": "6",
+        "X-Payment-Recipient": SERVICE_RECIPIENT,
+        "X-Payment-ChainId": "5042002",
+      },
+    },
+  );
+}
+
+export async function GET() {
+  return paymentRequired();
+}
+
+export async function POST() {
+  // Never trust x-payment-tx or x-session-auth until independently verified.
+  return NextResponse.json(
+    {
+      protocol: "x402-v1",
+      error: "payment_verification_unavailable",
+      paymentEnabled: false,
+      message:
+        "Payment verification is not yet available. No payment credential has been accepted and no agent feed has been unlocked.",
+    },
+    {
+      status: 503,
+      headers: {
+        "X-Payment-Status": "Unavailable",
         "X-Arc-Network": "5042002",
       },
-    }
+    },
   );
 }
