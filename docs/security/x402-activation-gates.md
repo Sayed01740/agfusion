@@ -52,9 +52,17 @@ payment processing.
 
 ## 4. Trusted client identity and settlement request boundary
 
-- [ ] Select and document the actual hosting platform's trusted client-IP
-  mechanism before wiring rate limiting into an HTTP route. Verify the
-  platform's current documentation and deployment behavior.
+- [ ] Confirm the actual ingress topology for every deployed hostname before
+  selecting a client-IP source: direct Vercel ingress, Cloudflare proxy in
+  front of Vercel, or another proxy chain.
+- [ ] For direct Vercel ingress only, the current Vercel request-header
+  documentation says Vercel overwrites `x-forwarded-for` to prevent IP
+  spoofing, and `x-vercel-forwarded-for` / `x-real-ip` are equivalent
+  platform values. Validate this behavior in the actual deployment before use.
+- [ ] If Cloudflare or another proxy sits in front of Vercel, do not assume
+  Vercel preserves the original client IP. Vercel documents that external
+  proxy IP forwarding requires its Enterprise Trusted Proxy feature. Do not
+  trust a caller-supplied forwarding header as a workaround.
 - [ ] Never use a caller-controlled body field or arbitrary
   `x-forwarded-for`, `x-real-ip`, or custom header as the rate-limit identity
   without a platform guarantee that the value is sanitized and overwritten
