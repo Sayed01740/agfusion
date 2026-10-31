@@ -54,7 +54,7 @@ export async function GET() {
   return paymentRequired();
 }
 
-export async function POST() {
+export async function POST(_request: Request) {
   // Never trust x-payment-tx or x-session-auth until independently verified.
   return NextResponse.json(
     {
