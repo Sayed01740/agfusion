@@ -317,25 +317,21 @@ The candidate flat config parses `.js`, `.mjs`, `.cjs`, `.ts`, and `.tsx`; appli
 **Repository status:** PR #43 still contains only the earlier JavaScript/CommonJS/ESM lint baseline. The full TypeScript/TSX candidate and minimatch override are not yet committed, so neither the 0-vulnerability result nor the broader lint coverage is a repository/CI result. Before adopting it, transfer the candidate `package.json`, matching `package-lock.json`, and ESLint config together, then require exact-head GitHub CI, dependency audit, and Preview validation. No merge or Production approval follows from this sandbox test.
 
 
-## 15. Additional release blocker: requested-chain ID consistency
+## 15. Requested-chain ID consistency finding: fix present in PR #40 code
 
-GitHub issue #38 records a correctness finding in `src/app/api/circle/swap/prepare/route.ts`:
+GitHub issue #38 records a correctness finding in `src/app/api/circle/swap/prepare/route.ts`: the earlier implementation could label a prepared response using the runtime default chain ID rather than the validated request chain ID.
 
-- The handler validates the request's `chainId` and uses it to select the Arc Mainnet or Arc Testnet adapter, RPC, and chain metadata.
-- The successful response was reported to return `chainId: ARC_CHAIN_ID`, which is selected from runtime environment configuration rather than the validated request.
-- If the requested chain differs from the configured default, the prepared response may be labelled for the wrong chain. This can mislead client-side review or cause a client to associate prepared transaction data with the wrong network.
+**Current code inspection on PR #40 branch `security/integrated-zod4-dependency-remediation`:**
 
-Required before release:
+- The route now returns the validated `chainId` in its successful response.
+- The route tests include mocked App Kit cases for both Arc Testnet `5042002` and Arc Mainnet `5042`, and assert that the response `chainId` matches the request.
+- These tests exercise quote preparation only. They do not sign or submit a transaction.
 
-1. Reinspect the exact current route implementation and confirm whether the mismatch remains.
-2. Either return the validated request chain ID or explicitly reject requests that conflict with the configured network. Do not silently relabel the request.
-3. Add regression tests for Arc Testnet `5042002` and Arc Mainnet `5042`, with App Kit imports mocked.
-4. Confirm no signing, transaction submission, or Mainnet configuration change occurs in these tests.
-5. Run exact-head CI and Preview verification for the fix, then include it in independent review.
+This indicates the reported mismatch is addressed in the inspected PR #40 branch. However, issue #38 remains open as a GitHub tracking item, and the fix must remain part of the exact reviewed stack. Confirm the same code and tests are present on the final integrated head, and ensure the reviewer includes this change in the positive-path swap-prepare review.
 
 Issue: https://github.com/Sayed01740/agfusion/issues/38
 
-This finding is separate from the x402 shutdown and must not be treated as resolved by the successful x402 Preview smoke tests.
+Do not infer that the entire swap flow is approved from this targeted regression test. The test is separate from the x402 shutdown and does not authorize Mainnet activation or transaction execution.
 
 ## 16. Follow-up status: full lint candidate remains uncommitted
 
