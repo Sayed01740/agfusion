@@ -250,9 +250,8 @@ The x402 payment challenge inconsistency remains resolved. PR #43 now includes f
 
 The documentation package was validated on its earlier head `0ffa192a468b93c539315421861686bec3833467` (CI run `41511664231`, run 939). It has since been updated again.
 
-- Current PR #42 head: `395d6c80d27d88d0e3bb15564dd910ea24d1d625`.
-- GitHub CI run `41515719222` (run 943) completed successfully. Its `check` job passed clean install, TypeScript typecheck, tests, and production build.
-- This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
+- PR #42 head `395d6c80d27d88d0e3bb15564dd910ea24d1d625` passed GitHub CI run `41515719222` (run 943), including clean install, TypeScript typecheck, tests, and production build.
+- The subsequent review-package update is being validated on its current head; its CI result is recorded by the latest run associated with the branch. This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
 
 The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until independent review and the public Arc RPC trust-boundary decision are complete.
 
@@ -338,7 +337,7 @@ A one-time, narrowly scoped GitHub Actions workflow then generated the manifest,
 - Candidate code commit: `0090c9a8ec272f883c6fafca373d5543f38431ac`.
 - Exact verification commit with the same tree: `951ead919fa2ac0518a0cee0e39a4a829bdedf81`.
 - The temporary workflow file is deleted from the branch.
-- The previous incomplete-transfer commit was reverted as `2ad63d778fb18b0730bba8d989ca116b2c0e46c1`; it is not in the current branch ancestry after the later candidate commit sequence.
+- The previous incomplete-transfer commit was reverted as `2ad63d778fb18b0730bba8d989ca116b2c0e46c1`. It remains in Git history as a revert target, but its incomplete tree is superseded by the later candidate commit; the current branch tree contains the complete, validated package manifest and lockfile.
 
 The one-time validation workflow run `41515995381` completed successfully. Exact verification-head GitHub CI run `41516572024` (run 946), dependency audit run `41516572322` (run 224), and disposable PostgreSQL integration run `41516572132` (run 70) all completed successfully. The exact verification-head Vercel Preview `dpl_AnBaF26QMDNkxzxJWKmsYfMXAFYN` reached READY.
 
