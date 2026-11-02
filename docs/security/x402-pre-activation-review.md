@@ -122,7 +122,8 @@ blockchain transaction.
 - [ ] Define rate-limit policy and operator-controlled bucket cleanup.
 - [ ] Complete owner-approved Testnet-only database rollout and smoke test.
 - [ ] Review the complete HTTP integration diff with a second reviewer.
-- [x] Run all CI checks on exact candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f`: typecheck, unit tests, production build, and disposable PostgreSQL integration passed.
+- [x] Earlier candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f` passed typecheck, unit tests, production build, and disposable PostgreSQL integration.
+- [x] Latest branch head `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9` also passed GitHub CI run `41446462963` (typecheck, unit tests, production build) and disposable PostgreSQL integration run `41446462962` (disposable CI database only). Its matching Vercel Preview reached READY.
 - [ ] Obtain separate explicit approval before any Testnet payment E2E or
   activation work.
 
@@ -191,3 +192,12 @@ A GET request to the exact Preview route `/api/x402/agent-service` returned HTTP
 The first attempted probe used the wrong path (`/api/agent`) and returned 404; that result is not evidence about the x402 endpoint. The correctly routed GET probe above is the relevant smoke-test evidence. No live POST probe, Testnet payment, database mutation, secret change, Mainnet change, merge, or Production deployment was performed. These are Preview observations only and do not authorize activation.
 
 **Decision unchanged:** keep GET disabled and POST fail-closed until all operational gates are independently reviewed and explicitly approved.
+
+
+## Latest-head verification refresh (2026-11-02)
+
+The latest branch head is `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9`. GitHub CI run `41446462963` completed successfully, including `npm run typecheck`, `npm test`, and `npm run build`. Disposable PostgreSQL integration run `41446462962` completed successfully after applying the Prisma schema to the workflow's disposable PostgreSQL service and running the integration tests. This is not evidence of application database readiness or rollout.
+
+The exact matching Vercel Preview deployment reached READY. A repeated GET smoke test at `/api/x402/agent-service` returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient or payment instructions, and an explicit instruction not to send funds. The response included `Cache-Control:no-store` and `X-Payment-Enabled:false`.
+
+No live POST request, Testnet payment, application DB read/write or schema change, secret/environment change, route activation, merge, Production deployment, or Mainnet change was performed. PR #39 remains Draft and unmerged. No independent review submission or inline review thread was present at the latest check.
