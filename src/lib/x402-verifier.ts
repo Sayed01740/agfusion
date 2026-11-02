@@ -125,7 +125,11 @@ export async function verifyArcTestnetUsdcPayment(opts: {
     };
 
     const chainId = await rpc("eth_chainId", []) as string;
-    if (Number.parseInt(chainId, 16) !== X402_ARC_TESTNET.chainId) {
+    if (
+      typeof chainId !== "string" ||
+      !/^0x[0-9a-f]+$/i.test(chainId) ||
+      BigInt(chainId) !== BigInt(X402_ARC_TESTNET.chainId)
+    ) {
       return { ok: false, reason: "wrong_chain" };
     }
 
