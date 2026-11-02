@@ -16,7 +16,7 @@ Review the stack in dependency order:
 | 3 | [#35](https://github.com/Sayed01740/agfusion/pull/35) | `3d7080f03119463711597ec8b6a8b79cbc01dfa8` | Circle PW, swap preparation, transaction and risk-oracle body limits |
 | 4 | [#41](https://github.com/Sayed01740/agfusion/pull/41) | `1dca9263f2901f0aa5c61a7c4330f2bbeb932c53` | Reconciled proxy / JSON-RPC / diagnostics body limits; replaces superseded PR #36 |
 | 5 | [#39](https://github.com/Sayed01740/agfusion/pull/39) | `b54b3a3cc7b5c57804fafa9b3137ad899084e35c` | x402 payment verification disabled; verifier hardening and RPC trust-boundary documentation |
-| 6 | [#40](https://github.com/Sayed01740/agfusion/pull/40) | `842f6a68473ef8a8575c6c381a8b966e78ae7f1b` | Zod 4/Circle compatibility, Elliptic dependency remediation, audit and CI changes |
+| 6 | [#40](https://github.com/Sayed01740/agfusion/pull/40) | `3aebdc6e15946bc73baa18e42f430467be82d1a2` | Zod 4/Circle compatibility, Elliptic dependency remediation, x402 fail-closed routes, audit and CI changes |
 
 All six PRs were last observed open, Draft, and mergeable. No independent review submission or requested reviewer was visible at preparation time. Recheck the exact head SHAs and base chain before starting review; any changed SHA invalidates the corresponding verification record until rerun.
 
@@ -30,7 +30,7 @@ The following are maintainer/CI evidence, not independent approval:
 - PR #40 CI, dependency audit, and disposable PostgreSQL integration passed.
 - PR #40 production dependency audit reported zero vulnerabilities; full dependency-tree high/critical audit passed; four moderate development-tooling advisories remained visible.
 - PR #40's audit workflow has a final enforcement step conditioned on an audit failure. That step is expected to be skipped when both preceding audit commands succeed; inspect the two audit step outcomes, not the final step's skipped state in isolation.
-- PR #40 Preview read-only smoke checks showed `/api/x402/agent-service` disabled, fabricated payment proof rejected on that route, Arc Testnet chain ID `5042002`, and oversized swap request rejected with HTTP 413. **Important scope correction (observed 2026-11-02):** `/api/x402/risk-oracle` on the same exact PR #40 Preview still returns HTTP 402 with an actionable `accepts[]` requirement, a `payTo` address, and instructions to send native USDC. Therefore x402 is not globally disabled. Treat this endpoint as a release blocker unless the owner explicitly approves its separate active-payment status and the review scope is updated.
+- On the superseded PR #40 Preview head, Risk Oracle was subsequently confirmed to expose an actionable HTTP 402 payment challenge. That historical finding was addressed by the owner-approved global x402 shutdown. On the current exact head `3aebdc6e15946bc73baa18e42f430467be82d1a2`, both Risk Oracle and Agent Service return HTTP 503 / `X402_DISABLED` for GET and POST, with no payment challenge, recipient, or payment metadata. Six direct Preview smoke tests passed on this exact head (see Section 10).
 - No production environment, production secret, Mainnet setting, wallet signing, or transaction broadcast was changed.
 
 Do not treat a READY Preview as proof that a live Circle quote works. The combined Preview previously reached HTTP 503 for a valid quote request because the Preview Circle server key was not configured. No production credential should be copied into Preview.
@@ -182,12 +182,9 @@ Both endpoints now fail closed on GET and POST with HTTP 503, `code=X402_DISABLE
 
 ### Exact-head automated evidence
 
-- GitHub CI passed on prior exact head `2d23fc6aa4bb35656223c50a1684da35959fcdb9`, including install, Circle SDK compatibility, Elliptic regression, lint, typecheck, Vitest, and production build.
-- Dependency security audit passed on that same head. Four moderate development-tooling advisories remain visible; production audit and full-tree high/critical gates passed.
-- Disposable PostgreSQL integration passed on that same head.
-- Vercel Preview deployment for that same head reached READY.
-
-The agent-service route and regression tests were then updated to remove its HTTP 402 payment challenge and payment metadata. This changed the branch head to `3aebdc6e15946bc73baa18e42f430467be82d1a2`; the CI, audit, PostgreSQL integration, and Preview checks must be rerun against this new exact head before release.
+- The earlier `2d23fc6aa4bb35656223c50a1684da35959fcdb9` evidence is historical and is superseded by the exact-head evidence in Section 10.
+- On current exact head `3aebdc6e15946bc73baa18e42f430467be82d1a2`, GitHub CI, dependency audit, disposable PostgreSQL integration, and Vercel Preview all completed successfully. The direct Preview checks are also recorded in Section 10.
+- Four moderate development-tooling advisories remain on the committed code head; production audit reported zero vulnerabilities and the full-tree high/critical gate passed.
 
 ### Read-only Preview smoke tests on prior exact head
 
@@ -202,12 +199,11 @@ No real payment was submitted, no wallet was used, and no funds were sent.
 
 ## 9. Updated release blockers
 
-- Rerun exact-head CI, dependency audit, disposable PostgreSQL integration, and Vercel Preview after the agent-service update.
-- Repeat GET and POST smoke tests for both endpoints on the new READY Preview. Confirm both return 503 and no payment challenge metadata.
-- Obtain independent security review of the request-body changes, Circle/Zod compatibility patch, complete Elliptic fork diff, x402 verifier/trust boundary, and public Arc RPC assumptions.
-- Obtain an explicit owner decision on the public Circle RPC trust model.
-- Resolve or document the four moderate development-tooling advisories.
-- Review and address build warnings for empty ESLint config / missing Next.js plugin and dynamic dependency import in the Viem/Ox Tempo dependency chain.
+- Independent review is still required for request-body changes, the Circle/Zod compatibility patch, the complete Elliptic fork diff, x402 verifier/trust boundary, and public Arc RPC assumptions.
+- Obtain an explicit owner decision on the public Arc RPC trust model before any future payment-finality reliance.
+- Resolve or formally disposition the four moderate development-tooling advisories.
+- Complete TypeScript/TSX lint coverage and Next.js ESLint plugin integration; the current committed PR #43 rules cover JS/CommonJS/ESM only. The broader candidate remains uncommitted (Sections 14 and 16).
+- Assess the remaining Viem/Ox Tempo dynamic dependency import build warning.
 
 Keep every PR Draft. No merge, Production deployment, Mainnet activation, wallet signing, transaction broadcast, or payment acceptance is authorized.
 
@@ -240,7 +236,7 @@ Each response was checked for `Cache-Control: no-store`, absence of x-payment he
 
 ### Remaining tooling and review caveats
 
-- The repository's `eslint.config.mjs` exports an empty array. Thus `npm run lint` exits successfully but does not enforce meaningful lint rules. Vercel also reports `ESLintEmptyConfigWarning` and missing Next.js ESLint plugin. Do not describe this as substantive lint coverage; configure and validate a real ruleset before relying on lint as a release gate.
+- PR #43 replaces the empty ESLint placeholder with active core safety rules for JavaScript, CommonJS, and ES module files. It does not yet parse TypeScript/TSX application files or integrate the Next.js ESLint plugin. Do not describe this incremental baseline as complete application lint coverage.
 - Four moderate development-tooling advisories remain: `minimatch <11.0.1` (GHSA-g3hv-75wg-m249) and its ESLint dependency chain (`eslint`, `@eslint/config-array`, `@eslint-community/eslint-utils`). Production audit remains at zero vulnerabilities; full-tree high/critical remains zero. npm's suggested forced remediation downgrades ESLint to 4.0.0, a breaking and inappropriate change; do not apply it blindly. Obtain a compatible upstream fix or review a carefully tested override.
 - The Vercel build also reported a dynamic dependency import warning in the Viem/Ox Tempo dependency chain. It did not fail the build; assess whether it is benign or requires a bundling adjustment.
 - No independent security reviewer has submitted an approval. The public Arc RPC trust boundary still requires explicit owner acceptance before any future payment-finality reliance.
@@ -252,10 +248,10 @@ The x402 payment challenge inconsistency is resolved in the latest Preview and a
 
 ## 11. Review-package CI completion
 
-The documentation package itself was validated after the above updates:
+The documentation package was validated on its earlier head `36802685c7de66acd9a8a1654aa9ff0c492256e7` (CI run `41489838387`, run 931). It has since been updated again.
 
-- PR #42 head: `36802685c7de66acd9a8a1654aa9ff0c492256e7`.
-- GitHub CI run `41489838387` (run 931) completed successfully; its `check` job completed with conclusion `success`.
+- Current PR #42 head: `0ffa192a468b93c539315421861686bec3833467`.
+- GitHub CI run `41511664231` (run 939) completed successfully. Its `check` job (`125504751052`) completed successfully through clean install, TypeScript typecheck, tests, and production build.
 - This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
 
 The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until the independent review and remaining release blockers are resolved.
@@ -274,7 +270,7 @@ The configuration now actively checks JavaScript, CommonJS, and ES module toolin
 
 **Scope limitation:** This is an incremental baseline only. TypeScript and TSX application files are not yet parsed by ESLint. TypeScript typecheck and the existing test suite remain separate checks; they are not a substitute for TypeScript lint coverage. The Next.js-specific ESLint plugin warning may remain. Do not mark the overall lint release blocker fully resolved until TypeScript/TSX lint coverage and Next.js plugin integration are addressed.
 
-Local validation on the exact parent code head under Node 22: clean `npm ci --legacy-peer-deps` followed by `npm run lint` completed successfully with the new rules. PR #43 GitHub CI and dependency audit are pending at the time of this note. The separate moderate development-tooling audit finding is not fixed by PR #43.
+Local validation on the exact parent code head under Node 22: clean `npm ci --legacy-peer-deps` followed by `npm run lint` completed successfully with the new rules. PR #43 exact-head GitHub CI and dependency audit subsequently completed successfully (Section 13). The separate moderate development-tooling audit finding is not fixed by PR #43.
 
 
 ## 13. PR #43 exact-head CI and dependency audit completion
