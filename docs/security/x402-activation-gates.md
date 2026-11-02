@@ -55,6 +55,15 @@ payment processing.
 - [ ] Confirm the actual ingress topology for every deployed hostname before
   selecting a client-IP source: direct Vercel ingress, Cloudflare proxy in
   front of Vercel, or another proxy chain.
+- [x] Inventory the Vercel project domain attachment and branch-scoped Preview
+  environment metadata (checked 2026-11-02): only `agfusion.vercel.app` is
+  attached as a verified project domain; no custom domain is attached; the
+  current PR Preview is served on a Vercel deployment hostname; and no
+  branch-scoped Preview environment variables are configured.
+- [ ] Treat that inventory as a point-in-time platform configuration snapshot,
+  not proof of the full public DNS/proxy path or runtime header behavior.
+  Recheck it if a custom domain, Cloudflare proxy, or another ingress layer is
+  introduced.
 - [ ] For direct Vercel ingress only, the current Vercel request-header
   documentation says Vercel overwrites `x-forwarded-for` to prevent IP
   spoofing, and `x-vercel-forwarded-for` / `x-real-ip` are equivalent
