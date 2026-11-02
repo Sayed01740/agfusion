@@ -40,6 +40,9 @@ describe("consumeX402RateLimit", () => {
 
     expect(queryRaw).toHaveBeenCalledOnce();
     const values = queryRaw.mock.calls[0].slice(1);
+    const sqlTemplate = queryRaw.mock.calls[0][0] as TemplateStringsArray;
+    expect(Array.from(sqlTemplate).join("?")).toContain('LEAST("X402RateLimitBucket"."count" + 1, ?)');
+    expect(values).toContain(6); // Persisted count saturates at limit + 1.
     expect(values).not.toContain("trusted-client-ip");
     const dates = values.filter((value): value is Date => value instanceof Date)
       .map((value) => value.getTime());
