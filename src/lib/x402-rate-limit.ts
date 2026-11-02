@@ -61,7 +61,7 @@ export async function consumeX402RateLimit(
       VALUES (${keyHash}, ${windowStart}, 1, ${resetAt})
       ON CONFLICT ("keyHash", "windowStart")
       DO UPDATE SET
-        "count" = "X402RateLimitBucket"."count" + 1,
+        "count" = LEAST("X402RateLimitBucket"."count" + 1, ${options.limit + 1}),
         "expiresAt" = EXCLUDED."expiresAt"
       RETURNING "count"
     `;
