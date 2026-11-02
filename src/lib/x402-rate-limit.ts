@@ -20,8 +20,8 @@ export type X402RateLimitOptions = {
  * Shared fixed-window limiter backed by PostgreSQL.
  *
  * A single INSERT .. ON CONFLICT increment is used so concurrent serverless
- * instances cannot race a read-then-write counter. The identity is SHA-256
- * hashed before storage. Any database error fails closed.
+ * instances cannot race a read-then-write counter. The identity is HMAC-SHA-256
+ * digested with the server-only secret before storage. Any database error fails closed.
  */
 export async function consumeX402RateLimit(
   options: X402RateLimitOptions,
