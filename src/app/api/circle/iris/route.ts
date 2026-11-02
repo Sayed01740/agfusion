@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedText } from "@/lib/read-limited-text";
 
 /**
  * Server-side proxy for Circle's IRIS CCTP API.
@@ -112,8 +113,14 @@ export async function POST(req: Request) {
   if (target instanceof Response) return target;
 
   try {
-    const body = await req.text();
-    const upstream = await forward(target, "POST", req.headers, body);
+    const bodyResult = await readLimitedText(req, 64 * 1024);
+    if (!bodyResult.ok) {
+      return NextResponse.json(
+        { error: bodyResult.reason === "too_large" ? "payload_too_large" : "invalid_body" },
+        { status: bodyResult.reason === "too_large" ? 413 : 400 },
+      );
+    }
+    const upstream = await forward(target, "POST", req.headers, bodyResult.value);
     const text = await upstream.text();
     return new NextResponse(text, {
       status: upstream.status,

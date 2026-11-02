@@ -33,6 +33,42 @@ describe("POST /api/transactions request-body limit", () => {
     expect(mocks.persistTransaction).not.toHaveBeenCalled();
   });
 
+  it("persists a valid in-limit transaction using the existing response contract", async () => {
+    mocks.getSessionUser.mockResolvedValue(null);
+    mocks.persistTransaction.mockResolvedValue("saved-tx-id");
+
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "client-tx-regression",
+        type: "bridge",
+        status: "pending",
+        amount: "1",
+        token: "USDC",
+        fromChain: "Arc_Testnet",
+        toChain: "Base_Sepolia",
+        walletAddress: "0x1111111111111111111111111111111111111111",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, saved: true });
+    expect(mocks.persistTransaction).toHaveBeenCalledTimes(1);
+    expect(mocks.persistTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "client-tx-regression",
+        type: "bridge",
+        status: "pending",
+        amount: "1",
+        token: "USDC",
+      }),
+      expect.objectContaining({
+        walletAddress: "0x1111111111111111111111111111111111111111",
+      }),
+    );
+  });
+
   it("rejects malformed JSON", async () => {
     const response = await POST(new Request("http://localhost/api/transactions", {
       method: "POST",
