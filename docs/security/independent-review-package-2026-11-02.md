@@ -315,3 +315,30 @@ The candidate flat config parses `.js`, `.mjs`, `.cjs`, `.ts`, and `.tsx`; appli
 - `npm run build`: pass; Next.js ESLint plugin/empty-config warnings no longer appeared. The existing Viem/Ox dynamic dependency import warning remains.
 
 **Repository status:** PR #43 still contains only the earlier JavaScript/CommonJS/ESM lint baseline. The full TypeScript/TSX candidate and minimatch override are not yet committed, so neither the 0-vulnerability result nor the broader lint coverage is a repository/CI result. Before adopting it, transfer the candidate `package.json`, matching `package-lock.json`, and ESLint config together, then require exact-head GitHub CI, dependency audit, and Preview validation. No merge or Production approval follows from this sandbox test.
+
+
+## 15. Additional release blocker: requested-chain ID consistency
+
+GitHub issue #38 records a correctness finding in `src/app/api/circle/swap/prepare/route.ts`:
+
+- The handler validates the request's `chainId` and uses it to select the Arc Mainnet or Arc Testnet adapter, RPC, and chain metadata.
+- The successful response was reported to return `chainId: ARC_CHAIN_ID`, which is selected from runtime environment configuration rather than the validated request.
+- If the requested chain differs from the configured default, the prepared response may be labelled for the wrong chain. This can mislead client-side review or cause a client to associate prepared transaction data with the wrong network.
+
+Required before release:
+
+1. Reinspect the exact current route implementation and confirm whether the mismatch remains.
+2. Either return the validated request chain ID or explicitly reject requests that conflict with the configured network. Do not silently relabel the request.
+3. Add regression tests for Arc Testnet `5042002` and Arc Mainnet `5042`, with App Kit imports mocked.
+4. Confirm no signing, transaction submission, or Mainnet configuration change occurs in these tests.
+5. Run exact-head CI and Preview verification for the fix, then include it in independent review.
+
+Issue: https://github.com/Sayed01740/agfusion/issues/38
+
+This finding is separate from the x402 shutdown and must not be treated as resolved by the successful x402 Preview smoke tests.
+
+## 16. Follow-up status: full lint candidate remains uncommitted
+
+The full TypeScript/TSX lint and minimatch override candidate described in Section 14 was not transferred into the repository. The latest attempt to create a replacement Vercel sandbox through the v4 sandbox API returned HTTP 400 (`bad_request`). No candidate files were committed, and no lockfile or package manifest was partially updated.
+
+Do not adopt only the package manifest or ESLint config without its matching lockfile. The candidate remains experimental until all three files can be transferred atomically and exact-head CI, audit, and Preview checks pass.
