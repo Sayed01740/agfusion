@@ -10,11 +10,14 @@ payment processing.
 - [x] Arc Testnet verifier source checks chain ID, successful receipt, transaction hash, USDC Transfer event, exact stored recipient/amount, and receipt-block consistency. The same-RPC block check is not independent consensus verification.
 - [x] Settlement service compares the verified tuple and atomically consumes the challenge while recording the payment; unique transaction-hash protection is covered by disposable PostgreSQL integration tests.
 - [x] Public GET remains disabled (402, no recipient/payment instructions); public POST remains fail-closed (503). Neither route calls the settlement service.
-- [x] Exact candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f`: typecheck, unit/integration test suite, production build, and disposable PostgreSQL integration workflow passed. Vercel Preview is READY; GET smoke test confirmed HTTP 402 and `paymentEnabled:false`.
+- [x] Latest branch head `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`: GitHub CI and disposable PostgreSQL integration workflows completed successfully. The corresponding Vercel Preview reached READY.
+- [x] GET smoke test against the latest-head Preview (`https://agfusion-ck78rcd80-sayeds-projects-e086c1e7.vercel.app/api/x402/agent-service`) returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit do-not-send-funds warning. Response included `Cache-Control: no-store` and `X-Payment-Enabled:false`.
 - [ ] Structured audit events are only a first implementation slice. End-to-end correlation, complete early-return coverage, log retention/access, alerts, and operational ownership remain open.
 
-These checks describe source/CI evidence only. They do not authorize database rollout,
+These checks describe source/CI/Preview evidence only. They do not authorize database rollout,
 configuration changes, Testnet payment tests, route integration, or activation.
+The live POST route was not tested through the Preview fetch interface; automated
+tests cover its fail-closed behavior.
 
 ## 1. Server-owned settlement configuration
 
@@ -122,15 +125,16 @@ configuration changes, Testnet payment tests, route integration, or activation.
 
 ## 6. Operational and security review
 
-- [ ] Add structured, privacy-conscious audit events for challenge creation,
-  verification outcome, replay rejection, and database failure. Never log
-  secrets or credentials.
+- [ ] Complete structured audit coverage, end-to-end correlation, log
+  retention/access policy, alert routing, thresholds, dashboards, and
+  operational ownership. The first redacted audit-event implementation slice
+  is present but is not a complete monitoring system.
 - [ ] Define RPC timeout/retry limits and alerting for sustained RPC/database
   failures.
 - [ ] Review denial-of-service exposure and resource use for receipt lookups.
 - [ ] Review the final diff and tests with a second reviewer.
-- [x] Run unit tests, disposable PostgreSQL integration tests, typecheck, and
-  production build on exact candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f`.
+- [x] Run GitHub CI and disposable PostgreSQL integration on latest head
+  `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`.
 - [ ] Perform a Testnet-only end-to-end test using a deliberately small test
   payment, after explicit approval. Verify the receipt, stored payment,
   single-use challenge, replay rejection, and feed authorization.
