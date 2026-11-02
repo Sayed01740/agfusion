@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { formatUnits } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import {
   circleBlockchainForChainId,
   fetchOwnedWallet,
@@ -36,7 +37,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  let body: {
+  const bodyResult = await readLimitedJson(req, 32768);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      { error: bodyResult.reason === "too_large" ? "request_too_large" : "invalid_json" },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  const raw = bodyResult.value;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const body = raw as {
     userToken?: unknown;
     walletId?: unknown;
     contractAddress?: unknown;
@@ -44,11 +56,6 @@ export async function POST(req: Request) {
     value?: unknown;
     chainId?: unknown;
   };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
 
   if (!isValidUserToken(body.userToken)) {
     return NextResponse.json({ error: "invalid_user_token" }, { status: 400 });
