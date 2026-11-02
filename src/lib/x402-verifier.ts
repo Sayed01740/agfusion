@@ -41,6 +41,52 @@ export type X402Verification =
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const HASH_RE = /^0x[a-fA-F0-9]{64}$/;
+const RPC_TIMEOUT_MS = 10_000;
+const MAX_RPC_RESPONSE_BYTES = 256 * 1024;
+const MAX_RECEIPT_LOGS = 256;
+
+async function readBoundedRpcJson(response: Response): Promise<{ result?: unknown; error?: { message?: string } }> {
+  const contentLength = Number(response.headers?.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_RPC_RESPONSE_BYTES) {
+    throw new Error("Arc Testnet RPC response exceeded the size limit");
+  }
+
+  let text: string;
+  if (response.body?.getReader) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_RPC_RESPONSE_BYTES) {
+          await reader.cancel();
+          throw new Error("Arc Testnet RPC response exceeded the size limit");
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    text = new TextDecoder().decode(bytes);
+  } else {
+    // Lightweight fallback for deterministic fetch mocks in unit tests.
+    text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > MAX_RPC_RESPONSE_BYTES) {
+      throw new Error("Arc Testnet RPC response exceeded the size limit");
+    }
+  }
+
+  return JSON.parse(text) as { result?: unknown; error?: { message?: string } };
+}
 
 function topicAddress(topic: string | undefined): string | null {
   if (!topic || !/^0x[0-9a-fA-F]{64}$/.test(topic)) return null;
@@ -62,15 +108,18 @@ export async function verifyArcTestnetUsdcPayment(opts: {
   if (!fetchImpl) return { ok: false, reason: "rpc_unavailable" };
 
   try {
+    // One shared deadline bounds the complete three-call verification sequence.
+    const signal = AbortSignal.timeout(RPC_TIMEOUT_MS);
     const rpc = async (method: string, params: unknown[]) => {
       const response = await fetchImpl(X402_ARC_TESTNET.rpcUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
         cache: "no-store",
+        signal,
       });
       if (!response.ok) throw new Error("Arc Testnet RPC unavailable");
-      const body = (await response.json()) as { result?: unknown; error?: { message?: string } };
+      const body = await readBoundedRpcJson(response);
       if (body.error || body.result === undefined) throw new Error(body.error?.message || "Invalid RPC response");
       return body.result;
     };
@@ -82,6 +131,9 @@ export async function verifyArcTestnetUsdcPayment(opts: {
 
     const receipt = await rpc("eth_getTransactionReceipt", [txHash]) as RpcReceipt | null;
     if (!receipt) return { ok: false, reason: "not_mined" };
+    if (!Array.isArray(receipt.logs) || receipt.logs.length > MAX_RECEIPT_LOGS) {
+      return { ok: false, reason: "receipt_mismatch" };
+    }
     if (receipt.status !== "0x1") return { ok: false, reason: "reverted" };
 
     const receiptBlockNumber = receipt.blockNumber;
