@@ -338,3 +338,46 @@ Do not infer that the entire swap flow is approved from this targeted regression
 The full TypeScript/TSX lint and minimatch override candidate described in Section 14 was not transferred into the repository. The latest attempt to create a replacement Vercel sandbox through the v4 sandbox API returned HTTP 400 (`bad_request`). No candidate files were committed, and no lockfile or package manifest was partially updated.
 
 Do not adopt only the package manifest or ESLint config without its matching lockfile. The candidate remains experimental until all three files can be transferred atomically and exact-head CI, audit, and Preview checks pass.
+
+
+## 17. Focused code-review notes for Circle/Zod patch and Elliptic regression
+
+A further source inspection was performed against PR #40's current branch. These are review prompts, not claims of a confirmed vulnerability or independent approval.
+
+### Circle/Zod compatibility installer: `scripts/patch-circle-zod-compat.mjs`
+
+Observed implementation characteristics:
+
+- Recursively walks source-like files under `node_modules/@circle-fin`, skipping symlinks, then rewrites bare `zod` module specifiers to `zod/v3` using a regular expression.
+- Patches the installed `node_modules/zod/v3/types.js` runtime by locating `class ZodArray`, `class ZodSet`, and specific source markers.
+- Uses marker strings to avoid inserting the array/set guards more than once. If no imports are rewritten on a later run, it checks only that `@circle-fin/app-kit/index.mjs` exists and contains `zod/v3`.
+
+Independent reviewer should specifically verify:
+
+1. The regex rewrites only syntactic module specifiers and cannot alter comments, string literals, or unrelated package content. Check static imports, re-exports, CommonJS, dynamic imports, minified bundles, and package subpaths.
+2. The fallback idempotence check is sufficient for every installed Circle package and every import form actually used at runtime. A single App Kit marker does not by itself prove all relevant package imports were rewritten.
+3. The hard-coded Zod runtime path and source markers are version/layout guarded. Test the exact lockfile and fail-closed behavior when the upstream package structure changes.
+4. The inserted array/set guards run after the appropriate size issue is recorded but before any element parser or refinement executes. Verify exact-limit, max-limit, min-limit, async, nested, and unbounded collection behavior.
+5. Running the patch twice is a byte-for-byte no-op on the second run; running it after a clean install produces the same resulting package files.
+6. Build/deployment always runs the patch before any Circle SDK module can be loaded, including non-build entry points or alternative deployment commands.
+7. The production artifact actually contains the patched runtime and does not reinstall or restore unpatched dependencies later.
+
+The current regression script `scripts/test-zod-v3-security.mjs` verifies that oversized bounded arrays and sets fail without visiting element refinements. Extend review to confirm error semantics and all supported Zod collection variants, not only the three demonstrated cases.
+
+### Mapped Elliptic regression: `scripts/test-mapped-elliptic-leading-zero.mjs`
+
+Observed test characteristics:
+
+- Resolves the Elliptic copy nested under `@ethersproject/signing-key`, rather than assuming the top-level package is the runtime copy.
+- Injects a controlled P-521 DRBG byte sequence with a leading zero, computes expected ECDSA values independently, and restores the patched DRBG method in a `finally` block.
+- Also checks a P-256 RFC 6979 SHA-256 known-answer signature and verification.
+
+Independent reviewer should still verify:
+
+1. The exact `@mapped/elliptic@6.6.10` source diff against the upstream package and the published tarball/provenance.
+2. The complete upstream Elliptic test suite against the attested source revision, not just these targeted vectors.
+3. Nonce truncation/retry boundaries, supported curves, DER encoding, signature verification, and malformed-key behavior.
+4. That the nested Elliptic implementation exercised by this test is the same implementation reached by each supported wallet/signing path in the application.
+5. That the monkey-patched DRBG test is deterministic under the CI runtime and cannot leak altered global state into subsequent tests.
+
+No code was changed as part of this source inspection. These notes do not substitute for an independent cryptographic review.
