@@ -88,7 +88,7 @@ describe("createX402Challenge", () => {
     configured.mockReturnValue(true);
     const create = vi.fn().mockRejectedValue(new Error("database offline"));
     prisma.mockReturnValue({ x402Challenge: { create } } as never);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     await expect(createX402Challenge()).resolves.toEqual({
       ok: false,
