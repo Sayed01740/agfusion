@@ -161,3 +161,17 @@ The following source-level checks were completed after the CI run:
 The latest candidate commit passed CI and its Vercel Preview is READY. A GET smoke test returned HTTP 402 with `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient/payment instructions, and an explicit instruction not to send funds. POST was not live-tested through the Preview fetch interface; automated tests cover the fail-closed POST behavior.
 
 **Decision unchanged:** do not merge, activate payment processing, apply database SQL, change deployment secrets, send funds, or alter Arc Mainnet configuration.
+
+
+### Redacted audit event implementation update
+
+A small server-side audit helper and focused tests have now been added:
+
+- `src/lib/x402-audit.ts` emits JSON records with a fixed component name, allow-listed event, sanitized reason code, generated correlation ID, and timestamp.
+- `src/lib/x402-audit.test.ts` checks the record shape and verifies unsafe reason text and caller-supplied correlation IDs are not emitted.
+- Challenge creation/rejection, rate-limit rejection, payment verification success/failure, duplicate transaction detection, and selected database/cleanup failures now emit redacted events from their service modules.
+- Raw ORM/provider error objects were removed from the touched x402 module warning calls; those errors are not serialized by this helper.
+
+This is a first implementation slice, not complete operational observability. Correlation IDs are generated per event rather than propagated end-to-end; early-return database/configuration failures and every invalid-challenge path are not yet uniformly covered. The deployment log retention/access policy, alert routing, ownership, dashboards, and monitoring thresholds are not configured or verified. Do not treat these events as an operational alerting system until those controls are reviewed.
+
+The audit helper is not connected to the public Agent Service route, and the route remains disabled. No cleanup schedule or database mutation was added.
