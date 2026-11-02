@@ -118,11 +118,11 @@ blockchain transaction.
 - [ ] Select and test a trustworthy server-side client identity source.
 - [x] Add bounded RPC timeout/deadline and response/resource limits (10-second shared deadline, 256 KiB response cap, 256 receipt-log cap, no automatic retries; regression tests added).
 - [ ] Record the Arc finality trust decision and operational response plan.
-- [ ] Add redacted structured audit events and monitoring ownership.
+- [ ] Complete redacted structured audit coverage, end-to-end correlation, log retention/access policy, alert routing, dashboards, thresholds, and monitoring ownership. A first implementation slice is committed, but it is not a complete monitoring system.
 - [ ] Define rate-limit policy and operator-controlled bucket cleanup.
 - [ ] Complete owner-approved Testnet-only database rollout and smoke test.
 - [ ] Review the complete HTTP integration diff with a second reviewer.
-- [ ] Run all CI checks on the exact candidate commit.
+- [x] Run all CI checks on exact candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f`: typecheck, unit tests, production build, and disposable PostgreSQL integration passed.
 - [ ] Obtain separate explicit approval before any Testnet payment E2E or
   activation work.
 
@@ -145,7 +145,7 @@ The following source-level checks were completed after the CI run:
 - No trusted client identity is wired into a public route. The actual public DNS/proxy path and runtime request-header behavior remain unverified. Do not select a header based only on a Vercel domain inventory.
 - No explicit challenge/settlement rate-limit policy is selected. Before route integration, the owner and reviewer must set per-client limits, window durations, retry semantics, and a service-wide backstop based on expected traffic and abuse risk.
 - The bounded expired-bucket cleanup helper has no scheduled maintenance caller. Define an operator-owned schedule, least-privilege execution identity, bounded batch size, alerting, and a dry-run/verification procedure before relying on cleanup. Do not add an unattended database-mutating schedule as part of this review.
-- Structured audit events are not yet demonstrated in the reviewed challenge, payment-store, settlement, and rate-limit modules. Add correlation IDs and stable reason codes for challenge issuance, verification outcomes, replay rejection, rate limiting, and dependency failures. Do not log request bodies, credentials, nonces, or raw provider/ORM error objects. Existing `console.warn` calls that pass raw error objects require a logging-policy review before activation.
+- Structured audit events are now present in a first implementation slice across challenge, payment-store, settlement, and rate-limit paths. Events use stable reason codes and generated per-event correlation IDs; raw ORM/provider errors are not serialized by the helper. End-to-end correlation, all early-return paths, log retention/access, alert routing, dashboards, thresholds, and operational ownership remain incomplete. Do not log request bodies, credentials, nonces, or raw provider/ORM error objects.
 - Arc finality policy remains an owner/reviewer decision. The current RPC block consistency check must not be described as independent consensus verification.
 - No application database backup, schema rollout, or read/write smoke test has been performed. CI uses a disposable database only.
 
@@ -175,3 +175,8 @@ A small server-side audit helper and focused tests have now been added:
 This is a first implementation slice, not complete operational observability. Correlation IDs are generated per event rather than propagated end-to-end; early-return database/configuration failures and every invalid-challenge path are not yet uniformly covered. The deployment log retention/access policy, alert routing, ownership, dashboards, and monitoring thresholds are not configured or verified. Do not treat these events as an operational alerting system until those controls are reviewed.
 
 The audit helper is not connected to the public Agent Service route, and the route remains disabled. No cleanup schedule or database mutation was added.
+
+
+### Exact candidate CI and Preview verification (2026-11-02)
+
+Candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f` passed `npm run typecheck`, `npm test`, `npm run build`, and the disposable PostgreSQL integration workflow. Its Vercel Preview is READY. A GET smoke test against that exact Preview returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit instruction not to send funds. POST was not live-tested; automated tests cover the fail-closed response. The PR remains Draft and unmerged.
