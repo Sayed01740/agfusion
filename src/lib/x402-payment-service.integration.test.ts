@@ -49,11 +49,12 @@ function arcRpcFetch(overrides: {
           ? receipt
           : { hash: BLOCK_HASH, number: "0x10" };
 
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({ jsonrpc: "2.0", id: 1, result }),
-    } as Response;
+    // Use a real Fetch Response so the bounded streaming JSON reader exercises
+    // the same text/body/header interface as the production RPC transport.
+    return new Response(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, result }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
   }) as typeof fetch;
 }
 
