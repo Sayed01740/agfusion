@@ -38,18 +38,30 @@ function. A caller-controlled `CF-Connecting-IP`, `X-Forwarded-For`, or
 custom header is not sufficient proof of identity. If a trusted identity
 cannot be established, leave the route disabled.
 
-### 2. RPC availability and resource bounds need a final implementation review
+### 2. RPC availability and resource bounds
 
-The verifier currently performs three sequential JSON-RPC requests and maps
-failures to a closed result. Before HTTP integration, add and test a bounded
-per-request timeout and a bounded overall verification deadline. Confirm the
-runtime cancels timed-out fetches, and ensure retries (if any) are capped.
-Do not retry indefinitely or let a client trigger unbounded RPC work.
+**Implementation complete on the current branch; operational monitoring remains open.**
 
-Review response-size and receipt-log limits as part of the same change. Reject
-unexpectedly large or malformed RPC responses without authorizing payment.
-Keep the RPC URL fixed to the intended Arc Testnet endpoint unless a separately
-reviewed configuration design is approved.
+The verifier now:
+- Uses one shared 10-second AbortSignal.timeout deadline across its three
+  sequential JSON-RPC calls, rather than allowing each call an independent
+  timeout.
+- Rejects RPC JSON response bodies larger than 256 KiB. It checks
+  Content-Length when present and also enforces the cap while streaming.
+- Rejects receipts containing more than 256 logs before Transfer-event
+  matching.
+- Performs no automatic retry. RPC errors, timeout, malformed JSON, and
+  resource-limit failures return a closed verification result.
+
+Regression tests cover oversized RPC responses and excessive receipt logs.
+The settlement integration test uses real Response objects so it exercises
+the bounded response reader rather than a partial mock.
+
+These limits bound the verifier's work but do not remove the RPC provider as a
+trust boundary. Before activation, retain monitoring and alerting for RPC
+timeouts, failures, and unusual rejection rates. Keep the RPC URL fixed to the
+intended Arc Testnet endpoint unless a separately reviewed configuration
+design is approved.
 
 ### 3. Finality remains a documented trust decision, not a code-level proof
 
@@ -104,7 +116,7 @@ blockchain transaction.
 
 - [ ] Confirm the actual Cloudflare DNS proxy state and complete ingress path.
 - [ ] Select and test a trustworthy server-side client identity source.
-- [ ] Add bounded RPC timeouts/deadlines and response/resource limits.
+- [x] Add bounded RPC timeout/deadline and response/resource limits (10-second shared deadline, 256 KiB response cap, 256 receipt-log cap, no automatic retries; regression tests added).
 - [ ] Record the Arc finality trust decision and operational response plan.
 - [ ] Add redacted structured audit events and monitoring ownership.
 - [ ] Define rate-limit policy and operator-controlled bucket cleanup.
