@@ -11,6 +11,7 @@ import {
   consumeX402ChallengeAndRecordPayment,
   type X402ConsumeResult,
 } from "@/lib/x402-payment-store";
+import { emitX402AuditEvent } from "@/lib/x402-audit";
 
 export type X402SettlementResult =
   | { ok: true; paymentId: string; txHash: string }
@@ -93,6 +94,7 @@ export async function settleX402Payment(
   });
 
   if (!verified.ok) {
+    emitX402AuditEvent("verification_failed", verified.reason);
     return { ok: false, reason: "payment_invalid" };
   }
 
@@ -135,6 +137,7 @@ export async function settleX402Payment(
     };
   }
 
+  emitX402AuditEvent("verification_succeeded", "verified_and_recorded");
   return {
     ok: true,
     paymentId: consumed.id,
