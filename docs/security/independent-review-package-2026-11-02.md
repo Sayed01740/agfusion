@@ -171,12 +171,42 @@ Please submit an independent GitHub review with:
 A green CI run is not an independent review. This package is intended to make the review reproducible and auditable, not to replace it.
 
 
-## 8. New release-blocking finding: risk-oracle payment challenge remains live
+## 8. Owner-approved x402 global disablement and current Preview verification
 
-**Observed:** 2026-11-02, read-only GET against the integrated PR #40 Preview deployment for exact head `842f6a68473ef8a8575c6c381a8b966e78ae7f1b`.
+**Owner decision:** On 2026-11-02 the repository owner approved temporarily disabling Risk Oracle paid functionality as part of the x402 shutdown while independent security review is pending. The implementation scope is both x402 endpoints in this stack.
 
-- `GET /api/x402/agent-service` returns HTTP 402 with `paymentEnabled:false`, no recipient, and a warning not to send funds.
-- `GET /api/x402/risk-oracle` returns HTTP 402 with an `accepts[]` exact-payment requirement, `payTo: 0xB00f41172c23d31571a3bE850AA0e81e58Ab8828`, and a note instructing users to send native USDC on Arc Testnet and retry with `paymentTxHash`.
-- The risk-oracle route source on the integrated PR #40 branch still contains the payment-requirements response and payment verification/consumption flow.
+**Implementation branch:** `security/integrated-zod4-dependency-remediation`  
+**Latest implementation head at time of this update:** `3aebdc6e15946bc73baa18e42f430467be82d1a2`
 
-**Decision required:** Repository owner must explicitly decide whether risk-oracle payment is intentionally active while agent-service x402 is disabled. Until that decision is recorded, do not describe x402 as globally disabled and do not release the stack. If global disablement is intended, disable both GET and POST payment paths, remove the payment destination and actionable challenge, and add endpoint-specific regression tests. No POST payment request was made and no funds were sent during this finding.
+Both endpoints now fail closed on GET and POST with HTTP 503, `code=X402_DISABLED`, and `Cache-Control: no-store`. Neither endpoint should publish an x402 challenge, payment recipient, amount, token/chain settlement metadata, or actionable payment headers. Neither accepts payment evidence or unlocks paid data.
+
+### Exact-head automated evidence
+
+- GitHub CI passed on prior exact head `2d23fc6aa4bb35656223c50a1684da35959fcdb9`, including install, Circle SDK compatibility, Elliptic regression, lint, typecheck, Vitest, and production build.
+- Dependency security audit passed on that same head. Four moderate development-tooling advisories remain visible; production audit and full-tree high/critical gates passed.
+- Disposable PostgreSQL integration passed on that same head.
+- Vercel Preview deployment for that same head reached READY.
+
+The agent-service route and regression tests were then updated to remove its HTTP 402 payment challenge and payment metadata. This changed the branch head to `3aebdc6e15946bc73baa18e42f430467be82d1a2`; the CI, audit, PostgreSQL integration, and Preview checks must be rerun against this new exact head before release.
+
+### Read-only Preview smoke tests on prior exact head
+
+Preview deployment `dpl_6nYUyd7ivJZXy342eCyXBSMQMQNT` at `2d23fc6aa4bb35656223c50a1684da35959fcdb9` returned:
+
+- Risk Oracle GET: HTTP 503, `X402_DISABLED`, no payment headers or destination.
+- Risk Oracle POST with a fabricated transaction hash: HTTP 503, same disabled response.
+- Risk Oracle POST with malformed JSON: HTTP 503, same disabled response.
+- Agent Service GET: HTTP 402 with `X-Payment-Required: true`, price/token/chain metadata, despite `paymentEnabled:false`. This is a newly identified inconsistency and is addressed by the new agent-service code change, which still needs exact-head CI and Preview verification.
+
+No real payment was submitted, no wallet was used, and no funds were sent.
+
+## 9. Updated release blockers
+
+- Rerun exact-head CI, dependency audit, disposable PostgreSQL integration, and Vercel Preview after the agent-service update.
+- Repeat GET and POST smoke tests for both endpoints on the new READY Preview. Confirm both return 503 and no payment challenge metadata.
+- Obtain independent security review of the request-body changes, Circle/Zod compatibility patch, complete Elliptic fork diff, x402 verifier/trust boundary, and public Arc RPC assumptions.
+- Obtain an explicit owner decision on the public Circle RPC trust model.
+- Resolve or document the four moderate development-tooling advisories.
+- Review and address build warnings for empty ESLint config / missing Next.js plugin and dynamic dependency import in the Viem/Ox Tempo dependency chain.
+
+Keep every PR Draft. No merge, Production deployment, Mainnet activation, wallet signing, transaction broadcast, or payment acceptance is authorized.
