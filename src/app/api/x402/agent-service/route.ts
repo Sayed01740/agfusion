@@ -21,7 +21,7 @@ function paymentRequired() {
         chain: "Arc Testnet",
         chainId: 5042002,
         token: "0x3600000000000000000000000000000000000000",
-        rpc: "https://rpc.testnet.arc.network",
+        rpc: "https://rpc.testnet.arc.io",
         explorer: "https://testnet.arcscan.app",
       },
       description:
