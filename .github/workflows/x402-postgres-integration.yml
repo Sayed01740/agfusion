@@ -1,0 +1,54 @@
+name: x402 disposable PostgreSQL integration
+
+on:
+  pull_request:
+    paths:
+      - "prisma/schema.prisma"
+      - "src/lib/x402-*.ts"
+      - "src/lib/x402-*.test.ts"
+      - ".github/workflows/x402-postgres-integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: x402-postgres-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agfusion_x402_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agfusion_x402_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_PRISMA_URL: postgresql://postgres:postgres@localhost:5432/agfusion_x402_test?schema=public
+      POSTGRES_URL_NON_POOLING: postgresql://postgres:postgres@localhost:5432/agfusion_x402_test?schema=public
+      X402_POSTGRES_INTEGRATION: "1"
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Generate Prisma client
+        run: npx prisma generate --schema prisma/schema.prisma
+      - name: Apply schema to disposable CI database
+        run: npx prisma db push --schema prisma/schema.prisma
+      - name: Run real PostgreSQL integration tests
+        run: npm test -- src/lib/x402-postgres.integration.test.ts
