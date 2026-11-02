@@ -180,3 +180,14 @@ The audit helper is not connected to the public Agent Service route, and the rou
 ### Exact candidate CI and Preview verification (2026-11-02)
 
 Candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f` passed `npm run typecheck`, `npm test`, `npm run build`, and the disposable PostgreSQL integration workflow. Its Vercel Preview is READY. A GET smoke test against that exact Preview returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit instruction not to send funds. POST was not live-tested; automated tests cover the fail-closed response. The PR remains Draft and unmerged.
+
+
+### Latest-head CI and Preview recheck (2026-11-02)
+
+The branch head at the time of this check was `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`. Both GitHub Actions workflows associated with that commit completed successfully: the main CI workflow and the disposable PostgreSQL integration workflow. The matching Vercel Preview deployment reached `READY`.
+
+A GET request to the exact Preview route `/api/x402/agent-service` returned HTTP 402 with `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient or payment instructions, and the explicit warning not to send funds. The response also included `Cache-Control: no-store` and `X-Payment-Enabled:false`.
+
+The first attempted probe used the wrong path (`/api/agent`) and returned 404; that result is not evidence about the x402 endpoint. The correctly routed GET probe above is the relevant smoke-test evidence. No live POST probe, Testnet payment, database mutation, secret change, Mainnet change, merge, or Production deployment was performed. These are Preview observations only and do not authorize activation.
+
+**Decision unchanged:** keep GET disabled and POST fail-closed until all operational gates are independently reviewed and explicitly approved.
