@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { getPrisma, isDbConfigured } from "@/lib/db";
+import { emitX402AuditEvent } from "@/lib/x402-audit";
 
 export type X402RateLimitResult =
   | { ok: true; remaining: number; resetAt: string }
@@ -71,6 +72,7 @@ export async function consumeX402RateLimit(
     }
 
     if (count > options.limit) {
+      emitX402AuditEvent("rate_limited", "fixed_window_limit");
       return {
         ok: false,
         reason: "rate_limited",
@@ -84,7 +86,7 @@ export async function consumeX402RateLimit(
       resetAt: resetAt.toISOString(),
     };
   } catch (error) {
-    console.warn("[x402] rate limiter unavailable; refusing request", error);
+    emitX402AuditEvent("dependency_unavailable", "rate_limit_database_error");
     return { ok: false, reason: "database_unavailable" };
   }
 }
@@ -114,7 +116,7 @@ export async function pruneExpiredX402RateLimitBuckets(
     `;
     return { ok: true, deleted: rows.length };
   } catch (error) {
-    console.warn("[x402] rate-limit cleanup unavailable", error);
+    emitX402AuditEvent("dependency_unavailable", "rate_limit_cleanup_error");
     return { ok: false, reason: "database_unavailable" };
   }
 }
