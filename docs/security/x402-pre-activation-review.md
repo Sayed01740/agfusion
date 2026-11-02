@@ -128,3 +128,36 @@ blockchain transaction.
 
 Until every applicable exit criterion is satisfied and separately approved,
 keep GET disabled and POST fail-closed. Mainnet support is out of scope.
+
+
+## Additional implementation review (2026-11-02)
+
+The following source-level checks were completed after the CI run:
+
+- `settleX402Payment` loads the authoritative challenge tuple from PostgreSQL, verifies against the fixed Arc Testnet verifier, compares the returned transaction hash, recipient, amount, and chain ID, then delegates to the atomic challenge-consume/payment-insert transaction.
+- `consumeX402ChallengeAndRecordPayment` conditionally consumes only the matching, unexpired, unused challenge and relies on the unique transaction-hash constraint as a second replay guard.
+- `consumeX402RateLimit` uses an atomic PostgreSQL upsert and HMAC-SHA-256 identity digest. It correctly refuses requests when its server-only secret or database is unavailable. It does not establish the caller's identity; a future route must supply an independently trusted identity.
+- `createX402Challenge` uses a server-owned recipient and a five-minute expiry. It is not exposed by the current public HTTP route.
+- The public Agent Service route remains fail-closed: GET returns 402 with payments disabled and no recipient; POST returns 503 and accepts no payment credential.
+
+### Operational items still not implemented or verified
+
+- No trusted client identity is wired into a public route. The actual public DNS/proxy path and runtime request-header behavior remain unverified. Do not select a header based only on a Vercel domain inventory.
+- No explicit challenge/settlement rate-limit policy is selected. Before route integration, the owner and reviewer must set per-client limits, window durations, retry semantics, and a service-wide backstop based on expected traffic and abuse risk.
+- The bounded expired-bucket cleanup helper has no scheduled maintenance caller. Define an operator-owned schedule, least-privilege execution identity, bounded batch size, alerting, and a dry-run/verification procedure before relying on cleanup. Do not add an unattended database-mutating schedule as part of this review.
+- Structured audit events are not yet demonstrated in the reviewed challenge, payment-store, settlement, and rate-limit modules. Add correlation IDs and stable reason codes for challenge issuance, verification outcomes, replay rejection, rate limiting, and dependency failures. Do not log request bodies, credentials, nonces, or raw provider/ORM error objects. Existing `console.warn` calls that pass raw error objects require a logging-policy review before activation.
+- Arc finality policy remains an owner/reviewer decision. The current RPC block consistency check must not be described as independent consensus verification.
+- No application database backup, schema rollout, or read/write smoke test has been performed. CI uses a disposable database only.
+
+### Safe next actions
+
+1. Obtain a documented DNS/proxy topology for every hostname and test the platform-provided identity in a non-payment diagnostic path before any route integration.
+2. Agree and document rate-limit thresholds and cleanup ownership without enabling either route.
+3. Implement redacted audit events and tests while keeping the HTTP route disabled.
+4. Record the chosen Arc finality trust model and the operational response to RPC disagreement.
+5. Have a second reviewer inspect the complete stacked PR diff and operational checklist.
+6. Only after separate owner approval, prepare a Testnet-only database rollout plan with verified backup/restore evidence. Do not apply it as part of this PR.
+
+The latest candidate commit passed CI and its Vercel Preview is READY. A GET smoke test returned HTTP 402 with `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient/payment instructions, and an explicit instruction not to send funds. POST was not live-tested through the Preview fetch interface; automated tests cover the fail-closed POST behavior.
+
+**Decision unchanged:** do not merge, activate payment processing, apply database SQL, change deployment secrets, send funds, or alter Arc Mainnet configuration.
