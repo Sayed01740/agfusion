@@ -30,7 +30,7 @@ The following are maintainer/CI evidence, not independent approval:
 - PR #40 CI, dependency audit, and disposable PostgreSQL integration passed.
 - PR #40 production dependency audit reported zero vulnerabilities; full dependency-tree high/critical audit passed; four moderate development-tooling advisories remained visible.
 - PR #40's audit workflow has a final enforcement step conditioned on an audit failure. That step is expected to be skipped when both preceding audit commands succeed; inspect the two audit step outcomes, not the final step's skipped state in isolation.
-- PR #40 Preview read-only smoke checks showed x402 disabled, fabricated payment proof rejected, Arc Testnet chain ID `5042002`, and oversized swap request rejected with HTTP 413.
+- PR #40 Preview read-only smoke checks showed `/api/x402/agent-service` disabled, fabricated payment proof rejected on that route, Arc Testnet chain ID `5042002`, and oversized swap request rejected with HTTP 413. **Important scope correction (observed 2026-11-02):** `/api/x402/risk-oracle` on the same exact PR #40 Preview still returns HTTP 402 with an actionable `accepts[]` requirement, a `payTo` address, and instructions to send native USDC. Therefore x402 is not globally disabled. Treat this endpoint as a release blocker unless the owner explicitly approves its separate active-payment status and the review scope is updated.
 - No production environment, production secret, Mainnet setting, wallet signing, or transaction broadcast was changed.
 
 Do not treat a READY Preview as proof that a live Circle quote works. The combined Preview previously reached HTTP 503 for a valid quote request because the Preview Circle server key was not configured. No production credential should be copied into Preview.
@@ -124,7 +124,7 @@ The reviewer should record PASS / FAIL / NOT RUN, command or test evidence, and 
 4. Positive valid request tests for each changed Circle PW route.
 5. Swap prepare validation: invalid amount cases and valid six-decimal prepare-only quote path.
 6. Proxy / IRIS / JSON-RPC / bridge-diagnostics body limits and valid payload compatibility.
-7. x402 negative tests: no recipient, no payment acceptance, no credential issuance, no feed unlock, fabricated transaction proof rejected.
+7. x402 endpoint-by-endpoint negative tests: agent-service and risk-oracle must each match the owner-approved enablement state; when globally disabled, neither endpoint may disclose a recipient/payment challenge, accept/consume payment, issue credentials, or unlock paid data. Test fabricated transaction proof rejection.
 8. Circle SDK import/initialization and compatibility tests from a clean install.
 9. Elliptic full diff, provenance, upstream test suite, and targeted regression review.
 10. Production and full dependency audit results.
@@ -140,7 +140,7 @@ Do not approve the stack if any of these is true:
 - The Zod patch is brittle, non-reproducible, or does not guard the exact runtime used in production.
 - The Elliptic fork diff, provenance, or upstream tests cannot be independently verified.
 - Any production moderate+ advisory or full-tree high/critical advisory remains unexplained or newly appears.
-- x402 can accept unverified payment evidence, publish a recipient while disabled, or unlock the feed.
+- Any x402 endpoint publishes actionable payment instructions while the owner says x402 is disabled, accepts unverified payment evidence, or unlocks paid data contrary to the approved scope.
 - The RPC trust model remains undocumented or owner-unapproved for the intended use.
 - Any test requires production credentials or an actual user transaction.
 
@@ -169,3 +169,14 @@ Please submit an independent GitHub review with:
 - Any residual risk accepted by the repository owner, with rationale.
 
 A green CI run is not an independent review. This package is intended to make the review reproducible and auditable, not to replace it.
+
+
+## 8. New release-blocking finding: risk-oracle payment challenge remains live
+
+**Observed:** 2026-11-02, read-only GET against the integrated PR #40 Preview deployment for exact head `842f6a68473ef8a8575c6c381a8b966e78ae7f1b`.
+
+- `GET /api/x402/agent-service` returns HTTP 402 with `paymentEnabled:false`, no recipient, and a warning not to send funds.
+- `GET /api/x402/risk-oracle` returns HTTP 402 with an `accepts[]` exact-payment requirement, `payTo: 0xB00f41172c23d31571a3bE850AA0e81e58Ab8828`, and a note instructing users to send native USDC on Arc Testnet and retry with `paymentTxHash`.
+- The risk-oracle route source on the integrated PR #40 branch still contains the payment-requirements response and payment verification/consumption flow.
+
+**Decision required:** Repository owner must explicitly decide whether risk-oracle payment is intentionally active while agent-service x402 is disabled. Until that decision is recorded, do not describe x402 as globally disabled and do not release the stack. If global disablement is intended, disable both GET and POST payment paths, remove the payment destination and actionable challenge, and add endpoint-specific regression tests. No POST payment request was made and no funds were sent during this finding.
