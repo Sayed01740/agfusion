@@ -331,10 +331,31 @@ Do not infer that the entire swap flow is approved from this targeted regression
 
 ## 16. Follow-up status: full lint candidate remains uncommitted
 
-The full TypeScript/TSX lint and minimatch override candidate described in Section 14 was not transferred into the repository. The latest attempt to create a replacement Vercel sandbox through the v4 sandbox API returned HTTP 400 (`bad_request`). No candidate files were committed, and no lockfile or package manifest was partially updated.
+The earlier Vercel v4 sandbox-creation failures were bypassed by creating a fresh Node 22 sandbox through the v2 API. The full TypeScript/TSX lint and minimatch override candidate was regenerated and validated there. Its clean-install results are recorded in Section 18.
 
-Do not adopt only the package manifest or ESLint config without its matching lockfile. The candidate remains experimental until all three files can be transferred atomically and exact-head CI, audit, and Preview checks pass.
+A subsequent transfer attempt exposed a hard truncation limit in the sandbox file-read bridge for larger files. The candidate `package.json` and especially the 251 KB lockfile were truncated during transfer. The resulting incomplete commit was not retained: PR #43 was immediately restored to its previous valid three-file state by revert commit `2ad63d778fb18b0730bba8d989ca116b2c0e46c1`. The failed intermediate Preview `dpl_EjD7hKtYBjiSrwaKR1QuAS1R1NbR` reported a JSON parse error in the incomplete `package.json`; it is not a valid candidate Preview.
 
+PR #43 at the restored head passed CI run `41515202787` (run 942) and dependency audit workflow run `41515203060` (run 221). These validate the restored baseline, not the full lint candidate. The candidate files remain sandbox-only and are not committed to any branch.
+
+Do not adopt only the package manifest or ESLint config without its matching lockfile. The candidate remains experimental until all three files can be transferred intact and exact-head CI, audit, and Preview checks pass.
+
+
+## 18. Revalidated full TypeScript/TSX lint and minimatch candidate (2026-11-03)
+
+A fresh isolated Node 22 sandbox cloned PR #43's exact prior head `276b2d965e8c7078a352b24044adccefb46e35e8`. The candidate added `@eslint/js@10.0.1`, `@next/eslint-plugin-next@15.5.28`, `@typescript-eslint/eslint-plugin@8.72.1`, `@typescript-eslint/parser@8.72.1`, `eslint-plugin-react-hooks@7.1.1`, `globals@17.14.0`, and npm override `minimatch@^11.0.4` (resolved lockfile version `11.0.4`).
+
+After clean `npm ci --legacy-peer-deps`, the isolated candidate produced:
+
+- ESLint over 201 files: 0 errors and 173 warnings (95 explicit-any, 74 unused-vars, 2 Next.js rules, 1 React Hooks exhaustive-deps, 1 unused-disable warning).
+- TypeScript typecheck: pass.
+- Circle SDK/Zod compatibility and bounded-collection security checks: pass.
+- Elliptic P-521 leading-zero and P-256 RFC 6979 known-answer regression checks: pass.
+- Vitest: 33 files passed, 1 skipped; 214 tests passed, 4 skipped.
+- `npm audit --omit=dev --audit-level=moderate`: 0 vulnerabilities.
+- `npm audit --audit-level=moderate`: 0 vulnerabilities across production and development dependencies in the candidate lockfile.
+- Production build: pass. The existing Viem/Ox Tempo dynamic dependency import warning remains.
+
+**Important scope:** This is reproducible isolated-sandbox evidence only. The candidate package manifest, matching lockfile, and flat ESLint config are not present on PR #43. The committed PR #43 baseline still only covers JavaScript/CommonJS/ESM, and the moderate minimatch advisory remains on that committed dependency tree. Do not represent the candidate's zero-vulnerability audit as a repository CI result or mark the release blocker resolved.
 
 ## 17. Focused code-review notes for Circle/Zod patch and Elliptic regression
 
