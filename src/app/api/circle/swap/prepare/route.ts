@@ -120,7 +120,20 @@ export async function POST(req: Request) {
   if (!isAddress(address)) {
     return NextResponse.json({ error: "invalid_wallet_address" }, { status: 400 });
   }
-  if (!amount || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+  // USDC and EURC are 6-decimal ERC-20s on Arc. Reject non-decimal,
+  // exponent, overlong, and over-precision inputs before initializing Circle SDK.
+  const amountParts = amount.split(".");
+  const validDecimalAmount =
+    amount.length <= 80 &&
+    /^\\d+(?:\\.\\d+)?$/.test(amount) &&
+    amountParts.length <= 2 &&
+    (amountParts[1]?.length ?? 0) <= 6;
+
+  if (
+    !validDecimalAmount ||
+    !Number.isFinite(Number(amount)) ||
+    Number(amount) <= 0
+  ) {
     return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
   }
   if (
