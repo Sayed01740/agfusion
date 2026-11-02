@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedText } from "@/lib/read-limited-text";
 import {
   RPC_UPSTREAMS,
   chainKey,
@@ -102,9 +103,22 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: string;
+  const bodyResult = await readLimitedText(req, 128 * 1024);
+  if (!bodyResult.ok) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: bodyResult.reason === "too_large" ? -32005 : -32700,
+          message: bodyResult.reason === "too_large" ? "RPC request body too large" : "Parse error: invalid JSON body",
+        },
+      },
+      { status: bodyResult.reason === "too_large" ? 413 : 400 },
+    );
+  }
+  const body = bodyResult.value;
   try {
-    body = await req.text();
     JSON.parse(body);
   } catch {
     return NextResponse.json(

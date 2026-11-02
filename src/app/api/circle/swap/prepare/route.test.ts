@@ -3,6 +3,16 @@ import { POST } from "./route";
 
 const mocks = vi.hoisted(() => ({
   getServerKitKey: vi.fn(),
+  estimateSwap: vi.fn(),
+}));
+
+vi.mock("@circle-fin/app-kit", () => ({
+  AppKit: class {
+    estimateSwap = mocks.estimateSwap;
+  },
+}));
+vi.mock("@circle-fin/adapter-viem-v2", () => ({
+  createViemAdapterFromProvider: vi.fn(async () => ({ mocked: true })),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -28,6 +38,36 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     expect(mocks.getServerKitKey).not.toHaveBeenCalled();
   });
 
+
+  it.each([
+    [5042002, "Arc Testnet"],
+    [5042, "Arc Mainnet"],
+  ])("returns the requested chain ID (%s) rather than the runtime default", async (chainId) => {
+    mocks.getServerKitKey.mockReturnValue("test-kit-key");
+    mocks.estimateSwap.mockResolvedValue({
+      transactions: [{
+        to: "0x1111111111111111111111111111111111111111",
+        data: "0x1234",
+      }],
+    });
+
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "1",
+        tokenIn: "USDC",
+        tokenOut: "EURC",
+        chainId,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).chainId).toBe(chainId);
+    expect(mocks.estimateSwap).toHaveBeenCalledOnce();
+  });
+
   it("rejects non-object JSON before reading swap fields", async () => {
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
       method: "POST",
@@ -48,7 +88,7 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     ["more than 6 decimal places", "1.1234567"],
     ["oversized input", "1".repeat(81)],
     ["non-numeric input", "NaN"],
-  ])("rejects invalid amount (%s) before Circle configuration lookup", async (_label, amount) => {
+  ])("rejects invalid amount (%s) before initializing Circle SDK", async (_label, amount) => {
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -64,9 +104,18 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_amount" });
     expect(mocks.getServerKitKey).not.toHaveBeenCalled();
+    expect(mocks.estimateSwap).not.toHaveBeenCalled();
   });
 
-  it("accepts the valid six-decimal amount boundary", async () => {
+  it("accepts the full six-decimal precision supported by Arc USDC/EURC", async () => {
+    mocks.getServerKitKey.mockReturnValue("test-kit-key");
+    mocks.estimateSwap.mockResolvedValue({
+      transactions: [{
+        to: "0x1111111111111111111111111111111111111111",
+        data: "0x1234",
+      }],
+    });
+
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -79,10 +128,9 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
       }),
     }));
 
-    // No Circle key is configured in this unit test; 503 proves the amount
-    // passed validation and reached the configuration boundary.
-    expect(response.status).toBe(503);
-    expect(mocks.getServerKitKey).toHaveBeenCalledOnce();
+    expect(response.status).toBe(200);
+    expect((await response.json()).amountIn).toBe("1.123456");
+    expect(mocks.estimateSwap).toHaveBeenCalledOnce();
   });
 
 });
