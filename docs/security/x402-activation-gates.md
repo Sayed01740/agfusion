@@ -11,8 +11,8 @@ payment processing.
 - [x] Settlement service compares the verified tuple and atomically consumes the challenge while recording the payment; unique transaction-hash protection is covered by disposable PostgreSQL integration tests.
 - [x] Public GET remains disabled (402, no recipient/payment instructions); public POST remains fail-closed (503). Neither route calls the settlement service.
 - [x] Earlier candidate `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`: GitHub CI and disposable PostgreSQL integration passed; its Preview GET smoke test returned the disabled 402 response.
-- [x] Latest branch head `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9` (2026-11-02): GitHub CI run `41446462963` passed typecheck, unit tests, and production build; disposable PostgreSQL integration run `41446462962` passed against its disposable CI database; matching Vercel Preview reached READY.
-- [x] Repeated GET smoke test against the exact latest-head Preview (`https://agfusion-dhbdvbq16-sayeds-projects-e086c1e7.vercel.app/api/x402/agent-service`) returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit do-not-send-funds warning. Response included `Cache-Control: no-store` and `X-Payment-Enabled:false`.
+- [x] Current branch head `f60d2ebf1667288fbd1aa3156bca72bd1854eaaf` (2026-11-02): GitHub CI run `41447704265` passed typecheck, unit tests, and production build; disposable PostgreSQL integration run `41447704261` passed against its disposable CI database; matching Vercel Preview deployment `dpl_YmE9QUUSwUgn66VwXjSroKguKKSf` reached READY.
+- [x] GET smoke test against the exact current-head Preview (`https://agfusion-axqxaiylt-sayeds-projects-e086c1e7.vercel.app/api/x402/agent-service`) returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit do-not-send-funds warning. Response included `Cache-Control: no-store` and `X-Payment-Enabled:false`.
 - [ ] Structured audit events are only a first implementation slice. End-to-end correlation, complete early-return coverage, log retention/access, alerts, and operational ownership remain open.
 
 These checks describe source/CI/Preview evidence only. They do not authorize database rollout,
@@ -142,8 +142,9 @@ It contains no assumed traffic thresholds and does not authorize activation.
   failures.
 - [ ] Review denial-of-service exposure and resource use for receipt lookups.
 - [ ] Review the final diff and tests with a second reviewer.
-- [x] Run GitHub CI and disposable PostgreSQL integration on latest head
-  `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9`.
+- [x] Run GitHub CI and disposable PostgreSQL integration on current head
+  `f60d2ebf1667288fbd1aa3156bca72bd1854eaaf` (CI `41447704265`, disposable
+  PostgreSQL `41447704261`).
 - [ ] Perform a Testnet-only end-to-end test using a deliberately small test
   payment, after explicit approval. Verify the receipt, stored payment,
   single-use challenge, replay rejection, and feed authorization.
