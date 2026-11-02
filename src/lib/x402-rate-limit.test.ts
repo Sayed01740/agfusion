@@ -111,7 +111,7 @@ describe("consumeX402RateLimit", () => {
     prisma.mockReturnValue({
       $queryRaw: vi.fn().mockRejectedValue(new Error("database offline")),
     } as never);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     await expect(consumeX402RateLimit({
       identity: "client-1",
