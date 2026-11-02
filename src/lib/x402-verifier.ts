@@ -7,7 +7,7 @@
  */
 export const X402_ARC_TESTNET = {
   chainId: 5042002,
-  rpcUrl: "https://rpc.testnet.arc.network",
+  rpcUrl: "https://rpc.testnet.arc.io",
   token: "0x3600000000000000000000000000000000000000",
   decimals: 6,
   amount: "1000", // 0.001 USDC in base units
