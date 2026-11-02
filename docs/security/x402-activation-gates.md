@@ -10,8 +10,9 @@ payment processing.
 - [x] Arc Testnet verifier source checks chain ID, successful receipt, transaction hash, USDC Transfer event, exact stored recipient/amount, and receipt-block consistency. The same-RPC block check is not independent consensus verification.
 - [x] Settlement service compares the verified tuple and atomically consumes the challenge while recording the payment; unique transaction-hash protection is covered by disposable PostgreSQL integration tests.
 - [x] Public GET remains disabled (402, no recipient/payment instructions); public POST remains fail-closed (503). Neither route calls the settlement service.
-- [x] Latest branch head `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`: GitHub CI and disposable PostgreSQL integration workflows completed successfully. The corresponding Vercel Preview reached READY.
-- [x] GET smoke test against the latest-head Preview (`https://agfusion-ck78rcd80-sayeds-projects-e086c1e7.vercel.app/api/x402/agent-service`) returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit do-not-send-funds warning. Response included `Cache-Control: no-store` and `X-Payment-Enabled:false`.
+- [x] Earlier candidate `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`: GitHub CI and disposable PostgreSQL integration passed; its Preview GET smoke test returned the disabled 402 response.
+- [x] Latest branch head `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9` (2026-11-02): GitHub CI run `41446462963` passed typecheck, unit tests, and production build; disposable PostgreSQL integration run `41446462962` passed against its disposable CI database; matching Vercel Preview reached READY.
+- [x] Repeated GET smoke test against the exact latest-head Preview (`https://agfusion-dhbdvbq16-sayeds-projects-e086c1e7.vercel.app/api/x402/agent-service`) returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID 5042002, no recipient/payment instructions, and an explicit do-not-send-funds warning. Response included `Cache-Control: no-store` and `X-Payment-Enabled:false`.
 - [ ] Structured audit events are only a first implementation slice. End-to-end correlation, complete early-return coverage, log retention/access, alerts, and operational ownership remain open.
 
 These checks describe source/CI/Preview evidence only. They do not authorize database rollout,
@@ -142,7 +143,7 @@ It contains no assumed traffic thresholds and does not authorize activation.
 - [ ] Review denial-of-service exposure and resource use for receipt lookups.
 - [ ] Review the final diff and tests with a second reviewer.
 - [x] Run GitHub CI and disposable PostgreSQL integration on latest head
-  `a07427bb0b6cdcd5c4e4620dd0acf6c0d0db2977`.
+  `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9`.
 - [ ] Perform a Testnet-only end-to-end test using a deliberately small test
   payment, after explicit approval. Verify the receipt, stored payment,
   single-use challenge, replay rejection, and feed authorization.
@@ -162,3 +163,15 @@ It contains no assumed traffic thresholds and does not authorize activation.
 **Current decision:** keep payment processing disabled. This checklist does not
 grant approval to apply SQL, change environment variables, send funds, or
 activate the endpoint.
+
+
+## Latest-head verification (2026-11-02)
+
+The current branch head `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9` passed:
+- GitHub CI run `41446462963`: dependency install, TypeScript typecheck, unit tests, and production build.
+- Disposable PostgreSQL integration run `41446462962`: schema push and integration tests against the workflow's disposable PostgreSQL service only.
+- Matching Vercel Preview deployment reached READY.
+
+A repeated GET request to `/api/x402/agent-service` on that exact Preview returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient/payment instructions, and the do-not-send-funds warning. `Cache-Control:no-store` and `X-Payment-Enabled:false` were present.
+
+This is GET-only Preview evidence. No live POST test, application database access or mutation, Testnet payment, secret/environment change, route activation, merge, Production deployment, or Mainnet change was performed. PR #39 remains Draft and unmerged; no independent review was present at the latest review check.
