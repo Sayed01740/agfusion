@@ -89,7 +89,7 @@ async function readBoundedRpcJson(response: Response): Promise<{ result?: unknow
 }
 
 function topicAddress(topic: string | undefined): string | null {
-  if (!topic || !/^0x[0-9a-fA-F]{64}$/.test(topic)) return null;
+  if (!topic || !/^0x0{24}[0-9a-fA-F]{40}$/.test(topic)) return null;
   return `0x${topic.slice(-40)}`.toLowerCase();
 }
 
