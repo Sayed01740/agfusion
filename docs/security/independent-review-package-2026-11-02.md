@@ -210,3 +210,41 @@ No real payment was submitted, no wallet was used, and no funds were sent.
 - Review and address build warnings for empty ESLint config / missing Next.js plugin and dynamic dependency import in the Viem/Ox Tempo dependency chain.
 
 Keep every PR Draft. No merge, Production deployment, Mainnet activation, wallet signing, transaction broadcast, or payment acceptance is authorized.
+
+
+## 10. Final exact-head verification after global x402 disablement
+
+**Code PR #40 head:** `3aebdc6e15946bc73baa18e42f430467be82d1a2`  
+**Preview deployment:** `dpl_Dq7uMsWa5mURfW8kRSvzNzcppbUt`  
+**Preview URL:** https://agfusion-mmyprnlab-sayeds-projects-e086c1e7.vercel.app
+
+All exact-head GitHub workflows completed successfully on this code head:
+
+- CI run `41489279355`: dependency install, Circle SDK compatibility, Elliptic regression, `npm run lint`, TypeScript, Vitest, and production build all completed successfully.
+- Dependency audit run `41489279388`: production audit reported zero vulnerabilities; full-tree high/critical gate passed; four moderate development-tooling advisories remain visible. The conditional enforcement step was skipped because the preceding audit gates passed.
+- Disposable PostgreSQL integration run `41489279360`: Prisma generation, disposable schema apply, and real PostgreSQL integration tests passed.
+- Vercel Preview for this exact SHA reached READY.
+
+### Direct Preview smoke test results
+
+Executed from an ephemeral Vercel sandbox against the exact READY Preview. All six checks passed:
+
+1. Risk Oracle GET returned HTTP 503 / `X402_DISABLED`.
+2. Risk Oracle POST with a fabricated transaction hash returned HTTP 503 / `X402_DISABLED`.
+3. Risk Oracle POST with malformed JSON returned HTTP 503 / `X402_DISABLED`.
+4. Agent Service GET returned HTTP 503 / `X402_DISABLED`.
+5. Agent Service POST with fabricated `x-payment-tx` and `x-session-auth` headers returned HTTP 503 / `X402_DISABLED`.
+6. Agent Service POST with malformed JSON returned HTTP 503 / `X402_DISABLED`.
+
+Each response was checked for `Cache-Control: no-store`, absence of x-payment headers, and absence of payment challenge fields such as `accepts`, `payTo`, `price`, `settlement`, `paymentEnabled`, and paid/authorization fields. No wallet, real payment, transaction broadcast, or funds were used.
+
+### Remaining tooling and review caveats
+
+- The repository's `eslint.config.mjs` exports an empty array. Thus `npm run lint` exits successfully but does not enforce meaningful lint rules. Vercel also reports `ESLintEmptyConfigWarning` and missing Next.js ESLint plugin. Do not describe this as substantive lint coverage; configure and validate a real ruleset before relying on lint as a release gate.
+- Four moderate development-tooling advisories remain: `minimatch <11.0.1` (GHSA-g3hv-75wg-m249) and its ESLint dependency chain (`eslint`, `@eslint/config-array`, `@eslint-community/eslint-utils`). Production audit remains at zero vulnerabilities; full-tree high/critical remains zero. npm's suggested forced remediation downgrades ESLint to 4.0.0, a breaking and inappropriate change; do not apply it blindly. Obtain a compatible upstream fix or review a carefully tested override.
+- The Vercel build also reported a dynamic dependency import warning in the Viem/Ox Tempo dependency chain. It did not fail the build; assess whether it is benign or requires a bundling adjustment.
+- No independent security reviewer has submitted an approval. The public Arc RPC trust boundary still requires explicit owner acceptance before any future payment-finality reliance.
+
+### Current decision
+
+The x402 payment challenge inconsistency is resolved in the latest Preview and all exact-head CI/audit/DB/Preview checks passed. The stack remains Draft and is **not approved for merge or Production deployment** until independent review, real lint coverage, tooling-advisory disposition, and the public RPC trust-boundary decision are complete.
