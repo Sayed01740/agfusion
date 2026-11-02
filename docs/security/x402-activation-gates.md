@@ -5,6 +5,17 @@ The Agent Service route must remain disabled until every gate below is completed
 and reviewed. Passing CI or applying the database schema does not authorize
 payment processing.
 
+## Current implementation evidence (2026-11-02)
+
+- [x] Arc Testnet verifier source checks chain ID, successful receipt, transaction hash, USDC Transfer event, exact stored recipient/amount, and receipt-block consistency. The same-RPC block check is not independent consensus verification.
+- [x] Settlement service compares the verified tuple and atomically consumes the challenge while recording the payment; unique transaction-hash protection is covered by disposable PostgreSQL integration tests.
+- [x] Public GET remains disabled (402, no recipient/payment instructions); public POST remains fail-closed (503). Neither route calls the settlement service.
+- [x] Exact candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f`: typecheck, unit/integration test suite, production build, and disposable PostgreSQL integration workflow passed. Vercel Preview is READY; GET smoke test confirmed HTTP 402 and `paymentEnabled:false`.
+- [ ] Structured audit events are only a first implementation slice. End-to-end correlation, complete early-return coverage, log retention/access, alerts, and operational ownership remain open.
+
+These checks describe source/CI evidence only. They do not authorize database rollout,
+configuration changes, Testnet payment tests, route integration, or activation.
+
 ## 1. Server-owned settlement configuration
 
 - [ ] Introduce a server-only recipient setting (for example,
@@ -91,9 +102,10 @@ payment processing.
 
 ## 5. On-chain verification and replay controls
 
-- [ ] Verify Arc Testnet chain ID, successful receipt, receipt transaction hash,
-  configured USDC contract, standard Transfer event, exact stored recipient,
-  and exact stored amount in base units.
+- [x] Source implementation verifies Arc Testnet chain ID, successful receipt,
+  receipt transaction hash, configured USDC contract, standard Transfer event,
+  exact stored recipient, and exact stored amount in base units. Operational
+  activation remains blocked by the trust-model and configuration gates below.
 - [ ] Reject mint/burn-shaped transfers, malformed topics/data, removed logs,
   ambiguous matching transfers, and mismatched block/receipt data.
 - [ ] Document the RPC trust boundary. A receipt plus block-hash consistency
@@ -101,9 +113,10 @@ payment processing.
 - [ ] Decide whether the service will rely on the documented Arc deterministic
   finality guarantee or operate an independently verified Arc node. Record
   the chosen trust model and operational monitoring before activation.
-- [ ] Atomically consume the persisted challenge and insert the payment record
-  in one database transaction. The unique transaction-hash constraint must
-  prevent replay across challenges.
+- [x] Source implementation atomically consumes the persisted challenge and
+  inserts the payment record in one database transaction. The unique
+  transaction-hash constraint prevents replay across challenges; disposable
+  PostgreSQL integration tests pass.
 - [ ] Ensure database failure, RPC failure, timeout, duplicate payment, or
   transaction rollback can never unlock the paid feed.
 
@@ -116,13 +129,13 @@ payment processing.
   failures.
 - [ ] Review denial-of-service exposure and resource use for receipt lookups.
 - [ ] Review the final diff and tests with a second reviewer.
-- [ ] Run unit tests, disposable PostgreSQL integration tests, typecheck, and
-  production build on the exact candidate commit.
+- [x] Run unit tests, disposable PostgreSQL integration tests, typecheck, and
+  production build on exact candidate `6b3063046aacacd2ba1fbd886836ef1905c1fc8f`.
 - [ ] Perform a Testnet-only end-to-end test using a deliberately small test
   payment, after explicit approval. Verify the receipt, stored payment,
   single-use challenge, replay rejection, and feed authorization.
-- [ ] Confirm the endpoint still fails closed when the database or RPC is
-  unavailable.
+- [x] Automated tests cover fail-closed behavior for database/RPC failures;
+  public GET/POST routes remain disabled. Live POST smoke test is not performed.
 - [ ] Only after all gates are checked and separately approved may a follow-up
   change wire settlement into the HTTP route.
 
