@@ -1,0 +1,136 @@
+name: one-time TypeScript lint and minimatch candidate
+
+on:
+  push:
+    branches:
+      - security/eslint-config-minimatch-remediation
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout without persisting credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Generate candidate manifest, lockfile, and flat config
+        run: |
+          npm pkg set 'overrides.minimatch=^11.0.4'
+          npm install --save-dev @eslint/js@10.0.1 @next/eslint-plugin-next@15.5.28 @typescript-eslint/eslint-plugin@8.72.1 @typescript-eslint/parser@8.72.1 eslint-plugin-react-hooks@7.1.1 globals@17.14.0 --legacy-peer-deps --ignore-scripts
+          cat > eslint.config.mjs <<'EOF'
+          import js from '@eslint/js';
+          import nextPlugin from '@next/eslint-plugin-next';
+          import tsPlugin from '@typescript-eslint/eslint-plugin';
+          import tsParser from '@typescript-eslint/parser';
+          import reactHooks from 'eslint-plugin-react-hooks';
+          import globals from 'globals';
+
+          const sharedRules = {
+            'no-debugger': 'error',
+            'no-constant-condition': 'error',
+            'no-dupe-keys': 'error',
+            'no-unreachable': 'error',
+            'valid-typeof': 'error',
+            'no-eval': 'error',
+            'no-new-func': 'error',
+            'no-implied-eval': 'error',
+            'no-prototype-builtins': 'error',
+            'no-empty': ['error', { allowEmptyCatch: true }],
+          };
+
+          export default [
+            {
+              ignores: [
+                '.next/**',
+                'node_modules/**',
+                'coverage/**',
+                'dist/**',
+                'build/**',
+                'next-env.d.ts',
+                'prisma/generated/**',
+              ],
+            },
+            {
+              files: ['**/*.{js,mjs,cjs}'],
+              languageOptions: {
+                ecmaVersion: 'latest',
+                sourceType: 'module',
+                globals: globals.node,
+              },
+              plugins: {
+                '@next/next': nextPlugin,
+              },
+              rules: {
+                ...js.configs.recommended.rules,
+                ...nextPlugin.configs.recommended.rules,
+                ...sharedRules,
+              },
+            },
+            {
+              files: ['**/*.{ts,tsx}'],
+              languageOptions: {
+                parser: tsParser,
+                ecmaVersion: 'latest',
+                sourceType: 'module',
+                parserOptions: {
+                  ecmaFeatures: { jsx: true },
+                },
+                globals: { ...globals.node, ...globals.browser },
+              },
+              plugins: {
+                '@typescript-eslint': tsPlugin,
+                '@next/next': nextPlugin,
+                'react-hooks': reactHooks,
+              },
+              rules: {
+                ...nextPlugin.configs.recommended.rules,
+                'react-hooks/rules-of-hooks': 'error',
+                'react-hooks/exhaustive-deps': 'warn',
+                ...sharedRules,
+                'no-undef': 'off',
+                'no-unused-vars': 'off',
+                '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+                '@typescript-eslint/no-explicit-any': 'warn',
+              },
+            },
+          ];
+          EOF
+          node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); JSON.parse(require('fs').readFileSync('package-lock.json','utf8'));"
+
+      - name: Clean install and full validation
+        run: |
+          npm ci --legacy-peer-deps
+          npm run lint
+          npm run typecheck
+          npm run test:circle-sdk-compat
+          npm run test:elliptic-leading-zero
+          npm test
+          npm audit --omit=dev --audit-level=moderate
+          npm audit --audit-level=moderate
+          npm run build
+
+      - name: Commit validated candidate and remove this temporary workflow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-time-lint-remediation.yml
+          git add package.json package-lock.json eslint.config.mjs
+          git commit -m "chore(lint): add TSX rules and resolve minimatch advisory"
+          echo "CANDIDATE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "CANDIDATE_TREE=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_STEP_SUMMARY"
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$AUTH_HEADER" push origin HEAD:refs/heads/security/eslint-config-minimatch-remediation
