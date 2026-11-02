@@ -125,7 +125,7 @@ export async function POST(req: Request) {
   const amountParts = amount.split(".");
   const validDecimalAmount =
     amount.length <= 80 &&
-    /^\\d+(?:\\.\\d+)?$/.test(amount) &&
+    /^\d+(?:\.\d+)?$/.test(amount) &&
     amountParts.length <= 2 &&
     (amountParts[1]?.length ?? 0) <= 6;
 
