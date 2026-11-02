@@ -248,3 +248,14 @@ Each response was checked for `Cache-Control: no-store`, absence of x-payment he
 ### Current decision
 
 The x402 payment challenge inconsistency is resolved in the latest Preview and all exact-head CI/audit/DB/Preview checks passed. The stack remains Draft and is **not approved for merge or Production deployment** until independent review, real lint coverage, tooling-advisory disposition, and the public RPC trust-boundary decision are complete.
+
+
+## 11. Review-package CI completion
+
+The documentation package itself was validated after the above updates:
+
+- PR #42 head: `36802685c7de66acd9a8a1654aa9ff0c492256e7`.
+- GitHub CI run `41489838387` (run 931) completed successfully; its `check` job completed with conclusion `success`.
+- This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
+
+The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until the independent review and remaining release blockers are resolved.
