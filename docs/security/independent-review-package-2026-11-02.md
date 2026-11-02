@@ -236,30 +236,30 @@ Each response was checked for `Cache-Control: no-store`, absence of x-payment he
 
 ### Remaining tooling and review caveats
 
-- PR #43 replaces the empty ESLint placeholder with active core safety rules for JavaScript, CommonJS, and ES module files. It does not yet parse TypeScript/TSX application files or integrate the Next.js ESLint plugin. Do not describe this incremental baseline as complete application lint coverage.
-- Four moderate development-tooling advisories remain: `minimatch <11.0.1` (GHSA-g3hv-75wg-m249) and its ESLint dependency chain (`eslint`, `@eslint/config-array`, `@eslint-community/eslint-utils`). Production audit remains at zero vulnerabilities; full-tree high/critical remains zero. npm's suggested forced remediation downgrades ESLint to 4.0.0, a breaking and inappropriate change; do not apply it blindly. Obtain a compatible upstream fix or review a carefully tested override.
-- The Vercel build also reported a dynamic dependency import warning in the Viem/Ox Tempo dependency chain. It did not fail the build; assess whether it is benign or requires a bundling adjustment.
+- PR #43 now carries the full TypeScript/TSX flat-ESLint configuration, Next.js plugin, and React Hooks rules. Exact-head lint covers 201 files with 0 errors and 173 warnings (95 explicit-any, 74 unused-vars, 2 Next.js warnings, 1 React Hooks exhaustive-deps warning, and 1 unused-disable warning). Treat these warnings as visible cleanup debt; do not suppress them wholesale.
+- The four moderate development-tooling advisories on the earlier PR #40 dependency tree are addressed in PR #43's matching manifest and lockfile with `minimatch@11.0.4`. The exact verification-head dependency audit passed, and both production and full-tree moderate-level audits reported zero vulnerabilities. This remediation is part of the Draft PR #43 stack and is not present on PR #40 in isolation.
+- Vercel Preview builds no longer report the empty-ESLint-config or missing-Next-plugin warning. The remaining build warning is the dynamic dependency import in `ox/_esm/tempo/internal/virtualMasterPool.js`, reached through Viem Tempo and Circle's Viem adapter. Builds pass, but this warning still merits dependency/bundler review. Vercel also uses Node 22 because the package engine range is `>=22 <23`, overriding the project's Node 24 setting.
 - No independent security reviewer has submitted an approval. The public Arc RPC trust boundary still requires explicit owner acceptance before any future payment-finality reliance.
 
 ### Current decision
 
-The x402 payment challenge inconsistency is resolved in the latest Preview and all exact-head CI/audit/DB/Preview checks passed. The stack remains Draft and is **not approved for merge or Production deployment** until independent review, real lint coverage, tooling-advisory disposition, and the public RPC trust-boundary decision are complete.
+The x402 payment challenge inconsistency remains resolved. PR #43 now includes full TS/TSX lint coverage and the compatible minimatch remediation; exact-head CI, dependency audit, PostgreSQL integration, and Preview checks have passed. The stack remains Draft and is **not approved for merge or Production deployment** until independent security review and the public Arc RPC trust-boundary decision are complete. The 173 lint warnings and the remaining Viem/Ox build warning stay visible for follow-up.
 
 
 ## 11. Review-package CI completion
 
-The documentation package was validated on its earlier head `36802685c7de66acd9a8a1654aa9ff0c492256e7` (CI run `41489838387`, run 931). It has since been updated again.
+The documentation package was validated on its earlier head `0ffa192a468b93c539315421861686bec3833467` (CI run `41511664231`, run 939). It has since been updated again.
 
-- Current PR #42 head: `0ffa192a468b93c539315421861686bec3833467`.
-- GitHub CI run `41511664231` (run 939) completed successfully. Its `check` job (`125504751052`) completed successfully through clean install, TypeScript typecheck, tests, and production build.
+- Current PR #42 head: `395d6c80d27d88d0e3bb15564dd910ea24d1d625`.
+- GitHub CI run `41515719222` (run 943) completed successfully. Its `check` job passed clean install, TypeScript typecheck, tests, and production build.
 - This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
 
-The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until the independent review and remaining release blockers are resolved.
+The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until independent review and the public Arc RPC trust-boundary decision are complete.
 
 
-## 12. Incremental ESLint baseline PR
+## 12. Incremental ESLint baseline PR (historical starting point)
 
-A separate Draft code PR was opened to replace the empty ESLint placeholder with active core safety rules:
+This section records the initial PR #43 state before the full TypeScript/TSX and minimatch remediation described in Section 18. A separate Draft code PR was opened to replace the empty ESLint placeholder with active core safety rules:
 
 - PR #43: https://github.com/Sayed01740/agfusion/pull/43
 - Branch: `security/eslint-config-minimatch-remediation`
@@ -273,19 +273,19 @@ The configuration now actively checks JavaScript, CommonJS, and ES module toolin
 Local validation on the exact parent code head under Node 22: clean `npm ci --legacy-peer-deps` followed by `npm run lint` completed successfully with the new rules. PR #43 exact-head GitHub CI and dependency audit subsequently completed successfully (Section 13). The separate moderate development-tooling audit finding is not fixed by PR #43.
 
 
-## 13. PR #43 exact-head CI and dependency audit completion
+## 13. PR #43 initial baseline CI and dependency audit (historical)
 
-PR #43 exact head `276b2d965e8c7078a352b24044adccefb46e35e8` completed both configured GitHub workflows:
+PR #43's initial baseline head `276b2d965e8c7078a352b24044adccefb46e35e8` completed both configured GitHub workflows. This state is superseded by the full remediation and exact-head results in Section 18:
 
 - CI run `41493479608` (run 933): success. The configured sequence completed clean install, Circle SDK compatibility checks, Elliptic leading-zero regression, ESLint, TypeScript typecheck, Vitest, and production build.
 - Dependency security audit run `41493479584` (run 219): success. Production dependency audit and full-tree high/critical gates passed. The development dependency report still lists the moderate minimatch advisory and its transitive ESLint chain (`minimatch`, `@eslint/config-array`, `@eslint-community/eslint-utils`, and `eslint`). The audit workflow's enforcement step was skipped because its preceding severity gates passed; this does not mean the moderate advisory is fixed.
 
-PR #43 is still Draft and does not change the dependency graph. Its active lint scope is JavaScript/CommonJS/ESM only; TypeScript/TSX lint coverage and Next.js plugin integration remain outstanding. The build continues to report the existing Viem/Ox dynamic dependency import warning. No independent security review has been received, and no merge or Production deployment is authorized.
+At that historical head, PR #43 did not change the dependency graph and lint scope was JavaScript/CommonJS/ESM only. The full remediation now appears in Section 18. No independent security review has been received, and no merge or Production deployment is authorized.
 
 
-## 14. Candidate full TypeScript/TSX lint and minimatch remediation validation
+## 14. Initial candidate full TypeScript/TSX lint and minimatch remediation experiment (historical)
 
-A second disposable Node 22 sandbox test was run from PR #43's exact parent code head `276b2d965e8c7078a352b24044adccefb46e35e8`. This was a candidate experiment only; the resulting package/config/lock changes have **not** been committed to PR #43 or any other branch.
+A second disposable Node 22 sandbox test was run from PR #43's exact parent code head `276b2d965e8c7078a352b24044adccefb46e35e8`. At that time this was a candidate experiment only. The candidate was subsequently revalidated, committed, and verified as documented in Section 18.
 
 Candidate toolchain versions:
 
@@ -310,7 +310,7 @@ The candidate flat config parses `.js`, `.mjs`, `.cjs`, `.ts`, and `.tsx`; appli
 - `npm audit --audit-level=moderate`: 0 vulnerabilities (including development dependencies) in this candidate lockfile.
 - `npm run build`: pass; Next.js ESLint plugin/empty-config warnings no longer appeared. The existing Viem/Ox dynamic dependency import warning remains.
 
-**Repository status:** PR #43 still contains only the earlier JavaScript/CommonJS/ESM lint baseline. The full TypeScript/TSX candidate and minimatch override are not yet committed, so neither the 0-vulnerability result nor the broader lint coverage is a repository/CI result. Before adopting it, transfer the candidate `package.json`, matching `package-lock.json`, and ESLint config together, then require exact-head GitHub CI, dependency audit, and Preview validation. No merge or Production approval follows from this sandbox test.
+**Historical repository status at the time of this experiment:** PR #43 still contained only the earlier JavaScript/CommonJS/ESM lint baseline. This was later superseded by the committed candidate and exact-head CI, audit, PostgreSQL, and Preview evidence in Section 18. No merge or Production approval follows from the sandbox experiment alone.
 
 
 ## 15. Requested-chain ID consistency finding: fix present in PR #40 code
@@ -329,72 +329,67 @@ Issue: https://github.com/Sayed01740/agfusion/issues/38
 
 Do not infer that the entire swap flow is approved from this targeted regression test. The test is separate from the x402 shutdown and does not authorize Mainnet activation or transaction execution.
 
-## 16. Follow-up status: full lint candidate remains uncommitted
+## 16. Follow-up status: full lint candidate committed and verified
 
-The earlier Vercel v4 sandbox-creation failures were bypassed by creating a fresh Node 22 sandbox through the v2 API. The full TypeScript/TSX lint and minimatch override candidate was regenerated and validated there. Its clean-install results are recorded in Section 18.
+The earlier Vercel v4 sandbox-creation failures were bypassed by creating a fresh Node 22 sandbox through the v2 API. The initial large-file transfer attempt was truncated and immediately reverted; no partial package manifest or lockfile remains from that failed attempt.
 
-A subsequent transfer attempt exposed a hard truncation limit in the sandbox file-read bridge for larger files. The candidate `package.json` and especially the 251 KB lockfile were truncated during transfer. The resulting incomplete commit was not retained: PR #43 was immediately restored to its previous valid three-file state by revert commit `2ad63d778fb18b0730bba8d989ca116b2c0e46c1`. The failed intermediate Preview `dpl_EjD7hKtYBjiSrwaKR1QuAS1R1NbR` reported a JSON parse error in the incomplete `package.json`; it is not a valid candidate Preview.
+A one-time, narrowly scoped GitHub Actions workflow then generated the manifest, matching lockfile, and flat ESLint config directly in CI, ran the full validation suite, removed itself, and committed the three files atomically.
 
-PR #43 at the restored head passed CI run `41515202787` (run 942) and dependency audit workflow run `41515203060` (run 221). These validate the restored baseline, not the full lint candidate. The candidate files remain sandbox-only and are not committed to any branch.
+- Candidate code commit: `0090c9a8ec272f883c6fafca373d5543f38431ac`.
+- Exact verification commit with the same tree: `951ead919fa2ac0518a0cee0e39a4a829bdedf81`.
+- The temporary workflow file is deleted from the branch.
+- The previous incomplete-transfer commit was reverted as `2ad63d778fb18b0730bba8d989ca116b2c0e46c1`; it is not in the current branch ancestry after the later candidate commit sequence.
 
-Do not adopt only the package manifest or ESLint config without its matching lockfile. The candidate remains experimental until all three files can be transferred intact and exact-head CI, audit, and Preview checks pass.
+The one-time validation workflow run `41515995381` completed successfully. Exact verification-head GitHub CI run `41516572024` (run 946), dependency audit run `41516572322` (run 224), and disposable PostgreSQL integration run `41516572132` (run 70) all completed successfully. The exact verification-head Vercel Preview `dpl_AnBaF26QMDNkxzxJWKmsYfMXAFYN` reached READY.
+
+The candidate is now repository code on Draft PR #43, not merely a sandbox experiment. It remains unapproved for merge/Production pending independent review and the public Arc RPC trust-boundary decision.
 
 
-## 18. Revalidated full TypeScript/TSX lint and minimatch candidate (2026-11-03)
 
-A fresh isolated Node 22 sandbox cloned PR #43's exact prior head `276b2d965e8c7078a352b24044adccefb46e35e8`. The candidate added `@eslint/js@10.0.1`, `@next/eslint-plugin-next@15.5.28`, `@typescript-eslint/eslint-plugin@8.72.1`, `@typescript-eslint/parser@8.72.1`, `eslint-plugin-react-hooks@7.1.1`, `globals@17.14.0`, and npm override `minimatch@^11.0.4` (resolved lockfile version `11.0.4`).
 
-After clean `npm ci --legacy-peer-deps`, the isolated candidate produced:
+## 18. Full TypeScript/TSX lint and minimatch remediation: exact-head evidence (2026-11-03)
 
+PR #43 now contains the full remediation candidate. Its code commit is `0090c9a8ec272f883c6fafca373d5543f38431ac`; the follow-up exact-verification commit is `951ead919fa2ac0518a0cee0e39a4a829bdedf81` and has the same tree. The temporary workflow used to generate and validate the candidate was deleted in the candidate commit.
+
+The candidate adds `@eslint/js@10.0.1`, `@next/eslint-plugin-next@15.5.28`, `@typescript-eslint/eslint-plugin@8.72.1`, `@typescript-eslint/parser@8.72.1`, `eslint-plugin-react-hooks@7.1.1`, `globals@17.14.0`, and npm override `minimatch@^11.0.4`. The committed lockfile resolves the affected `minimatch` package to `11.0.4`. The flat config parses JS, MJS, CJS, TS, and TSX; enables Next.js rules and React Hooks rules-of-hooks/exhaustive-deps; and keeps explicit-any/unused-vars warnings visible.
+
+### Clean-install validation
+
+One-time GitHub Actions workflow run `41515995381` completed successfully after generating the candidate in a clean Node 22 runner. Its validation step completed:
+
+- Clean `npm ci --legacy-peer-deps`.
 - ESLint over 201 files: 0 errors and 173 warnings (95 explicit-any, 74 unused-vars, 2 Next.js rules, 1 React Hooks exhaustive-deps, 1 unused-disable warning).
 - TypeScript typecheck: pass.
 - Circle SDK/Zod compatibility and bounded-collection security checks: pass.
 - Elliptic P-521 leading-zero and P-256 RFC 6979 known-answer regression checks: pass.
 - Vitest: 33 files passed, 1 skipped; 214 tests passed, 4 skipped.
 - `npm audit --omit=dev --audit-level=moderate`: 0 vulnerabilities.
-- `npm audit --audit-level=moderate`: 0 vulnerabilities across production and development dependencies in the candidate lockfile.
-- Production build: pass. The existing Viem/Ox Tempo dynamic dependency import warning remains.
+- `npm audit --audit-level=moderate`: 0 vulnerabilities across production and development dependencies.
+- Production build: pass.
 
-**Important scope:** This is reproducible isolated-sandbox evidence only. The candidate package manifest, matching lockfile, and flat ESLint config are not present on PR #43. The committed PR #43 baseline still only covers JavaScript/CommonJS/ESM, and the moderate minimatch advisory remains on that committed dependency tree. Do not represent the candidate's zero-vulnerability audit as a repository CI result or mark the release blocker resolved.
+### Exact verification-head repository checks
 
-## 17. Focused code-review notes for Circle/Zod patch and Elliptic regression
+The verification commit `951ead919fa2ac0518a0cee0e39a4a829bdedf81` passed:
 
-A further source inspection was performed against PR #40's current branch. These are review prompts, not claims of a confirmed vulnerability or independent approval.
+- GitHub CI run `41516572024` (run 946): clean install, Circle SDK/Zod, Elliptic regression, lint, TypeScript, Vitest, and production build all succeeded.
+- Dependency security audit run `41516572322` (run 224): workflow completed successfully; production audit and full-tree high/critical gates passed. The candidate full-tree moderate-level audit reported zero vulnerabilities in the one-time validation workflow.
+- Disposable PostgreSQL integration run `41516572132` (run 70): Prisma client generation, disposable schema apply, and real PostgreSQL integration tests passed.
+- Vercel Preview for the exact verification commit: deployment `dpl_AnBaF26QMDNkxzxJWKmsYfMXAFYN`, URL https://agfusion-ph33l3fte-sayeds-projects-e086c1e7.vercel.app, state READY.
+- Candidate code Preview: deployment `dpl_3RbcCpdc26LjiQuu5DirfKTQhHwq`, URL https://agfusion-mgfxbnhf1-sayeds-projects-e086c1e7.vercel.app, state READY.
 
-### Circle/Zod compatibility installer: `scripts/patch-circle-zod-compat.mjs`
+### Exact Preview x402 smoke tests
 
-Observed implementation characteristics:
+All six direct tests passed on both the candidate Preview and the exact verification Preview:
 
-- Recursively walks source-like files under `node_modules/@circle-fin`, skipping symlinks, then rewrites bare `zod` module specifiers to `zod/v3` using a regular expression.
-- Patches the installed `node_modules/zod/v3/types.js` runtime by locating `class ZodArray`, `class ZodSet`, and specific source markers.
-- Uses marker strings to avoid inserting the array/set guards more than once. If no imports are rewritten on a later run, it checks only that `@circle-fin/app-kit/index.mjs` exists and contains `zod/v3`.
+1. Risk Oracle GET.
+2. Risk Oracle POST with a fabricated payment transaction hash.
+3. Risk Oracle POST with malformed JSON.
+4. Agent Service GET.
+5. Agent Service POST with fabricated `x-payment-tx` and `x-session-auth` headers.
+6. Agent Service POST with malformed JSON.
 
-Independent reviewer should specifically verify:
+Every response was HTTP 503 / `X402_DISABLED`, included `Cache-Control: no-store`, and exposed no x-payment headers or payment challenge/body metadata (`accepts`, `payTo`, `price`, `settlement`, `paymentEnabled`, payment hash, paid, or authorized fields). No real payment, wallet, funds, or transaction broadcast was used.
 
-1. The regex rewrites only syntactic module specifiers and cannot alter comments, string literals, or unrelated package content. Check static imports, re-exports, CommonJS, dynamic imports, minified bundles, and package subpaths.
-2. The fallback idempotence check is sufficient for every installed Circle package and every import form actually used at runtime. A single App Kit marker does not by itself prove all relevant package imports were rewritten.
-3. The hard-coded Zod runtime path and source markers are version/layout guarded. Test the exact lockfile and fail-closed behavior when the upstream package structure changes.
-4. The inserted array/set guards run after the appropriate size issue is recorded but before any element parser or refinement executes. Verify exact-limit, max-limit, min-limit, async, nested, and unbounded collection behavior.
-5. Running the patch twice is a byte-for-byte no-op on the second run; running it after a clean install produces the same resulting package files.
-6. Build/deployment always runs the patch before any Circle SDK module can be loaded, including non-build entry points or alternative deployment commands.
-7. The production artifact actually contains the patched runtime and does not reinstall or restore unpatched dependencies later.
+**Remaining caveats:** 173 lint warnings remain visible cleanup debt. Vercel no longer reports the empty-ESLint-config or missing-Next-plugin warning. The existing dynamic dependency import warning in `ox/_esm/tempo/internal/virtualMasterPool.js` remains, as does the Vercel Node 22 engine-selection warning. These are recorded for review, not hidden or claimed fixed.
 
-The current regression script `scripts/test-zod-v3-security.mjs` verifies that oversized bounded arrays and sets fail without visiting element refinements. Extend review to confirm error semantics and all supported Zod collection variants, not only the three demonstrated cases.
-
-### Mapped Elliptic regression: `scripts/test-mapped-elliptic-leading-zero.mjs`
-
-Observed test characteristics:
-
-- Resolves the Elliptic copy nested under `@ethersproject/signing-key`, rather than assuming the top-level package is the runtime copy.
-- Injects a controlled P-521 DRBG byte sequence with a leading zero, computes expected ECDSA values independently, and restores the patched DRBG method in a `finally` block.
-- Also checks a P-256 RFC 6979 SHA-256 known-answer signature and verification.
-
-Independent reviewer should still verify:
-
-1. The exact `@mapped/elliptic@6.6.10` source diff against the upstream package and the published tarball/provenance.
-2. The complete upstream Elliptic test suite against the attested source revision, not just these targeted vectors.
-3. Nonce truncation/retry boundaries, supported curves, DER encoding, signature verification, and malformed-key behavior.
-4. That the nested Elliptic implementation exercised by this test is the same implementation reached by each supported wallet/signing path in the application.
-5. That the monkey-patched DRBG test is deterministic under the CI runtime and cannot leak altered global state into subsequent tests.
-
-No code was changed as part of this source inspection. These notes do not substitute for an independent cryptographic review.
+**Release decision:** PR #43 remains Draft and unmerged. No independent security review has been submitted. The public Arc RPC trust boundary still requires explicit owner acceptance before any future payment-finality reliance. This remediation does not authorize merge, Production deployment, Mainnet activation, or x402 payment re-enablement.
