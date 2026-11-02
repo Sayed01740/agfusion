@@ -19,6 +19,14 @@ configuration changes, Testnet payment tests, route integration, or activation.
 The live POST route was not tested through the Preview fetch interface; automated
 tests cover its fail-closed behavior.
 
+## Operational decision pack
+
+A companion proposal with DNS/ingress evidence requirements, rate-limit calibration,
+cleanup controls, Arc finality options, audit/monitoring requirements, Testnet DB
+rollout steps, independent-review checklist, and activation stop conditions is in
+[`x402-operational-decision-pack.md`](./x402-operational-decision-pack.md).
+It contains no assumed traffic thresholds and does not authorize activation.
+
 ## 1. Server-owned settlement configuration
 
 - [ ] Introduce a server-only recipient setting (for example,
