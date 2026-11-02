@@ -275,3 +275,13 @@ The configuration now actively checks JavaScript, CommonJS, and ES module toolin
 **Scope limitation:** This is an incremental baseline only. TypeScript and TSX application files are not yet parsed by ESLint. TypeScript typecheck and the existing test suite remain separate checks; they are not a substitute for TypeScript lint coverage. The Next.js-specific ESLint plugin warning may remain. Do not mark the overall lint release blocker fully resolved until TypeScript/TSX lint coverage and Next.js plugin integration are addressed.
 
 Local validation on the exact parent code head under Node 22: clean `npm ci --legacy-peer-deps` followed by `npm run lint` completed successfully with the new rules. PR #43 GitHub CI and dependency audit are pending at the time of this note. The separate moderate development-tooling audit finding is not fixed by PR #43.
+
+
+## 13. PR #43 exact-head CI and dependency audit completion
+
+PR #43 exact head `276b2d965e8c7078a352b24044adccefb46e35e8` completed both configured GitHub workflows:
+
+- CI run `41493479608` (run 933): success. The configured sequence completed clean install, Circle SDK compatibility checks, Elliptic leading-zero regression, ESLint, TypeScript typecheck, Vitest, and production build.
+- Dependency security audit run `41493479584` (run 219): success. Production dependency audit and full-tree high/critical gates passed. The development dependency report still lists the moderate minimatch advisory and its transitive ESLint chain (`minimatch`, `@eslint/config-array`, `@eslint-community/eslint-utils`, and `eslint`). The audit workflow's enforcement step was skipped because its preceding severity gates passed; this does not mean the moderate advisory is fixed.
+
+PR #43 is still Draft and does not change the dependency graph. Its active lint scope is JavaScript/CommonJS/ESM only; TypeScript/TSX lint coverage and Next.js plugin integration remain outstanding. The build continues to report the existing Viem/Ox dynamic dependency import warning. No independent security review has been received, and no merge or Production deployment is authorized.
