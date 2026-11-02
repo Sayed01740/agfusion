@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "prisma/schema.prisma"
+      - "package.json"
+      - "package-lock.json"
       - "src/lib/x402-*.ts"
       - "src/lib/x402-*.test.ts"
       - ".github/workflows/x402-postgres-integration.yml"

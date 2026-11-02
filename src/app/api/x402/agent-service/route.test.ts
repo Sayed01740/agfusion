@@ -1,21 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { GET, POST } from "./route";
 
-describe("/api/x402/agent-service fail-closed behavior", () => {
-  it("advertises a disabled Arc Testnet USDC challenge without inviting payment", async () => {
-    const response = await GET();
-    const body = await response.json();
+function expectDisabled(response: Response) {
+  expect(response.status).toBe(503);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.get("x-payment-required")).toBeNull();
+  expect(response.headers.get("x-payment-enabled")).toBeNull();
+  expect(response.headers.get("x-payment-token")).toBeNull();
+  expect(response.headers.get("x-payment-amount")).toBeNull();
+  expect(response.headers.get("x-payment-chainid")).toBeNull();
+}
 
-    expect(response.status).toBe(402);
-    expect(response.headers.get("X-Payment-Enabled")).toBe("false");
-    expect(response.headers.get("X-Payment-Decimals")).toBe("6");
-    expect(body.paymentEnabled).toBe(false);
-    expect(body.settlement.chainId).toBe(5042002);
-    expect(body.settlement.token).toBe(
-      "0x3600000000000000000000000000000000000000",
-    );
-    expect(body.description).toContain("Do not send funds");
-    expect(body.authorized).toBeUndefined();
+describe("/api/x402/agent-service fail-closed behavior", () => {
+  it("does not advertise a payment challenge or payment metadata on GET", async () => {
+    const response = await GET();
+    expectDisabled(response);
+
+    const body = await response.json();
+    expect(body).toMatchObject({
+      error: "temporarily_unavailable",
+      code: "X402_DISABLED",
+    });
+    expect(body).not.toHaveProperty("accepts");
+    expect(body).not.toHaveProperty("payTo");
+    expect(body).not.toHaveProperty("price");
+    expect(body).not.toHaveProperty("settlement");
+    expect(body).not.toHaveProperty("paymentEnabled");
+    expect(body).not.toHaveProperty("authorized");
   });
 
   it.each([
@@ -35,12 +46,15 @@ describe("/api/x402/agent-service fail-closed behavior", () => {
         headers,
       }),
     );
-    const body = await response.json();
+    expectDisabled(response);
 
-    expect(response.status).toBe(503);
-    expect(response.headers.get("X-Payment-Status")).toBe("Unavailable");
-    expect(body.paymentEnabled).toBe(false);
-    expect(body.error).toBe("payment_verification_unavailable");
-    expect(body.authorized).toBeUndefined();
+    const body = await response.json();
+    expect(body).toMatchObject({
+      error: "temporarily_unavailable",
+      code: "X402_DISABLED",
+    });
+    expect(body).not.toHaveProperty("accepts");
+    expect(body).not.toHaveProperty("payTo");
+    expect(body).not.toHaveProperty("authorized");
   });
 });
