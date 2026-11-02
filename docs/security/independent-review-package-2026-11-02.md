@@ -285,3 +285,33 @@ PR #43 exact head `276b2d965e8c7078a352b24044adccefb46e35e8` completed both conf
 - Dependency security audit run `41493479584` (run 219): success. Production dependency audit and full-tree high/critical gates passed. The development dependency report still lists the moderate minimatch advisory and its transitive ESLint chain (`minimatch`, `@eslint/config-array`, `@eslint-community/eslint-utils`, and `eslint`). The audit workflow's enforcement step was skipped because its preceding severity gates passed; this does not mean the moderate advisory is fixed.
 
 PR #43 is still Draft and does not change the dependency graph. Its active lint scope is JavaScript/CommonJS/ESM only; TypeScript/TSX lint coverage and Next.js plugin integration remain outstanding. The build continues to report the existing Viem/Ox dynamic dependency import warning. No independent security review has been received, and no merge or Production deployment is authorized.
+
+
+## 14. Candidate full TypeScript/TSX lint and minimatch remediation validation
+
+A second disposable Node 22 sandbox test was run from PR #43's exact parent code head `276b2d965e8c7078a352b24044adccefb46e35e8`. This was a candidate experiment only; the resulting package/config/lock changes have **not** been committed to PR #43 or any other branch.
+
+Candidate toolchain versions:
+
+- `@eslint/js@10.0.1`
+- `@next/eslint-plugin-next@15.5.28` (aligned to the repository's Next.js 15.5.28 line)
+- `@typescript-eslint/eslint-plugin@8.72.1`
+- `@typescript-eslint/parser@8.72.1`
+- `eslint-plugin-react-hooks@7.1.1`
+- `globals@17.14.0`
+- top-level npm override `minimatch@^11.0.4`; clean lock resolution placed `minimatch@11.0.4` under the affected ESLint dependency chain.
+
+The candidate flat config parses `.js`, `.mjs`, `.cjs`, `.ts`, and `.tsx`; applies ESLint recommended rules, TypeScript recommended rules, Next.js recommended rules, React Hooks rules-of-hooks and exhaustive-deps; and excludes generated output and dependencies.
+
+**Exact sandbox validation after a clean `npm ci --legacy-peer-deps`:**
+
+- `npm run lint`: exit 0, 0 errors and 181 warnings across 55 files. Warning breakdown: 95 explicit-any, 80 unused-vars, 2 ts-nocheck comments, 2 Next.js rules, 1 React Hooks dependency warning, and 1 unused disable directive. These are visible cleanup debt, not resolved findings.
+- `npm run typecheck`: pass.
+- Circle SDK/Zod compatibility test: pass.
+- Elliptic leading-zero and P-256 regression tests: pass.
+- Vitest: 33 files passed, 1 skipped; 214 tests passed, 4 skipped.
+- `npm audit --omit=dev --audit-level=moderate`: 0 vulnerabilities.
+- `npm audit --audit-level=moderate`: 0 vulnerabilities (including development dependencies) in this candidate lockfile.
+- `npm run build`: pass; Next.js ESLint plugin/empty-config warnings no longer appeared. The existing Viem/Ox dynamic dependency import warning remains.
+
+**Repository status:** PR #43 still contains only the earlier JavaScript/CommonJS/ESM lint baseline. The full TypeScript/TSX candidate and minimatch override are not yet committed, so neither the 0-vulnerability result nor the broader lint coverage is a repository/CI result. Before adopting it, transfer the candidate `package.json`, matching `package-lock.json`, and ESLint config together, then require exact-head GitHub CI, dependency audit, and Preview validation. No merge or Production approval follows from this sandbox test.
