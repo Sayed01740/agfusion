@@ -77,7 +77,7 @@ describe("recordX402Payment", () => {
     configured.mockReturnValue(true);
     const create = vi.fn().mockRejectedValue(new Error("database offline"));
     prisma.mockReturnValue({ x402Payment: { create } } as never);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     await expect(recordX402Payment(payment)).resolves.toEqual({
       ok: false,
@@ -162,7 +162,7 @@ describe("consumeX402ChallengeAndRecordPayment", () => {
     prisma.mockReturnValue({
       $transaction: vi.fn().mockRejectedValue(new Error("database offline")),
     } as never);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
 
     await expect(consumeX402ChallengeAndRecordPayment(input)).resolves.toEqual({
       ok: false,
