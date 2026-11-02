@@ -104,6 +104,36 @@ The current verifier compares the receipt block hash with the block returned
 for that height by the same RPC. This is a consistency check, not independent
 consensus verification.
 
+### Current Arc documentation evidence (2026-11-02)
+
+- The current [Arc RPC endpoints reference](https://docs.arc.io/arc/references/rpc-endpoints)
+  lists `https://rpc.testnet.arc.io` as Circle's primary Testnet endpoint and
+  identifies Testnet chain ID `5042002`.
+- Arc's [event-indexing guide](https://docs.arc.io/integrate/infrastructure/indexing-events)
+  describes deterministic finality and says blocks do not require reorg handling.
+  That guide still contains older `.arc.network` endpoint examples; the current
+  RPC endpoints reference is the source used for this branch's fixed `.arc.io`
+  endpoint.
+- Arc's [full-node documentation](https://docs.arc.io/arc/concepts/running-a-node)
+  states that a self-operated full node verifies validator signatures and
+  independently confirms finalized blocks. This is stronger than querying a
+  public RPC twice.
+
+### Recommendation for the v1 decision (proposal only)
+
+For the fixed 0.001 USDC Testnet feed, Option A is the lower-operational-cost
+v1 choice **only if** the service owner and independent reviewer explicitly
+accept the Circle Primary RPC trust boundary and Arc's documented deterministic
+finality guarantee. Keep the endpoint fixed to the current documented Circle
+Primary Testnet RPC, use bounded requests and timeouts, monitor provider health,
+and fail closed on RPC errors or inconsistent receipt/block data. Do not describe
+the same-RPC block comparison as independent consensus verification.
+
+If the service's threat model requires cryptographic verification independent
+of the public RPC provider, choose Option B instead. No option is approved by
+this recommendation; the owner and reviewer must record the final decision
+before activation.
+
 ### Option A: trusted Arc RPC reports protocol finality
 
 - Trust boundary: selected RPC provider and its reporting of Arc's deterministic
