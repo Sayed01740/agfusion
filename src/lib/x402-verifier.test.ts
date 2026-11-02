@@ -76,6 +76,15 @@ describe("verifyArcTestnetUsdcPayment", () => {
     expect(result).toEqual({ ok: false, reason: "wrong_chain" });
   });
 
+  it("rejects malformed RPC chain ID values instead of parsing a valid prefix", async () => {
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX,
+      recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52garbage", validReceipt()),
+    });
+    expect(result).toEqual({ ok: false, reason: "wrong_chain" });
+  });
+
   it("rejects missing and reverted receipts", async () => {
     const missing = await verifyArcTestnetUsdcPayment({
       txHash: TX, recipient: RECIPIENT, fetchImpl: rpcMock("0x4cef52", null),
