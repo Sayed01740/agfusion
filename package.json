@@ -36,9 +36,9 @@
     "framer-motion": "^12.18.1",
     "lucide-react": "^0.515.0",
     "next": "^15.5.28",
+    "permissionless": "^0.3.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "permissionless": "^0.3.7",
     "recharts": "^2.15.3",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.10",
@@ -47,11 +47,17 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^15.5.28",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "prisma": "^6.10.1",
     "typescript": "^5.8.3",
     "vitest": "^4.1.10"
@@ -76,6 +82,7 @@
       "deepmerge-ts": "^8.0.2"
     },
     "zod": "4.6.7",
-    "elliptic": "npm:@mapped/elliptic@6.6.10"
+    "elliptic": "npm:@mapped/elliptic@6.6.10",
+    "minimatch": "^11.0.4"
   }
 }
