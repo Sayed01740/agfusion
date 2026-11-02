@@ -121,8 +121,11 @@ describe("verifyArcTestnetUsdcPayment", () => {
     (removed.logs as unknown as Array<{ removed: boolean }>)[0].removed = true;
     const malformed = validReceipt();
     (malformed.logs as Array<{ topics: string[] }>)[0].topics.pop();
+    const nonCanonicalAddressPadding = validReceipt();
+    (nonCanonicalAddressPadding.logs as Array<{ topics: string[] }>)[0].topics[1] =
+      `0x${"01".repeat(12)}${PAYER.slice(2)}`;
 
-    for (const receipt of [removed, malformed]) {
+    for (const receipt of [removed, malformed, nonCanonicalAddressPadding]) {
       const result = await verifyArcTestnetUsdcPayment({
         txHash: TX, recipient: RECIPIENT, fetchImpl: rpcMock("0x4cef52", receipt),
       });
