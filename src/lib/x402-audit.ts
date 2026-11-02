@@ -27,7 +27,7 @@ const ALLOWED_EVENTS = new Set<X402AuditEvent>([
 export function emitX402AuditEvent(
   event: X402AuditEvent,
   reason: string,
-  correlationId = randomUUID(),
+  correlationId: string = randomUUID(),
 ): string {
   const safeEvent = ALLOWED_EVENTS.has(event) ? event : "dependency_unavailable";
   const safeReason = /^[a-z][a-z0-9_]{0,63}$/.test(reason)
