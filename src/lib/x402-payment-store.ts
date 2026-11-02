@@ -1,5 +1,6 @@
 import { X402_AGENT_SERVICE_ID } from "@/lib/x402-challenge";
 import { getPrisma, isDbConfigured } from "@/lib/db";
+import { emitX402AuditEvent } from "@/lib/x402-audit";
 
 export type X402PaymentRecord = {
   txHash: string;
@@ -47,9 +48,10 @@ export async function recordX402Payment(
       "code" in error &&
       error.code === "P2002"
     ) {
+      emitX402AuditEvent("replay_rejected", "duplicate_transaction_hash");
       return { ok: false, reason: "already_used" };
     }
-    console.warn("[x402] payment record unavailable; refusing authorization", error);
+    emitX402AuditEvent("dependency_unavailable", "payment_record_database_error");
     return { ok: false, reason: "database_unavailable" };
   }
 }
@@ -127,7 +129,7 @@ export async function consumeX402ChallengeAndRecordPayment(
     ) {
       return { ok: false, reason: "already_used" };
     }
-    console.warn("[x402] challenge consumption unavailable; refusing authorization", error);
+    emitX402AuditEvent("dependency_unavailable", "challenge_consume_database_error");
     return { ok: false, reason: "database_unavailable" };
   }
 }
