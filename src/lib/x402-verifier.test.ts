@@ -19,7 +19,8 @@ function rpcMock(
     return {
       ok: true,
       status: 200,
-      json: async () => ({ result }),
+      text: async () => JSON.stringify({ result }),
+      headers: new Headers({ "content-type": "application/json" }),
     } as Response;
   }) as typeof fetch;
 }
@@ -150,6 +151,31 @@ describe("verifyArcTestnetUsdcPayment", () => {
       txHash: TX, recipient: RECIPIENT, fetchImpl: rpcMock("0x4cef52", receipt),
     });
     expect(result).toEqual({ ok: false, reason: "ambiguous_payment" });
+  });
+
+  it("fails closed when the RPC response exceeds the configured size limit", async () => {
+    const oversizedFetch = (async () => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-length": String(256 * 1024 + 1) }),
+      text: async () => JSON.stringify({ result: "0x4cef52" }),
+    })) as unknown as typeof fetch;
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX,
+      recipient: RECIPIENT,
+      fetchImpl: oversizedFetch,
+    });
+    expect(result).toEqual({ ok: false, reason: "rpc_unavailable" });
+  });
+
+  it("fails closed when the receipt contains an excessive log array", async () => {
+    const receipt = validReceipt({ logs: Array.from({ length: 257 }, () => validReceipt().logs[0]) });
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX,
+      recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", receipt),
+    });
+    expect(result).toEqual({ ok: false, reason: "receipt_mismatch" });
   });
 
   it("fails closed when the RPC fails", async () => {
