@@ -259,3 +259,19 @@ The documentation package itself was validated after the above updates:
 - This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
 
 The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until the independent review and remaining release blockers are resolved.
+
+
+## 12. Incremental ESLint baseline PR
+
+A separate Draft code PR was opened to replace the empty ESLint placeholder with active core safety rules:
+
+- PR #43: https://github.com/Sayed01740/agfusion/pull/43
+- Branch: `security/eslint-config-minimatch-remediation`
+- Head: `276b2d965e8c7078a352b24044adccefb46e35e8`
+- Parent: code PR #40 head `3aebdc6e15946bc73baa18e42f430467be82d1a2`
+
+The configuration now actively checks JavaScript, CommonJS, and ES module tooling/configuration files for debugger statements, constant conditions, duplicate keys, unreachable code, invalid typeof checks, eval/new Function/implied eval, unsafe prototype method calls, and empty blocks (except empty catch blocks). It excludes generated output and dependencies. It adds no dependencies and does not alter the lockfile.
+
+**Scope limitation:** This is an incremental baseline only. TypeScript and TSX application files are not yet parsed by ESLint. TypeScript typecheck and the existing test suite remain separate checks; they are not a substitute for TypeScript lint coverage. The Next.js-specific ESLint plugin warning may remain. Do not mark the overall lint release blocker fully resolved until TypeScript/TSX lint coverage and Next.js plugin integration are addressed.
+
+Local validation on the exact parent code head under Node 22: clean `npm ci --legacy-peer-deps` followed by `npm run lint` completed successfully with the new rules. PR #43 GitHub CI and dependency audit are pending at the time of this note. The separate moderate development-tooling audit finding is not fixed by PR #43.
