@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getPrisma, isDbConfigured } from "@/lib/db";
 import { getX402Recipient } from "@/lib/x402-config";
 import { X402_ARC_TESTNET } from "@/lib/x402-verifier";
+import { emitX402AuditEvent } from "@/lib/x402-audit";
 
 export const X402_AGENT_SERVICE_ID = "agfusion-agent-feed:v1";
 export const X402_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -35,7 +36,10 @@ export async function createX402Challenge(opts: {
   now?: Date;
 } = {}): Promise<X402ChallengeResult> {
   const recipientConfig = getX402Recipient();
-  if (!recipientConfig.ok) return recipientConfig;
+  if (!recipientConfig.ok) {
+    emitX402AuditEvent("challenge_rejected", recipientConfig.reason);
+    return recipientConfig;
+  }
   if (!isDbConfigured()) {
     return { ok: false, reason: "database_unavailable" };
   }
@@ -59,6 +63,7 @@ export async function createX402Challenge(opts: {
       select: { id: true, nonce: true, expiresAt: true },
     });
 
+    emitX402AuditEvent("challenge_created", "persisted");
     return {
       ok: true,
       challenge: {
@@ -74,7 +79,7 @@ export async function createX402Challenge(opts: {
       },
     };
   } catch (error) {
-    console.warn("[x402] challenge creation unavailable; refusing authorization", error);
+    emitX402AuditEvent("dependency_unavailable", "challenge_create_database_error");
     return { ok: false, reason: "database_unavailable" };
   }
 }
@@ -151,7 +156,7 @@ export async function getX402ChallengeForVerification(input: {
       },
     };
   } catch (error) {
-    console.warn("[x402] challenge lookup unavailable; refusing authorization", error);
+    emitX402AuditEvent("dependency_unavailable", "challenge_lookup_database_error");
     return { ok: false, reason: "database_unavailable" };
   }
 }
