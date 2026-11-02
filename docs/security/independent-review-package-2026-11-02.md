@@ -250,8 +250,8 @@ The x402 payment challenge inconsistency remains resolved. PR #43 now includes f
 
 The documentation package was validated on its earlier head `0ffa192a468b93c539315421861686bec3833467` (CI run `41511664231`, run 939). It has since been updated again.
 
-- PR #42 head `395d6c80d27d88d0e3bb15564dd910ea24d1d625` passed GitHub CI run `41515719222` (run 943), including clean install, TypeScript typecheck, tests, and production build.
-- The subsequent review-package update is being validated on its current head; its CI result is recorded by the latest run associated with the branch. This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy.
+- PR #42 head `6a83c78c735f967e1fc4538dbc1a1c49b49fa072` passed GitHub CI run `41517342053` (run 948), including clean install, TypeScript typecheck, tests, and production build.
+- This validates the documentation branch's configured CI workflow only. It does not constitute independent security review, approval of the code PR stack, or authorization to merge/deploy. Any follow-on documentation-only edits are subject to the same CI gate.
 
 The current release decision remains unchanged: keep all security PRs Draft, retain the global x402 shutdown, and do not merge or deploy Production until independent review and the public Arc RPC trust-boundary decision are complete.
 
