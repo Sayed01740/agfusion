@@ -438,3 +438,31 @@ The environment-variable inventory was inspected with decryption disabled. The l
 - Review of Vercel's four `readable-secret` flags and remediation/rotation decision.
 
 This section records read-only evidence only. It does not authorize merge, Production promotion, environment changes, database migration, Mainnet activation, wallet signing, transaction broadcast, or x402 re-enablement.
+
+
+## 21. Final documentation Preview build and RPC proxy source-review findings (2026-11-04)
+
+### Documentation branch CI and Preview
+
+The latest documentation commit `d9606b10d214366254b3f42bc5aec2e6fe9791c5` completed GitHub Actions CI run `41798473569` successfully. The `check` job completed clean install, TypeScript typecheck, Vitest, and production build with a successful conclusion.
+
+The corresponding Vercel Preview deployment `dpl_G2wrPayQ6NNb3zjYUUaMTfXGxcou` reached **READY** for the same commit. This is the documentation branch Preview, not a new application-code release. The separate PR #43 application Preview remains the target of the read-only Arc Testnet smoke workflow.
+
+The newest smoke workflow run `41798465864` also succeeded on the documentation update commit. It tested only the already-built PR #43 Preview: default Arc alias and explicit Arc Testnet both returned chain ID `0x4cef52`; both x402 endpoints remained HTTP 503 / `X402_DISABLED`, `Cache-Control: no-store`, with no payment challenge metadata. These were GET-only checks.
+
+### Additional RPC proxy source review
+
+A follow-up source review inspected `src/app/api/rpc/route.ts`, `src/lib/rpc-proxy.ts`, and `src/lib/rate-limit.ts` on `master`, and compared PR #41's RPC changes. PR #41 adds the 128 KiB streamed request-body cap and regression tests, but does not change RPC method classification or reject JSON-RPC batch arrays.
+
+A new tracking issue records the remaining design risks: [Issue #45](https://github.com/Sayed01740/agfusion/issues/45).
+
+- The current write-method denylist contains only `eth_sendRawTransaction`, `eth_sendTransaction`, `eth_sign`, `personal_sign`, and `eth_signTypedData_v4`. Wallet signing/submission methods such as `eth_signTransaction`, other typed-data variants, EIP-5792 `wallet_sendCalls`, and ERC-4337 `eth_sendUserOperation` need explicit assessment against the app's supported provider surface.
+- The RPC route accepts JSON arrays. A batch request has no top-level `method`, so it can enter the read failover loop. If a batch contains a write and an upstream processes it before returning an unusable response, forwarding the same body to another upstream can risk duplicate submission.
+- Safer direction: use a strict read-only method allowlist for retry/failover; reject batch arrays unless every item is independently classified and the whole batch is sent under a no-retry policy; treat unknown methods as non-retryable or reject them; preserve single-submit/no-retry behavior for writes.
+- `clientIp()` trusts the first `x-forwarded-for` value and then `x-real-ip`. Confirm Vercel's ingress overwrites/sanitizes these headers before treating them as an abuse-control identity. The limiter is in-memory and single-instance, not a global serverless limit.
+
+These are source-level findings and deployment-boundary questions, not evidence that an exploit has occurred. No RPC write, batch transaction, wallet signature, broadcast, Mainnet request, or Production configuration change was performed.
+
+### Release implications
+
+Keep PR #41 and the wider security stack Draft. Before merge or Production promotion, resolve Issue #45 with fail-closed RPC routing, batch handling tests, trusted proxy-header verification, and an explicit decision on distributed rate limiting. Independent security review remains outstanding. No release gate is waived by the successful documentation CI or Preview build.
