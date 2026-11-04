@@ -3,15 +3,13 @@
  * Permanent model: one KIT_KEY on Vercel → all users swap without pasting.
  */
 
+import "server-only";
 import { isValidKitKeyShape, normalizeKitKey } from "@/lib/kit-key";
 
 export function getServerKitKey(): string | null {
-  const raw = (
-    process.env.KIT_KEY ||
-    process.env.CIRCLE_KIT_KEY ||
-    process.env.NEXT_PUBLIC_KIT_KEY ||
-    ""
-  )
+  // Only server-scoped variables may supply a bearer credential. In particular,
+  // never fall back to NEXT_PUBLIC_KIT_KEY, which Next.js may inline into bundles.
+  const raw = (process.env.KIT_KEY || process.env.CIRCLE_KIT_KEY || "")
     .replace(/\\n/gi, "")
     .replace(/\\r/gi, "")
     .replace(/\\/g, "")

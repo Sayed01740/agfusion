@@ -1,3 +1,47 @@
+> **Exact PR #51 Preview smoke-test evidence (2026-11-04):** The Preview deployment
+> for commit `891721e063ab1c951a3058bc2a1d6058cd7fadfa` reached READY. Read-only
+> requests through the authenticated Vercel Preview fetch path returned:
+> - `GET /`: HTTP 200.
+> - `GET /api/rpc?chain=arc`: HTTP 200; upstream
+>   `https://rpc.testnet.arc.io`; returned chain ID and expected chain ID both
+>   `0x4cef52` (Arc Testnet 5042002); `Cache-Control: no-store`.
+> - `GET /api/x402/agent-service`: HTTP 503 with
+>   `code: X402_DISABLED`; `Cache-Control: no-store`; no payment instructions.
+>
+> These are read-only GET checks only. No POST settlement request, live Circle
+> quote, Mainnet request, wallet signature, transaction broadcast, or payment
+> was performed. Vercel runtime-log queries for this deployment over the
+> 30-minute smoke-test window returned no records, including no warning/error
+> records. An empty log query is not proof that no errors occurred.
+>
+> **Current-head clarification (2026-11-04):** This checklist contains historical
+> evidence below and must not be read as a statement of current Preview behavior.
+> On PR #50 head `df14fc75d08636d39291fdfe3816e31c291e1aa8`, the current source
+> for the Agent Service GET and POST routes returns `503 X402_DISABLED` with
+> `Cache-Control: no-store`. The earlier HTTP 402 Preview observation below
+> belongs to the 2026-11-02 deployment only and is not current-head evidence.
+> A read-only HTTP smoke test against the exact PR #50 Preview has not yet been
+> completed, so the current Preview response is not independently confirmed.
+>
+> PR #50 exact-SHA verification: CI run `41810740252` (run #965), dependency
+> audit `41810741017` (#227), and disposable PostgreSQL integration
+> `41810741410` (#73) all completed successfully. The matching Vercel Preview
+> deployment reached READY. No independent PR review has been submitted.
+>
+> **Separate Arc chain-scope finding:** `/api/circle/swap/prepare` currently
+> accepts both Arc Testnet chain ID `5042002` and Arc Mainnet chain ID `5042`
+> and returns unsigned transaction-preparation data. This is not transaction
+> signing or broadcast, but it means the API is not Testnet-only. Keep Mainnet
+> use out of any Testnet-only release decision until the owner explicitly
+> decides whether to retain or server-side gate that preparation capability.
+> Do not infer safety from UI defaults or public environment variables.
+>
+> **Credential hardening in progress:** the server Kit-key resolver previously
+> accepted `NEXT_PUBLIC_KIT_KEY` as a fallback despite the repository's
+> server-only credential policy. A separate Draft PR is adding a server-only
+> import, removing that fallback, and adding regression tests. Do not remove or
+> rotate any Vercel environment entry as part of this code-only change.
+
 # x402 activation gates
 
 Status: **not approved for activation**. This checklist is a review artifact only.
@@ -5,7 +49,7 @@ The Agent Service route must remain disabled until every gate below is completed
 and reviewed. Passing CI or applying the database schema does not authorize
 payment processing.
 
-## Current implementation evidence (2026-11-02)
+## Historical implementation evidence (2026-11-02)
 
 - [x] Arc Testnet verifier source checks chain ID, successful receipt, transaction hash, USDC Transfer event, exact stored recipient/amount, and receipt-block consistency. The same-RPC block check is not independent consensus verification.
 - [x] Settlement service compares the verified tuple and atomically consumes the challenge while recording the payment; unique transaction-hash protection is covered by disposable PostgreSQL integration tests.
@@ -30,13 +74,13 @@ It contains no assumed traffic thresholds and does not authorize activation.
 
 ## 1. Server-owned settlement configuration
 
-- [ ] Introduce a server-only recipient setting (for example,
-  `AGFUSION_X402_RECIPIENT`). Do not use a `NEXT_PUBLIC_*` variable as the
-  authority for a future payment destination.
-- [ ] Remove the implicit hard-coded recipient fallback before enabling
-  challenge creation. Missing or malformed configuration must fail closed.
-- [ ] Validate the address at process startup or at challenge creation, then
-  normalize it consistently for storage and comparison.
+- [x] Use the server-only `AGFUSION_X402_RECIPIENT` setting. Do not use a
+  `NEXT_PUBLIC_*` variable as the authority for a payment destination.
+- [x] No implicit hard-coded recipient fallback; missing or malformed
+  configuration fails closed.
+- [x] Validate and normalize the recipient at challenge creation; zero address
+  is rejected by configuration and persisted-challenge validation.
+
 - [ ] Confirm the destination is controlled by the intended service operator
   and independently verify it on Arc Testnet.
 - [ ] Keep Arc Mainnet configuration and payment support out of this change.
@@ -118,10 +162,19 @@ It contains no assumed traffic thresholds and does not authorize activation.
   receipt transaction hash, configured USDC contract, standard Transfer event,
   exact stored recipient, and exact stored amount in base units. Operational
   activation remains blocked by the trust-model and configuration gates below.
-- [ ] Reject mint/burn-shaped transfers, malformed topics/data, removed logs,
-  ambiguous matching transfers, and mismatched block/receipt data.
-- [ ] Document the RPC trust boundary. A receipt plus block-hash consistency
-  check is not an independently verified consensus certificate.
+- [x] Reject zero-address mint-shaped transfers, removed logs, malformed Transfer
+  topic counts and non-canonical indexed-address padding, duplicate matching
+  transfers, and mismatched receipt/block hashes. Source and regression tests
+  cover these cases on the current verifier branch.
+- [x] Regression tests reject burn-to-zero transfers as payment and malformed
+  Transfer data encodings/lengths.
+- [x] Server configuration, persisted challenge loading, and the verifier all
+  reject the zero address as a payment recipient, preventing a burn address
+  from becoming an accepted settlement destination.
+
+- [x] Document the RPC trust boundary: a receipt plus same-provider block-hash
+  consistency check is not an independently verified consensus certificate
+  (see `x402-arc-finality-and-rpc-trust.md`).
 - [ ] Decide whether the service will rely on the documented Arc deterministic
   finality guarantee or operate an independently verified Arc node. Record
   the chosen trust model and operational monitoring before activation.
@@ -176,3 +229,51 @@ The current branch head `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9` passed:
 A repeated GET request to `/api/x402/agent-service` on that exact Preview returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient/payment instructions, and the do-not-send-funds warning. `Cache-Control:no-store` and `X-Payment-Enabled:false` were present.
 
 This is GET-only Preview evidence. No live POST test, application database access or mutation, Testnet payment, secret/environment change, route activation, merge, Production deployment, or Mainnet change was performed. PR #39 remains Draft and unmerged; no independent review was present at the latest review check.
+
+
+## Current PR #51 verification (2026-11-04)
+
+Exact PR head: `eaef87e55290bef453cf10fc5240157eddb2bd10`.
+
+- [x] CI #967 passed on the exact documentation-updated head, including typecheck,
+  unit tests, and production build.
+- [x] Dependency audit #229 passed on the exact documentation-updated head.
+- [x] CI #966, dependency audit #228, and disposable PostgreSQL integration #74
+  passed on the underlying code commit `891721e063ab1c951a3058bc2a1d6058cd7fadfa`.
+  The later `eaef87e` commit changes documentation only.
+- [x] Matching Vercel Preview deployment reached READY.
+- [x] Read-only Preview GET checks: homepage 200; Arc Testnet RPC 200 with chain
+  ID `0x4cef52` (5042002); Agent Service and Risk Oracle both return
+  `503 X402_DISABLED` with `Cache-Control: no-store`.
+- [ ] Live POST settlement smoke test, Circle quote preparation, application
+  database rollout, Testnet payment, and paid-feed authorization remain
+  unperformed and unauthorized.
+- [ ] Independent source/security review remains outstanding. No independent
+  review submission is recorded on PR #51.
+
+This evidence does not authorize route activation, database mutation, payment,
+Mainnet use, wallet signing/broadcast, merge, or Production promotion. Keep
+both x402 routes fail-closed until every operational and independent-review
+gate is explicitly completed and approved.
+
+
+## Zero-address settlement hardening (2026-11-04)
+
+A review found that a syntactically valid zero address could pass the server
+recipient configuration check. If configured, a standard Transfer-to-zero
+(burn) log could match that stored recipient. The x402 route remains disabled,
+but this was treated as a payment-verification release blocker.
+
+Draft PR #51 now:
+- rejects the zero address in `getX402Recipient`;
+- rejects persisted challenges whose recipient is the zero address;
+- rejects a zero recipient in the verifier before any RPC request;
+- adds regression tests for all three boundaries, burn-to-zero transfer logs,
+  and malformed Transfer data encodings.
+
+Code-change commit: `13cc82a93a0e9f1f87dd54f50451c73abf00a2db`.
+CI #977, dependency audit #239, and disposable PostgreSQL integration #80
+were triggered for this exact commit and are pending at the time of this note.
+The Vercel Preview is also pending. These changes are not merged or released.
+No live payment, database rollout, Mainnet request, signing, or broadcast
+occurred.

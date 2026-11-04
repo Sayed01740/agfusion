@@ -1,4 +1,5 @@
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export type X402RecipientConfig =
   | { ok: true; recipient: string }
@@ -15,7 +16,7 @@ export function getX402Recipient(): X402RecipientConfig {
     return { ok: false, reason: "missing_recipient" };
   }
 
-  if (!ADDRESS_RE.test(configured)) {
+  if (!ADDRESS_RE.test(configured) || configured.toLowerCase() === ZERO_ADDRESS) {
     return { ok: false, reason: "invalid_recipient" };
   }
 

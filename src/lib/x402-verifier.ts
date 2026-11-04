@@ -37,10 +37,11 @@ type RpcBlock = {
 
 export type X402Verification =
   | { ok: true; txHash: string; payer: string; recipient: string; amount: string; blockNumber: string; chainId: 5042002 }
-  | { ok: false; reason: "invalid_hash" | "rpc_unavailable" | "wrong_chain" | "not_mined" | "reverted" | "receipt_mismatch" | "block_not_canonical" | "payment_not_found" | "ambiguous_payment" };
+  | { ok: false; reason: "invalid_hash" | "invalid_recipient" | "rpc_unavailable" | "wrong_chain" | "not_mined" | "reverted" | "receipt_mismatch" | "block_not_canonical" | "payment_not_found" | "ambiguous_payment" };
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const HASH_RE = /^0x[a-fA-F0-9]{64}$/;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const RPC_TIMEOUT_MS = 10_000;
 const MAX_RPC_RESPONSE_BYTES = 256 * 1024;
 const MAX_RECEIPT_LOGS = 256;
@@ -110,8 +111,11 @@ export async function verifyArcTestnetUsdcPayment(opts: {
 }): Promise<X402Verification> {
   const txHash = opts.txHash.toLowerCase();
   const recipient = opts.recipient.toLowerCase();
-  if (!HASH_RE.test(txHash) || !ADDRESS_RE.test(recipient)) {
+  if (!HASH_RE.test(txHash)) {
     return { ok: false, reason: "invalid_hash" };
+  }
+  if (!ADDRESS_RE.test(recipient) || recipient === ZERO_ADDRESS) {
+    return { ok: false, reason: "invalid_recipient" };
   }
 
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);

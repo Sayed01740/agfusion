@@ -15,6 +15,11 @@ describe("getX402Recipient", () => {
     expect(getX402Recipient()).toEqual({ ok: false, reason: "invalid_recipient" });
   });
 
+  it("rejects the zero address as a settlement recipient", () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", "0x0000000000000000000000000000000000000000");
+    expect(getX402Recipient()).toEqual({ ok: false, reason: "invalid_recipient" });
+  });
+
   it("normalizes a valid server-only recipient", () => {
     vi.stubEnv("AGFUSION_X402_RECIPIENT", "  0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ");
     expect(getX402Recipient()).toEqual({
