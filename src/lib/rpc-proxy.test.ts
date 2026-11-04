@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ARC_EXPECTED_CHAIN_ID_HEX,
   healthCheck,
-  isReadMethod,\n  isWriteMethod,
+  isReadMethod,
+  isWriteMethod,
   parseJsonRpc,
 } from "./rpc-proxy";
 
