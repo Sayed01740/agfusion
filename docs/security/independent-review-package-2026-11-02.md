@@ -466,3 +466,39 @@ These are source-level findings and deployment-boundary questions, not evidence 
 ### Release implications
 
 Keep PR #41 and the wider security stack Draft. Before merge or Production promotion, resolve Issue #45 with fail-closed RPC routing, batch handling tests, trusted proxy-header verification, and an explicit decision on distributed rate limiting. Independent security review remains outstanding. No release gate is waived by the successful documentation CI or Preview build.
+
+
+## 22. RPC allowlist / batch guard candidate and Vercel ingress evidence (2026-11-04)
+
+### Draft implementation PR #46
+
+A separate Draft PR #46 has been opened on top of PR #41:
+
+- PR: https://github.com/Sayed01740/agfusion/pull/46
+- Branch: `security/rpc-readonly-allowlist-batch-guard`
+- Base: PR #41 head `1dca9263f2901f0aa5c61a7c4330f2bbeb932c53`
+- Latest candidate head at documentation time: `30f683c342c8d0f2caab740e4ef6abf89bfa827f`
+
+The candidate:
+- Uses an explicit allowlist for read-only methods eligible for retry/failover.
+- Classifies common signing and state-changing methods as non-retryable, including `wallet_sendCalls` and `eth_sendUserOperation`.
+- Rejects JSON-RPC batch arrays before contacting an upstream.
+- Rejects unknown methods and invalid JSON-RPC request envelopes before routing.
+- Excludes stateful filter methods from the retryable read set.
+- Adds regression tests for mixed read/write batch rejection, unknown methods, classification boundaries, and single-attempt handling of a signing method.
+
+This changes compatibility: unsupported methods and JSON-RPC batches now receive HTTP 400. Confirm the exact wallet/provider method surface used by AGFusion before merging. PR #46 is Draft; its exact-head CI and Preview are pending at the time of this documentation update. Do not describe this candidate as verified or production-ready until those checks complete.
+
+### Provider-surface inspection
+
+The wallet-provider code uses the browser-injected wallet directly for `eth_accounts` and `eth_requestAccounts`. The same-origin RPC proxy is used for viem public-client reads such as balance retrieval, and the wallet RPC guard uses the proxy for `eth_getTransactionCount`. These observed methods are included in the read allowlist where applicable. This source inspection is not a complete runtime trace of every SDK or third-party wallet call; validate the exact provider traffic on Preview before release.
+
+### Vercel ingress header behavior
+
+Vercel's current request-header documentation states that ordinary Vercel ingress overwrites incoming `X-Forwarded-For` and does not forward externally supplied IP values, to prevent spoofing. It also states that `X-Real-IP` is identical to `X-Forwarded-For`. Therefore, the source concern about arbitrary caller-supplied XFF values is resolved for requests served directly through the normal Vercel ingress, subject to the actual project topology and any upstream proxy / Enterprise Trusted Proxy configuration.
+
+Source: https://vercel.com/docs/headers/request-headers
+
+The in-memory rate limiter remains per-instance, not a distributed global quota across serverless instances. Decide whether that limitation is acceptable for the expected threat model and traffic, or whether a shared store is required. Do not claim the distributed limiter question is resolved.
+
+No signing, transaction broadcast, Mainnet request, Production change, or secret decryption was performed for this candidate.
