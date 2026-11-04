@@ -392,3 +392,16 @@ Every response was HTTP 503 / `X402_DISABLED`, included `Cache-Control: no-store
 **Remaining caveats:** 173 lint warnings remain visible cleanup debt. Vercel no longer reports the empty-ESLint-config or missing-Next-plugin warning. The existing dynamic dependency import warning in `ox/_esm/tempo/internal/virtualMasterPool.js` remains, as does the Vercel Node 22 engine-selection warning. These are recorded for review, not hidden or claimed fixed.
 
 **Release decision:** PR #43 remains Draft and unmerged. No independent security review has been submitted. The public Arc RPC trust boundary still requires explicit owner acceptance before any future payment-finality reliance. This remediation does not authorize merge, Production deployment, Mainnet activation, or x402 payment re-enablement.
+
+
+## 19. Review-package documentation head: exact CI recheck (2026-11-04)
+
+The latest documentation-only PR #42 head `a1ebb60b20a718cef33257af4ecfdb2970dd7bd5` has now completed GitHub CI successfully (run `41517677875`). This supersedes the earlier note that its latest workflow had not yet appeared.
+
+The current code verification heads remain unchanged and their exact-head workflows are green:
+
+- PR #40 `3aebdc6e15946bc73baa18e42f430467be82d1a2`: CI `41489279355`, dependency audit `41489279388`, and disposable PostgreSQL integration `41489279360` all succeeded.
+- PR #43 `951ead919fa2ac0518a0cee0e39a4a829bdedf81`: CI `41516572024`, dependency audit `41516572322`, and disposable PostgreSQL integration `41516572132` all succeeded.
+- PR #43's recorded Preview reached READY and its six read-only x402 smoke tests returned HTTP 503 / `X402_DISABLED` with no payment challenge metadata.
+
+No independent review has been submitted on PR #40, #42, or #43. The public Arc RPC trust-boundary decision remains open. The 173 ESLint warnings and the dynamic Viem/Ox Tempo dependency import warning remain visible cleanup/review items. This update records evidence only; it does not change the release gates or authorize merge, Production deployment, Mainnet activation, wallet signing, transaction broadcast, or x402 re-enablement.
