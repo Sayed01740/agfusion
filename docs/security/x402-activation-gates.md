@@ -74,13 +74,13 @@ It contains no assumed traffic thresholds and does not authorize activation.
 
 ## 1. Server-owned settlement configuration
 
-- [ ] Introduce a server-only recipient setting (for example,
-  `AGFUSION_X402_RECIPIENT`). Do not use a `NEXT_PUBLIC_*` variable as the
-  authority for a future payment destination.
-- [ ] Remove the implicit hard-coded recipient fallback before enabling
-  challenge creation. Missing or malformed configuration must fail closed.
-- [ ] Validate the address at process startup or at challenge creation, then
-  normalize it consistently for storage and comparison.
+- [x] Use the server-only `AGFUSION_X402_RECIPIENT` setting. Do not use a
+  `NEXT_PUBLIC_*` variable as the authority for a payment destination.
+- [x] No implicit hard-coded recipient fallback; missing or malformed
+  configuration fails closed.
+- [x] Validate and normalize the recipient at challenge creation; zero address
+  is rejected by configuration and persisted-challenge validation.
+
 - [ ] Confirm the destination is controlled by the intended service operator
   and independently verify it on Arc Testnet.
 - [ ] Keep Arc Mainnet configuration and payment support out of this change.
@@ -166,9 +166,12 @@ It contains no assumed traffic thresholds and does not authorize activation.
   topic counts and non-canonical indexed-address padding, duplicate matching
   transfers, and mismatched receipt/block hashes. Source and regression tests
   cover these cases on the current verifier branch.
-- [ ] Add explicit regression tests for burn-to-zero transfers and malformed
-  Transfer data encodings/lengths. The verifier rejects data that is not one
-  32-byte hex word, but this specific malformed-data branch lacks a direct test.
+- [x] Regression tests reject burn-to-zero transfers as payment and malformed
+  Transfer data encodings/lengths.
+- [x] Server configuration, persisted challenge loading, and the verifier all
+  reject the zero address as a payment recipient, preventing a burn address
+  from becoming an accepted settlement destination.
+
 - [x] Document the RPC trust boundary: a receipt plus same-provider block-hash
   consistency check is not an independently verified consensus certificate
   (see `x402-arc-finality-and-rpc-trust.md`).
@@ -252,3 +255,25 @@ This evidence does not authorize route activation, database mutation, payment,
 Mainnet use, wallet signing/broadcast, merge, or Production promotion. Keep
 both x402 routes fail-closed until every operational and independent-review
 gate is explicitly completed and approved.
+
+
+## Zero-address settlement hardening (2026-11-04)
+
+A review found that a syntactically valid zero address could pass the server
+recipient configuration check. If configured, a standard Transfer-to-zero
+(burn) log could match that stored recipient. The x402 route remains disabled,
+but this was treated as a payment-verification release blocker.
+
+Draft PR #51 now:
+- rejects the zero address in `getX402Recipient`;
+- rejects persisted challenges whose recipient is the zero address;
+- rejects a zero recipient in the verifier before any RPC request;
+- adds regression tests for all three boundaries, burn-to-zero transfer logs,
+  and malformed Transfer data encodings.
+
+Code-change commit: `13cc82a93a0e9f1f87dd54f50451c73abf00a2db`.
+CI #977, dependency audit #239, and disposable PostgreSQL integration #80
+were triggered for this exact commit and are pending at the time of this note.
+The Vercel Preview is also pending. These changes are not merged or released.
+No live payment, database rollout, Mainnet request, signing, or broadcast
+occurred.
