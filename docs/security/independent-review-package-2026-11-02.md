@@ -502,3 +502,39 @@ Source: https://vercel.com/docs/headers/request-headers
 The in-memory rate limiter remains per-instance, not a distributed global quota across serverless instances. Decide whether that limitation is acceptable for the expected threat model and traffic, or whether a shared store is required. Do not claim the distributed limiter question is resolved.
 
 No signing, transaction broadcast, Mainnet request, Production change, or secret decryption was performed for this candidate.
+
+
+## 23. RPC allowlist candidate: exact-head CI and Preview smoke evidence (2026-11-04)
+
+**Draft PR #46 exact head:** `30d6e9f159dc351f6349885531a09dc25d7235da`  
+**GitHub Actions CI:** run `41800688483` (run 958) — completed successfully. The check job passed clean dependency installation, TypeScript typecheck, Vitest, and production build.  
+**Vercel Preview:** deployment `dpl_D8LBCiC4KBxx1xJ4k4zKFKsJUsGT`, URL https://agfusion-r37f1jxnf-sayeds-projects-e086c1e7.vercel.app — READY for the same exact commit.
+
+### Direct read-only Preview smoke
+
+Executed from an ephemeral Vercel sandbox against the exact Preview URL above:
+
+1. `GET /api/rpc?chain=arc`: HTTP 200; `ok=true`; upstream identified as Arc Testnet; chain ID and expected chain ID both `0x4cef52`.
+2. JSON-RPC `eth_chainId`: HTTP 200; result `0x4cef52`.
+3. JSON-RPC `eth_blockNumber`: HTTP 200; returned a current Testnet block number.
+4. Mixed JSON-RPC batch containing `eth_blockNumber` and `eth_sendRawTransaction`: HTTP 400 / `-32600`, `JSON-RPC batch requests are not supported`. The request was rejected at the route boundary; no upstream transaction submission was attempted.
+5. Unknown method `debug_unknownMethod`: HTTP 400 / `-32601`, `Unsupported JSON-RPC method`.
+6. `eth_accounts` sent to the same-origin proxy: HTTP 400 / `-32601`; this method remains the responsibility of the injected wallet provider.
+7. `eth_requestAccounts` sent to the same-origin proxy: HTTP 400 / `-32601`; this method remains the responsibility of the injected wallet provider.
+
+All JSON-RPC responses carried `Cache-Control: no-store`. No wallet signature, transaction broadcast, real payment, database mutation, or Mainnet request was performed.
+
+### Documentation branch exact-head recheck
+
+The documentation branch commit `b6cb48a776581b49cd655d11b06abd3995e57a6c` completed GitHub CI run `41800745385` (run 959) successfully, including clean install, typecheck, Vitest, and production build. Its corresponding Vercel Preview deployment `dpl_9Kwc7L1pkQCi8GT4PJa6QnG17aom` reached READY.
+
+### Remaining release gates
+
+- PR #46 remains a Draft candidate and has no independent review submission.
+- The GitHub review list for PR #46 and PR #42 was empty at this check. No reviewer identity is confirmed; do not invent or assign an unverified reviewer.
+- Confirm compatibility with the full wallet/provider method surface through additional runtime traces and integration coverage.
+- Decide whether the in-memory per-instance rate limiter is acceptable or a distributed limiter is required.
+- Retain the Vercel ingress qualification: the documented overwrite behavior applies to ordinary Vercel ingress and depends on actual upstream/Enterprise Trusted Proxy topology.
+- Complete independent security and cryptographic review of the integrated stack.
+
+These successful CI and Preview checks are maintainer verification only. They do not constitute independent approval or authorize merge, Production promotion, Mainnet activation, wallet signing, transaction broadcast, or x402 re-enablement.
