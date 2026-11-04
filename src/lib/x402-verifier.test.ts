@@ -71,6 +71,50 @@ describe("verifyArcTestnetUsdcPayment", () => {
     expect(result).toEqual({ ok: false, reason: "invalid_hash" });
   });
 
+  it("rejects a zero-address recipient before making an RPC request", async () => {
+    let rpcCalled = false;
+    const fetchImpl = (async () => {
+      rpcCalled = true;
+      return new Response();
+    }) as typeof fetch;
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX,
+      recipient: "0x0000000000000000000000000000000000000000",
+      fetchImpl,
+    });
+    expect(result).toEqual({ ok: false, reason: "invalid_recipient" });
+    expect(rpcCalled).toBe(false);
+  });
+
+  it("rejects a burn-to-zero Transfer as payment to the configured recipient", async () => {
+    const receipt = validReceipt();
+    (receipt.logs as Array<{ topics: string[] }>)[0].topics[2] = pad(
+      "0x0000000000000000000000000000000000000000",
+    );
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX,
+      recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", receipt),
+    });
+    expect(result).toEqual({ ok: false, reason: "payment_not_found" });
+  });
+
+  it("rejects malformed Transfer data encodings", async () => {
+    const malformedWidth = validReceipt();
+    (malformedWidth.logs as Array<{ data: string }>)[0].data = "0x1234";
+    const nonHex = validReceipt();
+    (nonHex.logs as Array<{ data: string }>)[0].data = `0x${"z".repeat(64)}`;
+
+    for (const receipt of [malformedWidth, nonHex]) {
+      const result = await verifyArcTestnetUsdcPayment({
+        txHash: TX,
+        recipient: RECIPIENT,
+        fetchImpl: rpcMock("0x4cef52", receipt),
+      });
+      expect(result).toEqual({ ok: false, reason: "payment_not_found" });
+    }
+  });
+
   it("rejects a mismatched JSON-RPC response id", async () => {
     const result = await verifyArcTestnetUsdcPayment({
       txHash: TX, recipient: RECIPIENT,
