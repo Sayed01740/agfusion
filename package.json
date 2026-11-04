@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && node scripts/patch-multichain-appkit-adapter.mjs && next build",
+    "build": "node scripts/patch-circle-zod-compat.mjs && prisma generate && node scripts/patch-multichain-appkit-adapter.mjs && next build",
     "vercel-build": "npm run build",
     "start": "next start",
     "lint": "eslint .",
@@ -17,7 +17,10 @@
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "verify:arc-mainnet": "node scripts/verify-arc-mainnet.mjs",
+    "test:circle-sdk-compat": "node scripts/patch-circle-zod-compat.mjs && node scripts/check-circle-app-kit-runtime.mjs && node scripts/test-zod-v3-security.mjs",
+    "test:elliptic-leading-zero": "node scripts/test-mapped-elliptic-leading-zero.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.13.0",
@@ -32,28 +35,54 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.18.1",
     "lucide-react": "^0.515.0",
-    "next": "^15.3.3",
+    "next": "^15.5.28",
+    "permissionless": "^0.3.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "permissionless": "^0.3.7",
     "recharts": "^2.15.3",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.10",
     "viem": "^2.31.0",
-    "zod": "^3.25.67",
+    "zod": "4.6.7",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^15.5.28",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
     "prisma": "^6.10.1",
     "typescript": "^5.8.3",
     "vitest": "^4.1.10"
   },
   "optionalDependencies": {
     "lightningcss-win32-x64-msvc": "^1.32.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.31",
+    "undici": "^6.28.1",
+    "@grpc/grpc-js": "^1.14.6",
+    "toml": "^5.0.1",
+    "ethjs-unit": {
+      "bn.js": "^4.12.5"
+    },
+    "number-to-bn": {
+      "bn.js": "^4.12.5"
+    },
+    "uuid": "^11.1.1",
+    "jayson": "^5.0.0",
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
+    },
+    "zod": "4.6.7",
+    "elliptic": "npm:@mapped/elliptic@6.6.10",
+    "minimatch": "^11.0.4"
   }
 }
