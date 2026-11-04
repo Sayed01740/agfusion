@@ -4,7 +4,7 @@ import { POST } from "./route";
 const mocks = vi.hoisted(() => ({
   forwardJsonRpc: vi.fn(),
   findHealthyUpstream: vi.fn(),
-  healthCheck: vi.fn(),\n  isReadMethod: vi.fn((method: string) => method === "eth_blockNumber" || method === "eth_chainId"),\n  isWriteMethod: vi.fn((method: string) => ["eth_sendRawTransaction", "eth_sendTransaction", "eth_signTypedData_v3", "wallet_sendCalls", "eth_sendUserOperation"].includes(method)),
+  healthCheck: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -17,7 +17,14 @@ vi.mock("@/lib/rpc-proxy", () => ({
   findHealthyUpstream: mocks.findHealthyUpstream,
   forwardJsonRpc: mocks.forwardJsonRpc,
   healthCheck: mocks.healthCheck,
-  isWriteMethod: (method: string) => method.startsWith("eth_send") || method.startsWith("personal_"),
+  isReadMethod: (method: string) => ["eth_blockNumber", "eth_chainId"].includes(method),
+  isWriteMethod: (method: string) => [
+    "eth_sendRawTransaction",
+    "eth_sendTransaction",
+    "eth_signTypedData_v3",
+    "wallet_sendCalls",
+    "eth_sendUserOperation",
+  ].includes(method),
   parseJsonRpc: (value: string) => ({ ok: true, ...JSON.parse(value) }),
 }));
 
@@ -98,7 +105,8 @@ describe("POST /api/rpc request-body limit and compatibility", () => {
     expect(mocks.forwardJsonRpc).toHaveBeenCalledOnce();
     expect(mocks.forwardJsonRpc).toHaveBeenCalledWith("https://rpc.example.test", body);
   });
-\n  it("forwards a valid read-only JSON-RPC request unchanged and preserves the response", async () => {
+
+  it("forwards a valid read-only JSON-RPC request unchanged and preserves the response", async () => {
     const body = JSON.stringify({ jsonrpc: "2.0", id: 7, method: "eth_blockNumber", params: [] });
     mocks.forwardJsonRpc.mockResolvedValue({
       ok: true,
