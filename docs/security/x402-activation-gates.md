@@ -1,3 +1,19 @@
+> **Exact PR #51 Preview smoke-test evidence (2026-11-04):** The Preview deployment
+> for commit `891721e063ab1c951a3058bc2a1d6058cd7fadfa` reached READY. Read-only
+> requests through the authenticated Vercel Preview fetch path returned:
+> - `GET /`: HTTP 200.
+> - `GET /api/rpc?chain=arc`: HTTP 200; upstream
+>   `https://rpc.testnet.arc.io`; returned chain ID and expected chain ID both
+>   `0x4cef52` (Arc Testnet 5042002); `Cache-Control: no-store`.
+> - `GET /api/x402/agent-service`: HTTP 503 with
+>   `code: X402_DISABLED`; `Cache-Control: no-store`; no payment instructions.
+>
+> These are read-only GET checks only. No POST settlement request, live Circle
+> quote, Mainnet request, wallet signature, transaction broadcast, or payment
+> was performed. Vercel runtime-log queries for this deployment over the
+> 30-minute smoke-test window returned no records, including no warning/error
+> records. An empty log query is not proof that no errors occurred.
+>
 > **Current-head clarification (2026-11-04):** This checklist contains historical
 > evidence below and must not be read as a statement of current Preview behavior.
 > On PR #50 head `df14fc75d08636d39291fdfe3816e31c291e1aa8`, the current source
