@@ -477,7 +477,7 @@ A separate Draft PR #46 has been opened on top of PR #41:
 - PR: https://github.com/Sayed01740/agfusion/pull/46
 - Branch: `security/rpc-readonly-allowlist-batch-guard`
 - Base: PR #41 head `1dca9263f2901f0aa5c61a7c4330f2bbeb932c53`
-- Latest candidate head at documentation time: `30f683c342c8d0f2caab740e4ef6abf89bfa827f`
+- Latest candidate head at documentation time: `30d6e9f159dc351f6349885531a09dc25d7235da`
 
 The candidate:
 - Uses an explicit allowlist for read-only methods eligible for retry/failover.
