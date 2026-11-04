@@ -538,3 +538,25 @@ The documentation branch commit `b6cb48a776581b49cd655d11b06abd3995e57a6c` compl
 - Complete independent security and cryptographic review of the integrated stack.
 
 These successful CI and Preview checks are maintainer verification only. They do not constitute independent approval or authorize merge, Production promotion, Mainnet activation, wallet signing, transaction broadcast, or x402 re-enablement.
+
+## 24. Circle Kit client-bundle and Mainnet preparation boundary follow-up (2026-11-04)
+
+### Source review on PR #46 candidate branch
+
+The exact PR #46 branch was inspected for:
+- `src/lib/circle-kit-server.ts`: key resolution remains `KIT_KEY || CIRCLE_KIT_KEY || NEXT_PUBLIC_KIT_KEY`.
+- `src/sdk/appkit-client.ts`: browser App Kit initialization uses a keyless constructor; `getBrowserKitKey()` returns `null`; Circle requests are intended to use the same-origin server proxy.
+- `src/app/api/circle/swap/prepare/route.ts`: the server route still accepts both Arc Testnet `5042002` and Arc Mainnet `5042`, even when the runtime default is Testnet. It is a prepare-only route, not a transaction broadcaster, but it can return transaction data intended for downstream signing. The route response currently uses the runtime default `ARC_CHAIN_ID` rather than the validated request `chainId`; confirm the integrated security stack contains the separately reviewed chain-ID consistency fix before any release.
+
+### Public Preview bundle spot-check
+
+Against the exact PR #46 Preview homepage, an ephemeral sandbox fetched and scanned all 17 JavaScript chunks directly referenced by that homepage. The scan emitted only boolean indicators and did not print any content or credential values.
+
+- No `NEXT_PUBLIC_KIT_KEY`, `KIT_KEY`, `CIRCLE_API_KEY`, or `CIRCLE_KIT_KEY` identifier was found in those 17 homepage-referenced chunks.
+- No string matching the expected `KIT_KEY:id:secret` shape was found in those chunks.
+
+**Scope limitation:** this is a bounded Preview homepage-chunk scan, not a complete crawl of every route/chunk, a scan of every static asset, or a Production bundle verification. It does not prove the Production secret is safe or that no other client entry point can reference the variable. Keep the required full client-bundle and source-usage verification open. The `NEXT_PUBLIC_KIT_KEY` fallback should be removed once the owner confirms it is not required for compatibility and a server-only replacement is configured; do not change Production credentials without explicit approval.
+
+### Release decision remains unchanged
+
+No Mainnet request, live Circle quote, wallet signature, transaction broadcast, Production environment change, or secret decryption was performed. Do not use a Production key in Preview. Keep the Mainnet prepare gate and secret migration as explicit owner decisions. PR #46 remains Draft and no independent review submission was present at this check.
