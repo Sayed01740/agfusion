@@ -153,7 +153,6 @@ const READ_METHODS = new Set<string>([
   "eth_maxPriorityFeePerGas",
   "eth_mining",
   "eth_protocolVersion",
-  "eth_signing?no",
   "eth_supportedEntryPoints",
   "eth_syncing",
   "eth_blobBaseFee",
