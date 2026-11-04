@@ -17,6 +17,13 @@ const addressQuery = z
   .regex(/^0x[a-fA-F0-9]{40}$/)
   .optional();
 
+const transactionStepsSchema = z.array(z.object({
+  name: z.string().min(1).max(100),
+  state: z.enum(["pending", "active", "success", "error", "noop"]),
+  txHash: z.string().min(1).max(128).optional(),
+  message: z.string().max(500).optional(),
+})).max(100);
+
 /**
  * List transactions belonging to the authenticated session only.
  * An arbitrary ?address= / ?wallet= must never select another wallet's history.
@@ -104,8 +111,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const user = await getSessionUser();
   const d = parsed.data;
+  let steps: TransactionRecord["steps"] = [];
+  if (d.stepsJson) {
+    let rawSteps: unknown;
+    try {
+      rawSteps = JSON.parse(d.stepsJson);
+    } catch {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+    const stepsResult = transactionStepsSchema.safeParse(rawSteps);
+    if (!stepsResult.success) {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+    steps = stepsResult.data;
+  }
+
+  const user = await getSessionUser();
   const walletFromBody =
     typeof (body as { walletAddress?: string }).walletAddress === "string" &&
     /^0x[a-fA-F0-9]{40}$/.test((body as { walletAddress: string }).walletAddress)
@@ -141,7 +163,7 @@ export async function POST(req: Request) {
     explorerUrl: d.explorerUrl,
     executionMode: d.executionMode || "live",
     message: d.message,
-    steps: d.stepsJson ? JSON.parse(d.stepsJson) : [],
+    steps,
     createdAt: new Date().toISOString(),
   };
 
