@@ -129,3 +129,56 @@ No production code or dependency versions were changed as part of this
 follow-up. The current compatibility patch remains an unmerged review
 candidate; no live Circle Testnet quote was performed.
 
+## Exact Zod compatibility runtime review (2026-11-04)
+
+The current PR branch lockfile contains one resolved Zod package:
+`zod@4.6.7` at `node_modules/zod`. The Circle import rewrite directs Circle
+packages to that package's `zod/v3` compatibility export; it does not load a
+separate nested Zod 3 package in the current lockfile.
+
+A source comparison against upstream tag `colinhacks/zod@v4.6.7` established
+an important compatibility distinction:
+
+- Zod 4's native parser includes the upstream early size-cap wrapper for
+  arrays, sets, and maps (introduced by upstream PR #6652 and released in
+  4.6.6).
+- The same release's `packages/zod/src/v3/types.ts` compatibility parser still
+  walks array elements after recording `.max()` / `.length()` issues, and
+  walks set elements after recording `.max()` issues. The custom AGFusion build
+  patch backports early rejection for these two bounded Zod v3 cases.
+- Zod v3's `ZodMap` has no `.max()`, `.size()`, or equivalent container-size
+  bound API in this compatibility source. Its map parser eagerly walks all
+  entries. The current custom patch does not alter map parsing.
+- Neither the upstream Zod 4 change nor the AGFusion compatibility patch places
+  a universal issue-count ceiling on unbounded containers. A schema with no
+  upper bound still walks its supplied elements/entries. This behavior must be
+  evaluated together with the source and size limits of the data entering each
+  schema, rather than described as a complete parser-level DoS fix.
+
+The GitHub Advisory Database currently lists Zod versions below 4.6.6 as
+affected by GHSA-mrhx-c7xc-m3w5 and identifies 4.6.6 as the patched release.
+The CNA's CVE-2023-54404 record has subsequently been marked rejected; do not
+present that CVE identifier as an active CVE. Upstream PR #6652 explicitly
+states that unbounded containers are unchanged and that its fix moves declared
+size checks ahead of element parsing. These facts are not contradictory to the
+AGFusion compatibility concern: Circle is routed through Zod's v3 API inside
+the patched 4.6.7 package, and that v3 compatibility parser does not contain
+the corresponding early-rejection logic.
+
+Current bounded-array/set regression tests demonstrate the AGFusion backport
+works for those bounded cases. They do not establish that all Circle schemas
+are bounded, nor that map or unbounded validation paths are protected. The
+remaining review task is therefore to inventory actual Circle SDK schemas and
+the provenance/maximum size of their inputs, then add explicit bounds at the
+application boundary wherever untrusted collections are accepted. Do not
+invent a blanket parser rewrite or claim full remediation without that work.
+
+References:
+- Zod 4.6.7 release and upstream PR #6652:
+  https://github.com/colinhacks/zod/releases
+  https://github.com/colinhacks/zod/pull/6652
+- Zod 4.6.7 v3 compatibility source:
+  https://github.com/colinhacks/zod/blob/v4.6.7/packages/zod/src/v3/types.ts
+- Zod advisory:
+  https://github.com/advisories/GHSA-mrhx-c7xc-m3w5
+
