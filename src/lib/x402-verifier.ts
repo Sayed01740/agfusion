@@ -45,7 +45,12 @@ const RPC_TIMEOUT_MS = 10_000;
 const MAX_RPC_RESPONSE_BYTES = 256 * 1024;
 const MAX_RECEIPT_LOGS = 256;
 
-async function readBoundedRpcJson(response: Response): Promise<{ result?: unknown; error?: { message?: string } }> {
+async function readBoundedRpcJson(response: Response): Promise<{
+  jsonrpc?: unknown;
+  id?: unknown;
+  result?: unknown;
+  error?: { code?: unknown; message?: unknown };
+}> {
   const contentLength = Number(response.headers?.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > MAX_RPC_RESPONSE_BYTES) {
     throw new Error("Arc Testnet RPC response exceeded the size limit");
@@ -85,7 +90,12 @@ async function readBoundedRpcJson(response: Response): Promise<{ result?: unknow
     }
   }
 
-  return JSON.parse(text) as { result?: unknown; error?: { message?: string } };
+  return JSON.parse(text) as {
+    jsonrpc?: unknown;
+    id?: unknown;
+    result?: unknown;
+    error?: { code?: unknown; message?: unknown };
+  };
 }
 
 function topicAddress(topic: string | undefined): string | null {
@@ -110,17 +120,38 @@ export async function verifyArcTestnetUsdcPayment(opts: {
   try {
     // One shared deadline bounds the complete three-call verification sequence.
     const signal = AbortSignal.timeout(RPC_TIMEOUT_MS);
+    let rpcRequestId = 0;
     const rpc = async (method: string, params: unknown[]) => {
+      const requestId = ++rpcRequestId;
       const response = await fetchImpl(X402_ARC_TESTNET.rpcUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        body: JSON.stringify({ jsonrpc: "2.0", id: requestId, method, params }),
         cache: "no-store",
         signal,
       });
       if (!response.ok) throw new Error("Arc Testnet RPC unavailable");
       const body = await readBoundedRpcJson(response);
-      if (body.error || body.result === undefined) throw new Error(body.error?.message || "Invalid RPC response");
+      if (
+        !body ||
+        typeof body !== "object" ||
+        body.jsonrpc !== "2.0" ||
+        body.id !== requestId ||
+        (Object.hasOwn(body, "result") === Object.hasOwn(body, "error"))
+      ) {
+        throw new Error("Invalid JSON-RPC response envelope");
+      }
+      if (Object.hasOwn(body, "error")) {
+        if (
+          !body.error ||
+          typeof body.error !== "object" ||
+          !Number.isInteger(body.error.code) ||
+          typeof body.error.message !== "string"
+        ) {
+          throw new Error("Malformed JSON-RPC error object");
+        }
+        throw new Error(body.error.message);
+      }
       return body.result;
     };
 
