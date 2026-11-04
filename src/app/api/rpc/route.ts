@@ -16,6 +16,7 @@ import {
   findHealthyUpstream,
   forwardJsonRpc,
   healthCheck,
+  isReadMethod,
   isWriteMethod,
   parseJsonRpc,
 } from "@/lib/rpc-proxy";
@@ -118,8 +119,9 @@ export async function POST(req: Request) {
     );
   }
   const body = bodyResult.value;
+  let parsedBody: unknown;
   try {
-    JSON.parse(body);
+    parsedBody = JSON.parse(body);
   } catch {
     return NextResponse.json(
       {
@@ -131,14 +133,57 @@ export async function POST(req: Request) {
     );
   }
 
-  let method = "";
-  let requestId: unknown = null;
-  try {
-    const parsed = JSON.parse(body) as { method?: unknown; id?: unknown };
-    method = String(parsed.method || "");
-    requestId = parsed.id ?? null;
-  } catch {
-    /* body already validated */
+  // Batch requests are deliberately rejected until every item can be
+  // independently classified and the complete batch can be guaranteed
+  // never to enter a retry/failover path.
+  if (Array.isArray(parsedBody)) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "JSON-RPC batch requests are not supported" },
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!parsedBody || typeof parsedBody !== "object") {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "Invalid JSON-RPC request object" },
+      },
+      { status: 400 },
+    );
+  }
+
+  const rpcRequest = parsedBody as { jsonrpc?: unknown; method?: unknown; id?: unknown };
+  if (rpcRequest.jsonrpc !== "2.0" || typeof rpcRequest.method !== "string" || !rpcRequest.method.trim()) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: rpcRequest.id ?? null,
+        error: { code: -32600, message: "Invalid JSON-RPC request envelope" },
+      },
+      { status: 400 },
+    );
+  }
+
+  const method = rpcRequest.method;
+  const requestId = rpcRequest.id ?? null;
+
+  // Fail closed: only explicitly classified reads may use retry/failover.
+  // Known signing/submission methods retain the existing single-attempt path.
+  if (!isReadMethod(method) && !isWriteMethod(method)) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: requestId,
+        error: { code: -32601, message: "Unsupported JSON-RPC method" },
+      },
+      { status: 400 },
+    );
   }
 
   if (shouldUseArcBridgeGasFallback(chain, method, body)) {
