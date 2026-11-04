@@ -159,6 +159,7 @@ describe("RPC method classification", () => {
       "eth_getBalance",
       "eth_getLogs",
       "eth_getTransactionReceipt",
+      "eth_getTransactionCount",
       "eth_getUserOperationReceipt",
       "wallet_getCapabilities",
     ]) {
@@ -171,6 +172,8 @@ describe("RPC method classification", () => {
     expect(isReadMethod("eth_unknownDangerousMethod")).toBe(false);
     expect(isWriteMethod("eth_unknownDangerousMethod")).toBe(false);
     expect(isReadMethod("wallet_unknownMethod")).toBe(false);
+    expect(isReadMethod("eth_accounts")).toBe(false);
+    expect(isReadMethod("eth_requestAccounts")).toBe(false);
     expect(isWriteMethod("wallet_unknownMethod")).toBe(false);
     // Filter creation and polling are stateful/non-idempotent, so they are not retryable reads.
     expect(isReadMethod("eth_newFilter")).toBe(false);
