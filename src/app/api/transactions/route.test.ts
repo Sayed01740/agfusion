@@ -48,6 +48,7 @@ describe("POST /api/transactions request-body limit", () => {
         token: "USDC",
         fromChain: "Arc_Testnet",
         toChain: "Base_Sepolia",
+        stepsJson: JSON.stringify([{ name: "Bridge approval", state: "success", txHash: "0xabc123" }]),
         walletAddress: "0x1111111111111111111111111111111111111111",
       }),
     }));
@@ -62,11 +63,60 @@ describe("POST /api/transactions request-body limit", () => {
         status: "pending",
         amount: "1",
         token: "USDC",
+        steps: [{ name: "Bridge approval", state: "success", txHash: "0xabc123" }],
       }),
       expect.objectContaining({
         walletAddress: "0x1111111111111111111111111111111111111111",
       }),
     );
+  });
+
+
+  it.each([
+    ["malformed steps JSON", "{"],
+    ["non-array steps payload", JSON.stringify({ name: "not-an-array" })],
+    ["unknown step state", JSON.stringify([{ name: "step", state: "finished" }])],
+    ["too many steps", JSON.stringify(Array.from({ length: 101 }, (_, i) => ({ name: `step-${i}`, state: "pending" })))],
+  ])("rejects invalid stepsJson (%s) before session lookup or persistence", async (_label, stepsJson) => {
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "invalid-steps",
+        type: "bridge",
+        status: "pending",
+        amount: "1",
+        token: "USDC",
+        stepsJson,
+        walletAddress: "0x1111111111111111111111111111111111111111",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(mocks.getSessionUser).not.toHaveBeenCalled();
+    expect(mocks.persistTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects stepsJson exceeding its field-specific byte-safe character cap", async () => {
+    const response = await POST(new Request("http://localhost/api/transactions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: "oversized-steps",
+        type: "bridge",
+        status: "pending",
+        amount: "1",
+        token: "USDC",
+        stepsJson: "x".repeat(8193),
+        walletAddress: "0x1111111111111111111111111111111111111111",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(mocks.getSessionUser).not.toHaveBeenCalled();
+    expect(mocks.persistTransaction).not.toHaveBeenCalled();
   });
 
   it("rejects malformed JSON", async () => {
