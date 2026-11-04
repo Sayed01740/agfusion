@@ -405,3 +405,36 @@ The current code verification heads remain unchanged and their exact-head workfl
 - PR #43's recorded Preview reached READY and its six read-only x402 smoke tests returned HTTP 503 / `X402_DISABLED` with no payment challenge metadata.
 
 No independent review has been submitted on PR #40, #42, or #43. The public Arc RPC trust-boundary decision remains open. The 173 ESLint warnings and the dynamic Viem/Ox Tempo dependency import warning remain visible cleanup/review items. This update records evidence only; it does not change the release gates or authorize merge, Production deployment, Mainnet activation, wallet signing, transaction broadcast, or x402 re-enablement.
+
+
+## 20. Arc Testnet read-only Preview smoke and Vercel configuration review (2026-11-04)
+
+A narrowly scoped GitHub Actions workflow was added at `.github/workflows/arc-testnet-readonly-preview-smoke.yml` on the documentation review branch. It targets only the already-built PR #43 Preview at `https://agfusion-ph33l3fte-sayeds-projects-e086c1e7.vercel.app`; it does not deploy or modify that Preview.
+
+- Workflow run: `41798401917` — **success**.
+- Exact tested application commit: `951ead919fa2ac0518a0cee0e39a4a829bdedf81`.
+- Vercel Preview deployment: `dpl_AnBaF26QMDNkxzxJWKmsYfMXAFYN` — **READY**.
+- Default `GET /api/rpc?chain=arc`: passed; response asserted `ok=true`, chain ID `0x4cef52`, expected chain ID `0x4cef52`.
+- Explicit `GET /api/rpc?chain=arc_testnet`: passed with chain ID and expected chain ID `0x4cef52`.
+- `GET /api/x402/agent-service`: HTTP 503, `X402_DISABLED`, `Cache-Control: no-store`, no payment challenge metadata.
+- `GET /api/x402/risk-oracle`: HTTP 503, `X402_DISABLED`, `Cache-Control: no-store`, no payment challenge metadata.
+
+These were GET-only health and disabled-state checks. No JSON-RPC transaction method, wallet, signature, approval, token transfer, payment, database mutation, or Mainnet endpoint was invoked.
+
+### Vercel production/preview separation
+
+The Vercel project inventory reports the verified project domain `agfusion.vercel.app`. The latest listed Production deployment remains on `master` commit `4c9ef13c89f29a82b172a990af13e38850ff7e09` (deployment `dpl_3ByoQdwur2b9TkQ3SxKfiMXeW1v4`). The security remediation candidate is a separate Preview deployment; it has not been promoted to Production. Keep that separation until independent review and owner approval.
+
+The environment-variable inventory was inspected with decryption disabled. The listed variables are scoped to Production; no Preview-target variables were present in that inventory. Vercel metadata marked four Production variables with the `readable-secret` security issue: `KIT_KEY`, `CIRCLE_API_KEY`, `BAZAARLINK_API_KEY`, and `DATABASE_URL`. Their values were not decrypted or copied. This metadata flag is not proof of external compromise, but the owner should review who can read project secrets, restrict access, and rotate any value if access cannot be confidently bounded. Do not expose these values in Preview or logs.
+
+### Current open release gates
+
+- Independent cryptographic review of the mapped Elliptic fork and runtime reachability.
+- Independent Circle/Zod patch review.
+- Trusted Vercel/Cloudflare ingress identity decision for x402.
+- Arc finality/RPC trust decision.
+- Database owner approval, restorable backup, and manual schema rollout plan.
+- Complete audit monitoring, alert routing, retention, and operational ownership.
+- Review of Vercel's four `readable-secret` flags and remediation/rotation decision.
+
+This section records read-only evidence only. It does not authorize merge, Production promotion, environment changes, database migration, Mainnet activation, wallet signing, transaction broadcast, or x402 re-enablement.
