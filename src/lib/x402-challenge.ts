@@ -5,6 +5,7 @@ import { X402_ARC_TESTNET } from "@/lib/x402-verifier";
 import { emitX402AuditEvent } from "@/lib/x402-audit";
 
 export const X402_AGENT_SERVICE_ID = "agfusion-agent-feed:v1";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const X402_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 export type X402ChallengeResult =
@@ -141,7 +142,8 @@ export async function getX402ChallengeForVerification(input: {
       row.chainId !== X402_ARC_TESTNET.chainId ||
       row.token.toLowerCase() !== X402_ARC_TESTNET.token ||
       row.amount !== X402_ARC_TESTNET.amount ||
-      !/^0x[a-f0-9]{40}$/i.test(row.recipient)
+      !/^0x[a-f0-9]{40}$/i.test(row.recipient) ||
+      row.recipient.toLowerCase() === ZERO_ADDRESS
     ) {
       return { ok: false, reason: "challenge_invalid" };
     }
