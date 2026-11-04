@@ -38,6 +38,13 @@ describe("createX402Challenge", () => {
     expect(prisma).not.toHaveBeenCalled();
   });
 
+  it("rejects a zero-address server recipient before database access", async () => {
+    vi.stubEnv("AGFUSION_X402_RECIPIENT", "0x0000000000000000000000000000000000000000");
+    const result = await createX402Challenge();
+    expect(result).toEqual({ ok: false, reason: "invalid_recipient" });
+    expect(prisma).not.toHaveBeenCalled();
+  });
+
   it("fails closed when PostgreSQL is unavailable", async () => {
     vi.stubEnv("AGFUSION_X402_RECIPIENT", VALID_RECIPIENT);
     configured.mockReturnValue(false);
@@ -150,6 +157,26 @@ describe("getX402ChallengeForVerification", () => {
         recipient: true,
         amount: true,
       },
+    });
+  });
+
+  it("rejects a persisted challenge with the zero address as recipient", async () => {
+    configured.mockReturnValue(true);
+    const findFirst = vi.fn().mockResolvedValue({
+      id: lookupInput.id,
+      nonce: lookupInput.nonce,
+      serviceId: X402_AGENT_SERVICE_ID,
+      chainId: X402_ARC_TESTNET.chainId,
+      token: X402_ARC_TESTNET.token,
+      recipient: "0x0000000000000000000000000000000000000000",
+      amount: X402_ARC_TESTNET.amount,
+    });
+    prisma.mockReturnValue({ x402Challenge: { findFirst } } as never);
+    const { getX402ChallengeForVerification } = await import("./x402-challenge");
+
+    await expect(getX402ChallengeForVerification(lookupInput)).resolves.toEqual({
+      ok: false,
+      reason: "challenge_invalid",
     });
   });
 
