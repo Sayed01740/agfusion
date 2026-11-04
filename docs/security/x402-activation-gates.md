@@ -1,3 +1,31 @@
+> **Current-head clarification (2026-11-04):** This checklist contains historical
+> evidence below and must not be read as a statement of current Preview behavior.
+> On PR #50 head `df14fc75d08636d39291fdfe3816e31c291e1aa8`, the current source
+> for the Agent Service GET and POST routes returns `503 X402_DISABLED` with
+> `Cache-Control: no-store`. The earlier HTTP 402 Preview observation below
+> belongs to the 2026-11-02 deployment only and is not current-head evidence.
+> A read-only HTTP smoke test against the exact PR #50 Preview has not yet been
+> completed, so the current Preview response is not independently confirmed.
+>
+> PR #50 exact-SHA verification: CI run `41810740252` (run #965), dependency
+> audit `41810741017` (#227), and disposable PostgreSQL integration
+> `41810741410` (#73) all completed successfully. The matching Vercel Preview
+> deployment reached READY. No independent PR review has been submitted.
+>
+> **Separate Arc chain-scope finding:** `/api/circle/swap/prepare` currently
+> accepts both Arc Testnet chain ID `5042002` and Arc Mainnet chain ID `5042`
+> and returns unsigned transaction-preparation data. This is not transaction
+> signing or broadcast, but it means the API is not Testnet-only. Keep Mainnet
+> use out of any Testnet-only release decision until the owner explicitly
+> decides whether to retain or server-side gate that preparation capability.
+> Do not infer safety from UI defaults or public environment variables.
+>
+> **Credential hardening in progress:** the server Kit-key resolver previously
+> accepted `NEXT_PUBLIC_KIT_KEY` as a fallback despite the repository's
+> server-only credential policy. A separate Draft PR is adding a server-only
+> import, removing that fallback, and adding regression tests. Do not remove or
+> rotate any Vercel environment entry as part of this code-only change.
+
 # x402 activation gates
 
 Status: **not approved for activation**. This checklist is a review artifact only.
