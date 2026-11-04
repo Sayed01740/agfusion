@@ -182,3 +182,61 @@ References:
 - Zod advisory:
   https://github.com/advisories/GHSA-mrhx-c7xc-m3w5
 
+## Application-boundary and lockfile inventory (2026-11-04)
+
+A second pass parsed the complete lockfile package map rather than grepping only
+top-level dependency declarations:
+
+- There is exactly one physical Zod installation in this lockfile:
+  `node_modules/zod@4.6.7`. No nested `node_modules/**/zod` package is
+  present.
+- Circle packages declare a Zod dependency at `3.25.67` in their package
+  metadata, including App Kit `1.19.0`, Viem adapter `1.19.3`, Bridge Kit
+  `1.16.1`, Swap Kit `1.8.2`, Unified Balance Kit `1.9.0`, and their
+  listed provider packages. The root `overrides.zod = 4.6.7` plus the
+  lockfile's single physical installation means those packages resolve the
+  root Zod 4 package; their rewritten `zod/v3` specifiers select its v3
+  compatibility API. This is not a second, nested Zod 3 runtime.
+- The application itself imports `zod/v3` in `src/lib/validation.ts`.
+- `POST /api/circle/swap/prepare` reads a streaming request body with an
+  8 KiB hard cap before JSON.parse, rejects non-object JSON, validates the
+  wallet address, limits amount text to 80 characters and six decimal places,
+  restricts token pairs, and accepts only Arc Mainnet 5042 or Arc Testnet
+  5042002. It still intentionally supports Mainnet unsigned quote preparation;
+  it does not sign or broadcast.
+- `POST /api/transactions` reads a streaming body with a 16 KiB hard cap
+  before Zod validation. The schema includes an unbounded `stepsJson` string
+  field, but the complete request is capped at 16 KiB before parsing. The
+  current handler then JSON.parse's that field. Keep this in the input-boundary
+  inventory; consider a smaller field-specific cap and JSON-shape validation
+  in a separate reviewed change.
+- `readLimitedJson` counts actual streamed bytes and does not rely on
+  Content-Length, so missing or inaccurate headers do not bypass these two
+  request limits.
+
+This narrows the application-controlled request exposure for the inspected
+Circle swap and transaction-persistence endpoints. It does **not** establish
+that every Circle SDK internal schema or every Circle network response is
+bounded. The installed SDK tarball source was not fully inventoried in this
+pass, and there is no evidence here that all SDK collection schemas are
+bounded. The remaining task is to inspect the exact installed package source
+and its response parsing paths, or obtain Circle vendor confirmation, before
+making a broader claim.
+
+The Zod size-cap behavior is defensive hardening, not a claim of a confirmed
+remotely exploitable AGFusion vulnerability. GHSA-mrhx-c7xc-m3w5 remains a
+GitHub advisory listing versions below 4.6.6 as affected; the associated
+CVE-2023-54404 record was rejected by its CNA on 2026-10-28. The rejection
+reason specifically notes that JSON.parse has already allocated the input and
+that an application request-size limit is relevant. The upstream 4.6.6 change
+only moves declared `.max()`, `.length()`, and `.size()` checks before
+element parsing; it does not cap unbounded containers. AGFusion's local v3
+patch likewise does not create a universal issue-count cap.
+
+References:
+- GitHub Advisory: https://github.com/advisories/GHSA-mrhx-c7xc-m3w5
+- CNA CVE rejection record: https://app.opencve.io/cve/CVE-2023-54404
+- Upstream Zod PR #6652: https://github.com/colinhacks/zod/pull/6652
+- Zod versioned subpath documentation:
+  https://github.com/colinhacks/zod/issues/4371
+
