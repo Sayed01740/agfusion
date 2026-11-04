@@ -11,15 +11,19 @@ function rpcMock(
   chainId = "0x4cef52",
   receipt: unknown = null,
   canonicalBlock: unknown = { hash: BLOCK_HASH, number: "0x10" },
+  envelope?: (id: number, result: unknown) => unknown,
 ): typeof fetch {
   let call = 0;
   return (async () => {
     call += 1;
     const result = call === 1 ? chainId : call === 2 ? receipt : canonicalBlock;
+    const body = envelope
+      ? envelope(call, result)
+      : { jsonrpc: "2.0", id: call, result };
     return {
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ result }),
+      text: async () => JSON.stringify(body),
       headers: new Headers({ "content-type": "application/json" }),
     } as Response;
   }) as typeof fetch;
@@ -65,6 +69,46 @@ describe("verifyArcTestnetUsdcPayment", () => {
       fetchImpl: rpcMock(),
     });
     expect(result).toEqual({ ok: false, reason: "invalid_hash" });
+  });
+
+  it("rejects a mismatched JSON-RPC response id", async () => {
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX, recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", validReceipt(), undefined, (id, value) => ({
+        jsonrpc: "2.0", id: id + 100, result: value,
+      })),
+    });
+    expect(result).toEqual({ ok: false, reason: "rpc_unavailable" });
+  });
+
+  it("rejects a wrong JSON-RPC version", async () => {
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX, recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", validReceipt(), undefined, (id, value) => ({
+        jsonrpc: "1.0", id, result: value,
+      })),
+    });
+    expect(result).toEqual({ ok: false, reason: "rpc_unavailable" });
+  });
+
+  it("rejects response envelopes containing both result and error", async () => {
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX, recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", validReceipt(), undefined, (id, value) => ({
+        jsonrpc: "2.0", id, result: value, error: { code: -1, message: "ambiguous response" },
+      })),
+    });
+    expect(result).toEqual({ ok: false, reason: "rpc_unavailable" });
+  });
+
+  it("rejects malformed JSON-RPC error objects", async () => {
+    const result = await verifyArcTestnetUsdcPayment({
+      txHash: TX, recipient: RECIPIENT,
+      fetchImpl: rpcMock("0x4cef52", validReceipt(), undefined, (id) => ({
+        jsonrpc: "2.0", id, error: { code: -1, message: 42 },
+      })),
+    });
+    expect(result).toEqual({ ok: false, reason: "rpc_unavailable" });
   });
 
   it("rejects a non-Testnet chain id", async () => {
