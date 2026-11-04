@@ -49,7 +49,7 @@ The Agent Service route must remain disabled until every gate below is completed
 and reviewed. Passing CI or applying the database schema does not authorize
 payment processing.
 
-## Current implementation evidence (2026-11-02)
+## Historical implementation evidence (2026-11-02)
 
 - [x] Arc Testnet verifier source checks chain ID, successful receipt, transaction hash, USDC Transfer event, exact stored recipient/amount, and receipt-block consistency. The same-RPC block check is not independent consensus verification.
 - [x] Settlement service compares the verified tuple and atomically consumes the challenge while recording the payment; unique transaction-hash protection is covered by disposable PostgreSQL integration tests.
@@ -162,10 +162,16 @@ It contains no assumed traffic thresholds and does not authorize activation.
   receipt transaction hash, configured USDC contract, standard Transfer event,
   exact stored recipient, and exact stored amount in base units. Operational
   activation remains blocked by the trust-model and configuration gates below.
-- [ ] Reject mint/burn-shaped transfers, malformed topics/data, removed logs,
-  ambiguous matching transfers, and mismatched block/receipt data.
-- [ ] Document the RPC trust boundary. A receipt plus block-hash consistency
-  check is not an independently verified consensus certificate.
+- [x] Reject zero-address mint-shaped transfers, removed logs, malformed Transfer
+  topic counts and non-canonical indexed-address padding, duplicate matching
+  transfers, and mismatched receipt/block hashes. Source and regression tests
+  cover these cases on the current verifier branch.
+- [ ] Add explicit regression tests for burn-to-zero transfers and malformed
+  Transfer data encodings/lengths. The verifier rejects data that is not one
+  32-byte hex word, but this specific malformed-data branch lacks a direct test.
+- [x] Document the RPC trust boundary: a receipt plus same-provider block-hash
+  consistency check is not an independently verified consensus certificate
+  (see `x402-arc-finality-and-rpc-trust.md`).
 - [ ] Decide whether the service will rely on the documented Arc deterministic
   finality guarantee or operate an independently verified Arc node. Record
   the chosen trust model and operational monitoring before activation.
@@ -220,3 +226,29 @@ The current branch head `c89927c64d26ccdfc97cbdcb8d1d46462ff41de9` passed:
 A repeated GET request to `/api/x402/agent-service` on that exact Preview returned HTTP 402, `paymentEnabled:false`, Arc Testnet chain ID `5042002`, no recipient/payment instructions, and the do-not-send-funds warning. `Cache-Control:no-store` and `X-Payment-Enabled:false` were present.
 
 This is GET-only Preview evidence. No live POST test, application database access or mutation, Testnet payment, secret/environment change, route activation, merge, Production deployment, or Mainnet change was performed. PR #39 remains Draft and unmerged; no independent review was present at the latest review check.
+
+
+## Current PR #51 verification (2026-11-04)
+
+Exact PR head: `eaef87e55290bef453cf10fc5240157eddb2bd10`.
+
+- [x] CI #967 passed on the exact documentation-updated head, including typecheck,
+  unit tests, and production build.
+- [x] Dependency audit #229 passed on the exact documentation-updated head.
+- [x] CI #966, dependency audit #228, and disposable PostgreSQL integration #74
+  passed on the underlying code commit `891721e063ab1c951a3058bc2a1d6058cd7fadfa`.
+  The later `eaef87e` commit changes documentation only.
+- [x] Matching Vercel Preview deployment reached READY.
+- [x] Read-only Preview GET checks: homepage 200; Arc Testnet RPC 200 with chain
+  ID `0x4cef52` (5042002); Agent Service and Risk Oracle both return
+  `503 X402_DISABLED` with `Cache-Control: no-store`.
+- [ ] Live POST settlement smoke test, Circle quote preparation, application
+  database rollout, Testnet payment, and paid-feed authorization remain
+  unperformed and unauthorized.
+- [ ] Independent source/security review remains outstanding. No independent
+  review submission is recorded on PR #51.
+
+This evidence does not authorize route activation, database mutation, payment,
+Mainnet use, wallet signing/broadcast, merge, or Production promotion. Keep
+both x402 routes fail-closed until every operational and independent-review
+gate is explicitly completed and approved.
