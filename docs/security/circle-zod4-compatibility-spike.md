@@ -97,3 +97,35 @@ Audit evidence:
 - CI run #793: https://github.com/Sayed01740/agfusion/actions/runs/40885989397
 - Full dependency audit run #198: https://github.com/Sayed01740/agfusion/actions/runs/40885989387
 - Draft remediation PR #29: https://github.com/Sayed01740/agfusion/pull/29
+
+## Scope limitation identified during follow-up review (2026-11-04)
+
+The custom build-time patch in `scripts/patch-circle-zod-compat.mjs` must not be
+described as a complete mitigation for every Zod collection-validation path.
+
+- It redirects Circle package imports from bare `zod` to the Zod 4 package's
+  `zod/v3` compatibility export.
+- It backports early-return checks only for explicitly bounded Zod v3 arrays
+  (`.max()` / `.length()`) and sets (`.max()`).
+- It does not add a global cap for issue accumulation in unbounded arrays,
+  unbounded sets, maps, or other collection schemas.
+- `scripts/test-zod-v3-security.mjs` tests oversized bounded arrays and sets
+  using `z.any()` elements. It proves those bounded inputs are rejected before
+  element parsing, but it does not exercise unbounded collections containing
+  invalid elements or demonstrate a general issue-count ceiling.
+- The current npm advisory describes resource exhaustion from array validation
+  without a length constraint. Therefore the existing bounded-collection tests
+  are useful regression evidence, but they are not proof that all reachable
+  Zod v3 compatibility parsing paths are protected.
+
+Before treating this patch as an accepted security remediation, an independent
+review must inspect the actual Circle SDK schemas and every untrusted-data
+validation path, establish whether unbounded collection schemas are reachable,
+and either prove effective upstream/input-size bounds or implement and test an
+appropriate bounded issue-accumulation strategy. Do not add a blanket parser
+rewrite or claim complete remediation without that review.
+
+No production code or dependency versions were changed as part of this
+follow-up. The current compatibility patch remains an unmerged review
+candidate; no live Circle Testnet quote was performed.
+
