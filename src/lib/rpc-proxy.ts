@@ -134,8 +134,6 @@ const READ_METHODS = new Set<string>([
   "eth_getBlockByNumber",
   "eth_getBlockReceipts",
   "eth_getCode",
-  "eth_getFilterChanges",
-  "eth_getFilterLogs",
   "eth_getLogs",
   "eth_getProof",
   "eth_getStorageAt",
