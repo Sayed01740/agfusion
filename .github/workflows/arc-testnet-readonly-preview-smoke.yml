@@ -1,0 +1,80 @@
+name: Arc Testnet read-only Preview smoke
+
+on:
+  push:
+    branches:
+      - docs/security-review-package-20261102
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-preview-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE_URL: https://agfusion-ph33l3fte-sayeds-projects-e086c1e7.vercel.app
+    steps:
+      - name: Verify default Arc RPC resolves to Testnet
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --silent --show-error --fail-with-body --max-time 25 "$BASE_URL/api/rpc?chain=arc")"
+          printf '%s\n' "$body" | jq -e '
+            .ok == true and
+            .chain == "arc" and
+            (.chainId | ascii_downcase) == "0x4cef52" and
+            (.expectedChainId | ascii_downcase) == "0x4cef52"
+          '
+      - name: Verify explicit Arc Testnet RPC health
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --silent --show-error --fail-with-body --max-time 25 "$BASE_URL/api/rpc?chain=arc_testnet")"
+          printf '%s\n' "$body" | jq -e '
+            .ok == true and
+            .chain == "arc_testnet" and
+            (.chainId | ascii_downcase) == "0x4cef52" and
+            (.expectedChainId | ascii_downcase) == "0x4cef52"
+          '
+      - name: Verify x402 Agent Service remains disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl --silent --show-error --max-time 20 -D "$headers" -o "$body" -w '%{http_code}' "$BASE_URL/api/x402/agent-service")"
+          test "$status" = "503"
+          grep -Eiq '^cache-control:[[:space:]]*no-store' "$headers"
+          jq -e '
+            .code == "X402_DISABLED" and
+            (has("accepts") | not) and
+            (has("payTo") | not) and
+            (has("price") | not) and
+            (has("settlement") | not) and
+            (has("paymentEnabled") | not) and
+            (has("paymentHash") | not) and
+            (has("authorized") | not)
+          ' "$body"
+          rm -f "$headers" "$body"
+      - name: Verify x402 Risk Oracle remains disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl --silent --show-error --max-time 20 -D "$headers" -o "$body" -w '%{http_code}' "$BASE_URL/api/x402/risk-oracle")"
+          test "$status" = "503"
+          grep -Eiq '^cache-control:[[:space:]]*no-store' "$headers"
+          jq -e '
+            .code == "X402_DISABLED" and
+            (has("accepts") | not) and
+            (has("payTo") | not) and
+            (has("price") | not) and
+            (has("settlement") | not) and
+            (has("paymentEnabled") | not) and
+            (has("paymentHash") | not) and
+            (has("authorized") | not)
+          ' "$body"
+          rm -f "$headers" "$body"
