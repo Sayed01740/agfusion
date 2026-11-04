@@ -252,30 +252,3 @@ This evidence does not authorize route activation, database mutation, payment,
 Mainnet use, wallet signing/broadcast, merge, or Production promotion. Keep
 both x402 routes fail-closed until every operational and independent-review
 gate is explicitly completed and approved.
-
-
-## Current PR #51 verification (2026-11-04)
-
-Exact PR head before this documentation reconciliation:
-`eaef87e55290bef453cf10fc5240157eddb2bd10`.
-
-- [x] CI #967 passed on that exact documentation-updated head, including
-  typecheck, unit tests, and production build.
-- [x] Dependency audit #229 passed on that exact documentation-updated head.
-- [x] CI #966, dependency audit #228, and disposable PostgreSQL integration #74
-  passed on the underlying code commit `891721e063ab1c951a3058bc2a1d6058cd7fadfa`.
-  The `eaef87e` commit changes documentation only.
-- [x] Matching Vercel Preview deployment reached READY.
-- [x] Read-only Preview GET checks: homepage 200; Arc Testnet RPC 200 with chain
-  ID `0x4cef52` (5042002); Agent Service and Risk Oracle both return
-  `503 X402_DISABLED` with `Cache-Control: no-store`.
-- [ ] Live POST settlement smoke test, Circle quote preparation, application
-  database rollout, Testnet payment, and paid-feed authorization remain
-  unperformed and unauthorized.
-- [ ] Independent source/security review remains outstanding. No independent
-  review submission is recorded on PR #51.
-
-This evidence does not authorize route activation, database mutation, payment,
-Mainnet use, wallet signing/broadcast, merge, or Production promotion. Keep
-both x402 routes fail-closed until every operational and independent-review
-gate is explicitly completed and approved.
