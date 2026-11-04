@@ -41,7 +41,7 @@ function arcRpcFetch(overrides: {
   };
 
   return (async (_url: string | URL | Request, init?: RequestInit) => {
-    const request = JSON.parse(String(init?.body)) as { method: string };
+    const request = JSON.parse(String(init?.body)) as { method: string; id: number };
     const result =
       request.method === "eth_chainId"
         ? overrides.chainId ?? "0x4cef52"
@@ -52,7 +52,7 @@ function arcRpcFetch(overrides: {
     // Use a real Fetch Response so the bounded streaming JSON reader exercises
     // the same text/body/header interface as the production RPC transport.
     return new Response(
-      JSON.stringify({ jsonrpc: "2.0", id: 1, result }),
+      JSON.stringify({ jsonrpc: "2.0", id: request.id, result }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }) as typeof fetch;
