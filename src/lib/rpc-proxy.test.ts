@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ARC_EXPECTED_CHAIN_ID_HEX,
   healthCheck,
+  isReadMethod,
   isWriteMethod,
   parseJsonRpc,
 } from "./rpc-proxy";
@@ -126,15 +127,58 @@ describe("rpc-proxy failover (Phase 2)", () => {
   });
 });
 
-describe("write-method safety (RULE 11)", () => {
-  it("write methods are never fail-over candidates", () => {
-    expect(isWriteMethod("eth_sendRawTransaction")).toBe(true);
-    expect(isWriteMethod("personal_sign")).toBe(true);
-    expect(isWriteMethod("eth_sendTransaction")).toBe(true);
-    expect(isWriteMethod("eth_getBalance")).toBe(false);
-    expect(isWriteMethod("eth_getTransactionReceipt")).toBe(false);
-    expect(isWriteMethod("eth_call")).toBe(false);
-    expect(isWriteMethod("eth_chainId")).toBe(false);
+describe("RPC method classification", () => {
+  it("classifies common state-changing and signing methods as non-retryable", () => {
+    for (const method of [
+      "eth_sendRawTransaction",
+      "eth_sendRawTransactionConditional",
+      "eth_sendTransaction",
+      "eth_sendPrivateTransaction",
+      "eth_sendBundle",
+      "eth_sendUserOperation",
+      "eth_sign",
+      "eth_signTransaction",
+      "eth_signTypedData",
+      "eth_signTypedData_v1",
+      "eth_signTypedData_v3",
+      "eth_signTypedData_v4",
+      "personal_sign",
+      "wallet_sendCalls",
+    ]) {
+      expect(isWriteMethod(method), method).toBe(true);
+      expect(isReadMethod(method), method).toBe(false);
+    }
+  });
+
+  it("allows only explicitly listed read methods to use failover", () => {
+    for (const method of [
+      "eth_blockNumber",
+      "eth_call",
+      "eth_chainId",
+      "eth_estimateGas",
+      "eth_getBalance",
+      "eth_getLogs",
+      "eth_getTransactionReceipt",
+      "eth_getTransactionCount",
+      "eth_getUserOperationReceipt",
+      "wallet_getCapabilities",
+    ]) {
+      expect(isReadMethod(method), method).toBe(true);
+      expect(isWriteMethod(method), method).toBe(false);
+    }
+  });
+
+  it("leaves unknown methods unclassified so the route can reject them", () => {
+    expect(isReadMethod("eth_unknownDangerousMethod")).toBe(false);
+    expect(isWriteMethod("eth_unknownDangerousMethod")).toBe(false);
+    expect(isReadMethod("wallet_unknownMethod")).toBe(false);
+    expect(isReadMethod("eth_accounts")).toBe(false);
+    expect(isReadMethod("eth_requestAccounts")).toBe(false);
+    expect(isWriteMethod("wallet_unknownMethod")).toBe(false);
+    // Filter creation and polling are stateful/non-idempotent, so they are not retryable reads.
+    expect(isReadMethod("eth_newFilter")).toBe(false);
+    expect(isReadMethod("eth_getFilterChanges")).toBe(false);
+    expect(isReadMethod("eth_getFilterLogs")).toBe(false);
   });
 });
 

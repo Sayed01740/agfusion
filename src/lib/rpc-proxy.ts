@@ -96,16 +96,78 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
   ],
 };
 
+/**
+ * Methods that may submit state changes or request wallet signatures.
+ * They are never sent through the read-only retry/failover path.
+ */
 const WRITE_METHODS = new Set<string>([
   "eth_sendRawTransaction",
+  "eth_sendRawTransactionConditional",
   "eth_sendTransaction",
+  "eth_sendPrivateTransaction",
+  "eth_sendBundle",
+  "eth_sendUserOperation",
   "eth_sign",
-  "personal_sign",
+  "eth_signTransaction",
+  "eth_signTypedData",
+  "eth_signTypedData_v1",
+  "eth_signTypedData_v3",
   "eth_signTypedData_v4",
+  "personal_sign",
+  "wallet_sendCalls",
+]);
+
+/**
+ * Explicit read-only surface supported by the proxy. Unknown methods fail
+ * closed instead of silently entering the retry/failover loop.
+ */
+const READ_METHODS = new Set<string>([
+  "eth_blockNumber",
+  "eth_call",
+  "eth_chainId",
+  "eth_estimateGas",
+  "eth_estimateUserOperationGas",
+  "eth_feeHistory",
+  "eth_gasPrice",
+  "eth_getBalance",
+  "eth_getBlockByHash",
+  "eth_getBlockByNumber",
+  "eth_getBlockReceipts",
+  "eth_getCode",
+  "eth_getLogs",
+  "eth_getProof",
+  "eth_getStorageAt",
+  "eth_getTransactionByBlockHashAndIndex",
+  "eth_getTransactionByBlockNumberAndIndex",
+  "eth_getTransactionByHash",
+  "eth_getTransactionCount",
+  "eth_getTransactionReceipt",
+  "eth_getUncleByBlockHashAndIndex",
+  "eth_getUncleByBlockNumberAndIndex",
+  "eth_getUncleCountByBlockHash",
+  "eth_getUncleCountByBlockNumber",
+  "eth_getUserOperationByHash",
+  "eth_getUserOperationReceipt",
+  "eth_maxPriorityFeePerGas",
+  "eth_mining",
+  "eth_protocolVersion",
+  "eth_supportedEntryPoints",
+  "eth_syncing",
+  "eth_blobBaseFee",
+  "net_listening",
+  "net_peerCount",
+  "net_version",
+  "web3_clientVersion",
+  "wallet_getCallsStatus",
+  "wallet_getCapabilities",
 ]);
 
 export function isWriteMethod(method: string): boolean {
   return WRITE_METHODS.has(method);
+}
+
+export function isReadMethod(method: string): boolean {
+  return READ_METHODS.has(method);
 }
 
 export function chainKey(raw: string | null): string {
