@@ -98,7 +98,7 @@ describe("POST /api/transactions request-body limit", () => {
     expect(mocks.persistTransaction).not.toHaveBeenCalled();
   });
 
-  it("rejects stepsJson exceeding its field-specific byte-safe character cap", async () => {
+  it("rejects stepsJson exceeding its field-specific character cap", async () => {
     const response = await POST(new Request("http://localhost/api/transactions", {
       method: "POST",
       headers: { "content-type": "application/json" },
