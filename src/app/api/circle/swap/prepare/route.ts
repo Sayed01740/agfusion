@@ -11,10 +11,8 @@ export const dynamic = "force-dynamic";
 const ARC_MAINNET_CHAIN_ID = 5042;
 const ARC_TESTNET_CHAIN_ID = 5042002;
 const ARC_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
-const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
-  USDC: "0x3600000000000000000000000000000000000000",
-  EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
-};
+// The API accepts token symbols; Circle App Kit resolves chain-specific token
+// metadata. Keep this list as an allowlist, not as a shared address map.
 const SUPPORTED_TOKENS = ["USDC", "EURC"] as const;
 type SupportedToken = (typeof SUPPORTED_TOKENS)[number];
 
@@ -129,8 +127,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
   }
   if (
-    !TOKEN_ADDRESSES[tokenIn] ||
-    !TOKEN_ADDRESSES[tokenOut] ||
+    !SUPPORTED_TOKENS.includes(tokenIn) ||
+    !SUPPORTED_TOKENS.includes(tokenOut) ||
     tokenIn === tokenOut
   ) {
     return NextResponse.json({ error: "unsupported_swap_pair" }, { status: 400 });
