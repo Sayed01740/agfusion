@@ -107,7 +107,7 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     }));
   });
 
-  it("rejects Arc Mainnet before reading the Circle Kit credential or preparing a quote", async () => {
+  it("rejects unsupported chains before reading the Circle Kit credential or preparing a quote", async () => {
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -116,14 +116,14 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
         amount: "1",
         tokenIn: "USDC",
         tokenOut: "EURC",
-        chainId: 5042,
+        chainId: 1,
       }),
     }));
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error: "unsupported_swap_chain",
-      detail: "Swap preparation is available on Arc Testnet only (5042002).",
+      detail: "Only Arc Mainnet (5042) and Arc Testnet (5042002) are supported.",
     });
     expect(mocks.getServerKitKey).not.toHaveBeenCalled();
     expect(mocks.estimateSwap).not.toHaveBeenCalled();
