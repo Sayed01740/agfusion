@@ -39,10 +39,7 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
   });
 
 
-  it.each([
-    [5042002, "Arc Testnet"],
-    [5042, "Arc Mainnet"],
-  ])("returns the requested chain ID (%s) rather than the runtime default", async (chainId) => {
+  it("accepts Arc Testnet and returns its explicit chain ID", async () => {
     mocks.getServerKitKey.mockReturnValue("test-kit-key");
     mocks.estimateSwap.mockResolvedValue({
       transactions: [{
@@ -59,12 +56,59 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
         amount: "1",
         tokenIn: "USDC",
         tokenOut: "EURC",
-        chainId,
+        chainId: 5042002,
       }),
     }));
 
     expect(response.status).toBe(200);
-    expect((await response.json()).chainId).toBe(chainId);
+    expect((await response.json()).chainId).toBe(5042002);
+    expect(mocks.estimateSwap).toHaveBeenCalledOnce();
+  });
+
+  it("rejects Arc Mainnet before reading the Circle Kit credential or preparing a quote", async () => {
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "1",
+        tokenIn: "USDC",
+        tokenOut: "EURC",
+        chainId: 5042,
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "unsupported_swap_chain",
+      detail: "Swap preparation is available on Arc Testnet only (5042002).",
+    });
+    expect(mocks.getServerKitKey).not.toHaveBeenCalled();
+    expect(mocks.estimateSwap).not.toHaveBeenCalled();
+  });
+
+  it("defaults to Arc Testnet even when no chain ID is supplied", async () => {
+    mocks.getServerKitKey.mockReturnValue("test-kit-key");
+    mocks.estimateSwap.mockResolvedValue({
+      transactions: [{
+        to: "0x1111111111111111111111111111111111111111",
+        data: "0x1234",
+      }],
+    });
+
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "1",
+        tokenIn: "USDC",
+        tokenOut: "EURC",
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).chainId).toBe(5042002);
     expect(mocks.estimateSwap).toHaveBeenCalledOnce();
   });
 
