@@ -29,7 +29,7 @@ const transactionStepsSchema = z.array(z.object({
  * An arbitrary ?address= / ?wallet= must never select another wallet's history.
  */
 export async function GET(req: Request) {
-  const rl = rateLimit(\`txget:\${clientIp(req)}\`, {
+  const rl = rateLimit("txget:" + clientIp(req), {
     windowMs: 60_000,
     max: 60,
   });
@@ -92,7 +92,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   const ip = clientIp(req);
-  const rl = rateLimit(\`txpost:\${ip}\`, { windowMs: 60_000, max: 60 });
+  const rl = rateLimit("txpost:" + ip, { windowMs: 60_000, max: 60 });
   if (!rl.ok) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
@@ -148,7 +148,7 @@ export async function POST(req: Request) {
   }
 
   const record: TransactionRecord = {
-    id: d.clientId || \`tx_\${Date.now()}\`,
+    id: d.clientId || "tx_" + Date.now(),
     type: d.type,
     status: d.status as TransactionRecord["status"],
     amount: d.amount,
