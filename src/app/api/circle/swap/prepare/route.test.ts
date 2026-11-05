@@ -23,7 +23,10 @@ vi.mock("@/lib/circle-kit-server", () => ({
   getServerKitKey: mocks.getServerKitKey,
 }));
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
+});
 
 describe("POST /api/circle/swap/prepare request-body limit", () => {
   it("rejects oversized bodies before quote preparation", async () => {
@@ -63,6 +66,45 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).chainId).toBe(5042002);
     expect(mocks.estimateSwap).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Arc Mainnet disabled unless the server release flag is enabled", async () => {
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "1", tokenIn: "USDC", tokenOut: "EURC", chainId: 5042,
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "mainnet_swap_disabled" });
+    expect(mocks.getServerKitKey).not.toHaveBeenCalled();
+    expect(mocks.estimateSwap).not.toHaveBeenCalled();
+  });
+
+  it("prepares an Arc Mainnet quote only when the server release flag is enabled", async () => {
+    vi.stubEnv("ARC_MAINNET_SWAP_ENABLED", "true");
+    mocks.getServerKitKey.mockReturnValue("test-kit-key");
+    mocks.estimateSwap.mockResolvedValue({
+      transactions: [{ to: "0x1111111111111111111111111111111111111111", data: "0x1234" }],
+    });
+
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "1", tokenIn: "USDC", tokenOut: "EURC", chainId: 5042,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ chainId: 5042, network: "mainnet" });
+    expect(mocks.estimateSwap).toHaveBeenCalledWith(expect.objectContaining({
+      from: expect.objectContaining({ chain: "Arc" }),
+    }));
   });
 
   it("rejects Arc Mainnet before reading the Circle Kit credential or preparing a quote", async () => {
