@@ -170,10 +170,10 @@ export async function POST(req: Request) {
       name: "Arc Testnet",
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
-        default: { http: [arcViemRpc] },
+        default: { http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"] },
       },
       blockExplorers: {
-        default: { name: "Arc Explorer", url: arcViemExplorer },
+        default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
       },
       testnet: true,
     });
