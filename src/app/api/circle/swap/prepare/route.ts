@@ -7,7 +7,8 @@ import { readLimitedJson } from "@/lib/read-limited-json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Swap preparation is intentionally restricted to Arc Testnet.
+// Mainnet support is implemented but remains opt-in until separately released.
+const ARC_MAINNET_CHAIN_ID = 5042;
 const ARC_TESTNET_CHAIN_ID = 5042002;
 const ARC_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
@@ -134,13 +135,17 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "unsupported_swap_pair" }, { status: 400 });
   }
-  if (chainId !== ARC_TESTNET_CHAIN_ID) {
+  const isMainnet = chainId === ARC_MAINNET_CHAIN_ID;
+  if (chainId !== ARC_TESTNET_CHAIN_ID && !isMainnet) {
     return NextResponse.json(
-      {
-        error: "unsupported_swap_chain",
-        detail: "Swap preparation is available on Arc Testnet only (5042002).",
-      },
+      { error: "unsupported_swap_chain", detail: "Only Arc Mainnet (5042) and Arc Testnet (5042002) are supported." },
       { status: 400 },
+    );
+  }
+  if (isMainnet && process.env.ARC_MAINNET_SWAP_ENABLED !== "true") {
+    return NextResponse.json(
+      { error: "mainnet_swap_disabled", detail: "Arc Mainnet swap preparation is disabled until the Mainnet release gate is enabled." },
+      { status: 403 },
     );
   }
 
@@ -164,18 +169,22 @@ export async function POST(req: Request) {
       import("viem"),
     ]);
 
-    // The endpoint is Testnet-only regardless of public runtime network flags.
+    // Select the chain only from the validated request chain ID. Mainnet is additionally gated server-side.
     const arcViem = viem.defineChain({
-      id: ARC_TESTNET_CHAIN_ID,
-      name: "Arc Testnet",
+      id: isMainnet ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID,
+      name: isMainnet ? "Arc" : "Arc Testnet",
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
-        default: { http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"] },
+        default: {
+          http: [isMainnet
+            ? (process.env.ARC_MAINNET_RPC_URL || "https://rpc.mainnet.arc.io")
+            : (process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io")],
+        },
       },
       blockExplorers: {
-        default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
+        default: { name: "Arc Explorer", url: isMainnet ? "https://explorer.arc.io" : "https://testnet.arcscan.app" },
       },
-      testnet: true,
+      testnet: !isMainnet,
     });
 
     const publicClient = viem.createPublicClient({
@@ -186,16 +195,16 @@ export async function POST(req: Request) {
     const provider = {
       request: async ({ method, params }: { method: string; params?: readonly unknown[] }) => {
         if (method === "eth_accounts") return [address];
-        if (method === "eth_chainId") return "0x4cef52";
+        if (method === "eth_chainId") return isMainnet ? "0x13b2" : "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
       },
     } as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
 
     const adapter = await createViemAdapterFromProvider({ provider });
 
-    // Cast through any because some installed App Kit typings lag the Testnet identifier.
+    // Circle App Kit uses the string identifiers "Arc" and "Arc_Testnet".
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const appKitChainName = "Arc_Testnet" as any;
+    const appKitChainName = (isMainnet ? "Arc" : "Arc_Testnet") as any;
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({
@@ -228,6 +237,7 @@ export async function POST(req: Request) {
       {
         ok: true,
         chainId,
+        network: isMainnet ? "mainnet" : "testnet",
         address,
         tokenIn,
         tokenOut,
