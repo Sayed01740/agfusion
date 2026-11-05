@@ -7,18 +7,9 @@ import { readLimitedJson } from "@/lib/read-limited-json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Both Arc Mainnet (5042) and Arc Testnet (5042002) are supported
-const ARC_MAINNET_CHAIN_ID = 5042;
+// Swap preparation is intentionally restricted to Arc Testnet.
 const ARC_TESTNET_CHAIN_ID = 5042002;
-
-// Detect whether we're configured for mainnet
-const IS_MAINNET =
-  process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ||
-  process.env.NEXT_PUBLIC_ARC_CHAIN_ID === "5042" ||
-  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.toLowerCase() === "0x13b2";
-
-/** Default chain ID follows the runtime Arc network config */
-const ARC_CHAIN_ID = IS_MAINNET ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
+const ARC_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
 const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
   USDC: "0x3600000000000000000000000000000000000000",
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
@@ -143,9 +134,12 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "unsupported_swap_pair" }, { status: 400 });
   }
-  if (chainId !== ARC_MAINNET_CHAIN_ID && chainId !== ARC_TESTNET_CHAIN_ID) {
+  if (chainId !== ARC_TESTNET_CHAIN_ID) {
     return NextResponse.json(
-      { error: "unsupported_swap_chain", detail: `Chain ${chainId} is not Arc Mainnet (5042) or Arc Testnet (5042002).` },
+      {
+        error: "unsupported_swap_chain",
+        detail: "Swap preparation is available on Arc Testnet only (5042002).",
+      },
       { status: 400 },
     );
   }
@@ -170,21 +164,10 @@ export async function POST(req: Request) {
       import("viem"),
     ]);
 
-    // Determine which Arc chain we are on for this request
-    const requestIsMainnet = chainId === ARC_MAINNET_CHAIN_ID;
-    const arcViemChainId = requestIsMainnet ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID;
-    const arcViemName = requestIsMainnet ? "Arc Mainnet" : "Arc Testnet";
-    const arcViemRpc = requestIsMainnet
-      ? (process.env.NEXT_PUBLIC_ARC_RPC_URL || "https://rpc.mainnet.arc.io")
-      : (process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io");
-    const arcViemExplorer = requestIsMainnet
-      ? "https://explorer.arc.io"
-      : "https://testnet.arcscan.app";
-    const arcChainHex = requestIsMainnet ? "0x13b2" : "0x4cef52";
-
+    // The endpoint is Testnet-only regardless of public runtime network flags.
     const arcViem = viem.defineChain({
-      id: arcViemChainId,
-      name: arcViemName,
+      id: ARC_TESTNET_CHAIN_ID,
+      name: "Arc Testnet",
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
         default: { http: [arcViemRpc] },
@@ -192,7 +175,7 @@ export async function POST(req: Request) {
       blockExplorers: {
         default: { name: "Arc Explorer", url: arcViemExplorer },
       },
-      testnet: !requestIsMainnet,
+      testnet: true,
     });
 
     const publicClient = viem.createPublicClient({
@@ -203,17 +186,16 @@ export async function POST(req: Request) {
     const provider = {
       request: async ({ method, params }: { method: string; params?: readonly unknown[] }) => {
         if (method === "eth_accounts") return [address];
-        if (method === "eth_chainId") return arcChainHex;
+        if (method === "eth_chainId") return "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
       },
     } as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
 
     const adapter = await createViemAdapterFromProvider({ provider });
 
-    // Circle App Kit chain identifier: "Arc" for mainnet, "Arc_Testnet" for testnet
-    // Cast via unknown to bridge the SwapChainIdentifier type which may not yet include "Arc"
+    // Cast through any because some installed App Kit typings lag the Testnet identifier.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const appKitChainName = (requestIsMainnet ? "Arc" : "Arc_Testnet") as any;
+    const appKitChainName = "Arc_Testnet" as any;
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({
