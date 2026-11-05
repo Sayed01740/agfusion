@@ -10,6 +10,17 @@
 | Explorer | https://explorer.arc.io | https://testnet.arcscan.app |
 | Circle App Kit chain | Arc | Arc_Testnet |
 
+## Chain-specific token metadata
+
+Arc USDC uses the same ERC-20 address on Mainnet and Testnet:
+`0x3600000000000000000000000000000000000000`.
+
+EURC is different across networks:
+- Mainnet: `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1`
+- Testnet: `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
+
+The API passes token symbols to Circle App Kit. Before enabling Mainnet, Preview verification must prove that App Kit resolves EURC to the Mainnet address above for the `Arc` chain and never uses the Testnet EURC address. The route must not treat a Testnet token address as valid Mainnet metadata.
+
 ## Default-safe behavior
 
 The Circle swap-preparation endpoint defaults to Arc Testnet when `chainId` is omitted. Unsupported chain IDs are rejected.
