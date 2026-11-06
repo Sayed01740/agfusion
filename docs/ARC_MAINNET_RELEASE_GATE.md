@@ -50,3 +50,16 @@ Set `ARC_MAINNET_SWAP_ENABLED=false` or remove the variable from the server envi
 ## Operational boundary
 
 This API prepares a quote and returns transaction data. It does not authorize a wallet signature or broadcast a transaction. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
+
+
+## Current UI execution boundary
+
+The current browser swap UI executes through `runCircleSafeSwapFlow()` and `runProductionSwap()`; it does not call the server-side `/api/circle/swap/prepare` route. The browser Mainnet quote/execute path is therefore explicitly fail-closed until a supported integration is completed.
+
+Do not re-enable Mainnet in the UI by changing a public network flag. Circle StableFX is permissioned and requires approved access, a live RFQ quote, trade-intent/funding authorization, and verified PvP settlement data. A reference FX rate or a direct call to the FxEscrow address is not a valid swap implementation. Circle App Kit `estimateSwap()` returns quote information and does not itself supply an unsigned transaction for a browser wallet.
+
+Before re-enabling Mainnet UI swaps:
+1. Confirm AGFusion has approved StableFX participant access and the required StableFX API credential, or select a separately verified Mainnet DEX with a published router ABI and live liquidity.
+2. Implement the documented RFQ/trade-intent/settlement workflow or verified DEX route, with wallet-confirmed typed-data/transaction steps.
+3. Add end-to-end tests through the actual UI execution path and confirm no signing or broadcast occurs before explicit user wallet confirmation.
+4. Keep Mainnet disabled until independent security review and explicit release approval.
