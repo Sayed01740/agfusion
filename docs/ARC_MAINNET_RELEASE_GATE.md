@@ -63,3 +63,8 @@ Before re-enabling Mainnet UI swaps:
 2. Implement the documented RFQ/trade-intent/settlement workflow or verified DEX route, with wallet-confirmed typed-data/transaction steps.
 3. Add end-to-end tests through the actual UI execution path and confirm no signing or broadcast occurs before explicit user wallet confirmation.
 4. Keep Mainnet disabled until independent security review and explicit release approval.
+
+
+## Swap-preparation API contract
+
+`/api/circle/swap/prepare` returns a Circle App Kit estimate only; an estimate contains quote fields such as estimated output, stop limit, and fees. It is not unsigned transaction calldata and must never be treated as a prepared executable transaction. Arc Mainnet returns `503 mainnet_swap_not_ready` even if the legacy `ARC_MAINNET_SWAP_ENABLED` flag is set, until an authorized StableFX or independently verified Mainnet DEX integration is implemented. The actual browser UI execution path is separately fail-closed for Mainnet.
