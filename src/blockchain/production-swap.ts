@@ -52,6 +52,15 @@ type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
 export type QuoteResult = { amountOut: string; route: string; slippageBps: number; path: `0x${string}`[] };
 
+/** Mainnet execution is blocked until AGFusion has an authorized, verified RFQ/DEX integration. */
+export function assertArcMainnetSwapAvailable(isMainnet: boolean): void {
+  if (isMainnet) {
+    throw new Error(
+      "Arc Mainnet swaps are not enabled yet. The current StableFX integration requires approved access, live RFQ quotes, and verified settlement calldata. No Mainnet transaction was submitted.",
+    );
+  }
+}
+
 const ROUTER_ABI = [
   { type: "function", name: "getAmountsOut", stateMutability: "view", inputs: [{ name: "amountIn", type: "uint256" }, { name: "path", type: "address[]" }], outputs: [{ name: "amounts", type: "uint256[]" }] },
   { type: "function", name: "swapExactETHForTokensSupportingFeeOnTransferTokens", stateMutability: "payable", inputs: [{ name: "amountOutMin", type: "uint256" }, { name: "path", type: "address[]" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }], outputs: [] },
@@ -324,6 +333,7 @@ export async function getArcDexSwapQuote(params: {
   } catch {}
 
   const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  assertArcMainnetSwapAvailable(isMainnet);
 
   // --- Arc Mainnet (StableFX Settlement) ---
   if (isMainnet) {
@@ -470,6 +480,9 @@ export async function runProductionSwap(params: {
   if (params.chain !== "Arc_Mainnet" && params.chain !== "Arc_Testnet" && params.chain !== "Arc") {
     throw new Error("Swap is only supported on Arc Mainnet and Arc Testnet.");
   }
+
+  // Fail closed before requesting wallet access or building a Mainnet transaction.
+  assertArcMainnetSwapAvailable(params.chain === "Arc_Mainnet" || params.chain === "Arc");
 
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
