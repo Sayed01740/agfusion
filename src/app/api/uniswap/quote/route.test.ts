@@ -67,8 +67,13 @@ describe("POST /api/uniswap/quote", () => {
       isTokenApprovalApplicable: true,
       quote: {
         classicGasUseEstimateUSD: "0.03",
+        input: {
+          token: "0x3600000000000000000000000000000000000000",
+          amount: "10250000",
+        },
         output: {
           token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1",
+          recipient: "0x1111111111111111111111111111111111111111",
           amount: "9900000",
           minimumAmount: "9801000",
         },
@@ -108,7 +113,10 @@ describe("POST /api/uniswap/quote", () => {
     vi.stubEnv("UNISWAP_API_KEY", "server-secret");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       routing: "DUTCH_V3",
-      quote: { output: { token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1", amount: "1" } },
+      quote: {
+        input: { token: "0x3600000000000000000000000000000000000000", amount: "10250000" },
+        output: { token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1", amount: "1" },
+      },
     }), { status: 200 })));
     const response = await POST(request(validBody));
     expect(response.status).toBe(422);
