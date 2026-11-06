@@ -45,10 +45,7 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
   it("accepts Arc Testnet and returns its explicit chain ID", async () => {
     mocks.getServerKitKey.mockReturnValue("test-kit-key");
     mocks.estimateSwap.mockResolvedValue({
-      transactions: [{
-        to: "0x1111111111111111111111111111111111111111",
-        data: "0x1234",
-      }],
+      estimatedOutput: { amount: "0.99", token: "EURC" }, stopLimit: { amount: "0.95", token: "EURC" }, fees: [],
     });
 
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
@@ -64,7 +61,7 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     }));
 
     expect(response.status).toBe(200);
-    expect((await response.json()).chainId).toBe(5042002);
+    expect((await response.json())).toMatchObject({ chainId: 5042002, network: "testnet", estimate: { estimatedOutput: { amount: "0.99" } } });
     expect(mocks.estimateSwap).toHaveBeenCalledOnce();
   });
 
@@ -84,12 +81,8 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     expect(mocks.estimateSwap).not.toHaveBeenCalled();
   });
 
-  it("prepares an Arc Mainnet quote only when the server release flag is enabled", async () => {
+  it("keeps Mainnet unavailable even when the legacy server flag is enabled", async () => {
     vi.stubEnv("ARC_MAINNET_SWAP_ENABLED", "true");
-    mocks.getServerKitKey.mockReturnValue("test-kit-key");
-    mocks.estimateSwap.mockResolvedValue({
-      transactions: [{ to: "0x1111111111111111111111111111111111111111", data: "0x1234" }],
-    });
 
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
       method: "POST",
@@ -100,11 +93,10 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
       }),
     }));
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ chainId: 5042, network: "mainnet" });
-    expect(mocks.estimateSwap).toHaveBeenCalledWith(expect.objectContaining({
-      from: expect.objectContaining({ chain: "Arc" }),
-    }));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: "mainnet_swap_not_ready" });
+    expect(mocks.getServerKitKey).not.toHaveBeenCalled();
+    expect(mocks.estimateSwap).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported chains before reading the Circle Kit credential or preparing a quote", async () => {
@@ -215,7 +207,7 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     }));
 
     expect(response.status).toBe(200);
-    expect((await response.json()).amountIn).toBe("1.123456");
+    expect((await response.json())).toMatchObject({ amountIn: "1.123456", estimate: { estimatedOutput: { amount: "0.99" } } });
     expect(mocks.estimateSwap).toHaveBeenCalledOnce();
   });
 
