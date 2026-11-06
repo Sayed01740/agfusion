@@ -36,6 +36,16 @@ describe("POST /api/uniswap/quote", () => {
     expect(await response.json()).toMatchObject({ error: "uniswap_api_not_configured" });
   });
 
+  it("rejects inherited object-property names as token symbols", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "test-key");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await POST(request({ ...validBody, tokenIn: "toString" }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "unsupported_swap_pair" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects Testnet and other chains before calling Uniswap", async () => {
     vi.stubEnv("UNISWAP_API_KEY", "test-key");
     const fetchMock = vi.fn();
