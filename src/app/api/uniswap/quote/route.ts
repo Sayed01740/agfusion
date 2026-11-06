@@ -117,22 +117,37 @@ export async function POST(req: Request) {
         { status: upstream.status === 429 ? 429 : 502 },
       );
     }
-    if (!isRecord(payload) || !isRecord(payload.quote) || !isRecord(payload.quote.output)) {
+    if (
+      !isRecord(payload) ||
+      !isRecord(payload.quote) ||
+      !isRecord(payload.quote.input) ||
+      !isRecord(payload.quote.output)
+    ) {
       return NextResponse.json({ error: "invalid_uniswap_quote" }, { status: 502 });
     }
 
     const routing = String(payload.routing || "");
+    const input = payload.quote.input;
     const output = payload.quote.output;
+    const inputToken = String(input.token || "").toLowerCase();
+    const inputAmount = String(input.amount || "");
     const outputToken = String(output.token || "").toLowerCase();
     const outputAmount = String(output.amount || "");
     const minimumAmount = String(output.minimumAmount || "");
+    const recipient = typeof output.recipient === "string" ? output.recipient.toLowerCase() : "";
     if (routing !== "CLASSIC") {
       return NextResponse.json(
         { error: "unsupported_uniswap_route", detail: "This preview currently supports CLASSIC wallet-signed routes only." },
         { status: 422 },
       );
     }
-    if (outputToken !== tokenOutMeta.address.toLowerCase() || !/^\d+$/.test(outputAmount)) {
+    if (
+      inputToken !== tokenInMeta.address.toLowerCase() ||
+      inputAmount !== amountBaseUnits ||
+      outputToken !== tokenOutMeta.address.toLowerCase() ||
+      (recipient && recipient !== wallet.toLowerCase()) ||
+      !/^\d+$/.test(outputAmount)
+    ) {
       return NextResponse.json({ error: "unverified_uniswap_quote" }, { status: 502 });
     }
     if (minimumAmount && !/^\d+$/.test(minimumAmount)) {
