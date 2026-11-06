@@ -27,53 +27,6 @@ function jsonSafe(value: unknown): unknown {
   return value;
 }
 
-function collectTransactions(
-  value: unknown,
-  out: Array<{ to: string; data: string; value?: string }> = [],
-) {
-  if (Array.isArray(value)) {
-    for (const item of value) collectTransactions(item, out);
-    return out;
-  }
-  if (!value || typeof value !== "object") return out;
-  const obj = value as Record<string, unknown>;
-  const to =
-    typeof obj.to === "string"
-      ? obj.to
-      : typeof obj.contractAddress === "string"
-        ? obj.contractAddress
-        : undefined;
-  const data =
-    typeof obj.data === "string"
-      ? obj.data
-      : typeof obj.callData === "string"
-        ? obj.callData
-        : undefined;
-  if (
-    to &&
-    data &&
-    /^0x[0-9a-fA-F]{40}$/.test(to) &&
-    /^0x[0-9a-fA-F]*$/.test(data)
-  ) {
-    const valueField =
-      typeof obj.value === "string"
-        ? obj.value
-        : typeof obj.amount === "string"
-          ? obj.amount
-          : undefined;
-    const key = `${to.toLowerCase()}:${data.toLowerCase()}:${valueField || "0"}`;
-    if (
-      !out.some(
-        (tx) =>
-          `${tx.to.toLowerCase()}:${tx.data.toLowerCase()}:${tx.value || "0"}` === key,
-      )
-    ) {
-      out.push({ to, data, ...(valueField ? { value: valueField } : {}) });
-    }
-  }
-  for (const child of Object.values(obj)) collectTransactions(child, out);
-  return out;
-}
 
 export async function POST(req: Request) {
   const rl = rateLimit(`circle-swap-prepare:${clientIp(req)}`, {
@@ -144,6 +97,19 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "mainnet_swap_disabled", detail: "Arc Mainnet swap preparation is disabled until the Mainnet release gate is enabled." },
       { status: 403 },
+    );
+  }
+
+  // The current UI uses a separate browser-wallet execution path. Circle StableFX
+  // is permissioned and its App Kit estimate is quote-only, not unsigned calldata.
+  // Keep this API fail-closed even if the legacy feature flag is accidentally set.
+  if (isMainnet) {
+    return NextResponse.json(
+      {
+        error: "mainnet_swap_not_ready",
+        detail: "Arc Mainnet requires an authorized StableFX or independently verified DEX execution integration. No quote or transaction was created.",
+      },
+      { status: 503 },
     );
   }
 
@@ -220,28 +186,17 @@ export async function POST(req: Request) {
       },
     });
 
-    const transactions = collectTransactions(estimate);
-    if (!transactions.length) {
-      return NextResponse.json(
-        {
-          error: "Circle App Kit returned a quote without executable transaction data.",
-          estimate: jsonSafe(estimate),
-        },
-        { status: 502 },
-      );
-    }
-
     return NextResponse.json(
       {
         ok: true,
         chainId,
-        network: isMainnet ? "mainnet" : "testnet",
+        network: "testnet",
         address,
         tokenIn,
         tokenOut,
         amountIn: amount,
         estimate: jsonSafe(estimate),
-        transactions: jsonSafe(transactions),
+        
       },
       { headers: { "Cache-Control": "no-store" } },
     );
