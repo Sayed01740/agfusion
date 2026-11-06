@@ -147,11 +147,11 @@ export async function POST(req: Request) {
       inputAmount !== amountBaseUnits ||
       outputToken !== tokenOutMeta.address.toLowerCase() ||
       (recipient && recipient !== wallet.toLowerCase()) ||
-      !/^\d+$/.test(outputAmount)
+      (!/^\\d+$/.test(outputAmount) || BigInt(outputAmount) <= 0n)
     ) {
       return NextResponse.json({ error: "unverified_uniswap_quote" }, { status: 502 });
     }
-    if (minimumAmount && !/^\d+$/.test(minimumAmount)) {
+    if (minimumAmount && (!/^\\d+$/.test(minimumAmount) || BigInt(minimumAmount) <= 0n)) {
       return NextResponse.json({ error: "invalid_uniswap_minimum" }, { status: 502 });
     }
 
