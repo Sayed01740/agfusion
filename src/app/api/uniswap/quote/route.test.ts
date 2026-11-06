@@ -1,0 +1,117 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { POST } from "./route";
+
+vi.mock("@/lib/rate-limit", () => ({
+  clientIp: () => "uniswap-arc-quote-test",
+  rateLimit: () => ({ ok: true }),
+}));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+function request(body: unknown) {
+  return new Request("http://localhost/api/uniswap/quote", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+const validBody = {
+  address: "0x1111111111111111111111111111111111111111",
+  amount: "10.25",
+  tokenIn: "USDC",
+  tokenOut: "EURC",
+  chainId: 5042,
+  slippageBps: 100,
+};
+
+describe("POST /api/uniswap/quote", () => {
+  it("fails closed when the server-only Uniswap API key is missing", async () => {
+    const response = await POST(request(validBody));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: "uniswap_api_not_configured" });
+  });
+
+  it("rejects Testnet and other chains before calling Uniswap", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "test-key");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await POST(request({ ...validBody, chainId: 5042002 }));
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["too many decimals", "1.1234567"],
+    ["exponent notation", "1e3"],
+    ["zero", "0"],
+    ["negative", "-1"],
+  ])("rejects invalid amount: %s", async (_label, amount) => {
+    vi.stubEnv("UNISWAP_API_KEY", "test-key");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await POST(request({ ...validBody, amount }));
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a verified quote summary and never returns calldata or permit payloads", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      requestId: "quote-123",
+      routing: "CLASSIC",
+      isTokenApprovalApplicable: true,
+      quote: {
+        classicGasUseEstimateUSD: "0.03",
+        output: {
+          token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1",
+          amount: "9900000",
+          minimumAmount: "9801000",
+        },
+      },
+      swapTransaction: { to: "0x2222222222222222222222222222222222222222", data: "0xdeadbeef" },
+      permitData: { domain: { name: "Permit2" } },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await POST(request(validBody));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data).toMatchObject({
+      ok: true,
+      chainId: 5042,
+      amountOut: "9.9",
+      minimumAmountOut: "9.801",
+      routing: "CLASSIC",
+      requiresApproval: true,
+      estimatedGasUsd: "0.03",
+    });
+    expect(data).not.toHaveProperty("swapTransaction");
+    expect(data).not.toHaveProperty("permitData");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers["x-api-key"]).toBe("server-secret");
+    expect(init.headers["x-universal-router-version"]).toBe("2.1.2");
+    expect(JSON.parse(init.body)).toMatchObject({
+      tokenInChainId: 5042,
+      tokenOutChainId: 5042,
+      amount: "10250000",
+      protocols: ["V2", "V3", "V4"],
+    });
+  });
+
+  it("rejects non-CLASSIC routing because order signing is not implemented", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      routing: "DUTCH_V3",
+      quote: { output: { token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1", amount: "1" } },
+    }), { status: 200 })));
+    const response = await POST(request(validBody));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: "unsupported_uniswap_route" });
+  });
+});
