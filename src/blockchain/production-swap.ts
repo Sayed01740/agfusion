@@ -17,9 +17,6 @@ const TESTNET_PAIR_WUSDC_EURC = "0x1d29b887cd430bc6884fdd68327163dcfcac40e1" as 
 
 // Contract addresses for Arc Mainnet (Chain ID 5042)
 // Official verified addresses from https://docs.arc.io/arc/references/contract-addresses
-const MAINNET_FX_ESCROW = "0xe2E5F173576B513d994073CCbDaCBE027d43DFe6" as `0x${string}`;
-const MAINNET_PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as `0x${string}`;
-
 /** Network-specific token registries */
 export const TOKENS_BY_CHAIN = {
   Arc_Testnet: {
@@ -39,7 +36,6 @@ const TOKENS = TOKENS_BY_CHAIN.Arc_Testnet;
 
 /** Decimal specifications */
 const ROUTER_DECIMALS = { USDC: 18, EURC: 6, cirBTC: 8 } as const;
-const DISPLAY_DECIMALS = { USDC: 6, EURC: 6, cirBTC: 8 } as const;
 
 const DEFAULT_SLIPPAGE_BPS = 100;
 const MIN_SLIPPAGE_BPS = 10;
@@ -178,10 +174,7 @@ async function blockTimestamp(provider: Provider): Promise<bigint> {
   return BigInt(Math.floor(Date.now() / 1000));
 }
 
-function effectiveAddress(token: ArcSwapToken, isMainnet: boolean): `0x${string}` {
-  if (isMainnet) {
-    return TOKENS_BY_CHAIN.Arc_Mainnet[token];
-  }
+function effectiveAddress(token: ArcSwapToken): `0x${string}` {
   return token === "USDC" ? TESTNET_WUSDC : TOKENS_BY_CHAIN.Arc_Testnet[token];
 }
 
@@ -235,10 +228,9 @@ async function quotePath(
   provider: Provider | null,
   amountIn: bigint,
   path: `0x${string}`[],
-  isMainnet: boolean
-): Promise<bigint> {
+ ): Promise<bigint> {
   const data = encodeFunctionData({ abi: ROUTER_ABI, functionName: "getAmountsOut", args: [amountIn, path] });
-  const raw = await ethCall(provider, TESTNET_ROUTER, data, isMainnet);
+  const raw = await ethCall(provider, TESTNET_ROUTER, data, false);
   const encoded = raw.slice(2);
   if (!encoded || encoded.length < 128) return 0n;
   try {
@@ -281,40 +273,6 @@ async function resolveTargetArcChain(
   };
 }
 
-/**
- * Real-time RFQ rate calculation for Arc Mainnet StableFX.
- * StableFX uses Request-For-Quote (RFQ) execution with zero slippage settlement on Arc.
- */
-function getStableFxMainnetQuote(amount: string, tokenIn: ArcSwapToken, tokenOut: ArcSwapToken): QuoteResult {
-  const n = Number(amount);
-  // Canonical market FX reference rates (EUR/USD ~1.082)
-  const RATES: Record<string, number> = {
-    "USDC-EURC": 0.9242,
-    "EURC-USDC": 1.0820,
-    "USDC-cirBTC": 0.00001053,
-    "cirBTC-USDC": 95000.0,
-    "EURC-cirBTC": 0.00001142,
-    "cirBTC-EURC": 87560.0,
-  };
-
-  const key = `${tokenIn}-${tokenOut}`;
-  const rate = RATES[key];
-  if (!rate) {
-    throw new Error(`Unsupported token pair ${tokenIn} → ${tokenOut} on Arc Mainnet.`);
-  }
-
-  const out = n * rate;
-  const decimals = DISPLAY_DECIMALS[tokenOut];
-  const formattedOut = out.toFixed(decimals > 6 ? 8 : 6);
-
-  return {
-    amountOut: formattedOut,
-    route: "Arc StableFX (Zero Slippage RFQ)",
-    slippageBps: 0,
-    path: [TOKENS_BY_CHAIN.Arc_Mainnet[tokenIn], TOKENS_BY_CHAIN.Arc_Mainnet[tokenOut]],
-  };
-}
-
 export async function getArcDexSwapQuote(params: {
   amount: string;
   tokenIn: string;
@@ -332,13 +290,8 @@ export async function getArcDexSwapQuote(params: {
     provider = await getInjectedProvider();
   } catch {}
 
-  const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  const { isMainnet } = await resolveTargetArcChain(provider, params.chain);
   assertArcMainnetSwapAvailable(isMainnet);
-
-  // --- Arc Mainnet (StableFX Settlement) ---
-  if (isMainnet) {
-    return getStableFxMainnetQuote(params.amount, tokenIn, tokenOut);
-  }
 
   // --- Arc Testnet (ApexiSwap DEX Settlement) ---
   // On Arc Testnet, the active on-chain liquidity pool is USDC ↔ EURC
@@ -349,8 +302,8 @@ export async function getArcDexSwapQuote(params: {
   }
 
   const amountIn = normalizeAmount(params.amount, tokenIn);
-  const a = effectiveAddress(tokenIn, false);
-  const b = effectiveAddress(tokenOut, false);
+  const a = effectiveAddress(tokenIn);
+  const b = effectiveAddress(tokenOut);
   const paths: `0x${string}`[][] = [];
   if (a !== b) paths.push([a, b]);
   if (a !== TESTNET_WUSDC && b !== TESTNET_WUSDC) paths.push([a, TESTNET_WUSDC, b]);
@@ -360,7 +313,7 @@ export async function getArcDexSwapQuote(params: {
   // Try router getAmountsOut
   for (const path of paths) {
     try {
-      const out = await quotePath(provider, amountIn, path, false);
+      const out = await quotePath(provider, amountIn, path);
       if (out > 0n) candidates.push({ path, out });
     } catch {}
   }
@@ -416,7 +369,7 @@ async function approveIfNeeded(
     })
   );
 
-  const chainKey = isMainnet ? "arc_mainnet" : "arc";
+  const chainKey = "arc";
   const receipt = await verifyReceiptOnChain({ chainKey, txHash: tx, attempts: 8, delayMs: 750 });
   if (receipt.status !== "success") throw new Error("Token approval was not confirmed on-chain.");
   return tx;
@@ -493,7 +446,7 @@ export async function runProductionSwap(params: {
   const slippageBps = normalizeSlippageBps(params.slippageBps ?? DEFAULT_SLIPPAGE_BPS);
   const provider = await getInjectedProvider();
   const accounts = await requestAccounts(provider);
-  const { chain: targetChain, isMainnet } = await resolveTargetArcChain(provider, params.chain);
+  const { chain: targetChain } = await resolveTargetArcChain(provider, params.chain);
 
   await switchToChainId(provider, targetChain);
   const owner = String(accounts[0]).toLowerCase() as `0x${string}`;
@@ -501,7 +454,7 @@ export async function runProductionSwap(params: {
   const quote = await getArcDexSwapQuote({ ...params, chain: targetChain });
 
   const quotedOut = parseUnits(quote.amountOut, effectiveDecimals(tokenOut));
-  const minOut = isMainnet ? quotedOut : (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
+  const minOut = (quotedOut * BigInt(10_000 - slippageBps)) / 10_000n;
   const deadline = (await blockTimestamp(provider)) + 300n;
 
   const steps: TxStep[] = [
@@ -512,8 +465,8 @@ export async function runProductionSwap(params: {
   ];
   params.onStep?.(steps.map((s) => ({ ...s })));
 
-  const tokenAddresses = isMainnet ? TOKENS_BY_CHAIN.Arc_Mainnet : TOKENS_BY_CHAIN.Arc_Testnet;
-  const spender = isMainnet ? MAINNET_FX_ESCROW : TESTNET_ROUTER;
+  const tokenAddresses = TOKENS_BY_CHAIN.Arc_Testnet;
+  const spender = TESTNET_ROUTER;
 
   // Approve token if needed
   if (tokenIn !== "USDC") {
@@ -524,7 +477,7 @@ export async function runProductionSwap(params: {
       amountIn,
       spender,
       tokenAddresses[tokenIn],
-      isMainnet
+      false
     );
     steps[1].state = "success";
     steps[1].txHash = approvalTx;
@@ -532,46 +485,26 @@ export async function runProductionSwap(params: {
   }
 
   let data: `0x${string}`;
-  let value: `0x${string}` = "0x0";
-  let targetAddress: `0x${string}`;
-
-  if (isMainnet) {
-    // Arc Mainnet StableFX settlement call
-    targetAddress = MAINNET_FX_ESCROW;
-    if (tokenIn === "USDC") {
-      value = `0x${amountIn.toString(16)}` as `0x${string}`;
-      data = "0x";
-    } else {
-      // Standard token deposit to escrow
-      data = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [MAINNET_FX_ESCROW, amountIn],
-      });
-    }
+  const value = (tokenIn === "USDC" ? `0x${amountIn.toString(16)}` : "0x0") as `0x${string}`;
+  const targetAddress = TESTNET_ROUTER;
+  if (tokenIn === "USDC") {
+    data = encodeFunctionData({
+      abi: ROUTER_ABI,
+      functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens",
+      args: [minOut, quote.path, owner, deadline],
+    });
+  } else if (tokenOut === "USDC") {
+    data = encodeFunctionData({
+      abi: ROUTER_ABI,
+      functionName: "swapExactTokensForETHSupportingFeeOnTransferTokens",
+      args: [amountIn, minOut, quote.path, owner, deadline],
+    });
   } else {
-    // Arc Testnet ApexiSwap Router call
-    targetAddress = TESTNET_ROUTER;
-    value = (tokenIn === "USDC" ? `0x${amountIn.toString(16)}` : "0x0") as `0x${string}`;
-    if (tokenIn === "USDC") {
-      data = encodeFunctionData({
-        abi: ROUTER_ABI,
-        functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens",
-        args: [minOut, quote.path, owner, deadline],
-      });
-    } else if (tokenOut === "USDC") {
-      data = encodeFunctionData({
-        abi: ROUTER_ABI,
-        functionName: "swapExactTokensForETHSupportingFeeOnTransferTokens",
-        args: [amountIn, minOut, quote.path, owner, deadline],
-      });
-    } else {
-      data = encodeFunctionData({
-        abi: ROUTER_ABI,
-        functionName: "swapExactTokensForTokensSupportingFeeOnTransferTokens",
-        args: [amountIn, minOut, quote.path, owner, deadline],
-      });
-    }
+    data = encodeFunctionData({
+      abi: ROUTER_ABI,
+      functionName: "swapExactTokensForTokensSupportingFeeOnTransferTokens",
+      args: [amountIn, minOut, quote.path, owner, deadline],
+    });
   }
 
   await preflightSwap(provider, owner, targetAddress, data, value, tokenIn, amountIn);
@@ -587,7 +520,7 @@ export async function runProductionSwap(params: {
             to: targetAddress,
             data: data || "0x",
             value,
-            gas: isMainnet ? "0x30d40" : "0x493e0", // 200k for mainnet FX / 300k for testnet DEX
+            gas: "0x493e0", // 300k for Arc Testnet DEX
           },
         ],
       })
