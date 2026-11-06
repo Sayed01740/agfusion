@@ -26,6 +26,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
   const [tokenOut, setTokenOut] = useState<ArcToken>(currentTokens.EURC || ARC_TOKENS.EURC);
   const [amountIn, setAmountIn] = useState("");
   const [amountOut, setAmountOut] = useState("");
+  const [minimumAmountOut, setMinimumAmountOut] = useState("");
   const [route, setRoute] = useState<string | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [slippageBps, setSlippageBps] = useState(100);
@@ -58,6 +59,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
     const n = Number(amountIn);
     if (!connected || !amountIn || !Number.isFinite(n) || n <= 0 || tokenIn.symbol === tokenOut.symbol) {
       setAmountOut("");
+      setMinimumAmountOut("");
       setRoute(null);
       setError(null);
       return;
@@ -75,11 +77,13 @@ export function SwapCard({ connected }: { connected: boolean }) {
         });
         if (quoteSeq.current !== seq) return;
         setAmountOut(q.amountOut);
+        setMinimumAmountOut(q.minimumAmountOut || "");
         setRoute(q.route);
         setError(null);
       } catch (e) {
         if (quoteSeq.current !== seq) return;
         setAmountOut("");
+        setMinimumAmountOut("");
         setRoute(null);
         setError(e instanceof Error ? e.message : "No quote available.");
       } finally {
@@ -87,7 +91,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [amountIn, tokenIn, tokenOut, connected]);
+  }, [amountIn, tokenIn, tokenOut, connected, meta.isMainnet]);
 
   async function onSwap() {
     setBusy(true);
@@ -117,11 +121,13 @@ export function SwapCard({ connected }: { connected: boolean }) {
     }
   }
 
-  const disabled = busy || !connected || !amountIn || Number(amountIn) <= 0 || tokenIn.symbol === tokenOut.symbol || !amountOut;
+  const disabled = busy || meta.isMainnet || !connected || !amountIn || Number(amountIn) <= 0 || tokenIn.symbol === tokenOut.symbol || !amountOut;
   const minReceived =
-    amountOut && Number(amountOut) > 0
-      ? (Number(amountOut) * (1 - slippageBps / 10_000)).toLocaleString(undefined, { maximumFractionDigits: 6 })
-      : null;
+    minimumAmountOut && Number(minimumAmountOut) > 0
+      ? minimumAmountOut
+      : amountOut && Number(amountOut) > 0
+        ? (Number(amountOut) * (1 - slippageBps / 10_000)).toLocaleString(undefined, { maximumFractionDigits: 6 })
+        : null;
 
   return (
     <div className="space-y-1.5">
@@ -192,6 +198,8 @@ export function SwapCard({ connected }: { connected: boolean }) {
           <>
             <Loader2 className="h-4 w-4 animate-spin" /> Swapping…
           </>
+        ) : meta.isMainnet ? (
+          "Mainnet quote only · swap disabled"
         ) : !connected ? (
           "Connect wallet to swap"
         ) : tokenIn.symbol === tokenOut.symbol ? (
