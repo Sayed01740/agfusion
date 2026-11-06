@@ -124,10 +124,9 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
   it("defaults to Arc Testnet even when no chain ID is supplied", async () => {
     mocks.getServerKitKey.mockReturnValue("test-kit-key");
     mocks.estimateSwap.mockResolvedValue({
-      transactions: [{
-        to: "0x1111111111111111111111111111111111111111",
-        data: "0x1234",
-      }],
+      estimatedOutput: { amount: "0.99", token: "EURC" },
+      stopLimit: { amount: "0.95", token: "EURC" },
+      fees: [],
     });
 
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
@@ -188,10 +187,9 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
   it("accepts the full six-decimal precision supported by Arc USDC/EURC", async () => {
     mocks.getServerKitKey.mockReturnValue("test-kit-key");
     mocks.estimateSwap.mockResolvedValue({
-      transactions: [{
-        to: "0x1111111111111111111111111111111111111111",
-        data: "0x1234",
-      }],
+      estimatedOutput: { amount: "0.99", token: "EURC" },
+      stopLimit: { amount: "0.95", token: "EURC" },
+      fees: [],
     });
 
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
