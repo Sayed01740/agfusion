@@ -68,3 +68,17 @@ Before re-enabling Mainnet UI swaps:
 ## Swap-preparation API contract
 
 `/api/circle/swap/prepare` returns a Circle App Kit estimate only; an estimate contains quote fields such as estimated output, stop limit, and fees. It is not unsigned transaction calldata and must never be treated as a prepared executable transaction. Arc Mainnet returns `503 mainnet_swap_not_ready` even if the legacy `ARC_MAINNET_SWAP_ENABLED` flag is set, until an authorized StableFX or independently verified Mainnet DEX integration is implemented. The actual browser UI execution path is separately fail-closed for Mainnet.
+
+
+## Uniswap Trading API quote preview (Arc Mainnet)
+
+Arc Mainnet quotes use the server-side `/api/uniswap/quote` proxy. The API key must be configured as `UNISWAP_API_KEY` in the Vercel Preview environment only for quote testing. Never use a `NEXT_PUBLIC_*` variable and never expose the key to the browser.
+
+- Fixed chain ID: `5042`.
+- Explicit Universal Router version: `2.1.2` (Arc does not support the older 2.0 deployment).
+- Mainnet token addresses: USDC `0x3600000000000000000000000000000000000000` (6 ERC-20 decimals), EURC `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1` (6 decimals), cirBTC `0x171A4217b86A807A64eB94757Db6849fb4bDbAA0` (8 decimals).
+- The proxy accepts only same-chain Arc Mainnet exact-input quotes and currently restricts routing to CLASSIC (V2/V3/V4). UniswapX order signing is not implemented.
+- The proxy returns quote summary only. It intentionally strips swap calldata, Permit2 payloads, and approval transactions.
+- The UI may display a Mainnet quote, but the Swap button remains disabled. The existing Testnet execution path is unchanged.
+
+Before enabling Mainnet execution, implement a separate wallet-confirmed approval/Permit2 and swap flow, verify router destination, chain ID, token pair, spender, amount, minimum output, deadline, gas and simulation, then add end-to-end tests. Live liquidity and quotes must be checked with the configured API key; supported chain status alone does not guarantee a route.
