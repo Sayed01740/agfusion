@@ -7,7 +7,7 @@ import { readLimitedJson } from "@/lib/read-limited-json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Mainnet support is implemented but remains opt-in until separately released.
+// Mainnet is recognized for validation but remains unavailable until an authorized settlement integration exists.
 const ARC_MAINNET_CHAIN_ID = 5042;
 const ARC_TESTNET_CHAIN_ID = 5042002;
 const ARC_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
@@ -133,22 +133,20 @@ export async function POST(req: Request) {
       import("viem"),
     ]);
 
-    // Select the chain only from the validated request chain ID. Mainnet is additionally gated server-side.
+    // This quote-only App Kit path is Testnet-only. Mainnet is rejected above.
     const arcViem = viem.defineChain({
-      id: isMainnet ? ARC_MAINNET_CHAIN_ID : ARC_TESTNET_CHAIN_ID,
-      name: isMainnet ? "Arc" : "Arc Testnet",
+      id: ARC_TESTNET_CHAIN_ID,
+      name: "Arc Testnet",
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
         default: {
-          http: [isMainnet
-            ? (process.env.ARC_MAINNET_RPC_URL || "https://rpc.mainnet.arc.io")
-            : (process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io")],
+          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"],
         },
       },
       blockExplorers: {
-        default: { name: "Arc Explorer", url: isMainnet ? "https://explorer.arc.io" : "https://testnet.arcscan.app" },
+        default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
       },
-      testnet: !isMainnet,
+      testnet: true,
     });
 
     const publicClient = viem.createPublicClient({
@@ -159,7 +157,7 @@ export async function POST(req: Request) {
     const provider = {
       request: async ({ method, params }: { method: string; params?: readonly unknown[] }) => {
         if (method === "eth_accounts") return [address];
-        if (method === "eth_chainId") return isMainnet ? "0x13b2" : "0x4cef52";
+        if (method === "eth_chainId") return "0x4cef52";
         return publicClient.request({ method: method as never, params: params as never });
       },
     } as unknown as Parameters<typeof createViemAdapterFromProvider>[0]["provider"];
@@ -168,7 +166,7 @@ export async function POST(req: Request) {
 
     // Circle App Kit uses the string identifiers "Arc" and "Arc_Testnet".
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const appKitChainName = (isMainnet ? "Arc" : "Arc_Testnet") as any;
+    const appKitChainName = "Arc_Testnet" as any;
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({
