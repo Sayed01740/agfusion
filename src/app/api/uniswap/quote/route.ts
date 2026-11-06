@@ -61,7 +61,8 @@ export async function POST(req: Request) {
   if (chainId !== ARC_MAINNET_CHAIN_ID) {
     return NextResponse.json({ error: "unsupported_swap_chain" }, { status: 400 });
   }
-  if (!(tokenIn in TOKENS) || !(tokenOut in TOKENS) || tokenIn === tokenOut) {
+  const supportedSymbols = Object.keys(TOKENS) as TokenSymbol[];
+  if (!supportedSymbols.includes(tokenIn) || !supportedSymbols.includes(tokenOut) || tokenIn === tokenOut) {
     return NextResponse.json({ error: "unsupported_swap_pair" }, { status: 400 });
   }
   if (!Number.isInteger(slippageBps) || slippageBps < 10 || slippageBps > 500) {
