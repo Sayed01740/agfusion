@@ -3,7 +3,7 @@ import { getInjectedProvider, requestAccounts, switchToChainId } from "@/sdk/wal
 import { explorerTxUrl, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { verifyReceiptOnChain } from "@/lib/tx-verify";
 import { shortenAddress, uid } from "@/lib/utils";
-import { encodeFunctionData, formatUnits, parseUnits } from "viem";
+import { encodeFunctionData, formatUnits, isAddress, parseUnits } from "viem";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -46,7 +46,7 @@ const ARC_SCA_GAS_RESERVE = parseUnits("0.015", 18);
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
-export type QuoteResult = { amountOut: string; route: string; slippageBps: number; path: `0x${string}`[] };
+export type QuoteResult = { amountOut: string; minimumAmountOut?: string; route: string; slippageBps: number; path: `0x${string}`[] };
 
 /** Mainnet execution is blocked until AGFusion has an authorized, verified RFQ/DEX integration. */
 export function assertArcMainnetSwapAvailable(isMainnet: boolean): void {
@@ -291,6 +291,51 @@ export async function getArcDexSwapQuote(params: {
   } catch {}
 
   const { isMainnet } = await resolveTargetArcChain(provider, params.chain);
+
+  if (isMainnet) {
+    if (!provider) throw new Error("Connect an Arc Mainnet wallet to request a quote.");
+    const [chainValue, accountsValue] = await Promise.all([
+      provider.request({ method: "eth_chainId" }),
+      provider.request({ method: "eth_accounts" }),
+    ]);
+    if (String(chainValue || "").toLowerCase() !== "0x13b2") {
+      throw new Error("Switch your wallet to Arc Mainnet before requesting a quote.");
+    }
+    const walletAddress = Array.isArray(accountsValue) ? String(accountsValue[0] || "") : "";
+    if (!isAddress(walletAddress)) throw new Error("Connect a wallet account to request an Arc Mainnet quote.");
+
+    const response = await fetch("/api/uniswap/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        address: walletAddress,
+        amount: params.amount,
+        tokenIn,
+        tokenOut,
+        chainId: 5042,
+        slippageBps: params.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
+      }),
+    });
+    const result = await response.json().catch(() => null) as {
+      error?: string;
+      detail?: string;
+      amountOut?: string;
+      minimumAmountOut?: string | null;
+      routing?: string;
+    } | null;
+    if (!response.ok || !result?.amountOut) {
+      throw new Error(result?.detail || result?.error || "Uniswap could not provide an Arc Mainnet quote.");
+    }
+    return {
+      amountOut: result.amountOut,
+      minimumAmountOut: result.minimumAmountOut || undefined,
+      route: `Uniswap Trading API · ${result.routing || "CLASSIC"}`,
+      slippageBps: params.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
+      path: [],
+    };
+  }
+
   assertArcMainnetSwapAvailable(isMainnet);
 
   // --- Arc Testnet (ApexiSwap DEX Settlement) ---
