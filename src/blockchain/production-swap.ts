@@ -278,6 +278,7 @@ export async function getArcDexSwapQuote(params: {
   tokenIn: string;
   tokenOut: string;
   chain?: ChainId;
+  slippageBps?: number;
 }): Promise<QuoteResult> {
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
