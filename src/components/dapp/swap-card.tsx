@@ -74,6 +74,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
           tokenIn: tokenIn.symbol,
           tokenOut: tokenOut.symbol,
           chain: meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+          slippageBps,
         });
         if (quoteSeq.current !== seq) return;
         setAmountOut(q.amountOut);
@@ -91,7 +92,7 @@ export function SwapCard({ connected }: { connected: boolean }) {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [amountIn, tokenIn, tokenOut, connected, meta.isMainnet]);
+  }, [amountIn, tokenIn, tokenOut, connected, meta.isMainnet, slippageBps]);
 
   async function onSwap() {
     setBusy(true);
