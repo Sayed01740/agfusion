@@ -458,7 +458,7 @@ export async function runProductionSwap(params: {
   const deadline = (await blockTimestamp(provider)) + 300n;
 
   const steps: TxStep[] = [
-    { name: "Live quote", state: "success", message: `${quote.route} · ${isMainnet ? "Zero slippage" : `${slippageBps / 100}% slippage`}` },
+    { name: "Live quote", state: "success", message: `${quote.route} · ${slippageBps / 100}% slippage` },
     { name: "Approve", state: tokenIn === "USDC" ? "success" : "active" },
     { name: "Swap", state: "pending" },
     { name: "Receipt", state: "pending" },
@@ -537,7 +537,7 @@ export async function runProductionSwap(params: {
   steps[3].txHash = txHash;
   params.onStep?.(steps.map((s) => ({ ...s })));
 
-  const chainKey = isMainnet ? "arc_mainnet" : "arc";
+  const chainKey = "arc";
 
   // Dual verification strategy:
   // 1. Direct wallet provider query (lowest latency, zero proxy hops)
@@ -636,7 +636,7 @@ export async function runProductionSwap(params: {
   steps[3].state = "success";
   params.onStep?.(steps.map((s) => ({ ...s })));
 
-  const protocolName = isMainnet ? "Arc StableFX (Mainnet)" : "ApexiSwap DEX (Testnet)";
+  const protocolName = "ApexiSwap DEX (Testnet)";
   return {
     id: uid("tx"),
     type: "swap",
