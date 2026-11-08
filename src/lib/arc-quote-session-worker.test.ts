@@ -7,8 +7,9 @@ const tokenHash = "a".repeat(64);
 
 function setup(changes = 1) {
   const run = vi.fn().mockResolvedValue({ success: true, meta: { changes } });
-  const bind = vi.fn(function (this: unknown) { return statement; });
-  const statement = { bind, run } as unknown as D1Statement;
+  let statement: D1Statement;
+  const bind = vi.fn(() => statement);
+  statement = { bind, run } as unknown as D1Statement;
   const prepare = vi.fn().mockReturnValue(statement);
   const env: Env = { DB: { prepare } as unknown as D1Database, API_TOKEN: apiToken };
   return { env, prepare, bind, run };
@@ -69,8 +70,8 @@ describe("Cloudflare D1 quote-session Worker", () => {
   });
 
   it("fails closed if D1 throws", async () => {
-    const { env } = setup();
-    env.DB.prepare = vi.fn().mockImplementation(() => { throw new Error("D1 offline"); });
+    const { env, prepare } = setup();
+    prepare.mockImplementation(() => { throw new Error("D1 offline"); });
     const response = await handleRequest(request("/v1/sessions/consume", {
       tokenHash, account, chainId: 5042,
     }), env);
