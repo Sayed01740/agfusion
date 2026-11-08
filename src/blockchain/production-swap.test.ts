@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ChainId } from "@/types";
+import {
+  assertArcMainnetSwapAvailable,
+  assertArcTestnetSwapExecution,
+  runProductionSwap,
+} from "@/blockchain/production-swap";
 
 const walletMocks = vi.hoisted(() => ({
   getInjectedProvider: vi.fn(),
@@ -10,12 +15,6 @@ vi.mock("@/sdk/wallet-adapter", () => ({
   requestAccounts: vi.fn(),
   switchToChainId: vi.fn(),
 }));
-
-import {
-  assertArcMainnetSwapAvailable,
-  assertArcTestnetSwapExecution,
-  runProductionSwap,
-} from "@/blockchain/production-swap";
 
 describe("Arc Mainnet swap execution release gate", () => {
   it("fails closed for Mainnet before wallet access or transaction preparation", () => {
