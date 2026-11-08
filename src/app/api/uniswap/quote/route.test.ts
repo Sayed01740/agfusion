@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
+const storeMocks = vi.hoisted(() => ({ register: vi.fn() }));
+vi.mock("@/lib/arc-quote-session-store", () => ({ registerArcQuoteSession: storeMocks.register }));
+
 vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "uniswap-arc-quote-test",
   rateLimit: () => ({ ok: true }),
@@ -134,7 +137,7 @@ describe("POST /api/uniswap/quote", () => {
     expect(data).not.toHaveProperty("quote");
     expect(data.quoteSession).toEqual(expect.any(String));
     expect(data.quoteSessionExpiresAt).toEqual(expect.any(Number));
-    expect(data.permitData).toEqual(permitData);
+    expect(data.permitData).toEqual(permitData);\n    expect(storeMocks.register).toHaveBeenCalledWith({\n      token: data.quoteSession,\n      account: validBody.address,\n      chainId: 5042,\n      expiresAt: data.quoteSessionExpiresAt,\n    });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["x-api-key"]).toBe("server-secret");
