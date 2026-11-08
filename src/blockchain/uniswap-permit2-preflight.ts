@@ -103,8 +103,8 @@ export type ArcMainnetPermit2Preflight = {
   nativeGasBalance: bigint;
   erc20AllowanceToPermit2: bigint;
   permit2AllowanceToRouter: bigint;
-  permit2Expiration: bigint;
-  permit2Nonce: bigint;
+  permit2Expiration: number;
+  permit2Nonce: number;
   hasTokenBalance: boolean;
   hasGasReserve: boolean;
   requiresErc20Approval: boolean;
@@ -141,7 +141,7 @@ export async function readArcMainnetPermit2Preflight(params: {
   const hasTokenBalance = tokenBalance >= params.amount;
   const hasGasReserve = nativeGasBalance >= ARC_MAINNET_GAS_RESERVE;
   const requiresErc20Approval = erc20Allowance < params.amount;
-  const requiresPermit2Signature = permit2AllowanceToRouter < params.amount || permit2Expiration <= BigInt(now);
+  const requiresPermit2Signature = permit2AllowanceToRouter < params.amount || BigInt(permit2Expiration) <= BigInt(now);
 
   return {
     chainId: ARC_MAINNET_CHAIN_ID,
