@@ -10,6 +10,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 afterEach(() => {
+  storeMocks.register.mockReset().mockResolvedValue({ ok: true });
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -137,7 +138,13 @@ describe("POST /api/uniswap/quote", () => {
     expect(data).not.toHaveProperty("quote");
     expect(data.quoteSession).toEqual(expect.any(String));
     expect(data.quoteSessionExpiresAt).toEqual(expect.any(Number));
-    expect(data.permitData).toEqual(permitData);\n    expect(storeMocks.register).toHaveBeenCalledWith({\n      token: data.quoteSession,\n      account: validBody.address,\n      chainId: 5042,\n      expiresAt: data.quoteSessionExpiresAt,\n    });
+    expect(data.permitData).toEqual(permitData);
+    expect(storeMocks.register).toHaveBeenCalledWith({
+      token: data.quoteSession,
+      account: validBody.address,
+      chainId: 5042,
+      expiresAt: data.quoteSessionExpiresAt,
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["x-api-key"]).toBe("server-secret");
@@ -150,6 +157,27 @@ describe("POST /api/uniswap/quote", () => {
       protocols: ["V2", "V3"],
       permitAmount: "EXACT",
     });
+  });
+
+  it("does not return a quote session when durable storage is unavailable", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", SESSION_SECRET);
+    storeMocks.register.mockResolvedValue({ ok: false, reason: "database_unavailable" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      routing: "CLASSIC",
+      quote: {
+        input: { token: "0x3600000000000000000000000000000000000000", amount: "10250000" },
+        output: {
+          token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1",
+          recipient: validBody.address,
+          amount: "9900000",
+          minimumAmount: "9801000",
+        },
+      },
+    }), { status: 200 })));
+    const response = await POST(request(validBody));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: "quote_session_store_unavailable" });
   });
 
   it("rejects a quote without the expected recipient", async () => {
