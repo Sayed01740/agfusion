@@ -71,7 +71,7 @@ Arc Mainnet quotes use the server-side `/api/uniswap/quote` proxy. The API key m
 - Explicit Universal Router version: `2.1.2` (Arc does not support the older 2.0 deployment).
 - Mainnet token addresses: USDC `0x3600000000000000000000000000000000000000` (6 ERC-20 decimals), EURC `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1` (6 decimals), cirBTC `0x171A4217b86A807A64eB94757Db6849fb4bDbAA0` (8 decimals).
 - The proxy accepts only same-chain Arc Mainnet exact-input quotes and currently restricts routing to CLASSIC V2/V3. V4 command decoding and UniswapX order signing are not implemented.
-- The proxy returns quote summary only. It intentionally strips swap calldata, Permit2 payloads, and approval transactions.
+- The proxy returns a normalized quote summary, a 60-second encrypted quote-session token, and the exact Permit2 typed-data payload only when a wallet signature is required. Raw quote details remain encrypted in the session; swap calldata and approval transactions are not returned by the quote endpoint.
 - The request does not set `x-permit2-disabled`. Uniswap's Proxy Approval contract is not listed as deployed on Arc, so the no-Permit2 flow is not an approved option for this network.
 - `@uniswap/universal-router-sdk` is pinned to `5.16.2`, and the validation-only adapter explicitly decodes with `UniversalRouterVersion.V2_1_2`. The validator rejects unsupported commands and does not sign or broadcast.
 - The UI may display a Mainnet quote, but the Swap button remains disabled. The existing Testnet execution path is unchanged.
@@ -84,3 +84,19 @@ Before enabling Mainnet execution, implement a separate wallet-confirmed approva
 The validation-only adapter at `src/blockchain/uniswap-mainnet-adapter.ts` verifies Arc chain ID 5042, the official Universal Router 2.1.2 destination, the quoted sender, quote freshness, exact input, V2/V3 token path, per-hop slippage bounds, final minimum output, zero native value, gas fields, and a bounded execute deadline. It rejects Permit2 signature commands, V4, exact-output, subplans, unknown commands, and allow-revert flags.
 
 The adapter is not wired into the browser swap flow. Permit2 typed-data signing, exact ERC-20 approval to Permit2, allowance/balance checks, strict Mainnet simulation, wallet chain/account rechecks, transaction submission, and receipt verification remain mandatory work before any Mainnet execution review.
+
+
+## Current implementation checkpoint (2026-11-08)
+
+The following backend groundwork is implemented on the isolated Arc Mainnet feature branch:
+
+- AES-256-GCM encrypted quote sessions with a 60-second lifetime, binding wallet, chain 5042, token pair, exact input, quoted output, minimum output, raw quote, and Permit2 payload.
+- Preview-only sensitive `AGFUSION_QUOTE_SESSION_SECRET`; no Production or Development target.
+- `POST /api/uniswap/preflight`: read-only token/native-gas balances and ERC-20/Permit2 allowance/nonce/expiry checks; unsigned exact-amount Permit2 approval data only when needed.
+- Permit2 EIP-712 schema/domain/signer validation, exact amount and spender checks, and nonce comparison against current Arc Mainnet state.
+- `POST /api/uniswap/swap`: disabled unless `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=true`. The current Preview branch explicitly sets it to `false`. If separately enabled for controlled review, it requests Uniswap `/swap` with upstream simulation, validates Universal Router 2.1.2 calldata, runs local `eth_call` and `eth_estimateGas`, and returns unsigned transaction data only.
+- A pure wallet chain/account recheck helper for chain 5042.
+- Encrypted 24-hour receipt tickets and read-only `POST /api/uniswap/receipt` verification of transaction chain/sender/router, successful receipt, exact input transfer, and minimum output transfer.
+- Automated tests cover session encryption/tampering/expiry, Permit2 signature validation, exact approvals, preflight validation, transaction preparation gating, local simulation, wallet-state checks, and receipt verification.
+
+Still not implemented: durable atomic one-time quote-session consumption/replay protection, wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, and independent security review. The same encrypted quote session can currently be replayed during its 60-second lifetime; Permit2 nonce checks are not a complete substitute, especially when a pre-existing Permit2 allowance is used. Do not enable the Preview switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.

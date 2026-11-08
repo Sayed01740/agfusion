@@ -1,8 +1,16 @@
+import { afterEach, vi } from "vitest";
 import { encodeFunctionData } from "viem";
+
+const rpc = vi.hoisted(() => ({ call: vi.fn(), estimateGas: vi.fn() }));
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return { ...actual, createPublicClient: () => ({ call: rpc.call, estimateGas: rpc.estimateGas }) };
+});
 import { describe, expect, it } from "vitest";
 import {
   ARC_MAINNET_SWAP_TOKENS,
   buildExactPermit2Approval,
+  simulateArcMainnetSwapTransaction,
 } from "@/blockchain/uniswap-permit2-preflight";
 import { ARC_PERMIT2_CONTRACT } from "@/blockchain/uniswap-permit2";
 
@@ -50,5 +58,52 @@ describe("Arc Mainnet exact Permit2 approval builder", () => {
 
   it("rejects an invalid wallet address", () => {
     expect(() => buildExactPermit2Approval("not-an-address", USDC, 1n)).toThrow(/wallet account/);
+  });
+});
+
+
+describe("Arc Mainnet swap simulation", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const simulationInput = {
+    account: ACCOUNT,
+    to: "0x8702463e73f74d0b6765aBceb314Ef07aCb92650",
+    data: "0x1234",
+    gasLimit: "300000",
+    maxFeePerGas: "1000000000",
+    nativeGasBalance: 20_000_000_000_000_000n,
+  };
+
+  it("requires a successful eth_call and checks gas cost plus reserve", async () => {
+    rpc.call.mockResolvedValue({ data: "0x" });
+    rpc.estimateGas.mockResolvedValue(250_000n);
+    const result = await simulateArcMainnetSwapTransaction(simulationInput);
+    expect(result).toMatchObject({
+      estimatedGas: 250_000n,
+      maxFeePerGas: 1_000_000_000n,
+      estimatedGasCost: 250_000_000_000_000n,
+      requiredNativeBalance: 15_250_000_000_000_000n,
+    });
+  });
+
+  it("rejects when eth_call reverts", async () => {
+    rpc.call.mockRejectedValue(new Error("execution reverted"));
+    await expect(simulateArcMainnetSwapTransaction(simulationInput)).rejects.toThrow(/execution reverted/);
+    expect(rpc.estimateGas).not.toHaveBeenCalled();
+  });
+
+  it("rejects an estimate above the upstream gas limit", async () => {
+    rpc.call.mockResolvedValue({ data: "0x" });
+    rpc.estimateGas.mockResolvedValue(300_001n);
+    await expect(simulateArcMainnetSwapTransaction(simulationInput)).rejects.toThrow(/exceeds the Uniswap transaction gas limit/);
+  });
+
+  it("rejects insufficient native USDC for gas and the reserve", async () => {
+    rpc.call.mockResolvedValue({ data: "0x" });
+    rpc.estimateGas.mockResolvedValue(250_000n);
+    await expect(simulateArcMainnetSwapTransaction({
+      ...simulationInput,
+      nativeGasBalance: 15_249_999_999_999_999n,
+    })).rejects.toThrow(/insufficient for estimated gas/);
   });
 });

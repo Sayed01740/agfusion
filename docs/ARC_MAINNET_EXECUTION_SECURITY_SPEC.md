@@ -1,18 +1,23 @@
 # Arc Mainnet Swap Execution Security Specification
 
-**Status:** Validation-only Universal Router adapter implemented; Mainnet swap execution remains disabled.
+**Status:** Encrypted quote sessions, Permit2 validation, exact-approval preflight, gated unsigned swap preparation, local simulation, wallet-state guard, and receipt verification groundwork implemented; Mainnet wallet execution remains disabled.
 **Scope:** Future wallet-confirmed Arc Mainnet swaps through a separately verified DEX adapter or an authorized Circle StableFX integration.
 **Non-goal:** This document does not authorize deployment, enable a feature flag, sign transactions, or broadcast transactions.
 
 ## 1. Current execution boundary
 
-- The Mainnet quote proxy is quote-only. It returns a normalized summary and never returns calldata, approval transactions, Permit2 payloads, or signing material. The quote request uses standard Permit2 mode and restricts routes to V2/V3 exact-input pools.
+- The Mainnet quote proxy returns a normalized quote summary, a 60-second AES-256-GCM encrypted quote-session token, and only the exact Permit2 typed-data message needed for an explicit wallet signature. It never returns upstream swap calldata or approval transactions. Quotes request EXACT Permit2 amounts and restrict routes to V2/V3 exact-input pools.
+- `AGFUSION_QUOTE_SESSION_SECRET` is configured as a sensitive Preview-only variable scoped to this feature branch. It is not configured for Production or Development.
+- `POST /api/uniswap/preflight` performs read-only token, native gas, ERC-20 allowance, and Permit2 allowance/nonce checks. If needed, it returns unsigned exact-amount ERC-20 approval calldata to the canonical Permit2 contract only.
+- `POST /api/uniswap/swap` is a gated preparation endpoint. It defaults to HTTP 403 unless `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=true`; the Preview branch explicitly sets this switch to `false`. If separately enabled for controlled review, it validates the encrypted quote binding and Permit2 signature, requests Uniswap `/swap` with upstream simulation enabled, validates Universal Router calldata, performs local `eth_call` and `eth_estimateGas`, and returns unsigned transaction data only. It never prompts a wallet or broadcasts.
 - The browser UI may display a Mainnet quote, but its Swap action remains disabled.
-- `runProductionSwap()` is restricted to the exact `Arc_Testnet` chain before wallet-provider access. The current ApexiSwap router, token registry, spender, and receipt-verification path are Testnet-only.
-- The Circle App Kit preparation endpoint rejects Mainnet. An estimate is not unsigned transaction data.
+- `runProductionSwap()` is restricted to the exact `Arc_Testnet` chain before wallet-provider access. The existing ApexiSwap execution path remains Testnet-only.
+- `POST /api/circle/swap/prepare` rejects Mainnet. A Circle estimate is not unsigned transaction data.
+- `POST /api/uniswap/receipt` verifies a submitted transaction against an encrypted 24-hour receipt ticket, Arc Mainnet transaction metadata, exact input token transfer, and minimum output token transfer. It is read-only and cannot submit transactions.
+- `assertArcMainnetWalletState()` is a pure guard for rechecking chain ID 5042 and the quoted account immediately before a future wallet prompt. It is not yet wired into a wallet execution UI.
 - No Mainnet execution code may reuse Testnet router addresses, token metadata, RPC fallback lists, chain keys, or approval assumptions.
 
-The validation-only adapter in `src/blockchain/uniswap-mainnet-adapter.ts` uses `@uniswap/universal-router-sdk` 5.16.2 and explicitly passes `UniversalRouterVersion.V2_1_2`. It accepts only a narrow set of exact-input V2/V3 commands and verifies raw command flags, wallet, chain, router, quote age, deadline, input amount, allowlisted token path, output recipient, quote output/minimum bounds, canonical calldata, and gas fields. It is not wired to a wallet or UI execution path and performs no simulation, approval, signing, broadcast, or receipt verification.
+The adapter in `src/blockchain/uniswap-mainnet-adapter.ts` uses `@uniswap/universal-router-sdk` 5.16.2 and explicitly passes `UniversalRouterVersion.V2_1_2`. It accepts only a narrow set of exact-input V2/V3 commands and verifies raw command flags, wallet, chain, router, quote age, deadline, input amount, allowlisted token path, output recipient, quote output/minimum bounds, canonical calldata, and gas fields. The adapter remains pure validation. The API orchestration around it is separately gated and does not sign or broadcast.
 
 Any change that relaxes one of these boundaries requires a separate security review and explicit release approval.
 
@@ -41,7 +46,7 @@ Immediately before every approval or swap request:
 - Re-check chain and account after any wallet network-switch interaction.
 - Reject unknown chain aliases. Never infer Mainnet from a build-time flag or a UI label.
 - Bind the quote to the wallet, chain ID, token-in address, token-out address, exact input base units, recipient, slippage, and quote/request identifier.
-- Reject stale, expired, replayed, or mismatched quotes. Do not silently refresh a quote after the user has confirmed its terms.
+- Reject stale, expired, consumed, or mismatched quotes. Quote sessions must be claimed atomically in a durable server-side store before the `/swap` API is called. A short expiry or Permit2 nonce alone is not sufficient replay protection. Do not silently refresh a quote after the user has confirmed its terms.
 
 ## 4. Quote and transaction integrity
 
@@ -154,7 +159,7 @@ The adapter implementation must be split into independently testable pure valida
 
 The wallet stage must re-check the connected account and chain immediately before simulation and again immediately before asking the wallet to sign. Every approval and swap must pass strict `eth_call` and `eth_estimateGas`; a missing RPC response, timeout, revert, or malformed response is a hard stop. No automatic retry is allowed after an ambiguous submission.
 
-**Current checkpoint:** quote preview is implemented and live-smoke-tested; transaction building, SDK command decoding, approval generation, simulation, wallet signing, broadcast, and receipt verification are not implemented. Mainnet execution therefore remains disabled. This is a deliberate security boundary, not a partially working execution feature.
+**Current checkpoint:** quote preview, encrypted quote-session binding, Permit2 signature validation, read-only preflight, exact approval calldata construction, gated `/swap` transaction preparation, SDK command decoding, upstream and local simulation, wallet-state guard, and read-only receipt verification are implemented with automated tests. Wallet signing, UI confirmation, transaction broadcast, and end-to-end real-wallet flow remain unimplemented. The Preview preparation flag is explicitly false. Mainnet execution therefore remains disabled.
 
 
 ## 11. Current validation-only implementation
@@ -163,8 +168,26 @@ The wallet stage must re-check the connected account and chain immediately befor
 - Uniswap's current Proxy Approval deployment list does not include Arc (5042). Do not use that flow on Arc unless Uniswap explicitly adds and verifies Arc support for the proxy.
 - The Arc quote endpoint requests only V2 and V3 protocols. V4 action decoding is not part of the current validator.
 - The transaction validator accepts only Universal Router 2.1.2 with an explicit execute deadline, exact input, and a narrow command sequence: optional exact Permit2 transfer, one V2/V3 exact-input swap, and optional final sweep to the quoted wallet.
-- Permit2 typed-data signature commands, approvals, and allowance verification are not implemented. If a quote requires a new Permit2 signature, the current validator rejects its transaction calldata. The validator is not connected to wallet signing or transaction submission.
+- Permit2 typed-data validation, exact-amount ERC-20 approval construction, and read-only allowance checks are implemented as separate modules. Wallet signing and transaction submission remain intentionally unwired.
 - The adapter tests cover 17 positive and negative cases. The full repository test suite passed locally; the production build and CI must still pass on the committed head.
 
 Official Proxy Approval reference:
 - https://developers.uniswap.org/docs/trading/swapping-api/concepts/no-permit2-workflow
+
+
+## 12. Encrypted quote-to-receipt pipeline checkpoint (2026-11-08)
+
+The current implementation is deliberately split into four server-side stages:
+
+1. **Quote:** `POST /api/uniswap/quote` requests CLASSIC V2/V3 with `permitAmount: "EXACT"`, validates the wallet/token/amount/output/recipient, and returns a normalized summary plus a 60-second encrypted quote session. The raw quote and Permit2 payload are bound to the exact account, chain, token pair, base-unit amount, output, and minimum. The typed-data payload is returned only because the wallet must sign that exact Permit2 message.
+2. **Preflight:** `POST /api/uniswap/preflight` reads token balance, native gas balance, ERC-20 allowance to Permit2, and Permit2 allowance/nonce/expiry. If ERC-20 approval is missing, it returns only an unsigned exact-amount approval to the canonical Permit2 contract. The user must wait for approval confirmation and obtain a fresh quote because quote sessions expire after 60 seconds.
+3. **Swap preparation:** `POST /api/uniswap/swap` requires the Preview-only `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED` switch. It is explicitly `false` in the current Preview branch. When enabled for controlled testing, it validates the quote session and Permit2 signature, verifies the live Permit2 nonce and allowance state, requests Uniswap `/swap` with `simulateTransaction: true`, decodes and validates the exact Universal Router 2.1.2 command stream, then requires local `eth_call` and `eth_estimateGas` to pass with sufficient native USDC for gas plus reserve. It returns an unsigned transaction only.
+4. **Receipt:** a separate encrypted 24-hour receipt ticket binds the wallet, input/output tokens, exact input, and minimum output. `POST /api/uniswap/receipt` checks transaction chain/sender/router, successful receipt status, exact input token Transfer amount, and output token Transfer amount at or above the quoted minimum.
+
+Security limitations still open:
+- Quote sessions are encrypted and short-lived but are not yet backed by a durable one-time-consumption store. The same session token can be replayed during its 60-second lifetime. Do not enable the preparation switch until a server-side atomic consume/claim mechanism is implemented and tested. Permit2 nonce checks reduce replay of signed Permit2 permits but are not a substitute for one-time quote-session consumption, especially when a pre-existing Permit2 allowance is used.
+- The wallet UI does not yet call these endpoints or present the complete approval/Permit2/swap confirmation sequence.
+- The wallet chain/account guard exists as a pure helper but must be integrated immediately before each wallet prompt and submission.
+- No transaction signing, broadcasting, retries, or live-funds end-to-end test has been performed.
+- Receipt verification requires a real transaction hash supplied after an independently confirmed wallet submission; no transaction was submitted as part of this work.
+- The Preview preparation flag must remain false until independent security review and a separate explicit release decision.
