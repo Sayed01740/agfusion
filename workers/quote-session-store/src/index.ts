@@ -17,6 +17,11 @@ export interface Env {
   API_TOKEN: string;
 }
 
+export interface ScheduledController {
+  scheduledTime: number;
+  cron: string;
+}
+
 const CHAIN_ID = 5042;
 const MAX_SESSION_TTL_SECONDS = 300;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
