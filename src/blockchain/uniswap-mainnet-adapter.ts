@@ -180,3 +180,20 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
 
   return { chainId: ARC_MAINNET_CHAIN_ID, from: account, to: ARC_UNIVERSAL_ROUTER_2_1_2, data: transaction.data, value: "0", deadline, commandNames: names, amountIn, minimumAmountOut: expected.minimumAmountOut };
 }
+
+
+/**
+ * Call immediately before any wallet signing or transaction submission.
+ * This guard only validates the provider-reported state; it never prompts or switches chains.
+ */
+export function assertArcMainnetWalletState(params: {
+  chainId: number;
+  account: string | null | undefined;
+  expectedAccount: string;
+}): { chainId: 5042; account: string } {
+  if (params.chainId !== ARC_MAINNET_CHAIN_ID) fail("wallet is not connected to Arc Mainnet (5042)");
+  const account = normalizeAddress(params.account, "connected wallet account");
+  const expectedAccount = normalizeAddress(params.expectedAccount, "expected quote wallet");
+  if (account !== expectedAccount) fail("connected wallet account changed after the quote");
+  return { chainId: ARC_MAINNET_CHAIN_ID, account };
+}
