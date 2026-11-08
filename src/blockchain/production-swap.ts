@@ -57,6 +57,11 @@ export function assertArcMainnetSwapAvailable(isMainnet: boolean): void {
   }
 }
 
+/** Execution currently uses the Testnet ApexiSwap router and token registry only. */
+export function assertArcTestnetSwapExecution(chain: ChainId): asserts chain is "Arc_Testnet" {
+  if (chain !== "Arc_Testnet") throw new Error("Production swap execution is restricted to Arc Testnet.");
+}
+
 const ROUTER_ABI = [
   { type: "function", name: "getAmountsOut", stateMutability: "view", inputs: [{ name: "amountIn", type: "uint256" }, { name: "path", type: "address[]" }], outputs: [{ name: "amounts", type: "uint256[]" }] },
   { type: "function", name: "swapExactETHForTokensSupportingFeeOnTransferTokens", stateMutability: "payable", inputs: [{ name: "amountOutMin", type: "uint256" }, { name: "path", type: "address[]" }, { name: "to", type: "address" }, { name: "deadline", type: "uint256" }], outputs: [] },
@@ -464,7 +469,7 @@ async function preflightSwap(
   } catch (error) {
     // Arc RPC has documented eth_estimateGas/simulation quirks for DEX writes.
     // Log a warning rather than aborting the swap before the user's wallet can open.
-    console.warn("[AGFusion][Swap] eth_estimateGas preflight warning (proceeding with deterministic gas limit):", error);
+    console.warn("[AGFusion][Swap] Testnet eth_estimateGas preflight warning (proceeding with deterministic gas limit):", { errorName: error instanceof Error ? error.name : "UnknownError" });
   }
 }
 
@@ -482,6 +487,7 @@ export async function runProductionSwap(params: {
 
   // Fail closed before requesting wallet access or building a Mainnet transaction.
   assertArcMainnetSwapAvailable(params.chain === "Arc_Mainnet" || params.chain === "Arc");
+  assertArcTestnetSwapExecution(params.chain);
 
   const tokenIn = params.tokenIn as ArcSwapToken;
   const tokenOut = params.tokenOut as ArcSwapToken;
