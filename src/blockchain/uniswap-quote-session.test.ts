@@ -3,6 +3,8 @@ import {
   ARC_QUOTE_SESSION_TTL_SECONDS,
   createArcUniswapQuoteSession,
   decryptArcUniswapQuoteSession,
+  createArcUniswapReceiptTicket,
+  decryptArcUniswapReceiptTicket,
 } from "@/blockchain/uniswap-quote-session";
 
 const secret = "test-only-session-secret-with-more-than-32-bytes";
@@ -53,6 +55,41 @@ describe("encrypted Arc Uniswap quote sessions", () => {
   it("rejects expired sessions", () => {
     const created = createArcUniswapQuoteSession(input, secret, now);
     expect(() => decryptArcUniswapQuoteSession(created.token, secret, now + ARC_QUOTE_SESSION_TTL_SECONDS)).toThrow(/expired/);
+  });
+
+
+  it("creates an encrypted receipt ticket that remains valid beyond the quote TTL", () => {
+    const receipt = createArcUniswapReceiptTicket({
+      chainId: 5042,
+      account: input.account,
+      tokenIn: input.tokenIn,
+      tokenOut: input.tokenOut,
+      amountIn: input.amountIn,
+      minimumAmountOut: input.minimumAmountOut,
+    }, secret, now);
+    const decoded = decryptArcUniswapReceiptTicket(receipt.token, secret, now + 3600);
+    expect(receipt.expiresAt).toBe(now + 86400);
+    expect(decoded).toMatchObject({
+      purpose: "receipt-verification",
+      chainId: 5042,
+      account: input.account,
+      tokenIn: input.tokenIn,
+      tokenOut: input.tokenOut,
+      amountIn: input.amountIn,
+      minimumAmountOut: input.minimumAmountOut,
+    });
+  });
+
+  it("rejects receipt tickets after their 24-hour expiry", () => {
+    const receipt = createArcUniswapReceiptTicket({
+      chainId: 5042,
+      account: input.account,
+      tokenIn: input.tokenIn,
+      tokenOut: input.tokenOut,
+      amountIn: input.amountIn,
+      minimumAmountOut: input.minimumAmountOut,
+    }, secret, now);
+    expect(() => decryptArcUniswapReceiptTicket(receipt.token, secret, now + 86400)).toThrow(/expired/);
   });
 
   it("rejects a missing or short secret", () => {
