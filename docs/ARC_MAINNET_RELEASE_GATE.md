@@ -25,14 +25,7 @@ The API passes token symbols to Circle App Kit. Before enabling Mainnet, Preview
 
 The Circle swap-preparation endpoint defaults to Arc Testnet when `chainId` is omitted. Unsupported chain IDs are rejected.
 
-Arc Mainnet requests are rejected with HTTP 403 unless the server-side environment variable below is explicitly enabled:
-
-```dotenv
-ARC_MAINNET_SWAP_ENABLED=true
-ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
-```
-
-Do not set this flag in Production until the release gates below have been completed and separately approved. Do not expose the flag through a `NEXT_PUBLIC_*` variable.
+Arc Mainnet requests to the Circle swap-preparation route are always rejected. The legacy `ARC_MAINNET_SWAP_ENABLED` variable is not an authorization mechanism and must not be used to bypass this gate. The route returns `503 mainnet_swap_not_ready` for Mainnet even if the legacy variable is set. Do not configure a Mainnet execution flag in any environment.
 
 ## Required release gates
 
@@ -45,11 +38,11 @@ Do not set this flag in Production until the release gates below have been compl
 
 ## Rollback
 
-Set `ARC_MAINNET_SWAP_ENABLED=false` or remove the variable from the server environment, then redeploy the affected environment. Mainnet preparation must return HTTP 403. Testnet behavior should remain unchanged.
+Keep Mainnet execution disabled in code. If a legacy `ARC_MAINNET_SWAP_ENABLED` variable exists, remove it from the environment and redeploy. Verify that the Circle Mainnet preparation route returns `503 mainnet_swap_not_ready` and the browser execution guard blocks before wallet-provider access. Testnet behavior should remain unchanged.
 
 ## Operational boundary
 
-This API prepares a quote and returns transaction data. It does not authorize a wallet signature or broadcast a transaction. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
+The Circle preparation API returns estimate information only. The Uniswap quote proxy returns a normalized quote summary only. Neither endpoint returns executable transaction data or authorizes wallet signing or broadcast. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
 
 
 ## Current UI execution boundary
