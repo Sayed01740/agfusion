@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   approval: vi.fn(),
   permit: vi.fn(),
   validateSwap: vi.fn(),
-  simulate: vi.fn(),
+  simulate: vi.fn(),\n  consume: vi.fn(),
 }));
 
 vi.mock("@/blockchain/uniswap-quote-session", () => ({
@@ -26,7 +26,7 @@ vi.mock("@/blockchain/uniswap-permit2", () => ({
 vi.mock("@/blockchain/uniswap-mainnet-adapter", () => ({
   validateArcMainnetSwapTransaction: mocks.validateSwap,
 }));
-vi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/arc-quote-session-store", () => ({ consumeArcQuoteSession: mocks.consume }));\nvi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "uniswap-swap-prepare-test",
   rateLimit: () => ({ ok: true }),
 }));
@@ -122,7 +122,7 @@ function setup() {
   vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
   vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", "test-only-quote-session-secret-with-over-32-bytes");
   vi.stubEnv("UNISWAP_API_KEY", "test-uniswap-key");
-  mocks.decrypt.mockReturnValue(session);
+  mocks.decrypt.mockReturnValue(session);\n  mocks.consume.mockResolvedValue({ ok: true });
   mocks.createReceiptTicket.mockReturnValue({ token: "encrypted-receipt-ticket", expiresAt: now + 86400 });
   mocks.preflight.mockResolvedValue(preflightState);
   mocks.validateSwap.mockReturnValue(validated);
