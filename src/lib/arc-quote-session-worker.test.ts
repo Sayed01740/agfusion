@@ -41,6 +41,17 @@ describe("Cloudflare D1 quote-session Worker", () => {
     expect(bind).toHaveBeenCalledWith(tokenHash, account, 5042, expiresAt);
   });
 
+  it("rejects oversized request bodies before parsing the full payload", async () => {
+    const { env, prepare } = setup();
+    const response = await handleRequest(request(" /v1/sessions/register".trim(), {
+      tokenHash, account, chainId: 5042,
+      expiresAt: Math.floor(Date.now() / 1000) + 60,
+      padding: "x".repeat(5000),
+    }), env);
+    expect(response.status).toBe(400);
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
   it("rejects expired or excessively long quote sessions", async () => {
     const { env, prepare } = setup();
     const response = await handleRequest(request("/v1/sessions/register", {
