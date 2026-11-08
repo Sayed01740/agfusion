@@ -117,3 +117,20 @@ A Mainnet execution release requires all of the following:
 - Explicit approval from the project owner before changing the UI gate, enabling Production configuration, merging, or promoting a deployment.
 
 **Until every gate is met, Mainnet remains quote-only and the Swap button remains disabled.**
+
+## 10. Verified Uniswap Arc deployment references
+
+The current official Uniswap Trading API documentation lists Arc (chain ID 5042) as a supported swapping chain and publishes the following Universal Router 2.1.2 deployment:
+
+- Arc Universal Router 2.1.2: `0x8702463e73f74d0b6765aBceb314Ef07aCb92650`
+- Arc Permit2: `0x000000000022D473030F116dDEE9F6B43aC78BA3`
+- The API supports `POST /quote` and `POST /swap`; `/swap` returns an unsigned transaction object. The integrator remains responsible for wallet signing and on-chain submission.
+- Arc is also listed for UniswapX V3, but this AGFusion design remains restricted to `CLASSIC` routes until a separate UniswapX order-signing and settlement review is completed.
+
+These references establish that an official Uniswap route exists for Arc; they do not establish that AGFusion's transaction flow is safe or ready. Before using the router, verify its address and deployed bytecode against the current official Supported Chains & Tokens page and on-chain Arc state. Pin the router version to `2.1.2`; do not use the older Arc Universal Router deployment or infer a router from another chain.
+
+Official references:
+- https://developers.uniswap.org/docs/trading/swapping-api/supported-chains
+- https://developers.uniswap.org/docs/api-reference/create_swap_transaction
+- https://developers.uniswap.org/docs/trading/swapping-api/start-building/integration-guide
+- https://developers.uniswap.org/docs/protocols/v4/deployments
