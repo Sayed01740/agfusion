@@ -19,10 +19,12 @@ afterEach(() => {
 
 describe("D1-backed Arc quote-session replay guard", () => {
   it("fails closed when Worker configuration is missing", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     await expect(registerArcQuoteSession({
       token, account, chainId: 5042, expiresAt: Math.floor(Date.now() / 1000) + 60,
     })).resolves.toEqual({ ok: false, reason: "database_unavailable" });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("sends only the SHA-256 digest and normalized account to the Worker", async () => {
