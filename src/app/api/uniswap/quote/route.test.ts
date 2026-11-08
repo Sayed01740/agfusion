@@ -119,6 +119,21 @@ describe("POST /api/uniswap/quote", () => {
     });
   });
 
+  it("rejects a quote without the expected recipient", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ routing: "CLASSIC", quote: { input: { token: "0x3600000000000000000000000000000000000000", amount: "10250000" }, output: { token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1", amount: "9900000", minimumAmount: "9801000" } } }), { status: 200 }))));
+    const response = await POST(request(validBody));
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ error: "unverified_uniswap_quote" });
+  });
+
+  it.each([["missing", undefined], ["zero", "0"], ["greater than quoted output", "9900001"]])("rejects an invalid minimum output: %s", async (_label, minimumAmount) => {
+    vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ routing: "CLASSIC", quote: { input: { token: "0x3600000000000000000000000000000000000000", amount: "10250000" }, output: { token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1", recipient: "0x1111111111111111111111111111111111111111", amount: "9900000", ...(minimumAmount === undefined ? {} : { minimumAmount }) } } }), { status: 200 }))));
+    const response = await POST(request(validBody));
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ error: "invalid_uniswap_minimum" });
+  });
   it("rejects non-CLASSIC routing because order signing is not implemented", async () => {
     vi.stubEnv("UNISWAP_API_KEY", "server-secret");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
