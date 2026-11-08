@@ -114,7 +114,7 @@ describe.skipIf(!enabled)("x402 disposable PostgreSQL integration", () => {
   });
 
   it("atomically permits exactly one concurrent claim for an Arc quote session", async () => {
-    const account = `0x${randomUUID().replaceAll("-", "").slice(0, 40)}`;
+    const account = `0x${randomUUID().replaceAll("-", "").padEnd(40, "0")}`;
     const token = `arc-quote-session-${randomUUID()}-opaque-test-token`;
     quoteSessionAccounts.push(account);
     const expiresAt = Math.floor(Date.now() / 1000) + 60;
@@ -145,7 +145,7 @@ describe.skipIf(!enabled)("x402 disposable PostgreSQL integration", () => {
   });
 
   it("rejects an expired Arc quote session without consuming it", async () => {
-    const account = `0x${randomUUID().replaceAll("-", "").slice(0, 40)}`;
+    const account = `0x${randomUUID().replaceAll("-", "").padEnd(40, "0")}`;
     const token = `arc-expired-quote-session-${randomUUID()}-opaque-token`;
     quoteSessionAccounts.push(account);
     const expiresAt = Math.floor(Date.now() / 1000) + 60;
