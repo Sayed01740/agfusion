@@ -53,11 +53,38 @@ function authorized(request: Request, token: string): boolean {
 
 async function readBody(request: Request): Promise<Record<string, unknown> | null> {
   const declaredLength = Number(request.headers.get("content-length") || 0);
-  if (declaredLength > 4096) return null;
-  const text = await request.text();
-  if (text.length > 4096) return null;
+  if (declaredLength > 4096 || !request.body) return null;
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
   try {
-    const value: unknown = JSON.parse(text);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > 4096) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    await reader.cancel().catch(() => undefined);
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
     return value !== null && typeof value === "object" && !Array.isArray(value)
       ? value as Record<string, unknown>
       : null;
