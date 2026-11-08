@@ -134,3 +134,21 @@ Official references:
 - https://developers.uniswap.org/docs/api-reference/create_swap_transaction
 - https://developers.uniswap.org/docs/trading/swapping-api/start-building/integration-guide
 - https://developers.uniswap.org/docs/protocols/v4/deployments
+
+## 11. Transaction-adapter implementation checkpoint (not yet release-ready)
+
+The next implementation unit is a dedicated Uniswap Universal Router transaction adapter. It is intentionally not implemented by forwarding the upstream `/swap` response directly to a wallet.
+
+Before the adapter can be enabled, the repository must pin and audit a compatible `@uniswap/universal-router-sdk` release and its transitive dependency graph, then use the SDK's version-aware command parser for Universal Router **2.1.2**. A generic ABI decode of only the outer `execute(bytes,bytes[],uint256)` envelope is insufficient: the command stream and nested inputs must also be decoded and semantically checked. Do not hand-roll partial command decoding or assume that a router destination plus a valid selector makes calldata safe.
+
+The adapter implementation must be split into independently testable pure validation and wallet-provider stages. The pure stage must reject, before any wallet prompt:
+
+- any transaction whose chain ID is not exactly 5042 or whose destination is not the verified Arc Universal Router 2.1.2 address;
+- any route other than CLASSIC, unsupported command byte, nested call, token, recipient, spender, or approval;
+- any mismatch between the user's confirmed input amount and decoded command input, or between the decoded minimum output and the validated quote;
+- any non-zero native value, unexpected transaction, unbounded deadline, stale quote, or Permit2 signature/payload while Permit2 support remains disabled;
+- any transaction whose decoded command semantics cannot be completely established by the pinned SDK parser.
+
+The wallet stage must re-check the connected account and chain immediately before simulation and again immediately before asking the wallet to sign. Every approval and swap must pass strict `eth_call` and `eth_estimateGas`; a missing RPC response, timeout, revert, or malformed response is a hard stop. No automatic retry is allowed after an ambiguous submission.
+
+**Current checkpoint:** quote preview is implemented and live-smoke-tested; transaction building, SDK command decoding, approval generation, simulation, wallet signing, broadcast, and receipt verification are not implemented. Mainnet execution therefore remains disabled. This is a deliberate security boundary, not a partially working execution feature.
