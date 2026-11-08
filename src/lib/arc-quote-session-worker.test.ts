@@ -43,7 +43,7 @@ describe("Cloudflare D1 quote-session Worker", () => {
 
   it("rejects oversized request bodies before parsing the full payload", async () => {
     const { env, prepare } = setup();
-    const response = await handleRequest(request(" /v1/sessions/register".trim(), {
+    const response = await handleRequest(request("/v1/sessions/register", {
       tokenHash, account, chainId: 5042,
       expiresAt: Math.floor(Date.now() / 1000) + 60,
       padding: "x".repeat(5000),
