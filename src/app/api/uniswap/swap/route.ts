@@ -7,7 +7,7 @@ import {
   readArcMainnetPermit2Preflight,
   simulateArcMainnetSwapTransaction,
 } from "@/blockchain/uniswap-permit2-preflight";
-import { decryptArcUniswapQuoteSession } from "@/blockchain/uniswap-quote-session";
+import { createArcUniswapReceiptTicket, decryptArcUniswapQuoteSession } from "@/blockchain/uniswap-quote-session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { readLimitedJson } from "@/lib/read-limited-json";
 
@@ -173,11 +173,22 @@ export async function POST(req: Request) {
       nativeGasBalance: preflight.nativeGasBalance,
     });
 
+    const receiptTicket = createArcUniswapReceiptTicket({
+      chainId: 5042,
+      account: session.account,
+      tokenIn: session.tokenIn,
+      tokenOut: session.tokenOut,
+      amountIn: session.amountIn,
+      minimumAmountOut: session.minimumAmountOut,
+    });
+
     return NextResponse.json({
       ok: true,
       chainId: 5042,
       requestId: typeof payload.requestId === "string" ? payload.requestId : session.requestId,
       quoteSessionExpiresAt: session.expiresAt,
+      receiptVerificationTicket: receiptTicket.token,
+      receiptVerificationExpiresAt: receiptTicket.expiresAt,
       transaction: {
         chainId: 5042,
         from: validated.from,
