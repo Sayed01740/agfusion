@@ -62,7 +62,7 @@ describe("Arc Mainnet Universal Router 2.1.2 transaction validation", () => {
     expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner({ amountIn: AMOUNT_IN + 1n })), expected)).toThrow(/swap input amount does not match quote/);
   });
   it("rejects minimum output below quote", () => {
-    expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner({ amountOutMin: MIN_OUT - 1n })), expected)).toThrow(/minimum output is below/);
+    expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner({ amountOutMin: MIN_OUT - 1n })), expected)).toThrow(/minimum output is outside/);
   });
   it("rejects tokens outside the Arc Mainnet allowlist", () => {
     expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner()), {
