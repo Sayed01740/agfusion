@@ -46,7 +46,7 @@ Immediately before every approval or swap request:
 - Re-check chain and account after any wallet network-switch interaction.
 - Reject unknown chain aliases. Never infer Mainnet from a build-time flag or a UI label.
 - Bind the quote to the wallet, chain ID, token-in address, token-out address, exact input base units, recipient, slippage, and quote/request identifier.
-- Reject stale, expired, replayed, or mismatched quotes. Do not silently refresh a quote after the user has confirmed its terms.
+- Reject stale, expired, consumed, or mismatched quotes. Quote sessions must be claimed atomically in a durable server-side store before the `/swap` API is called. A short expiry or Permit2 nonce alone is not sufficient replay protection. Do not silently refresh a quote after the user has confirmed its terms.
 
 ## 4. Quote and transaction integrity
 
@@ -185,6 +185,7 @@ The current implementation is deliberately split into four server-side stages:
 4. **Receipt:** a separate encrypted 24-hour receipt ticket binds the wallet, input/output tokens, exact input, and minimum output. `POST /api/uniswap/receipt` checks transaction chain/sender/router, successful receipt status, exact input token Transfer amount, and output token Transfer amount at or above the quoted minimum.
 
 Security limitations still open:
+- Quote sessions are encrypted and short-lived but are not yet backed by a durable one-time-consumption store. The same session token can be replayed during its 60-second lifetime. Do not enable the preparation switch until a server-side atomic consume/claim mechanism is implemented and tested. Permit2 nonce checks reduce replay of signed Permit2 permits but are not a substitute for one-time quote-session consumption, especially when a pre-existing Permit2 allowance is used.
 - The wallet UI does not yet call these endpoints or present the complete approval/Permit2/swap confirmation sequence.
 - The wallet chain/account guard exists as a pure helper but must be integrated immediately before each wallet prompt and submission.
 - No transaction signing, broadcasting, retries, or live-funds end-to-end test has been performed.
