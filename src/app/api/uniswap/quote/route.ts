@@ -4,6 +4,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { readLimitedJson } from "@/lib/read-limited-json";
 import { createArcUniswapQuoteSession } from "@/blockchain/uniswap-quote-session";
 import { ARC_PERMIT2_CONTRACT, ARC_PERMIT2_SPENDER } from "@/blockchain/uniswap-permit2";
+import { registerArcQuoteSession } from "@/lib/arc-quote-session-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -197,9 +198,21 @@ export async function POST(req: Request) {
       requestId,
     });
 
-    // The quote and Permit2 payload stay encrypted in a 60-second server-authenticated
-    // session. Only the exact typed-data message needed for the user's wallet signature
-    // is returned; calldata and approval transactions are never returned here.
+    const stored = await registerArcQuoteSession({
+      token: session.token,
+      account: wallet.toLowerCase(),
+      chainId: ARC_MAINNET_CHAIN_ID,
+      expiresAt: session.expiresAt,
+    });
+    if (!stored.ok) {
+      return NextResponse.json(
+        { error: stored.reason === "database_unavailable" ? "quote_session_store_unavailable" : "quote_session_store_rejected" },
+        { status: stored.reason === "database_unavailable" ? 503 : 500 },
+      );
+    }
+
+    // Persist only a token digest so preparation can atomically consume the
+    // encrypted quote session once across all server instances.
     return NextResponse.json(
       {
         ok: true,
