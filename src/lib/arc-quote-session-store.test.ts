@@ -25,7 +25,7 @@ describe("durable Arc quote-session replay guard", () => {
     dbConfigured.mockReturnValue(true);
     const create = vi.fn().mockResolvedValue({ id: "row-1" });
     prisma.mockReturnValue({ arcQuoteSession: { create } } as never);
-    const expiresAt = Math.floor(now.getTime() / 1000) + 60;
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
     await expect(registerArcQuoteSession({ token, account: account.toUpperCase().replace("0X", "0x"), chainId: 5042, expiresAt }))
       .resolves.toEqual({ ok: true });
     const data = create.mock.calls[0][0].data;
