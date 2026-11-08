@@ -7,11 +7,13 @@ import {
 } from "./x402-challenge";
 import { consumeX402ChallengeAndRecordPayment } from "./x402-payment-store";
 import { X402_ARC_TESTNET } from "./x402-verifier";
+import { consumeArcQuoteSession, registerArcQuoteSession } from "./arc-quote-session-store";
 
 const enabled = process.env.X402_POSTGRES_INTEGRATION === "1";
 const prisma = enabled ? getPrisma() : null;
 const challengeIds: string[] = [];
 const paymentHashes: string[] = [];
+const quoteSessionAccounts: string[] = [];
 
 const recipient = "0x1111111111111111111111111111111111111111";
 const previousRecipient = process.env.AGFUSION_X402_RECIPIENT;
@@ -47,6 +49,10 @@ describe.skipIf(!enabled)("x402 disposable PostgreSQL integration", () => {
     if (paymentHashes.length) {
       await prisma.x402Payment.deleteMany({ where: { txHash: { in: paymentHashes } } });
       paymentHashes.length = 0;
+    }
+    if (quoteSessionAccounts.length) {
+      await prisma.arcQuoteSession.deleteMany({ where: { account: { in: quoteSessionAccounts } } });
+      quoteSessionAccounts.length = 0;
     }
     if (challengeIds.length) {
       await prisma.x402Challenge.deleteMany({ where: { id: { in: challengeIds } } });
@@ -105,6 +111,58 @@ describe.skipIf(!enabled)("x402 disposable PostgreSQL integration", () => {
       select: { consumedAt: true },
     });
     expect(storedChallenge?.consumedAt).toBeInstanceOf(Date);
+  });
+
+  it("atomically permits exactly one concurrent claim for an Arc quote session", async () => {
+    const account = `0x${randomUUID().replaceAll("-", "").slice(0, 40)}`;
+    const token = `arc-quote-session-${randomUUID()}-opaque-test-token`;
+    quoteSessionAccounts.push(account);
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
+
+    const registered = await registerArcQuoteSession({
+      token,
+      account,
+      chainId: 5042,
+      expiresAt,
+    });
+    expect(registered).toEqual({ ok: true });
+
+    const input = { token, account, chainId: 5042 };
+    const results = await Promise.all([
+      consumeArcQuoteSession(input),
+      consumeArcQuoteSession(input),
+    ]);
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toHaveLength(1);
+    const stored = await prisma!.arcQuoteSession.findFirst({
+      where: { account },
+      select: { consumedAt: true, chainId: true, expiresAt: true },
+    });
+    expect(stored?.chainId).toBe(5042);
+    expect(stored?.consumedAt).toBeInstanceOf(Date);
+    expect(stored?.expiresAt.getTime()).toBe(expiresAt * 1000);
+  });
+
+  it("rejects an expired Arc quote session without consuming it", async () => {
+    const account = `0x${randomUUID().replaceAll("-", "").slice(0, 40)}`;
+    const token = `arc-expired-quote-session-${randomUUID()}-opaque-token`;
+    quoteSessionAccounts.push(account);
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
+    await registerArcQuoteSession({ token, account, chainId: 5042, expiresAt });
+
+    const result = await consumeArcQuoteSession({
+      token,
+      account,
+      chainId: 5042,
+      now: new Date((expiresAt + 1) * 1000),
+    });
+    expect(result).toEqual({ ok: false, reason: "invalid_or_consumed_session" });
+    const stored = await prisma!.arcQuoteSession.findFirst({
+      where: { account },
+      select: { consumedAt: true },
+    });
+    expect(stored?.consumedAt).toBeNull();
   });
 
   it("rolls challenge consumption back when a transaction hash was already used", async () => {
