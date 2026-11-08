@@ -92,7 +92,6 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         "Accept": "application/json",
         "x-universal-router-version": UNIVERSAL_ROUTER_VERSION,
-        "x-permit2-disabled": "true",
       },
       body: JSON.stringify({
         type: "EXACT_INPUT",
@@ -104,7 +103,7 @@ export async function POST(req: Request) {
         swapper: wallet,
         slippageTolerance: slippageBps / 100,
         routingPreference: "BEST_PRICE",
-        protocols: ["V2", "V3", "V4"],
+        protocols: ["V2", "V3"],
       }),
       signal: AbortSignal.timeout(12_000),
       cache: "no-store",

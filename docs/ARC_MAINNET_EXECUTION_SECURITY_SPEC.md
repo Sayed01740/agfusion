@@ -1,16 +1,18 @@
 # Arc Mainnet Swap Execution Security Specification
 
-**Status:** Design-only. Mainnet swap execution remains disabled.
+**Status:** Validation-only Universal Router adapter implemented; Mainnet swap execution remains disabled.
 **Scope:** Future wallet-confirmed Arc Mainnet swaps through a separately verified DEX adapter or an authorized Circle StableFX integration.
 **Non-goal:** This document does not authorize deployment, enable a feature flag, sign transactions, or broadcast transactions.
 
 ## 1. Current execution boundary
 
-- The Mainnet quote proxy is quote-only. It returns a normalized summary and never returns calldata, approval transactions, Permit2 payloads, or signing material.
+- The Mainnet quote proxy is quote-only. It returns a normalized summary and never returns calldata, approval transactions, Permit2 payloads, or signing material. The quote request uses standard Permit2 mode and restricts routes to V2/V3 exact-input pools.
 - The browser UI may display a Mainnet quote, but its Swap action remains disabled.
 - `runProductionSwap()` is restricted to the exact `Arc_Testnet` chain before wallet-provider access. The current ApexiSwap router, token registry, spender, and receipt-verification path are Testnet-only.
 - The Circle App Kit preparation endpoint rejects Mainnet. An estimate is not unsigned transaction data.
 - No Mainnet execution code may reuse Testnet router addresses, token metadata, RPC fallback lists, chain keys, or approval assumptions.
+
+The validation-only adapter in `src/blockchain/uniswap-mainnet-adapter.ts` uses `@uniswap/universal-router-sdk` 5.16.2 and explicitly passes `UniversalRouterVersion.V2_1_2`. It accepts only a narrow set of exact-input V2/V3 commands and verifies raw command flags, wallet, chain, router, quote age, deadline, input amount, token path, output recipient, minimum output, and gas fields. It is not wired to a wallet or UI execution path and performs no simulation, approval, signing, broadcast, or receipt verification.
 
 Any change that relaxes one of these boundaries requires a separate security review and explicit release approval.
 
@@ -53,7 +55,7 @@ Before a wallet prompt is possible, validate all transaction fields against inde
 - Routing mode is explicitly supported. Unimplemented UniswapX/order-signing routes must be rejected.
 - Router and spender are exact, versioned, chain-specific allowlist entries. Never trust an arbitrary upstream `to` or spender address.
 - Decode calldata and independently verify function selector, token path, recipient, amount-in, minimum-out, deadline, and native value.
-- Reject unexpected calls, multicalls, arbitrary approvals, Permit2 messages, or extra transactions unless their complete semantics are explicitly implemented and reviewed.
+- Reject unexpected calls, multicalls, arbitrary approvals, Permit2 signature commands, nested subplans, V4, exact-output, allow-revert flags, and extra transactions unless their complete semantics are explicitly implemented and reviewed. The validator accepts only an exact `PERMIT2_TRANSFER_FROM` funding command when it is first in the command stream, targets the router, and transfers the exact quoted input. A pre-existing Permit2 allowance must still be checked independently before execution.
 - Enforce a short, bounded deadline and a documented slippage ceiling.
 
 A quote response is untrusted input even when received over TLS from the configured provider.
@@ -124,6 +126,7 @@ The current official Uniswap Trading API documentation lists Arc (chain ID 5042)
 
 - Arc Universal Router 2.1.2: `0x8702463e73f74d0b6765aBceb314Ef07aCb92650`
 - Arc Permit2: `0x000000000022D473030F116dDEE9F6B43aC78BA3`
+- The no-Permit2 Proxy Approval flow uses `0x0000000085E102724e78eCd2F45DC9cA239Affad`, but Arc is not in the current official deployment list for that proxy. AGFusion must not use `x-permit2-disabled: true` on Arc.
 - The API supports `POST /quote` and `POST /swap`; `/swap` returns an unsigned transaction object. The integrator remains responsible for wallet signing and on-chain submission.
 - Arc is also listed for UniswapX V3, but this AGFusion design remains restricted to `CLASSIC` routes until a separate UniswapX order-signing and settlement review is completed.
 
@@ -152,3 +155,16 @@ The adapter implementation must be split into independently testable pure valida
 The wallet stage must re-check the connected account and chain immediately before simulation and again immediately before asking the wallet to sign. Every approval and swap must pass strict `eth_call` and `eth_estimateGas`; a missing RPC response, timeout, revert, or malformed response is a hard stop. No automatic retry is allowed after an ambiguous submission.
 
 **Current checkpoint:** quote preview is implemented and live-smoke-tested; transaction building, SDK command decoding, approval generation, simulation, wallet signing, broadcast, and receipt verification are not implemented. Mainnet execution therefore remains disabled. This is a deliberate security boundary, not a partially working execution feature.
+
+
+## 11. Current validation-only implementation
+
+- The quote endpoint no longer sends `x-permit2-disabled: true`. That header selects Uniswap's Proxy Approval flow, which sends swaps to a separate proxy contract rather than the Universal Router.
+- Uniswap's current Proxy Approval deployment list does not include Arc (5042). Do not use that flow on Arc unless Uniswap explicitly adds and verifies Arc support for the proxy.
+- The Arc quote endpoint requests only V2 and V3 protocols. V4 action decoding is not part of the current validator.
+- The transaction validator accepts only Universal Router 2.1.2 with an explicit execute deadline, exact input, and a narrow command sequence: optional exact Permit2 transfer, one V2/V3 exact-input swap, and optional final sweep to the quoted wallet.
+- Permit2 typed-data signature commands, approvals, and allowance verification are not implemented. If a quote requires a new Permit2 signature, the current validator rejects its transaction calldata. The validator is not connected to wallet signing or transaction submission.
+- The adapter tests cover 17 positive and negative cases. The full repository test suite passed locally; the production build and CI must still pass on the committed head.
+
+Official Proxy Approval reference:
+- https://developers.uniswap.org/docs/trading/swapping-api/concepts/no-permit2-workflow

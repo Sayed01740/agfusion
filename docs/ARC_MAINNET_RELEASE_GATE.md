@@ -70,8 +70,17 @@ Arc Mainnet quotes use the server-side `/api/uniswap/quote` proxy. The API key m
 - Fixed chain ID: `5042`.
 - Explicit Universal Router version: `2.1.2` (Arc does not support the older 2.0 deployment).
 - Mainnet token addresses: USDC `0x3600000000000000000000000000000000000000` (6 ERC-20 decimals), EURC `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1` (6 decimals), cirBTC `0x171A4217b86A807A64eB94757Db6849fb4bDbAA0` (8 decimals).
-- The proxy accepts only same-chain Arc Mainnet exact-input quotes and currently restricts routing to CLASSIC (V2/V3/V4). UniswapX order signing is not implemented.
+- The proxy accepts only same-chain Arc Mainnet exact-input quotes and currently restricts routing to CLASSIC V2/V3. V4 command decoding and UniswapX order signing are not implemented.
 - The proxy returns quote summary only. It intentionally strips swap calldata, Permit2 payloads, and approval transactions.
+- The request does not set `x-permit2-disabled`. Uniswap's Proxy Approval contract is not listed as deployed on Arc, so the no-Permit2 flow is not an approved option for this network.
+- `@uniswap/universal-router-sdk` is pinned to `5.16.2`, and the validation-only adapter explicitly decodes with `UniversalRouterVersion.V2_1_2`. The validator rejects unsupported commands and does not sign or broadcast.
 - The UI may display a Mainnet quote, but the Swap button remains disabled. The existing Testnet execution path is unchanged.
 
 Before enabling Mainnet execution, implement a separate wallet-confirmed approval/Permit2 and swap flow, verify router destination, chain ID, token pair, spender, amount, minimum output, deadline, gas and simulation, then add end-to-end tests. Live liquidity and quotes must be checked with the configured API key; supported chain status alone does not guarantee a route.
+
+
+## Current adapter checkpoint
+
+The validation-only adapter at `src/blockchain/uniswap-mainnet-adapter.ts` verifies Arc chain ID 5042, the official Universal Router 2.1.2 destination, the quoted sender, quote freshness, exact input, V2/V3 token path, per-hop slippage bounds, final minimum output, zero native value, gas fields, and a bounded execute deadline. It rejects Permit2 signature commands, V4, exact-output, subplans, unknown commands, and allow-revert flags.
+
+The adapter is not wired into the browser swap flow. Permit2 typed-data signing, exact ERC-20 approval to Permit2, allowance/balance checks, strict Mainnet simulation, wallet chain/account rechecks, transaction submission, and receipt verification remain mandatory work before any Mainnet execution review.

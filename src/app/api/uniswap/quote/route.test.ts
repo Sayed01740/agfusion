@@ -111,11 +111,12 @@ describe("POST /api/uniswap/quote", () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["x-api-key"]).toBe("server-secret");
     expect(init.headers["x-universal-router-version"]).toBe("2.1.2");
+    expect(init.headers["x-permit2-disabled"]).toBeUndefined();
     expect(JSON.parse(init.body)).toMatchObject({
       tokenInChainId: 5042,
       tokenOutChainId: 5042,
       amount: "10250000",
-      protocols: ["V2", "V3", "V4"],
+      protocols: ["V2", "V3"],
     });
   });
 
