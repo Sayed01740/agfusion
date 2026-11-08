@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertArcMainnetSwapAvailable, runProductionSwap } from "@/blockchain/production-swap";
+import { assertArcMainnetSwapAvailable, assertArcTestnetSwapExecution, runProductionSwap } from "@/blockchain/production-swap";
 
 describe("Arc Mainnet swap execution release gate", () => {
   it("fails closed for Mainnet before wallet access or transaction preparation", () => {
@@ -20,6 +20,13 @@ describe("Arc Mainnet swap execution release gate", () => {
       })).rejects.toThrow(/Arc Mainnet swaps are not enabled yet/);
     },
   );
+
+
+  it("allows execution only on the exact Arc Testnet chain", () => {
+    expect(() => assertArcTestnetSwapExecution("Arc_Testnet")).not.toThrow();
+    expect(() => assertArcTestnetSwapExecution("Arc_Mainnet")).toThrow(/restricted to Arc Testnet/);
+    expect(() => assertArcTestnetSwapExecution("Arc")).toThrow(/restricted to Arc Testnet/);
+  });
 
   it("continues to allow the Arc Testnet path", () => {
     expect(() => assertArcMainnetSwapAvailable(false)).not.toThrow();
