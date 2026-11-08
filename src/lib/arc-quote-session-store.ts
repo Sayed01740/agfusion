@@ -14,7 +14,7 @@ function storeConfig(): { url: string; token: string } | null {
 
   try {
     const url = new URL(rawUrl);
-    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return null;
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") return null;
     return { url: url.toString().replace(/\/$/, ""), token };
   } catch {
     return null;
