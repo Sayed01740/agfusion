@@ -7,13 +7,12 @@ import { readLimitedJson } from "@/lib/read-limited-json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Swap preparation is intentionally restricted to Arc Testnet.
+// Mainnet is recognized for validation but remains unavailable until an authorized settlement integration exists.
+const ARC_MAINNET_CHAIN_ID = 5042;
 const ARC_TESTNET_CHAIN_ID = 5042002;
 const ARC_CHAIN_ID = ARC_TESTNET_CHAIN_ID;
-const TOKEN_ADDRESSES: Record<string, `0x${string}`> = {
-  USDC: "0x3600000000000000000000000000000000000000",
-  EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
-};
+// The API accepts token symbols; Circle App Kit resolves chain-specific token
+// metadata. Keep this list as an allowlist, not as a shared address map.
 const SUPPORTED_TOKENS = ["USDC", "EURC"] as const;
 type SupportedToken = (typeof SUPPORTED_TOKENS)[number];
 
@@ -28,53 +27,6 @@ function jsonSafe(value: unknown): unknown {
   return value;
 }
 
-function collectTransactions(
-  value: unknown,
-  out: Array<{ to: string; data: string; value?: string }> = [],
-) {
-  if (Array.isArray(value)) {
-    for (const item of value) collectTransactions(item, out);
-    return out;
-  }
-  if (!value || typeof value !== "object") return out;
-  const obj = value as Record<string, unknown>;
-  const to =
-    typeof obj.to === "string"
-      ? obj.to
-      : typeof obj.contractAddress === "string"
-        ? obj.contractAddress
-        : undefined;
-  const data =
-    typeof obj.data === "string"
-      ? obj.data
-      : typeof obj.callData === "string"
-        ? obj.callData
-        : undefined;
-  if (
-    to &&
-    data &&
-    /^0x[0-9a-fA-F]{40}$/.test(to) &&
-    /^0x[0-9a-fA-F]*$/.test(data)
-  ) {
-    const valueField =
-      typeof obj.value === "string"
-        ? obj.value
-        : typeof obj.amount === "string"
-          ? obj.amount
-          : undefined;
-    const key = `${to.toLowerCase()}:${data.toLowerCase()}:${valueField || "0"}`;
-    if (
-      !out.some(
-        (tx) =>
-          `${tx.to.toLowerCase()}:${tx.data.toLowerCase()}:${tx.value || "0"}` === key,
-      )
-    ) {
-      out.push({ to, data, ...(valueField ? { value: valueField } : {}) });
-    }
-  }
-  for (const child of Object.values(obj)) collectTransactions(child, out);
-  return out;
-}
 
 export async function POST(req: Request) {
   const rl = rateLimit(`circle-swap-prepare:${clientIp(req)}`, {
@@ -128,19 +80,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_amount" }, { status: 400 });
   }
   if (
-    !TOKEN_ADDRESSES[tokenIn] ||
-    !TOKEN_ADDRESSES[tokenOut] ||
+    !SUPPORTED_TOKENS.includes(tokenIn) ||
+    !SUPPORTED_TOKENS.includes(tokenOut) ||
     tokenIn === tokenOut
   ) {
     return NextResponse.json({ error: "unsupported_swap_pair" }, { status: 400 });
   }
-  if (chainId !== ARC_TESTNET_CHAIN_ID) {
+  const isMainnet = chainId === ARC_MAINNET_CHAIN_ID;
+  if (chainId !== ARC_TESTNET_CHAIN_ID && !isMainnet) {
+    return NextResponse.json(
+      { error: "unsupported_swap_chain", detail: "Only Arc Mainnet (5042) and Arc Testnet (5042002) are supported." },
+      { status: 400 },
+    );
+  }
+  if (isMainnet && process.env.ARC_MAINNET_SWAP_ENABLED !== "true") {
+    return NextResponse.json(
+      { error: "mainnet_swap_disabled", detail: "Arc Mainnet swap preparation is disabled until the Mainnet release gate is enabled." },
+      { status: 403 },
+    );
+  }
+
+  // The current UI uses a separate browser-wallet execution path. Circle StableFX
+  // is permissioned and its App Kit estimate is quote-only, not unsigned calldata.
+  // Keep this API fail-closed even if the legacy feature flag is accidentally set.
+  if (isMainnet) {
     return NextResponse.json(
       {
-        error: "unsupported_swap_chain",
-        detail: "Swap preparation is available on Arc Testnet only (5042002).",
+        error: "mainnet_swap_not_ready",
+        detail: "Arc Mainnet requires an authorized StableFX or independently verified DEX execution integration. No quote or transaction was created.",
       },
-      { status: 400 },
+      { status: 503 },
     );
   }
 
@@ -164,13 +133,15 @@ export async function POST(req: Request) {
       import("viem"),
     ]);
 
-    // The endpoint is Testnet-only regardless of public runtime network flags.
+    // This quote-only App Kit path is Testnet-only. Mainnet is rejected above.
     const arcViem = viem.defineChain({
       id: ARC_TESTNET_CHAIN_ID,
       name: "Arc Testnet",
       nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
       rpcUrls: {
-        default: { http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"] },
+        default: {
+          http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io"],
+        },
       },
       blockExplorers: {
         default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
@@ -193,7 +164,7 @@ export async function POST(req: Request) {
 
     const adapter = await createViemAdapterFromProvider({ provider });
 
-    // Cast through any because some installed App Kit typings lag the Testnet identifier.
+    // Circle App Kit uses the string identifiers "Arc" and "Arc_Testnet".
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const appKitChainName = "Arc_Testnet" as any;
 
@@ -213,27 +184,17 @@ export async function POST(req: Request) {
       },
     });
 
-    const transactions = collectTransactions(estimate);
-    if (!transactions.length) {
-      return NextResponse.json(
-        {
-          error: "Circle App Kit returned a quote without executable transaction data.",
-          estimate: jsonSafe(estimate),
-        },
-        { status: 502 },
-      );
-    }
-
     return NextResponse.json(
       {
         ok: true,
         chainId,
+        network: "testnet",
         address,
         tokenIn,
         tokenOut,
         amountIn: amount,
         estimate: jsonSafe(estimate),
-        transactions: jsonSafe(transactions),
+        
       },
       { headers: { "Cache-Control": "no-store" } },
     );
