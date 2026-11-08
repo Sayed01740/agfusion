@@ -31,6 +31,7 @@ Arc Mainnet requests to the Circle swap-preparation route are always rejected. T
 
 1. CI passes on the exact proposed release commit: Circle SDK compatibility, Elliptic regression, lint, typecheck, unit tests, and production build.
 2. Dependency audit passes, with any skipped enforcement step explicitly reviewed.
+   - The `@mapped/elliptic@6.6.10` fork provenance, full source diff, RFC 6979 regression vectors, and actual signing call path require independent verification tracked in [issue #30](https://github.com/Sayed01740/agfusion/issues/30). A green npm audit alone does not satisfy this gate.
 3. Independent security review confirms chain binding, RPC trust, token/quote integrity, and that the endpoint only prepares unsigned transaction data.
 4. Preview verification confirms Testnet default behavior, Mainnet disabled behavior, and gated Mainnet preparation using non-production credentials and no wallet signing or broadcast.
 5. Confirm the production RPC, explorer, Circle App Kit Mainnet support, and Mainnet token metadata against current official Circle documentation before enabling the flag.
