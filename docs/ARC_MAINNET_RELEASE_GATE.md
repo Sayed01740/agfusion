@@ -100,3 +100,22 @@ The following backend groundwork is implemented on the isolated Arc Mainnet feat
 - Automated tests cover session encryption/tampering/expiry, Permit2 signature validation, exact approvals, preflight validation, transaction preparation gating, local simulation, wallet-state checks, and receipt verification.
 
 Still not implemented: durable atomic one-time quote-session consumption/replay protection, wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, and independent security review. The same encrypted quote session can currently be replayed during its 60-second lifetime; Permit2 nonce checks are not a complete substitute, especially when a pre-existing Permit2 allowance is used. Do not enable the Preview switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
+
+
+## Durable quote-session replay protection (2026-11-08)
+
+The follow-up branch `feature/arc-quote-session-replay-guard-20261108` adds a PostgreSQL-backed one-time quote-session claim:
+
+- Quote creation stores only a SHA-256 digest of the opaque AES-256-GCM session token, plus the normalized account, fixed chain ID 5042, expiry, and consumption timestamp. Raw quote data and the opaque token are not persisted.
+- Swap preparation validates the encrypted session and Permit2/preflight requirements first, then performs a conditional PostgreSQL `updateMany` claim immediately before the external Uniswap swap-preparation request.
+- The conditional update requires the token digest, account, chain ID, unexpired timestamp, and `consumedAt IS NULL`. Exactly one concurrent request can claim the row; later/replayed requests receive HTTP 409.
+- If PostgreSQL is unavailable, quote issuance and swap preparation fail closed with HTTP 503. A quote cannot be returned without a durable row.
+- A migration creates the `ArcQuoteSession` table with a unique token digest and expiry/account indexes. Unit tests cover token hashing, account/chain binding, successful atomic claim, replay/concurrency loser, malformed bindings, and database outages.
+
+The feature remains disabled by default. A successful claim is consumed even if the upstream preparation request later fails; the user must request a fresh quote. This is intentional fail-closed behavior and avoids ambiguous retry semantics.
+
+### Preview database prerequisite
+
+The Vercel project currently exposes a Production `DATABASE_URL` but no Preview `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` for this branch. Do not point Preview at the Production database. Provision a separate Preview PostgreSQL database, set its pooled URL as `POSTGRES_PRISMA_URL` and its direct URL as `POSTGRES_URL_NON_POOLING` for this Preview branch only, then apply the migration and verify the integration tests against that isolated database.
+
+Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. No Mainnet signing or broadcast is enabled by this work.
