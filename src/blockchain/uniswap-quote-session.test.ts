@@ -43,7 +43,10 @@ describe("encrypted Arc Uniswap quote sessions", () => {
 
   it("rejects tampering", () => {
     const created = createArcUniswapQuoteSession(input, secret, now);
-    const altered = created.token.slice(0, -1) + (created.token.endsWith("A") ? "B" : "A");
+    const parts = created.token.split(".");
+    const ciphertext = parts[2];
+    parts[2] = (ciphertext[0] === "A" ? "B" : "A") + ciphertext.slice(1);
+    const altered = parts.join(".");
     expect(() => decryptArcUniswapQuoteSession(altered, secret, now)).toThrow();
   });
 
