@@ -9,6 +9,7 @@ import {
 } from "@/blockchain/uniswap-permit2-preflight";
 import { createArcUniswapReceiptTicket, decryptArcUniswapQuoteSession } from "@/blockchain/uniswap-quote-session";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { consumeArcQuoteSession } from "@/lib/arc-quote-session-store";
 import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
@@ -120,6 +121,20 @@ export async function POST(req: Request) {
       ) {
         return NextResponse.json({ error: "permit2_allowance_insufficient_request_new_quote" }, { status: 409 });
       }
+    }
+
+    // Consume immediately before the external preparation request. A
+    // conditional database update ensures only one concurrent request wins.
+    const consumed = await consumeArcQuoteSession({
+      token: sessionToken,
+      account: session.account,
+      chainId: session.chainId,
+    });
+    if (!consumed.ok) {
+      return NextResponse.json(
+        { error: consumed.reason === "database_unavailable" ? "quote_session_store_unavailable" : "quote_session_already_used" },
+        { status: consumed.reason === "database_unavailable" ? 503 : 409 },
+      );
     }
 
     const upstream = await fetch(UNISWAP_SWAP_URL, {
