@@ -3,6 +3,7 @@ import { POST } from "./route";
 
 const mocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
+  createReceiptTicket: vi.fn(),
   preflight: vi.fn(),
   approval: vi.fn(),
   permit: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/blockchain/uniswap-quote-session", () => ({
   decryptArcUniswapQuoteSession: mocks.decrypt,
+  createArcUniswapReceiptTicket: mocks.createReceiptTicket,
 }));
 vi.mock("@/blockchain/uniswap-permit2-preflight", () => ({
   readArcMainnetPermit2Preflight: mocks.preflight,
@@ -119,6 +121,7 @@ function setup() {
   vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", "test-only-quote-session-secret-with-over-32-bytes");
   vi.stubEnv("UNISWAP_API_KEY", "test-uniswap-key");
   mocks.decrypt.mockReturnValue(session);
+  mocks.createReceiptTicket.mockReturnValue({ token: "encrypted-receipt-ticket", expiresAt: now + 86400 });
   mocks.preflight.mockResolvedValue(preflightState);
   mocks.validateSwap.mockReturnValue(validated);
   mocks.simulate.mockResolvedValue(simulation);
@@ -186,6 +189,7 @@ describe("POST /api/uniswap/swap", () => {
       transaction: { from: account, to: swap.to, data: swap.data, value: "0", gasLimit: "300000" },
       validation: { upstreamSimulation: "passed", localEthCall: "passed", localGasEstimate: "passed" },
       executionEnabled: false,
+      receiptVerificationTicket: "encrypted-receipt-ticket",
     });
     expect(data.transaction).not.toHaveProperty("signature");
     expect(data).not.toHaveProperty("signedTransaction");
