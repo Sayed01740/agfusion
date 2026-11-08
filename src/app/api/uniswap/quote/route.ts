@@ -146,12 +146,12 @@ export async function POST(req: Request) {
       inputToken !== tokenInMeta.address.toLowerCase() ||
       inputAmount !== amountBaseUnits ||
       outputToken !== tokenOutMeta.address.toLowerCase() ||
-      (recipient && recipient !== wallet.toLowerCase()) ||
+      recipient !== wallet.toLowerCase() ||
       (!/^\d+$/.test(outputAmount) || BigInt(outputAmount) <= 0n)
     ) {
       return NextResponse.json({ error: "unverified_uniswap_quote" }, { status: 502 });
     }
-    if (minimumAmount && (!/^\d+$/.test(minimumAmount) || BigInt(minimumAmount) <= 0n)) {
+    if (!/^\d+$/.test(minimumAmount) || BigInt(minimumAmount) <= 0n || BigInt(minimumAmount) > BigInt(outputAmount)) {
       return NextResponse.json({ error: "invalid_uniswap_minimum" }, { status: 502 });
     }
 
@@ -180,8 +180,7 @@ export async function POST(req: Request) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[AGFusion] Uniswap quote proxy failed", { message });
+    console.error("[AGFusion] Uniswap quote proxy failed", { errorName: error instanceof Error ? error.name : "UnknownError" });
     return NextResponse.json({ error: "uniswap_quote_proxy_failed" }, { status: 502 });
   }
 }
