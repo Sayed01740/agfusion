@@ -74,16 +74,17 @@ export async function consumeArcQuoteSession(input: {
     return { ok: false, reason: "invalid_or_consumed_session" };
   }
 
+  const now = input.now ?? new Date();
   try {
     const result = await getPrisma().arcQuoteSession.updateMany({
       where: {
         tokenHash: hashSessionToken(input.token),
         account: input.account.toLowerCase(),
         chainId: ARC_MAINNET_CHAIN_ID,
-        expiresAt: { gt: input.now ?? new Date() },
+        expiresAt: { gt: now },
         consumedAt: null,
       },
-      data: { consumedAt: input.now ?? new Date() },
+      data: { consumedAt: now },
     });
     return result.count === 1
       ? { ok: true }
