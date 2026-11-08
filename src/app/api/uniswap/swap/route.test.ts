@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   approval: vi.fn(),
   permit: vi.fn(),
   validateSwap: vi.fn(),
-  simulate: vi.fn(),\n  consume: vi.fn(),
+  simulate: vi.fn(),
+  consume: vi.fn(),
 }));
 
 vi.mock("@/blockchain/uniswap-quote-session", () => ({
@@ -26,7 +27,8 @@ vi.mock("@/blockchain/uniswap-permit2", () => ({
 vi.mock("@/blockchain/uniswap-mainnet-adapter", () => ({
   validateArcMainnetSwapTransaction: mocks.validateSwap,
 }));
-vi.mock("@/lib/arc-quote-session-store", () => ({ consumeArcQuoteSession: mocks.consume }));\nvi.mock("@/lib/rate-limit", () => ({
+vi.mock("@/lib/arc-quote-session-store", () => ({ consumeArcQuoteSession: mocks.consume }));
+vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "uniswap-swap-prepare-test",
   rateLimit: () => ({ ok: true }),
 }));
@@ -122,7 +124,8 @@ function setup() {
   vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
   vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", "test-only-quote-session-secret-with-over-32-bytes");
   vi.stubEnv("UNISWAP_API_KEY", "test-uniswap-key");
-  mocks.decrypt.mockReturnValue(session);\n  mocks.consume.mockResolvedValue({ ok: true });
+  mocks.decrypt.mockReturnValue(session);
+  mocks.consume.mockResolvedValue({ ok: true });
   mocks.createReceiptTicket.mockReturnValue({ token: "encrypted-receipt-ticket", expiresAt: now + 86400 });
   mocks.preflight.mockResolvedValue(preflightState);
   mocks.validateSwap.mockReturnValue(validated);
@@ -147,6 +150,25 @@ describe("POST /api/uniswap/swap", () => {
     const response = await POST(request({ quoteSession: "opaque" }));
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "invalid_or_expired_quote_session" });
+  });
+
+  it("rejects a quote-session replay before calling Uniswap", async () => {
+    setup();
+    mocks.consume.mockResolvedValue({ ok: false, reason: "invalid_or_consumed_session" });
+    const response = await POST(request({ quoteSession: "opaque" }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "quote_session_already_used" });
+    expect(mocks.consume).toHaveBeenCalledWith({ token: "opaque", account, chainId: 5042 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the durable quote-session store is unavailable", async () => {
+    setup();
+    mocks.consume.mockResolvedValue({ ok: false, reason: "database_unavailable" });
+    const response = await POST(request({ quoteSession: "opaque" }));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: "quote_session_store_unavailable" });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("requires exact ERC-20 approval before calling Uniswap", async () => {
