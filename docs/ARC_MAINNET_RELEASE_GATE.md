@@ -102,20 +102,27 @@ The following backend groundwork is implemented on the isolated Arc Mainnet feat
 Durable atomic one-time quote-session consumption/replay protection is implemented on the follow-up branch using PostgreSQL conditional updates and is covered by unit and disposable PostgreSQL concurrency tests. It is not yet runtime-validated in Vercel Preview because this branch has no isolated Preview database configured. Still not implemented: wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, live liquidity validation, and independent security review. Do not enable the Preview preparation switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
 
 
-## Durable quote-session replay protection (2026-11-08)
+## Durable quote-session replay protection (2026-11-09)
 
-The follow-up branch `feature/arc-quote-session-replay-guard-20261108` adds a PostgreSQL-backed one-time quote-session claim:
+The quote-session replay guard now uses a dedicated Cloudflare D1 Worker rather than Prisma/PostgreSQL:
 
-- Quote creation stores only a SHA-256 digest of the opaque AES-256-GCM session token, plus the normalized account, fixed chain ID 5042, expiry, and consumption timestamp. Raw quote data and the opaque token are not persisted.
-- Swap preparation validates the encrypted session and Permit2/preflight requirements first, then performs a conditional PostgreSQL `updateMany` claim immediately before the external Uniswap swap-preparation request.
-- The conditional update requires the token digest, account, chain ID, unexpired timestamp, and `consumedAt IS NULL`. Exactly one concurrent request can claim the row; later/replayed requests receive HTTP 409.
-- If PostgreSQL is unavailable, quote issuance and swap preparation fail closed with HTTP 503. A quote cannot be returned without a durable row.
-- A migration creates the `ArcQuoteSession` table with a unique token digest and expiry/account indexes. Unit tests cover token hashing, account/chain binding, successful atomic claim, replay/concurrency loser, malformed bindings, and database outages.
+- Quote creation hashes the opaque encrypted session token with SHA-256 and sends only the digest to the authenticated Worker over HTTPS. The raw token and encrypted quote payload are never sent to D1.
+- The Worker stores the digest, normalized wallet account, fixed Arc chain ID 5042, expiry, and consumption timestamp.
+- Registration uses a parameterized INSERT with a unique token-hash primary key.
+- Consumption uses one parameterized conditional SQL UPDATE requiring the digest, account, chain ID, unexpired timestamp, and `consumed_at IS NULL`. Exactly one request can update the row; replays return HTTP 409.
+- Missing configuration, network timeout, Worker authentication/configuration failure, or D1 outage fails closed with HTTP 503.
+- A scheduled cleanup removes expired records older than 24 hours in bounded batches.
+- The Prisma `ArcQuoteSession` model and its migration have been removed. Prisma/PostgreSQL remains the application's existing data layer for unrelated user, transaction, and x402 records.
 
-The feature remains disabled by default. A successful claim is consumed even if the upstream preparation request later fails; the user must request a fresh quote. This is intentional fail-closed behavior and avoids ambiguous retry semantics.
+The Worker source, D1 schema, Wrangler template, Next.js client, and unit tests are in `workers/quote-session-store` and `src/lib/arc-quote-session-store.ts`. See [the D1 Worker runbook](./ARC_MAINNET_D1_WORKER_RUNBOOK.md).
 
-### Preview database prerequisite
+### Provisioning and validation status
 
-The Vercel project currently exposes a Production `DATABASE_URL` but no Preview `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` for this branch. Do not point Preview at the Production database. Select and provision an isolated durable Preview database. If PostgreSQL is selected, set its pooled URL as `POSTGRES_PRISMA_URL` and its direct URL as `POSTGRES_URL_NON_POOLING` for this Preview branch only, then apply the migration and verify the integration tests against that isolated database. Do not assume Neon is already connected or reuse Production credentials.
+The code and local unit tests are committed on `feature/arc-quote-session-d1-worker-20261109`. A real Cloudflare D1 database ID, Worker API secret, deployed Worker URL, Vercel Preview secrets, and remote D1 concurrent-consume test are not yet available. Cloudflare account provisioning and deployment require account access; do not mark these steps complete until verified.
 
-Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. No Mainnet signing or broadcast is enabled by this work.
+Cloudflare's official D1 documentation confirms that Worker bindings use prepared statements and parameter binding, and that D1 write results expose `meta.changes`. The consume path relies on a single conditional UPDATE, not a read-then-write sequence:
+- https://developers.cloudflare.com/d1/worker-api/
+- https://developers.cloudflare.com/d1/worker-api/prepared-statements/
+- https://developers.cloudflare.com/d1/worker-api/return-object/
+
+Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. Keep `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`. No Mainnet signing or broadcast is enabled by this work.
