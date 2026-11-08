@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
-const storeMocks = vi.hoisted(() => ({ register: vi.fn() }));
+const storeMocks = vi.hoisted(() => ({ register: vi.fn().mockResolvedValue({ ok: true }) }));
 vi.mock("@/lib/arc-quote-session-store", () => ({ registerArcQuoteSession: storeMocks.register }));
 
 vi.mock("@/lib/rate-limit", () => ({
