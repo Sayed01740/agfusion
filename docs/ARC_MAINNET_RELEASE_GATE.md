@@ -42,7 +42,7 @@ Keep Mainnet execution disabled in code. If a legacy `ARC_MAINNET_SWAP_ENABLED` 
 
 ## Operational boundary
 
-The Circle preparation API returns estimate information only. The Uniswap quote proxy returns a normalized quote summary only. Neither endpoint returns executable transaction data or authorizes wallet signing or broadcast. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
+The Circle preparation API returns estimate information only. The Uniswap quote proxy returns a normalized quote summary, a short-lived encrypted quote-session token, and the exact Permit2 typed-data message only when a wallet signature is required. The separately gated Uniswap swap-preparation endpoint can return unsigned transaction data only when its server-side switch is explicitly enabled. Neither endpoint signs or broadcasts a transaction. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
 
 
 ## Current UI execution boundary
@@ -83,7 +83,7 @@ Before enabling Mainnet execution, implement a separate wallet-confirmed approva
 
 The validation-only adapter at `src/blockchain/uniswap-mainnet-adapter.ts` verifies Arc chain ID 5042, the official Universal Router 2.1.2 destination, the quoted sender, quote freshness, exact input, V2/V3 token path, per-hop slippage bounds, final minimum output, zero native value, gas fields, and a bounded execute deadline. It rejects Permit2 signature commands, V4, exact-output, subplans, unknown commands, and allow-revert flags.
 
-The adapter is not wired into the browser swap flow. Permit2 typed-data signing, exact ERC-20 approval to Permit2, allowance/balance checks, strict Mainnet simulation, wallet chain/account rechecks, transaction submission, and receipt verification remain mandatory work before any Mainnet execution review.
+The adapter is not wired into the browser swap flow. The backend now implements Permit2 typed-data validation, exact ERC-20 approval calldata construction, read-only allowance/balance checks, strict Mainnet simulation, a wallet chain/account guard helper, and read-only receipt verification. The browser confirmation/orchestration UI, wallet signing, transaction submission, and post-submission tracking remain mandatory work before any Mainnet execution review.
 
 
 ## Current implementation checkpoint (2026-11-08)
@@ -99,7 +99,7 @@ The following backend groundwork is implemented on the isolated Arc Mainnet feat
 - Encrypted 24-hour receipt tickets and read-only `POST /api/uniswap/receipt` verification of transaction chain/sender/router, successful receipt, exact input transfer, and minimum output transfer.
 - Automated tests cover session encryption/tampering/expiry, Permit2 signature validation, exact approvals, preflight validation, transaction preparation gating, local simulation, wallet-state checks, and receipt verification.
 
-Still not implemented: durable atomic one-time quote-session consumption/replay protection, wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, and independent security review. The same encrypted quote session can currently be replayed during its 60-second lifetime; Permit2 nonce checks are not a complete substitute, especially when a pre-existing Permit2 allowance is used. Do not enable the Preview switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
+Durable atomic one-time quote-session consumption/replay protection is implemented on the follow-up branch using PostgreSQL conditional updates and is covered by unit and disposable PostgreSQL concurrency tests. It is not yet runtime-validated in Vercel Preview because this branch has no isolated Preview database configured. Still not implemented: wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, live liquidity validation, and independent security review. Do not enable the Preview preparation switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
 
 
 ## Durable quote-session replay protection (2026-11-08)
@@ -116,6 +116,6 @@ The feature remains disabled by default. A successful claim is consumed even if 
 
 ### Preview database prerequisite
 
-The Vercel project currently exposes a Production `DATABASE_URL` but no Preview `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` for this branch. Do not point Preview at the Production database. Provision a separate Preview PostgreSQL database, set its pooled URL as `POSTGRES_PRISMA_URL` and its direct URL as `POSTGRES_URL_NON_POOLING` for this Preview branch only, then apply the migration and verify the integration tests against that isolated database.
+The Vercel project currently exposes a Production `DATABASE_URL` but no Preview `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` for this branch. Do not point Preview at the Production database. Select and provision an isolated durable Preview database. If PostgreSQL is selected, set its pooled URL as `POSTGRES_PRISMA_URL` and its direct URL as `POSTGRES_URL_NON_POOLING` for this Preview branch only, then apply the migration and verify the integration tests against that isolated database. Do not assume Neon is already connected or reuse Production credentials.
 
 Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. No Mainnet signing or broadcast is enabled by this work.
