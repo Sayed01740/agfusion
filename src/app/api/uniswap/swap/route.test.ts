@@ -35,7 +35,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.useRealTimers();
-  vi.clearAllMocks();
+  session.permitData = null;
+  vi.resetAllMocks();
 });
 
 const now = 1_800_000_000;
@@ -115,6 +116,7 @@ function request(body: unknown) {
 }
 
 function setup() {
+  session.permitData = null;
   vi.useFakeTimers();
   vi.setSystemTime(new Date(now * 1000));
   vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
