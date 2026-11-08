@@ -7,10 +7,15 @@ export const ARC_PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 const MAX_QUOTE_AGE_SECONDS = 60;
 const MAX_TRANSACTION_DEADLINE_SECONDS = 30 * 60;
 const MAX_COMMANDS = 8;
+const ARC_MAINNET_TOKEN_ADDRESSES = new Set([
+  "0x3600000000000000000000000000000000000000",
+  "0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1",
+  "0x171a4217b86a807a64eb94757db6849fb4bdbAA0".toLowerCase(),
+]);
 
 export type ArcMainnetSwapExpectation = {
   account: string; tokenIn: string; tokenOut: string; amountIn: bigint;
-  minimumAmountOut: bigint; quoteCreatedAt: number; nowSeconds?: number;
+  minimumAmountOut: bigint; quotedAmountOut: bigint; quoteCreatedAt: number; nowSeconds?: number;
 };
 export type UniswapSwapTransaction = {
   chainId: number | string; from: string; to: string; data: string; value: string;
@@ -70,12 +75,13 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   const now = expected.nowSeconds ?? Math.floor(Date.now() / 1000);
   if (!Number.isSafeInteger(now) || now <= 0) fail("invalid local clock");
   if (!Number.isSafeInteger(expected.quoteCreatedAt) || expected.quoteCreatedAt > now || now - expected.quoteCreatedAt > MAX_QUOTE_AGE_SECONDS) fail("quote is stale or has an invalid timestamp");
-  if (expected.amountIn <= 0n || expected.minimumAmountOut <= 0n) fail("quote amounts must be positive");
+  if (expected.amountIn <= 0n || expected.minimumAmountOut <= 0n || expected.quotedAmountOut <= 0n || expected.minimumAmountOut > expected.quotedAmountOut) fail("quote amounts are invalid or minimum output exceeds quoted output");
 
   const account = normalizeAddress(expected.account, "wallet account");
   const tokenIn = normalizeAddress(expected.tokenIn, "input token");
   const tokenOut = normalizeAddress(expected.tokenOut, "output token");
   if (tokenIn === tokenOut) fail("input and output tokens must differ");
+  if (!ARC_MAINNET_TOKEN_ADDRESSES.has(tokenIn) || !ARC_MAINNET_TOKEN_ADDRESSES.has(tokenOut)) fail("token pair is not in the Arc Mainnet allowlist");
   if (Number(transaction.chainId) !== ARC_MAINNET_CHAIN_ID) fail("transaction chain ID is not Arc Mainnet (5042)");
   if (normalizeAddress(transaction.from, "transaction sender") !== account) fail("transaction sender does not match the quoted wallet");
   if (normalizeAddress(transaction.to, "transaction destination") !== ARC_UNIVERSAL_ROUTER_2_1_2.toLowerCase()) fail("transaction destination is not the allowlisted Universal Router 2.1.2");
@@ -94,6 +100,8 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   try { outer = CommandParser.INTERFACE.parseTransaction({ data: transaction.data }); }
   catch { return fail("calldata is not a valid Universal Router execute call"); }
   if (!outer || outer.name !== "execute" || outer.args.length !== 3) fail("execute call must include an explicit deadline");
+  const canonicalData = CommandParser.INTERFACE.encodeFunctionData(outer.signature, Array.from(outer.args));
+  if (canonicalData.toLowerCase() !== transaction.data.toLowerCase()) fail("calldata is not canonical or contains trailing data");
 
   const rawCommands = String(outer.args[0]);
   if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(rawCommands)) fail("command stream is malformed");
@@ -143,6 +151,7 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   if (amountIn !== expected.amountIn) fail("swap input amount does not match quote");
   const path = decodePath(swap);
   if (path[0] !== tokenIn || path[path.length - 1] !== tokenOut) fail("decoded token path does not match quote pair");
+  if (path.some((address) => !ARC_MAINNET_TOKEN_ADDRESSES.has(address))) fail("route contains an intermediate token outside the Arc Mainnet allowlist");
   const hopPrices = getParam(swap, "minHopPriceX36");
   if (!Array.isArray(hopPrices) || hopPrices.length !== path.length - 1) fail("per-hop slippage bounds are missing or malformed");
   for (const price of hopPrices) toUnsignedBigInt(price, "per-hop minimum price");
@@ -157,10 +166,12 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
     const sweep = parsed.commands[sweepIndexes[0]];
     if (normalizeAddress(getParam(sweep, "token"), "sweep token") !== tokenOut) fail("sweep token does not match quote output");
     if (normalizeAddress(getParam(sweep, "recipient"), "sweep recipient") !== account) fail("sweep recipient does not match quoted wallet");
-    if (toUnsignedBigInt(getParam(sweep, "amountMin"), "sweep minimum output") < expected.minimumAmountOut) fail("sweep minimum output is below the user-confirmed quote minimum");
+    const sweepMinimum = toUnsignedBigInt(getParam(sweep, "amountMin"), "sweep minimum output");
+    if (sweepMinimum < expected.minimumAmountOut || sweepMinimum > expected.quotedAmountOut) fail("sweep minimum output is outside the user-confirmed quote bounds");
   } else {
     if (sweepIndexes.length !== 0) fail("unexpected sweep after direct-to-wallet swap");
-    if (toUnsignedBigInt(getParam(swap, "amountOutMin"), "swap minimum output") < expected.minimumAmountOut) fail("swap minimum output is below the user-confirmed quote minimum");
+    const swapMinimum = toUnsignedBigInt(getParam(swap, "amountOutMin"), "swap minimum output");
+    if (swapMinimum < expected.minimumAmountOut || swapMinimum > expected.quotedAmountOut) fail("swap minimum output is outside the user-confirmed quote bounds");
   }
 
   if (parsed.commands.length !== transferIndexes.length + 1 + sweepIndexes.length) fail("transaction contains an unexpected command");

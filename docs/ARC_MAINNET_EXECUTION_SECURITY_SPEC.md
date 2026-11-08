@@ -12,7 +12,7 @@
 - The Circle App Kit preparation endpoint rejects Mainnet. An estimate is not unsigned transaction data.
 - No Mainnet execution code may reuse Testnet router addresses, token metadata, RPC fallback lists, chain keys, or approval assumptions.
 
-The validation-only adapter in `src/blockchain/uniswap-mainnet-adapter.ts` uses `@uniswap/universal-router-sdk` 5.16.2 and explicitly passes `UniversalRouterVersion.V2_1_2`. It accepts only a narrow set of exact-input V2/V3 commands and verifies raw command flags, wallet, chain, router, quote age, deadline, input amount, token path, output recipient, minimum output, and gas fields. It is not wired to a wallet or UI execution path and performs no simulation, approval, signing, broadcast, or receipt verification.
+The validation-only adapter in `src/blockchain/uniswap-mainnet-adapter.ts` uses `@uniswap/universal-router-sdk` 5.16.2 and explicitly passes `UniversalRouterVersion.V2_1_2`. It accepts only a narrow set of exact-input V2/V3 commands and verifies raw command flags, wallet, chain, router, quote age, deadline, input amount, allowlisted token path, output recipient, quote output/minimum bounds, canonical calldata, and gas fields. It is not wired to a wallet or UI execution path and performs no simulation, approval, signing, broadcast, or receipt verification.
 
 Any change that relaxes one of these boundaries requires a separate security review and explicit release approval.
 

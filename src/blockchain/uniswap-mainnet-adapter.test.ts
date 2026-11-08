@@ -12,7 +12,7 @@ const NOW = 1_800_000_000;
 const AMOUNT_IN = 1_000_000n;
 const MIN_OUT = 880_000n;
 const ROUTER_RECIPIENT = "0x0000000000000000000000000000000000000002";
-const expected: ArcMainnetSwapExpectation = { account: ACCOUNT, tokenIn: USDC, tokenOut: EURC, amountIn: AMOUNT_IN, minimumAmountOut: MIN_OUT, quoteCreatedAt: NOW - 5, nowSeconds: NOW };
+const expected: ArcMainnetSwapExpectation = { account: ACCOUNT, tokenIn: USDC, tokenOut: EURC, amountIn: AMOUNT_IN, minimumAmountOut: MIN_OUT, quotedAmountOut: 900_000n, quoteCreatedAt: NOW - 5, nowSeconds: NOW };
 
 function buildTransaction(planner: RoutePlanner, options: { deadline?: bigint; value?: string; to?: string; from?: string; chainId?: number; gasLimit?: string } = {}): UniswapSwapTransaction {
   const data = CommandParser.INTERFACE.encodeFunctionData("execute(bytes,bytes[],uint256)", [planner.commands, planner.inputs, options.deadline ?? BigInt(NOW + 600)]);
@@ -63,6 +63,33 @@ describe("Arc Mainnet Universal Router 2.1.2 transaction validation", () => {
   });
   it("rejects minimum output below quote", () => {
     expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner({ amountOutMin: MIN_OUT - 1n })), expected)).toThrow(/minimum output is below/);
+  });
+  it("rejects tokens outside the Arc Mainnet allowlist", () => {
+    expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner()), {
+      ...expected,
+      tokenOut: "0x3333333333333333333333333333333333333333",
+    })).toThrow(/token pair is not in the Arc Mainnet allowlist/);
+  });
+  it("rejects unsupported intermediate route tokens", () => {
+    const planner = new RoutePlanner();
+    const middle = "0x3333333333333333333333333333333333333333";
+    const path = USDC + "0001f4" + middle.slice(2) + "0001f4" + EURC.slice(2);
+    planner.addCommand(CommandType.V3_SWAP_EXACT_IN, [ACCOUNT, AMOUNT_IN, MIN_OUT, path, true, [0n, 0n]], false, UniversalRouterVersion.V2_1_2);
+    expect(() => validateArcMainnetSwapTransaction(buildTransaction(planner), expected)).toThrow(/intermediate token outside the Arc Mainnet allowlist/);
+  });
+  it("rejects minimum output greater than the quote output", () => {
+    expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner({ amountOutMin: 900_001n })), expected)).toThrow(/outside the user-confirmed quote bounds/);
+  });
+  it("rejects quote minimum greater than quote output", () => {
+    expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner()), {
+      ...expected,
+      quotedAmountOut: MIN_OUT - 1n,
+    })).toThrow(/quote amounts are invalid/);
+  });
+  it("rejects non-canonical calldata with trailing bytes", () => {
+    const tx = buildTransaction(makeV3Planner());
+    tx.data += "deadbeef";
+    expect(() => validateArcMainnetSwapTransaction(tx, expected)).toThrow(/not canonical or contains trailing data/);
   });
   it("rejects stale quotes", () => {
     expect(() => validateArcMainnetSwapTransaction(buildTransaction(makeV3Planner()), { ...expected, quoteCreatedAt: NOW - 61 })).toThrow(/quote is stale/);
