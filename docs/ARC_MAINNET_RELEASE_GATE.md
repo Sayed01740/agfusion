@@ -86,21 +86,11 @@ The validation-only adapter at `src/blockchain/uniswap-mainnet-adapter.ts` verif
 The adapter is not wired into the browser swap flow. The backend now implements Permit2 typed-data validation, exact ERC-20 approval calldata construction, read-only allowance/balance checks, strict Mainnet simulation, a wallet chain/account guard helper, and read-only receipt verification. The browser confirmation/orchestration UI, wallet signing, transaction submission, and post-submission tracking remain mandatory work before any Mainnet execution review.
 
 
-## Current implementation checkpoint (2026-11-08)
+## Current implementation checkpoint (2026-11-09)
 
-The following backend groundwork is implemented on the isolated Arc Mainnet feature branch:
+Backend groundwork on the isolated Arc Mainnet feature branch includes encrypted quote sessions, Permit2 typed-data validation, exact approval calldata construction, read-only allowance/balance checks, strict Mainnet simulation, wallet chain/account guard helpers, and read-only receipt verification. The Uniswap adapter validates Arc chain ID 5042, the official Universal Router 2.1.2 destination, sender, quote freshness, token path, slippage bounds, minimum output, native value, gas fields, and execute deadline. It rejects unsupported command paths.
 
-- AES-256-GCM encrypted quote sessions with a 60-second lifetime, binding wallet, chain 5042, token pair, exact input, quoted output, minimum output, raw quote, and Permit2 payload.
-- Preview-only sensitive `AGFUSION_QUOTE_SESSION_SECRET`; no Production or Development target.
-- `POST /api/uniswap/preflight`: read-only token/native-gas balances and ERC-20/Permit2 allowance/nonce/expiry checks; unsigned exact-amount Permit2 approval data only when needed.
-- Permit2 EIP-712 schema/domain/signer validation, exact amount and spender checks, and nonce comparison against current Arc Mainnet state.
-- `POST /api/uniswap/swap`: disabled unless `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=true`. The current Preview branch explicitly sets it to `false`. If separately enabled for controlled review, it requests Uniswap `/swap` with upstream simulation, validates Universal Router 2.1.2 calldata, runs local `eth_call` and `eth_estimateGas`, and returns unsigned transaction data only.
-- A pure wallet chain/account recheck helper for chain 5042.
-- Encrypted 24-hour receipt tickets and read-only `POST /api/uniswap/receipt` verification of transaction chain/sender/router, successful receipt, exact input transfer, and minimum output transfer.
-- Automated tests cover session encryption/tampering/expiry, Permit2 signature validation, exact approvals, preflight validation, transaction preparation gating, local simulation, wallet-state checks, and receipt verification.
-
-Durable atomic one-time quote-session consumption/replay protection is implemented on the follow-up branch using PostgreSQL conditional updates and is covered by unit and disposable PostgreSQL concurrency tests. It is not yet runtime-validated in Vercel Preview because this branch has no isolated Preview database configured. Still not implemented: wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, live liquidity validation, and independent security review. Do not enable the Preview preparation switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
-
+The browser approval/Permit2/swap confirmation flow, wallet signing, transaction broadcast, post-submission tracking, live-liquidity end-to-end validation, and independent security review are not complete. The browser Mainnet execution path remains fail-closed, and the Swap action remains disabled.
 
 ## Durable quote-session replay protection (2026-11-09)
 
