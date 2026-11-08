@@ -127,4 +127,10 @@ export default {
   fetch(request: Request, env: Env): Promise<Response> {
     return handleRequest(request, env);
   },
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    const cutoff = Math.floor(Date.now() / 1000) - 86_400;
+    await env.DB.prepare(
+      "DELETE FROM arc_quote_sessions WHERE token_hash IN (SELECT token_hash FROM arc_quote_sessions WHERE expires_at < ? ORDER BY expires_at LIMIT 500)",
+    ).bind(cutoff).run();
+  },
 };
