@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
+const storeMocks = vi.hoisted(() => ({ register: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock("@/lib/arc-quote-session-store", () => ({ registerArcQuoteSession: storeMocks.register }));
+
 vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "uniswap-arc-quote-test",
   rateLimit: () => ({ ok: true }),
 }));
 
 afterEach(() => {
+  storeMocks.register.mockReset().mockResolvedValue({ ok: true });
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -19,6 +23,30 @@ function request(body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+const SESSION_SECRET = "test-only-quote-session-secret-with-over-32-bytes";
+
+const permitData = {
+  domain: { name: "Permit2", version: "1", chainId: 5042, verifyingContract: "0x000000000022D473030F116dDEE9F6B43aC78BA3" },
+  types: {
+    PermitDetails: [
+      { name: "token", type: "address" },
+      { name: "amount", type: "uint160" },
+      { name: "expiration", type: "uint48" },
+      { name: "nonce", type: "uint48" },
+    ],
+    PermitSingle: [
+      { name: "details", type: "PermitDetails" },
+      { name: "spender", type: "address" },
+      { name: "sigDeadline", type: "uint256" },
+    ],
+  },
+  values: {
+    details: { token: "0x3600000000000000000000000000000000000000", amount: "10250000", expiration: "1800000900", nonce: "3" },
+    spender: "0x8702463e73f74d0b6765aBceb314Ef07aCb92650",
+    sigDeadline: "1800000600",
+  },
+};
 
 const validBody = {
   address: "0x1111111111111111111111111111111111111111",
@@ -69,8 +97,9 @@ describe("POST /api/uniswap/quote", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns a verified quote summary and never returns calldata or permit payloads", async () => {
+  it("returns a verified quote summary and encrypted session while exposing only the exact Permit2 typed data needed for signing", async () => {
     vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", SESSION_SECRET);
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       requestId: "quote-123",
       routing: "CLASSIC",
@@ -89,7 +118,7 @@ describe("POST /api/uniswap/quote", () => {
         },
       },
       swapTransaction: { to: "0x2222222222222222222222222222222222222222", data: "0xdeadbeef" },
-      permitData: { domain: { name: "Permit2" } },
+      permitData,
     }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -106,7 +135,16 @@ describe("POST /api/uniswap/quote", () => {
       estimatedGasUsd: "0.03",
     });
     expect(data).not.toHaveProperty("swapTransaction");
-    expect(data).not.toHaveProperty("permitData");
+    expect(data).not.toHaveProperty("quote");
+    expect(data.quoteSession).toEqual(expect.any(String));
+    expect(data.quoteSessionExpiresAt).toEqual(expect.any(Number));
+    expect(data.permitData).toEqual(permitData);
+    expect(storeMocks.register).toHaveBeenCalledWith({
+      token: data.quoteSession,
+      account: validBody.address,
+      chainId: 5042,
+      expiresAt: data.quoteSessionExpiresAt,
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["x-api-key"]).toBe("server-secret");
@@ -117,11 +155,34 @@ describe("POST /api/uniswap/quote", () => {
       tokenOutChainId: 5042,
       amount: "10250000",
       protocols: ["V2", "V3"],
+      permitAmount: "EXACT",
     });
+  });
+
+  it("does not return a quote session when durable storage is unavailable", async () => {
+    vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", SESSION_SECRET);
+    storeMocks.register.mockResolvedValue({ ok: false, reason: "database_unavailable" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      routing: "CLASSIC",
+      quote: {
+        input: { token: "0x3600000000000000000000000000000000000000", amount: "10250000" },
+        output: {
+          token: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1",
+          recipient: validBody.address,
+          amount: "9900000",
+          minimumAmount: "9801000",
+        },
+      },
+    }), { status: 200 })));
+    const response = await POST(request(validBody));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: "quote_session_store_unavailable" });
   });
 
   it("rejects a quote without the expected recipient", async () => {
     vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", SESSION_SECRET);
     const payload = {
       routing: "CLASSIC",
       quote: {
@@ -145,6 +206,7 @@ describe("POST /api/uniswap/quote", () => {
     ["greater than quoted output", "9900001"],
   ])("rejects an invalid minimum output: %s", async (_label, minimumAmount) => {
     vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", SESSION_SECRET);
     const payload = {
       routing: "CLASSIC",
       quote: {
@@ -165,6 +227,7 @@ describe("POST /api/uniswap/quote", () => {
 
   it("rejects non-CLASSIC routing because order signing is not implemented", async () => {
     vi.stubEnv("UNISWAP_API_KEY", "server-secret");
+    vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", SESSION_SECRET);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       routing: "DUTCH_V3",
       quote: {

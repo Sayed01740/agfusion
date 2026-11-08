@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { formatUnits, isAddress, parseUnits } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { readLimitedJson } from "@/lib/read-limited-json";
+import { createArcUniswapQuoteSession } from "@/blockchain/uniswap-quote-session";
+import { ARC_PERMIT2_CONTRACT, ARC_PERMIT2_SPENDER } from "@/blockchain/uniswap-permit2";
+import { registerArcQuoteSession } from "@/lib/arc-quote-session-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,6 +107,7 @@ export async function POST(req: Request) {
         slippageTolerance: slippageBps / 100,
         routingPreference: "BEST_PRICE",
         protocols: ["V2", "V3"],
+        permitAmount: "EXACT",
       }),
       signal: AbortSignal.timeout(12_000),
       cache: "no-store",
@@ -154,8 +158,61 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_uniswap_minimum" }, { status: 502 });
     }
 
-    // Intentionally return quote data only. Never expose upstream calldata,
-    // Permit2 messages, approval transactions, or signing payloads from this endpoint.
+    const permitData = payload.permitData === null || payload.permitData === undefined
+      ? null
+      : payload.permitData;
+    if (permitData !== null) {
+      if (
+        !isRecord(permitData) ||
+        !isRecord(permitData.domain) ||
+        !isRecord(permitData.values) ||
+        !isRecord(permitData.values.details) ||
+        !isRecord(permitData.types) ||
+        permitData.domain.name !== "Permit2" ||
+        permitData.domain.version !== "1" ||
+        Number(permitData.domain.chainId) !== ARC_MAINNET_CHAIN_ID ||
+        String(permitData.domain.verifyingContract || "").toLowerCase() !== ARC_PERMIT2_CONTRACT.toLowerCase() ||
+        String(permitData.values.details.token || "").toLowerCase() !== tokenInMeta.address.toLowerCase() ||
+        String(permitData.values.details.amount || "") !== amountBaseUnits ||
+        String(permitData.values.spender || "").toLowerCase() !== ARC_PERMIT2_SPENDER.toLowerCase()
+      ) {
+        return NextResponse.json({ error: "invalid_uniswap_permit_data" }, { status: 502 });
+      }
+    }
+
+    if (!process.env.AGFUSION_QUOTE_SESSION_SECRET) {
+      return NextResponse.json({ error: "quote_session_not_configured" }, { status: 503 });
+    }
+
+    const requestId = typeof payload.requestId === "string" ? payload.requestId : null;
+    const session = createArcUniswapQuoteSession({
+      chainId: ARC_MAINNET_CHAIN_ID,
+      account: wallet.toLowerCase(),
+      tokenIn: tokenInMeta.address.toLowerCase(),
+      tokenOut: tokenOutMeta.address.toLowerCase(),
+      amountIn: amountBaseUnits,
+      quotedAmountOut: outputAmount,
+      minimumAmountOut: minimumAmount,
+      quote: payload.quote,
+      permitData: permitData as Record<string, unknown> | null,
+      requestId,
+    });
+
+    const stored = await registerArcQuoteSession({
+      token: session.token,
+      account: wallet.toLowerCase(),
+      chainId: ARC_MAINNET_CHAIN_ID,
+      expiresAt: session.expiresAt,
+    });
+    if (!stored.ok) {
+      return NextResponse.json(
+        { error: stored.reason === "database_unavailable" ? "quote_session_store_unavailable" : "quote_session_store_rejected" },
+        { status: stored.reason === "database_unavailable" ? 503 : 500 },
+      );
+    }
+
+    // Persist only a token digest so preparation can atomically consume the
+    // encrypted quote session once across all server instances.
     return NextResponse.json(
       {
         ok: true,
@@ -166,15 +223,16 @@ export async function POST(req: Request) {
         tokenOut,
         amountIn: amount,
         amountOut: formatUnits(BigInt(outputAmount), tokenOutMeta.decimals),
-        minimumAmountOut: minimumAmount
-          ? formatUnits(BigInt(minimumAmount), tokenOutMeta.decimals)
-          : null,
+        minimumAmountOut: formatUnits(BigInt(minimumAmount), tokenOutMeta.decimals),
         routing,
-        requestId: typeof payload.requestId === "string" ? payload.requestId : null,
+        requestId,
         requiresApproval: payload.isTokenApprovalApplicable === true,
         estimatedGasUsd: typeof payload.quote.classicGasUseEstimateUSD === "string"
           ? payload.quote.classicGasUseEstimateUSD
           : null,
+        quoteSession: session.token,
+        quoteSessionExpiresAt: session.expiresAt,
+        permitData,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CommandParser, CommandType, RoutePlanner, UniversalRouterVersion } from "@uniswap/universal-router-sdk";
 import {
-  ARC_MAINNET_CHAIN_ID, ARC_UNIVERSAL_ROUTER_2_1_2, validateArcMainnetSwapTransaction,
+  ARC_MAINNET_CHAIN_ID, ARC_UNIVERSAL_ROUTER_2_1_2, validateArcMainnetSwapTransaction, assertArcMainnetWalletState,
   type ArcMainnetSwapExpectation, type UniswapSwapTransaction,
 } from "@/blockchain/uniswap-mainnet-adapter";
 
@@ -111,5 +111,40 @@ describe("Arc Mainnet Universal Router 2.1.2 transaction validation", () => {
     const planner = new RoutePlanner();
     planner.addCommand(CommandType.V2_SWAP_EXACT_OUT, [ACCOUNT, MIN_OUT, AMOUNT_IN, [USDC, EURC], true, [0n]], false, UniversalRouterVersion.V2_1_2);
     expect(() => validateArcMainnetSwapTransaction(buildTransaction(planner), expected)).toThrow(/unsupported command/);
+  });
+});
+
+
+describe("Arc Mainnet wallet state guard", () => {
+  it("accepts the expected wallet on chain 5042", () => {
+    expect(assertArcMainnetWalletState({
+      chainId: 5042,
+      account: ACCOUNT,
+      expectedAccount: ACCOUNT,
+    })).toEqual({ chainId: 5042, account: ACCOUNT.toLowerCase() });
+  });
+
+  it("rejects a wallet connected to another chain", () => {
+    expect(() => assertArcMainnetWalletState({
+      chainId: 5042002,
+      account: ACCOUNT,
+      expectedAccount: ACCOUNT,
+    })).toThrow(/not connected to Arc Mainnet/);
+  });
+
+  it("rejects an account change after quoting", () => {
+    expect(() => assertArcMainnetWalletState({
+      chainId: 5042,
+      account: "0x2222222222222222222222222222222222222222",
+      expectedAccount: ACCOUNT,
+    })).toThrow(/account changed/);
+  });
+
+  it("rejects a disconnected wallet", () => {
+    expect(() => assertArcMainnetWalletState({
+      chainId: 5042,
+      account: null,
+      expectedAccount: ACCOUNT,
+    })).toThrow(/connected wallet account/);
   });
 });

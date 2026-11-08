@@ -42,7 +42,7 @@ Keep Mainnet execution disabled in code. If a legacy `ARC_MAINNET_SWAP_ENABLED` 
 
 ## Operational boundary
 
-The Circle preparation API returns estimate information only. The Uniswap quote proxy returns a normalized quote summary only. Neither endpoint returns executable transaction data or authorizes wallet signing or broadcast. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
+The Circle preparation API returns estimate information only. The Uniswap quote proxy returns a normalized quote summary, a short-lived encrypted quote-session token, and the exact Permit2 typed-data message only when a wallet signature is required. The separately gated Uniswap swap-preparation endpoint can return unsigned transaction data only when its server-side switch is explicitly enabled. Neither endpoint signs or broadcasts a transaction. Never treat a successful quote as transaction approval. Mainnet transactions use real assets and are irreversible.
 
 
 ## Current UI execution boundary
@@ -71,7 +71,7 @@ Arc Mainnet quotes use the server-side `/api/uniswap/quote` proxy. The API key m
 - Explicit Universal Router version: `2.1.2` (Arc does not support the older 2.0 deployment).
 - Mainnet token addresses: USDC `0x3600000000000000000000000000000000000000` (6 ERC-20 decimals), EURC `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1` (6 decimals), cirBTC `0x171A4217b86A807A64eB94757Db6849fb4bDbAA0` (8 decimals).
 - The proxy accepts only same-chain Arc Mainnet exact-input quotes and currently restricts routing to CLASSIC V2/V3. V4 command decoding and UniswapX order signing are not implemented.
-- The proxy returns quote summary only. It intentionally strips swap calldata, Permit2 payloads, and approval transactions.
+- The proxy returns a normalized quote summary, a 60-second encrypted quote-session token, and the exact Permit2 typed-data payload only when a wallet signature is required. Raw quote details remain encrypted in the session; swap calldata and approval transactions are not returned by the quote endpoint.
 - The request does not set `x-permit2-disabled`. Uniswap's Proxy Approval contract is not listed as deployed on Arc, so the no-Permit2 flow is not an approved option for this network.
 - `@uniswap/universal-router-sdk` is pinned to `5.16.2`, and the validation-only adapter explicitly decodes with `UniversalRouterVersion.V2_1_2`. The validator rejects unsupported commands and does not sign or broadcast.
 - The UI may display a Mainnet quote, but the Swap button remains disabled. The existing Testnet execution path is unchanged.
@@ -83,4 +83,39 @@ Before enabling Mainnet execution, implement a separate wallet-confirmed approva
 
 The validation-only adapter at `src/blockchain/uniswap-mainnet-adapter.ts` verifies Arc chain ID 5042, the official Universal Router 2.1.2 destination, the quoted sender, quote freshness, exact input, V2/V3 token path, per-hop slippage bounds, final minimum output, zero native value, gas fields, and a bounded execute deadline. It rejects Permit2 signature commands, V4, exact-output, subplans, unknown commands, and allow-revert flags.
 
-The adapter is not wired into the browser swap flow. Permit2 typed-data signing, exact ERC-20 approval to Permit2, allowance/balance checks, strict Mainnet simulation, wallet chain/account rechecks, transaction submission, and receipt verification remain mandatory work before any Mainnet execution review.
+The adapter is not wired into the browser swap flow. The backend now implements Permit2 typed-data validation, exact ERC-20 approval calldata construction, read-only allowance/balance checks, strict Mainnet simulation, a wallet chain/account guard helper, and read-only receipt verification. The browser confirmation/orchestration UI, wallet signing, transaction submission, and post-submission tracking remain mandatory work before any Mainnet execution review.
+
+
+## Current implementation checkpoint (2026-11-08)
+
+The following backend groundwork is implemented on the isolated Arc Mainnet feature branch:
+
+- AES-256-GCM encrypted quote sessions with a 60-second lifetime, binding wallet, chain 5042, token pair, exact input, quoted output, minimum output, raw quote, and Permit2 payload.
+- Preview-only sensitive `AGFUSION_QUOTE_SESSION_SECRET`; no Production or Development target.
+- `POST /api/uniswap/preflight`: read-only token/native-gas balances and ERC-20/Permit2 allowance/nonce/expiry checks; unsigned exact-amount Permit2 approval data only when needed.
+- Permit2 EIP-712 schema/domain/signer validation, exact amount and spender checks, and nonce comparison against current Arc Mainnet state.
+- `POST /api/uniswap/swap`: disabled unless `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=true`. The current Preview branch explicitly sets it to `false`. If separately enabled for controlled review, it requests Uniswap `/swap` with upstream simulation, validates Universal Router 2.1.2 calldata, runs local `eth_call` and `eth_estimateGas`, and returns unsigned transaction data only.
+- A pure wallet chain/account recheck helper for chain 5042.
+- Encrypted 24-hour receipt tickets and read-only `POST /api/uniswap/receipt` verification of transaction chain/sender/router, successful receipt, exact input transfer, and minimum output transfer.
+- Automated tests cover session encryption/tampering/expiry, Permit2 signature validation, exact approvals, preflight validation, transaction preparation gating, local simulation, wallet-state checks, and receipt verification.
+
+Durable atomic one-time quote-session consumption/replay protection is implemented on the follow-up branch using PostgreSQL conditional updates and is covered by unit and disposable PostgreSQL concurrency tests. It is not yet runtime-validated in Vercel Preview because this branch has no isolated Preview database configured. Still not implemented: wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, live liquidity validation, and independent security review. Do not enable the Preview preparation switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
+
+
+## Durable quote-session replay protection (2026-11-08)
+
+The follow-up branch `feature/arc-quote-session-replay-guard-20261108` adds a PostgreSQL-backed one-time quote-session claim:
+
+- Quote creation stores only a SHA-256 digest of the opaque AES-256-GCM session token, plus the normalized account, fixed chain ID 5042, expiry, and consumption timestamp. Raw quote data and the opaque token are not persisted.
+- Swap preparation validates the encrypted session and Permit2/preflight requirements first, then performs a conditional PostgreSQL `updateMany` claim immediately before the external Uniswap swap-preparation request.
+- The conditional update requires the token digest, account, chain ID, unexpired timestamp, and `consumedAt IS NULL`. Exactly one concurrent request can claim the row; later/replayed requests receive HTTP 409.
+- If PostgreSQL is unavailable, quote issuance and swap preparation fail closed with HTTP 503. A quote cannot be returned without a durable row.
+- A migration creates the `ArcQuoteSession` table with a unique token digest and expiry/account indexes. Unit tests cover token hashing, account/chain binding, successful atomic claim, replay/concurrency loser, malformed bindings, and database outages.
+
+The feature remains disabled by default. A successful claim is consumed even if the upstream preparation request later fails; the user must request a fresh quote. This is intentional fail-closed behavior and avoids ambiguous retry semantics.
+
+### Preview database prerequisite
+
+The Vercel project currently exposes a Production `DATABASE_URL` but no Preview `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` for this branch. Do not point Preview at the Production database. Select and provision an isolated durable Preview database. If PostgreSQL is selected, set its pooled URL as `POSTGRES_PRISMA_URL` and its direct URL as `POSTGRES_URL_NON_POOLING` for this Preview branch only, then apply the migration and verify the integration tests against that isolated database. Do not assume Neon is already connected or reuse Production credentials.
+
+Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. No Mainnet signing or broadcast is enabled by this work.

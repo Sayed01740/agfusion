@@ -161,3 +161,45 @@ export async function readArcMainnetPermit2Preflight(params: {
     readyForSwapAfterPermit: hasTokenBalance && hasGasReserve && !requiresErc20Approval,
   };
 }
+
+
+export async function simulateArcMainnetSwapTransaction(params: {
+  account: string;
+  to: string;
+  data: string;
+  gasLimit: string;
+  maxFeePerGas: string;
+  nativeGasBalance: bigint;
+}): Promise<{ estimatedGas: bigint; maxFeePerGas: bigint; estimatedGasCost: bigint; requiredNativeBalance: bigint }> {
+  const account = normalizeAddress(params.account, "simulation account");
+  const to = normalizeAddress(params.to, "simulation destination");
+  if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(params.data) || params.data.length > 200_000) {
+    fail("invalid simulation calldata");
+  }
+  if (!/^\d+$/.test(params.gasLimit) || !/^\d+$/.test(params.maxFeePerGas)) {
+    fail("invalid gas limit or max fee");
+  }
+  const gasLimit = BigInt(params.gasLimit);
+  const maxFeePerGas = BigInt(params.maxFeePerGas);
+  if (gasLimit <= 0n || maxFeePerGas <= 0n) fail("gas limit and max fee must be positive");
+
+  await publicClient.call({
+    account,
+    to,
+    data: params.data as `0x${string}`,
+    value: 0n,
+  });
+  const estimatedGas = await publicClient.estimateGas({
+    account,
+    to,
+    data: params.data as `0x${string}`,
+    value: 0n,
+  });
+  if (estimatedGas <= 0n || estimatedGas > gasLimit) fail("on-chain gas estimate exceeds the Uniswap transaction gas limit");
+
+  const estimatedGasCost = estimatedGas * maxFeePerGas;
+  const requiredNativeBalance = estimatedGasCost + ARC_MAINNET_GAS_RESERVE;
+  if (params.nativeGasBalance < requiredNativeBalance) fail("native USDC balance is insufficient for estimated gas plus safety reserve");
+
+  return { estimatedGas, maxFeePerGas, estimatedGasCost, requiredNativeBalance };
+}
