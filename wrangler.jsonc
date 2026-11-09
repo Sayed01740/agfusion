@@ -21,5 +21,10 @@
   },
   "observability": {
     "enabled": true
+  },
+  "previews": {
+    "images": {
+      "binding": "IMAGES"
+    }
   }
 }
