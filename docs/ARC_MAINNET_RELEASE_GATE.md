@@ -114,13 +114,20 @@ Cloudflare resources were provisioned and checked on 2026-11-09:
 - Dedicated D1 database `agfusion-quote-sessions` exists with the `arc_quote_sessions` table and both supporting indexes.
 - Dedicated Worker `agfusion-quote-session-store` is deployed at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`.
 - The Worker has its D1 binding, write-only `API_TOKEN` secret binding, and hourly cleanup cron.
-- Vercel Preview-only variables already set on branch `feature/arc-quote-session-d1-worker-20261109`: `AGFUSION_QUOTE_SESSION_STORE_URL` and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+- The OpenNext Cloudflare feature-branch build and `wrangler preview` deploy completed successfully on commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`.
+- Vercel Preview is READY for the feature branch. Its Preview environment contains `AGFUSION_QUOTE_SESSION_STORE_URL`, a sensitive `AGFUSION_QUOTE_SESSION_SECRET`, and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+- The one missing Preview credential is `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Rotate the write-only Worker `API_TOKEN` in Cloudflare, then enter the same new value directly in Vercel Preview. Do not paste it into chat or commit it.
+- Cloudflare currently reports production `workers.dev` and public Preview URLs disabled (`enabled=false`, `previews_enabled=false`). No public Worker URL was enabled as part of this work.
 
-Two Preview secrets still need owner-side configuration: rotate the Worker `API_TOKEN` in Cloudflare and enter the same value in Vercel as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`; create a separate random `AGFUSION_QUOTE_SESSION_SECRET` in Vercel. Secret values must not be sent through chat or committed.
+The direct D1 SQL validation used synthetic test hashes and confirmed:
+- Concurrent conditional consume updates returned changes `1` and `0` for the same row.
+- Wrong-account and wrong-chain updates returned zero changes.
+- An expired session consume returned zero changes.
+- The synthetic rows were removed after the test.
 
-Remote HTTP validation, including exactly-one-success concurrent consume, wrong account/chain, expiry, unauthenticated requests, oversized body, and storage-outage behavior, has not yet been completed. The optional real-D1 integration test remains pending. Do not call the D1 integration fully validated until those tests pass.
+These results validate the D1 atomic SQL boundary. The HTTP integration path through the deployed Worker and Next.js client remains pending until the matching Preview bearer token is configured and the request-level tests pass.
 
-Cloudflare's official D1 documentation confirms that Worker bindings use prepared statements and parameter binding, and that D1 write results expose `meta.changes`. The consume path relies on a single conditional UPDATE, not a read-then-write sequence:
+Cloudflare's D1 documentation confirms that Worker bindings use prepared statements and parameter binding, and that D1 write results expose `meta.changes`. The consume path relies on a single conditional UPDATE, not a read-then-write sequence:
 - https://developers.cloudflare.com/d1/worker-api/
 - https://developers.cloudflare.com/d1/worker-api/prepared-statements/
 - https://developers.cloudflare.com/d1/worker-api/return-object/
