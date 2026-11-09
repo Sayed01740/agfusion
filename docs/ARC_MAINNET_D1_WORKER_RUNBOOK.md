@@ -95,7 +95,7 @@ A local HTTP harness is included at `scripts/test-arc-quote-session-worker-http.
 
 The script creates a small number of synthetic D1 rows with short expiries. The hourly cleanup job removes expired rows after the retention window. Do not use a real quote-session token or real customer wallet address.
 
-## Validation evidence (2026-11-09)
+## Validation evidence (updated 2026-11-10)
 
 ### Confirmed
 
@@ -108,15 +108,24 @@ The script creates a small number of synthetic D1 rows with short expiries. The 
 - The Vercel Preview deployment for commit `a6252017b3fe73f50a455971194b115001444394` is READY. Fetching its root page returned HTTP 200 and the AGFusion Next.js HTML.
 - A recent Vercel Preview runtime-log query returned no error/warning records for its supported 30-minute window. This is not a full observability audit.
 
-### Still required before closing the HTTP release gate
+### Authenticated live HTTP verification (2026-11-10)
 
-- Authenticated registration through the deployed Worker, expecting HTTP 201.
-- Two concurrent authenticated consume requests for one synthetic session, expecting exactly one HTTP 200 and one HTTP 409.
-- Replay, wrong wallet, wrong chain, expired session, invalid expiry, malformed digest, and oversized request behavior through the live HTTP endpoint.
+- A protected, temporary Vercel Preview-only smoke route sent authenticated requests to the deployed Cloudflare Worker using the Preview secret. The route was removed from the feature branch immediately after verification, and its one-time test credential was cleared.
+- All 16 live checks passed: missing and incorrect Bearer credentials returned 401; an authenticated unsupported method returned 405; malformed digest, non-Arc chain, expired expiry, TTL over 300 seconds, and oversized body returned 400.
+- Authenticated session registration returned HTTP 201.
+- Two concurrent consume requests for the same synthetic session returned exactly one HTTP 200 and one HTTP 409. A subsequent replay returned HTTP 409.
+- A wallet mismatch returned HTTP 409 without consuming the session; the correct wallet then consumed it with HTTP 200.
+- The AGFusion application wrapper registered a session successfully through the same Worker and its concurrent consume test returned exactly one success and one rejection.
+- All six rows created by the smoke test for the reserved synthetic wallet fixtures were deleted. A follow-up D1 query confirmed zero remaining rows for those fixtures.
+- No wallet signing, transaction submission, or transaction broadcast was performed.
+
+### Remaining validation before any release
+
 - A controlled D1 failure test in an isolated environment; do not simulate an outage by disabling or detaching the live database binding.
-- Next.js quote-session integration using dedicated test-only credentials and a Testnet-safe wallet/session. Do not use Production wallet credentials or broadcast a transaction.
+- Full Next.js quote-session flow with dedicated test-only credentials and a Testnet-safe wallet/session. Do not use Production wallet credentials or broadcast a transaction.
+- Independent cryptographic source/design review for the elliptic fork and a dedicated Arc Testnet smoke remain required. Passing this Worker HTTP verification does not replace those gates.
 
-The live HTTP authentication boundary is partially verified, but the authenticated end-to-end checks remain open because the secret values cannot be read back from Cloudflare or Vercel. Keep this distinction explicit.
+The authenticated live HTTP verification is complete at 16/16 checks. This closes the Worker authentication, registration, consume/replay, and wallet-binding HTTP checks only. The broader application integration and Mainnet security/release gates remain open.
 
 ## Security and release gates
 
