@@ -113,14 +113,9 @@ export async function POST(req: Request) {
     );
   }
 
+  // Circle's estimateSwap Testnet path supports permissionless quotes.
+  // When a server Kit Key is configured, pass it through; otherwise omit it.
   const kitKey = getServerKitKey();
-  if (!kitKey) {
-    console.error("[AGFusion] Circle App Kit key is missing from server environment.");
-    return NextResponse.json(
-      { error: "Circle App Kit is not configured on the server." },
-      { status: 503 },
-    );
-  }
 
   try {
     // AGFusion already installs @circle-fin/app-kit and its Viem adapter.
@@ -178,7 +173,7 @@ export async function POST(req: Request) {
       tokenOut: tokenOut as SupportedToken,
       amountIn: amount,
       config: {
-        kitKey,
+        ...(kitKey ? { kitKey } : {}),
         slippageBps: 100,
         allowanceStrategy: "approve",
       },
