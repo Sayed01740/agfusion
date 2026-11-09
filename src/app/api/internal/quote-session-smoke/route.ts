@@ -148,3 +148,14 @@ export async function POST(request: Request) {
     note: "Synthetic test fixtures only. No wallet signing or transaction broadcast.",
   }, { status: failures.length === 0 ? 200 : 503, headers: { "Cache-Control": "no-store" } });
 }
+
+export async function GET(request: Request) {
+  const smokeToken = new URL(request.url).searchParams.get("smokeAuth") || "";
+  if (!smokeToken) {
+    return NextResponse.json({ error: "not_found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
+  return POST(new Request(request.url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${smokeToken}` },
+  }));
+}
