@@ -119,13 +119,25 @@ The script creates a small number of synthetic D1 rows with short expiries. The 
 - All six rows created by the smoke test for the reserved synthetic wallet fixtures were deleted. A follow-up D1 query confirmed zero remaining rows for those fixtures.
 - No wallet signing, transaction submission, or transaction broadcast was performed.
 
+### Arc Testnet and isolated D1 failure verification (2026-11-10)
+
+- The cleanup Preview for the prior D1 smoke route returned HTTP 200 at the app root. The temporary /api/internal/arc-testnet-appkit-smoke route was used only in Preview and deleted immediately after its successful check.
+- Preview public configuration identified Arc Testnet, chain ID 5042002, and did not have a Circle Kit Key or Circle API key configured.
+- Preview GET /api/rpc?chain=arc returned HTTP 200 with upstream https://rpc.testnet.arc.io, chain ID 0x4cef52, expected chain ID 0x4cef52.
+- Direct read-only Arc Testnet RPC checks returned eth_chainId=0x4cef52 (decimal 5042002) and a valid eth_blockNumber=0x444436f. Only read methods were sent; no RPC write method was called.
+- A keyless Circle App Kit estimateSwap call succeeded on Arc Testnet for the synthetic wallet 0x1111111111111111111111111111111111111111, pair USDC/EURC, amount 0.01 USDC. The response reported estimated output 0.01845 EURC, stop limit 0.018266 EURC, provider fee 0.000002 USDC, and estimated gas fee 0.02361295125 USDC. This is a quote estimate only, not a guaranteed settlement price.
+- The Testnet App Kit estimate was performed without a Kit Key, wallet signing, approval, transaction preparation, transaction submission, or broadcast. The temporary Preview route was deleted after the test.
+- A keyless Testnet regression test was added to src/app/api/circle/swap/prepare/route.test.ts; the route now passes kitKey only when a server key is configured. Mainnet remains rejected by the existing hard gate, and the feature-branch Mainnet flag remains false.
+- An isolated D1 database with no arc_quote_sessions table and a separate temporary Worker were created solely to exercise the storage-exception path. A syntactically valid registration reached the missing-table failure and returned HTTP 503 storage_unavailable, as intended. Both the temporary Worker and D1 database were deleted immediately after the test. The live agfusion-quote-sessions database was not changed.
+
+Scope distinction: the D1 quote-session store and Uniswap quote-session module are intentionally pinned to Arc Mainnet chain ID 5042; they must not be represented as Testnet session storage. The successful Arc Testnet App Kit check validates the separate Circle estimate-only route. It does not validate Mainnet quote/session execution, and no Mainnet quote was requested.
 ### Remaining validation before any release
 
 - A controlled D1 failure test in an isolated environment; do not simulate an outage by disabling or detaching the live database binding.
-- Full Next.js quote-session flow with dedicated test-only credentials and a Testnet-safe wallet/session. Do not use Production wallet credentials or broadcast a transaction.
+- Full Mainnet-specific quote-session application integration remains unverified. Keep its execution disabled; validate only with mocked upstreams or a separately approved isolated harness, and never use Production wallet credentials or broadcast a transaction.
 - Independent cryptographic source/design review for the elliptic fork and a dedicated Arc Testnet smoke remain required. Passing this Worker HTTP verification does not replace those gates.
 
-The authenticated live HTTP verification is complete at 16/16 checks. This closes the Worker authentication, registration, consume/replay, and wallet-binding HTTP checks only. The broader application integration and Mainnet security/release gates remain open.
+The authenticated live Worker HTTP verification is complete at 16/16 checks. The isolated D1 storage-failure check and the separate read-only / estimate-only Arc Testnet smoke checks also passed. These results do not validate Mainnet transaction execution or close the independent cryptographic security/release gates.
 
 ## Security and release gates
 
