@@ -95,9 +95,18 @@ All SQL values are bound through prepared statements. No SQL string interpolatio
 
 ## Current deployment status
 
-Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The `API_TOKEN` secret exists on the Worker, but its write-only value must be rotated and entered directly by the owner in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The separate `AGFUSION_QUOTE_SESSION_SECRET` also remains to be set in Vercel Preview. The Worker URL and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false` are already configured for the feature branch. The dedicated quote-session Worker `workers.dev` route is now enabled, and its Preview URL remains disabled; the main application Worker remains unreachable over `workers.dev`. The Vercel Preview deployment for commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` is READY; the Cloudflare Workers Preview build for the same commit is queued. Do not treat either result as remote D1 concurrency validation.
+Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The dedicated quote-session Worker `workers.dev` endpoint is enabled at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`; its Preview URL remains disabled. The main application Worker `agfusion` still has both production `workers.dev` and Preview routes disabled.
 
-Direct D1 SQL tests passed for concurrent consume (one `meta.changes=1`, one `0`), wrong account, wrong chain, and expiry. Full HTTP validation through the Worker, including bearer authorization, oversized-body handling, Worker outage behavior, and the Next.js client integration, remains pending because the matching Preview bearer token is not yet configured. Do not describe the full Worker HTTP integration as validated until those tests pass.
+Vercel Preview branch `feature/arc-quote-session-d1-worker-20261109` contains:
+- `AGFUSION_QUOTE_SESSION_STORE_URL`
+- Sensitive `AGFUSION_QUOTE_SESSION_SECRET`
+- `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`
+
+The only missing Preview variable is `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The Cloudflare Worker `API_TOKEN` secret is write-only, and its value cannot be read back through the Cloudflare API. Rotate it to a new random value in Cloudflare and enter that exact value directly in the Vercel Preview environment. Do not share the token in chat or commit it. Until both sides hold the same value, the Worker correctly returns HTTP 401 and the Next.js client cannot register or consume quote sessions.
+
+The OpenNext Cloudflare build and `wrangler preview` deployment completed successfully on code-bearing commit `c64f32fa9db0554201481998aa82ffd15c8d90d2` and documentation follow-up commit `fbb17aa895eee9becc5a8b8e74c11011a4e7d4a1`. The latest Vercel Preview for commit `4487d01fb26002c50d5f0c6e4d24d4f2035013b1` is READY. GitHub CI, dependency audit, and disposable PostgreSQL integration also pass on that latest commit.
+
+Direct D1 SQL tests passed for concurrent consume (one `meta.changes=1`, one `0`), wrong account, wrong chain, and expiry. Public unauthenticated HTTP probes returned HTTP 401 as expected. Full authenticated HTTP validation through the Worker, including registration, replay, oversized-body, outage behavior, and the Next.js client integration, remains pending until the matching Vercel Preview bearer token is configured.
 
 ## Remaining Mainnet release gates
 
