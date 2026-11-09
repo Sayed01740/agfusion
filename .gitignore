@@ -96,3 +96,11 @@ next-env.d.ts
 .warp/
 .windsurf/
 design-system/
+
+# OpenNext
+.open-next
+
+# Wrangler local files
+.wrangler
+.dev.vars*
+!.dev.vars.example
