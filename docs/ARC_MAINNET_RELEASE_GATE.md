@@ -109,7 +109,16 @@ The Worker source, D1 schema, Wrangler template, Next.js client, and unit tests 
 
 ### Provisioning and validation status
 
-The code and local unit tests are committed on `feature/arc-quote-session-d1-worker-20261109`. A real Cloudflare D1 database ID, Worker API secret, deployed Worker URL, Vercel Preview secrets, and remote D1 concurrent-consume test are not yet available. Cloudflare account provisioning and deployment require account access; do not mark these steps complete until verified.
+Cloudflare resources were provisioned and checked on 2026-11-09:
+
+- Dedicated D1 database `agfusion-quote-sessions` exists with the `arc_quote_sessions` table and both supporting indexes.
+- Dedicated Worker `agfusion-quote-session-store` is deployed at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`.
+- The Worker has its D1 binding, write-only `API_TOKEN` secret binding, and hourly cleanup cron.
+- Vercel Preview-only variables already set on branch `feature/arc-quote-session-d1-worker-20261109`: `AGFUSION_QUOTE_SESSION_STORE_URL` and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+
+Two Preview secrets still need owner-side configuration: rotate the Worker `API_TOKEN` in Cloudflare and enter the same value in Vercel as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`; create a separate random `AGFUSION_QUOTE_SESSION_SECRET` in Vercel. Secret values must not be sent through chat or committed.
+
+Remote HTTP validation, including exactly-one-success concurrent consume, wrong account/chain, expiry, unauthenticated requests, oversized body, and storage-outage behavior, has not yet been completed. The optional real-D1 integration test remains pending. Do not call the D1 integration fully validated until those tests pass.
 
 Cloudflare's official D1 documentation confirms that Worker bindings use prepared statements and parameter binding, and that D1 write results expose `meta.changes`. The consume path relies on a single conditional UPDATE, not a read-then-write sequence:
 - https://developers.cloudflare.com/d1/worker-api/
