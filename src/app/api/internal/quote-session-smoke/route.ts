@@ -35,6 +35,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "worker_configuration_missing" }, { status: 503 });
   }
 
+  const workerOrigin = new URL(workerUrl).origin;
+
   const checks: Array<{ name: string; passed: boolean; actual: number | string; expected: number | string }> = [];
   const record = (name: string, actual: number | string, expected: number | string) => {
     checks.push({ name, actual, expected, passed: actual === expected });
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (options.auth !== null) headers.Authorization = `Bearer ${options.auth ?? workerToken}`;
     if (options.method !== "GET") headers["Content-Type"] = "application/json";
-    const response = await fetch(`${workerUrl.replace(/\/$/, "")}${path}`, {
+    const response = await fetch(`${workerOrigin}${path}`, {
       method: options.method ?? "POST",
       headers,
       body: options.rawBody ?? (payload === undefined ? undefined : JSON.stringify(payload)),
