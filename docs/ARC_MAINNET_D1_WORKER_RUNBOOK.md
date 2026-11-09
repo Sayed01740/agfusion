@@ -19,7 +19,7 @@ The Cloudflare account resources have now been created and verified:
 - Cleanup cron: `17 * * * *`
 - Vercel Preview branch already has `AGFUSION_QUOTE_SESSION_STORE_URL` and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
 
-The Cloudflare Worker secret value is write-only and is not retrievable through the account API. Rotate `API_TOKEN` in Cloudflare to a new random value that the owner can enter into Vercel, then set that same value as `AGFUSION_QUOTE_SESSION_STORE_TOKEN` in Vercel Preview. Separately create a random AES-256-GCM key and set it as `AGFUSION_QUOTE_SESSION_SECRET` in Vercel Preview. Both variables must be scoped to branch `feature/arc-quote-session-d1-worker-20261109`. Do not paste either value into chat.
+The Cloudflare Worker secret value is write-only and is not retrievable through the account API. Rotate `API_TOKEN` in Cloudflare to a new random value, then enter that exact value directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Separately create a random AES-256-GCM key and enter it directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_SECRET`. Both variables must be scoped to branch `feature/arc-quote-session-d1-worker-20261109`. Do not paste either value into chat.
 
 ## Provision and deploy (for rebuilding or recreating)
 
@@ -46,6 +46,19 @@ The Cloudflare Worker secret value is write-only and is not retrievable through 
 
 Never put the Worker token in a `NEXT_PUBLIC_*` variable or browser code. Do not add these settings to Production until a separate security review and explicit release decision. The Worker endpoint requires bearer authentication and the Next.js client rejects non-HTTPS URLs.
 
+## Cloudflare Builds and OpenNext configuration
+
+The AGFusion Next.js app is configured for Cloudflare Workers with OpenNext on the dedicated feature branch:
+
+- Node.js build runtime: 22 (`.node-version`).
+- npm peer-dependency policy: `.npmrc` sets `legacy-peer-deps=true`, matching the repository's CI install policy for the existing `permissionless@0.3.7` / `ox` peer range.
+- Pinned build tools: `@opennextjs/cloudflare@1.20.16` and `wrangler@4.158.0` in devDependencies.
+- The OpenNext dependency tree pins `glob@14.0.4` through npm overrides to clear the transitive glob advisory found during audit.
+- Cloudflare Build command: `npx opennextjs-cloudflare build`.
+- Preview deploy command: `npx wrangler preview`; production deploy command remains `npx wrangler deploy`.
+- Cloudflare Workers Builds environment has `NODE_VERSION=22` and `NPM_CONFIG_LEGACY_PEER_DEPS=true` in production and preview settings. The feature branch Preview has its own matching settings.
+
+The exact feature-branch commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` passed a clean install, `npm audit` (0 vulnerabilities), the elliptic leading-zero/RFC 6979 regression test, and `npx opennextjs-cloudflare build` in an isolated 8 GB Node 22 sandbox. The Vercel Preview for the same commit is READY. Cloudflare's real Workers Preview build for that commit was queued for execution; its Cloudflare-side result still needs confirmation. The normal PR CI, dependency-audit, and PostgreSQL integration runs for this commit returned `action_required` without creating jobs, so those checks are not reported as passing.
 ## Atomic replay boundary
 
 - Registration is a parameterized D1 INSERT with a unique primary key on `token_hash`.
@@ -69,7 +82,7 @@ All SQL values are bound through prepared statements. No SQL string interpolatio
 
 ## Current deployment status
 
-Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The `API_TOKEN` secret exists on the Worker, but its write-only value must be rotated by the owner and copied directly into the Vercel Preview environment as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The separate `AGFUSION_QUOTE_SESSION_SECRET` also remains to be set in Vercel Preview. The Worker URL and Mainnet-preparation-off setting are already configured for the feature branch.
+Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The `API_TOKEN` secret exists on the Worker, but its write-only value must be rotated and entered directly by the owner in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The separate `AGFUSION_QUOTE_SESSION_SECRET` also remains to be set in Vercel Preview. The Worker URL and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false` are already configured for the feature branch. The Vercel Preview deployment for commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` is READY; the Cloudflare Workers Preview build for the same commit is queued. Do not treat either result as remote D1 concurrency validation.
 
 Remote HTTP validation, including concurrent consume, wrong-account, wrong-chain, expiry, unauthenticated request, and oversized-body cases, is still pending. The optional real-D1 integration test has not yet passed. Do not describe the D1 integration as fully validated until those tests pass.
 
