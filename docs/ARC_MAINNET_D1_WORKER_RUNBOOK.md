@@ -6,15 +6,30 @@ Cloudflare D1 is used only for one-time Arc Mainnet quote-session replay protect
 
 The Worker stores only the SHA-256 digest of the opaque encrypted quote-session token, normalized wallet account, fixed Arc chain ID 5042, expiry, and consumption timestamp. The raw token, quote payload, Permit2 payload, signatures, and wallet secrets are never sent to D1.
 
-## Provision and deploy
+## Provisioned resources (2026-11-09)
 
-1. In the Cloudflare account, create a dedicated D1 database named `agfusion-quote-sessions`.
-2. Copy the returned database ID into `workers/quote-session-store/wrangler.toml` in place of `REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID`.
-3. From `workers/quote-session-store`, apply the schema:
+The Cloudflare account resources have now been created and verified:
+
+- D1 database: `agfusion-quote-sessions`
+- Database ID: `1e10c8f3-2dbe-4574-b599-65fe690d17b5`
+- Schema: `arc_quote_sessions` table and both expiry/account indexes are present.
+- Worker: `agfusion-quote-session-store`
+- Worker URL: `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`
+- D1 binding: `DB`; Worker secret binding: `API_TOKEN`
+- Cleanup cron: `17 * * * *`
+- Vercel Preview branch already has `AGFUSION_QUOTE_SESSION_STORE_URL` and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+
+The Cloudflare Worker secret value is write-only and is not retrievable through the account API. Rotate `API_TOKEN` in Cloudflare to a new random value that the owner can enter into Vercel, then set that same value as `AGFUSION_QUOTE_SESSION_STORE_TOKEN` in Vercel Preview. Separately create a random AES-256-GCM key and set it as `AGFUSION_QUOTE_SESSION_SECRET` in Vercel Preview. Both variables must be scoped to branch `feature/arc-quote-session-d1-worker-20261109`. Do not paste either value into chat.
+
+## Provision and deploy (for rebuilding or recreating)
+
+1. Create a dedicated D1 database named `agfusion-quote-sessions` only if the existing database is absent.
+2. Keep the database ID in `workers/quote-session-store/wrangler.toml`.
+3. Apply the schema with the command below only when provisioning a fresh database:
    ```bash
    npx wrangler d1 execute agfusion-quote-sessions --remote --file=./schema.sql
    ```
-4. Generate a random API token of at least 32 characters and save it as a Worker secret:
+4. Set or rotate `API_TOKEN` as a Worker secret:
    ```bash
    npx wrangler secret put API_TOKEN
    ```
@@ -54,7 +69,9 @@ All SQL values are bound through prepared statements. No SQL string interpolatio
 
 ## Current deployment status
 
-The repository includes Worker source, D1 schema, Wrangler configuration template, application client, and unit tests. A real Cloudflare database ID, Worker API secret, Worker deployment, Vercel Preview secrets, and remote D1 concurrency test are not present yet. Those require the owner's Cloudflare account access and must not be represented as completed.
+Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The `API_TOKEN` secret exists on the Worker, but its write-only value must be rotated by the owner and copied directly into the Vercel Preview environment as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The separate `AGFUSION_QUOTE_SESSION_SECRET` also remains to be set in Vercel Preview. The Worker URL and Mainnet-preparation-off setting are already configured for the feature branch.
+
+Remote HTTP validation, including concurrent consume, wrong-account, wrong-chain, expiry, unauthenticated request, and oversized-body cases, is still pending. The optional real-D1 integration test has not yet passed. Do not describe the D1 integration as fully validated until those tests pass.
 
 ## Remaining Mainnet release gates
 
