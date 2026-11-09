@@ -23,7 +23,15 @@ The one-time Arc quote-session claim has been separated from Prisma and implemen
 
 ## Provisioning status
 
-The repository now contains Worker source, D1 schema, Wrangler configuration template, application client, unit tests, and a provisioning guide. No Cloudflare account connection is available through the current connected tools, and no D1 database ID, Worker secret, Worker deployment, or Vercel Preview secret has been provisioned. Remote D1 concurrency validation remains pending.
+Cloudflare account access was used on 2026-11-09 to provision and verify:
+
+- D1 database `agfusion-quote-sessions` (`1e10c8f3-2dbe-4574-b599-65fe690d17b5`).
+- Table `arc_quote_sessions` and indexes `arc_quote_sessions_expires_at_idx` and `arc_quote_sessions_account_expires_at_idx`.
+- Worker `agfusion-quote-session-store` at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`.
+- D1 binding `DB`, write-only Worker secret binding `API_TOKEN`, and hourly cleanup cron.
+- Vercel Preview-only Worker URL and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false` for branch `feature/arc-quote-session-d1-worker-20261109`.
+
+The Worker secret must be rotated by the owner and the matching value entered directly into Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The separate `AGFUSION_QUOTE_SESSION_SECRET` must also be created in Vercel Preview. Secret values are not included in this repository or chat. Remote Worker HTTP and concurrent-consume tests remain pending.
 
 ## Safety boundary
 
