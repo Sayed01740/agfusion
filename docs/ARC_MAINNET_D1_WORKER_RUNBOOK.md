@@ -1,113 +1,103 @@
 # AGFusion Arc quote-session D1 Worker runbook
 
-## Scope
+## Scope and data model
 
-Cloudflare D1 is used only for one-time Arc Mainnet quote-session replay protection. It does not replace AGFusion's existing Prisma/PostgreSQL application data layer (users, transactions, x402, and other records).
+Cloudflare D1 is used only for one-time Arc quote-session replay protection. It does not replace AGFusion's existing Prisma/PostgreSQL application database for users, transactions, x402, or other application records.
 
-The Worker stores only the SHA-256 digest of the opaque encrypted quote-session token, normalized wallet account, fixed Arc chain ID 5042, expiry, and consumption timestamp. The raw token, quote payload, Permit2 payload, signatures, and wallet secrets are never sent to D1.
+The Worker stores only:
+- SHA-256 digest of the opaque encrypted quote-session token
+- normalized wallet address
+- fixed Arc Mainnet chain ID `5042`
+- expiry and consumption timestamps
 
-## Provisioned resources (2026-11-09)
+The raw quote token, quote payload, Permit2 payload, signatures, and wallet secrets are not sent to D1.
 
-The Cloudflare account resources have now been created and verified:
+## Provisioned Cloudflare resources
 
-- D1 database: `agfusion-quote-sessions`
-- Database ID: `1e10c8f3-2dbe-4574-b599-65fe690d17b5`
-- Schema: `arc_quote_sessions` table and both expiry/account indexes are present.
-- Worker: `agfusion-quote-session-store`
-- Worker URL: `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`
-- D1 binding: `DB`; Worker secret binding: `API_TOKEN`
-- Cleanup cron: `17 * * * *`
-- Vercel Preview branch has `AGFUSION_QUOTE_SESSION_STORE_URL`, `AGFUSION_QUOTE_SESSION_SECRET` (sensitive), and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
-- The matching Vercel Preview variable `AGFUSION_QUOTE_SESSION_STORE_TOKEN` is not set yet. The Worker `API_TOKEN` is write-only in Cloudflare and must be rotated to a new random value, then the same value entered directly in Vercel Preview. Do not paste it into chat.
-- Cloudflare Workers Build/Preview for the feature branch completed successfully on commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`. The `wrangler preview` deploy command succeeded. The Worker subdomain API currently reports `enabled=false` and `previews_enabled=false`, so neither a production `workers.dev` URL nor a public Preview URL was opened. Keep this access setting deliberate; configure Cloudflare Access before enabling a publicly reachable Preview.
+Verified on 2026-11-09:
 
-The Cloudflare Worker secret value is write-only and is not retrievable through the account API. Rotate `API_TOKEN` in Cloudflare to a new random value, then enter that exact value directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Separately create a random AES-256-GCM key and enter it directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_SECRET`. Both variables must be scoped to branch `feature/arc-quote-session-d1-worker-20261109`. Do not paste either value into chat.
+| Resource | Current configuration |
+|---|---|
+| D1 database | `agfusion-quote-sessions` |
+| D1 database ID | `1e10c8f3-2dbe-4574-b599-65fe690d17b5` |
+| Table | `arc_quote_sessions` |
+| Indexes | Expiry and account/expiry indexes |
+| Dedicated Worker | `agfusion-quote-session-store` |
+| Worker URL | `https://agfusion-quote-session-store.sayedhasan01740.workers.dev` |
+| D1 binding | `DB` |
+| Worker secret binding | `API_TOKEN` |
+| Scheduled cleanup | `17 * * * *` (hourly) |
 
-## Provision and deploy (for rebuilding or recreating)
+The dedicated Worker `workers.dev` endpoint is enabled. It requires a Bearer token and returns `401` for requests without valid authentication. Its separate Workers Preview URL remains disabled.
 
-1. Create a dedicated D1 database named `agfusion-quote-sessions` only if the existing database is absent.
-2. Keep the database ID in `workers/quote-session-store/wrangler.toml`.
-3. Apply the schema with the command below only when provisioning a fresh database:
-   ```bash
-   npx wrangler d1 execute agfusion-quote-sessions --remote --file=./schema.sql
-   ```
-4. Set or rotate `API_TOKEN` as a Worker secret:
-   ```bash
-   npx wrangler secret put API_TOKEN
-   ```
-5. Deploy the Worker:
-   ```bash
-   npx wrangler deploy
-   ```
-6. Configure Vercel **Preview only**, scoped to `feature/arc-quote-session-d1-worker-20261109`:
-   - `AGFUSION_QUOTE_SESSION_STORE_URL`: the deployed HTTPS Worker origin, without a path or query string.
-   - `AGFUSION_QUOTE_SESSION_STORE_TOKEN`: the exact secret set as `API_TOKEN` on the Worker.
-   - `AGFUSION_QUOTE_SESSION_SECRET`: unique random AES-256-GCM quote-session secret, at least 32 characters.
-   - `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
-   - `UNISWAP_API_KEY`: Preview-only key only if quote preview is being validated.
+The main AGFusion application Worker `agfusion` still has its Production and Preview routes disabled. The Cloudflare feature-branch build/Preview pipeline completed successfully, but there is no public application Preview URL because Preview routing is disabled. Do not enable it without deciding how to protect the URL and which bindings/resources it may reach.
 
-Never put the Worker token in a `NEXT_PUBLIC_*` variable or browser code. Do not add these settings to Production until a separate security review and explicit release decision. The Worker endpoint requires bearer authentication and the Next.js client rejects non-HTTPS URLs.
+## Vercel Preview environment
 
-## Cloudflare Builds and OpenNext configuration
+The following variables are configured only for Preview deployments on branch `feature/arc-quote-session-d1-worker-20261109`:
 
-The AGFusion Next.js app is configured for Cloudflare Workers with OpenNext on the dedicated feature branch:
+| Variable | Type | Purpose |
+|---|---|---|
+| `AGFUSION_QUOTE_SESSION_STORE_URL` | Plain | HTTPS Worker origin |
+| `AGFUSION_QUOTE_SESSION_STORE_TOKEN` | Sensitive | Must match Cloudflare `API_TOKEN` |
+| `AGFUSION_QUOTE_SESSION_SECRET` | Sensitive | AES-256-GCM quote-session encryption secret |
+| `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED` | Plain | Remains `false` |
 
-- Node.js build runtime: 22 (`.node-version`).
-- npm peer-dependency policy: `.npmrc` sets `legacy-peer-deps=true`, matching the repository's CI install policy for the existing `permissionless@0.3.7` / `ox` peer range.
-- Pinned build tools: `@opennextjs/cloudflare@1.20.16` and `wrangler@4.158.0` in devDependencies.
-- The OpenNext dependency tree pins `glob@14.0.4` through npm overrides to clear the transitive glob advisory found during audit.
-- Cloudflare Build command: `npx opennextjs-cloudflare build`.
-- Preview deploy command: `npx wrangler preview`; production deploy command remains `npx wrangler deploy`.
-- Cloudflare Workers Builds environment has `NODE_VERSION=22` and `NPM_CONFIG_LEGACY_PEER_DEPS=true` in production and preview settings. The feature branch Preview has its own matching settings.
+The Vercel and Cloudflare secret values are write-only through the connected account APIs. Their presence and environment scope can be verified, but the values are not returned. Do not paste either value into chat, source control, a browser bundle, or build logs. If either side is rotated, set the exact same newly generated credential directly in both dashboards and redeploy the Preview branch.
 
-The feature-branch commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` passed a clean install, `npm audit` (0 vulnerabilities), the elliptic leading-zero/RFC 6979 regression test, and `npx opennextjs-cloudflare build` in an isolated 8 GB Node 22 sandbox. On the latest config commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`, Vercel Preview is READY and Cloudflare Workers Build/Preview completed successfully, including the `wrangler preview` deploy command. GitHub CI, dependency audit, and disposable PostgreSQL integration checks all passed on that same commit.
-## Direct D1 SQL validation (2026-11-09)
+Never set these secrets on Production until a separate security review and explicit release decision. Do not copy Production credentials into Preview.
 
-Using synthetic test hashes against the provisioned Cloudflare D1 database, the conditional consume SQL was exercised directly:
+## Worker API contract
 
-- Two concurrent consume UPDATE statements against the same row returned `meta.changes` values `1` and `0`; exactly one update won.
-- Wrong account and wrong chain each returned `0` changes.
-- The correct account/chain could subsequently consume the row after the rejected mismatched attempts.
-- An expired session's consume UPDATE returned `0` changes.
-- All synthetic test rows were removed after validation.
+Both endpoints require `Authorization: Bearer <API_TOKEN>` and JSON request bodies.
 
-This confirms the D1 SQL atomicity and row-binding conditions. It is not a substitute for a full HTTP test through the deployed Worker and the Next.js client; those checks remain pending.
-## Atomic replay boundary
+- `POST /v1/sessions/register`: validates the 64-character lowercase SHA-256 digest, normalized wallet, chain ID 5042, and expiry capped at 300 seconds; inserts one row; returns HTTP 201 on success.
+- `POST /v1/sessions/consume`: performs one conditional SQL UPDATE requiring the digest, wallet, chain, unexpired row, and `consumed_at IS NULL`; returns HTTP 200 for the single successful consume and HTTP 409 for a replay or invalid binding.
+- Requests larger than 4 KiB are rejected with HTTP 400 before complete body parsing.
+- Missing or wrong Bearer authentication returns HTTP 401.
+- Storage errors and D1 exceptions fail closed with HTTP 503.
+- Unknown paths return HTTP 404 after authenticated request validation; unsupported HTTP methods return HTTP 405 after authentication.
 
-- Registration is a parameterized D1 INSERT with a unique primary key on `token_hash`.
-- Consumption is one parameterized conditional UPDATE requiring matching token hash, account, chain ID 5042, unexpired timestamp, and `consumed_at IS NULL`.
-- D1 reports the number of changed rows. Exactly one row means the session was consumed; zero rows returns HTTP 409.
-- Storage outage, timeout, missing configuration, or Worker error fails closed with HTTP 503.
-- Quote sessions are capped at 300 seconds by the Worker; the application currently issues 60-second sessions.
-- A scheduled Worker trigger removes expired rows older than 24 hours in bounded batches.
+The application client validates the Worker URL is HTTPS, applies a 5-second request timeout, and sends only the token digest and account binding to the Worker.
 
-All SQL values are bound through prepared statements. No SQL string interpolation is used.
+## Cloudflare Workers Build configuration
 
-## Validation checklist
+The feature branch uses the scoped OpenNext CLI command:
 
-1. Apply the D1 schema to the dedicated database and deploy the Worker.
-2. Configure only the Preview branch variables above.
-3. Confirm quote registration succeeds and that the Worker database contains a 64-character digest, not the raw quote token.
-4. Send two concurrent consume requests for the same session. Exactly one must return success; the other must return HTTP 409.
-5. Verify wrong account, wrong chain, expired session, duplicate consume, missing API token, and D1 outage all fail closed.
-6. Verify the Next.js quote endpoint returns HTTP 503 when the Worker is unreachable.
-7. Keep `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`; this work does not authorize transaction preparation, wallet signing, or broadcast.
+- Build command: `npx @opennextjs/cloudflare build`
+- Preview deploy command: `npx wrangler preview`
+- Production deploy command configured in Build settings: `npx @opennextjs/cloudflare deploy`
 
-## Current deployment status
+The previous unscoped command `npx opennextjs-cloudflare build` caused the earlier `could not determine executable to run` failure. The corrected feature-branch Preview build completed successfully, including OpenNext bundle generation and the `wrangler preview` step. No Production build or deployment was triggered.
 
-Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The dedicated quote-session Worker `workers.dev` endpoint is enabled at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`; its Preview URL remains disabled. The main application Worker `agfusion` still has both production `workers.dev` and Preview routes disabled.
+The project uses Node.js 22 for the Cloudflare Workers Build environment, with `NPM_CONFIG_LEGACY_PEER_DEPS=true` to match the repository's lockfile install policy. The pinned packages are `@opennextjs/cloudflare@1.20.16` and `wrangler@4.158.0`.
 
-Vercel Preview branch `feature/arc-quote-session-d1-worker-20261109` contains:
-- `AGFUSION_QUOTE_SESSION_STORE_URL`
-- Sensitive `AGFUSION_QUOTE_SESSION_SECRET`
-- `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`
+## Validation evidence (2026-11-09)
 
-The only missing Preview variable is `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The Cloudflare Worker `API_TOKEN` secret is write-only, and its value cannot be read back through the Cloudflare API. Rotate it to a new random value in Cloudflare and enter that exact value directly in the Vercel Preview environment. Do not share the token in chat or commit it. Until both sides hold the same value, the Worker correctly returns HTTP 401 and the Next.js client cannot register or consume quote sessions.
+### Confirmed
 
-The OpenNext Cloudflare build and `wrangler preview` deployment completed successfully on code-bearing commit `c64f32fa9db0554201481998aa82ffd15c8d90d2` and documentation follow-up commit `fbb17aa895eee9becc5a8b8e74c11011a4e7d4a1`. The latest Vercel Preview for commit `4487d01fb26002c50d5f0c6e4d24d4f2035013b1` is READY. GitHub CI, dependency audit, and disposable PostgreSQL integration also pass on that latest commit.
+- Cloudflare D1 schema and indexes are present.
+- Previous direct D1 SQL checks confirmed exactly one of two concurrent conditional consume updates changed a row; the other changed zero rows.
+- SQL checks for wrong wallet, wrong chain, and expired sessions returned zero changed rows.
+- Synthetic rows from the SQL checks were deleted after the tests.
+- The dedicated Worker's observability settings have invocation logs, persisted logs, and issue detection enabled. Traces are currently disabled.
+- From an isolated Vercel Sandbox restricted to the Worker hostname, unauthenticated registration, a wrong Bearer token, and unauthenticated method probing each returned HTTP 401 with `{"error":"unauthorized"}`.
+- The Vercel Preview deployment for commit `a6252017b3fe73f50a455971194b115001444394` is READY. Fetching its root page returned HTTP 200 and the AGFusion Next.js HTML.
+- A recent Vercel Preview runtime-log query returned no error/warning records for its supported 30-minute window. This is not a full observability audit.
 
-Direct D1 SQL tests passed for concurrent consume (one `meta.changes=1`, one `0`), wrong account, wrong chain, and expiry. Public unauthenticated HTTP probes returned HTTP 401 as expected. Full authenticated HTTP validation through the Worker, including registration, replay, oversized-body, outage behavior, and the Next.js client integration, remains pending until the matching Vercel Preview bearer token is configured.
+### Still required before closing the HTTP release gate
 
-## Remaining Mainnet release gates
+- Authenticated registration through the deployed Worker, expecting HTTP 201.
+- Two concurrent authenticated consume requests for one synthetic session, expecting exactly one HTTP 200 and one HTTP 409.
+- Replay, wrong wallet, wrong chain, expired session, invalid expiry, malformed digest, and oversized request behavior through the live HTTP endpoint.
+- A controlled D1 failure test in an isolated environment; do not simulate an outage by disabling or detaching the live database binding.
+- Next.js quote-session integration using dedicated test-only credentials and a Testnet-safe wallet/session. Do not use Production wallet credentials or broadcast a transaction.
 
-Wallet approval/Permit2/swap orchestration UI, user-facing transaction confirmations, wallet chain/account revalidation immediately before each wallet prompt, wallet signing, transaction broadcast, post-submission tracking, live liquidity validation, and independent security review remain incomplete. Mainnet preparation remains disabled.
+The live HTTP authentication boundary is partially verified, but the authenticated end-to-end checks remain open because the secret values cannot be read back from Cloudflare or Vercel. Keep this distinction explicit.
+
+## Security and release gates
+
+- `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+- No wallet signing, transaction broadcast, Mainnet transaction preparation, Production app deployment, or PR merge is authorized by this runbook.
+- Elliptic fork provenance/source review and independent ECDSA approval remain tracked in [Issue #30](https://github.com/Sayed01740/agfusion/issues/30). A green npm audit is not independent cryptographic approval.
+- Keep PR #58 Draft until authenticated live HTTP checks and the independent Mainnet security review are complete.
