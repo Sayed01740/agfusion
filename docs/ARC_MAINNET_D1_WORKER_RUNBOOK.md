@@ -72,6 +72,29 @@ The previous unscoped command `npx opennextjs-cloudflare build` caused the earli
 
 The project uses Node.js 22 for the Cloudflare Workers Build environment, with `NPM_CONFIG_LEGACY_PEER_DEPS=true` to match the repository's lockfile install policy. The pinned packages are `@opennextjs/cloudflare@1.20.16` and `wrangler@4.158.0`.
 
+## Run the authenticated HTTP verification script
+
+A local HTTP harness is included at `scripts/test-arc-quote-session-worker-http.mjs`. It uses only synthetic SHA-256 digests and test wallet addresses. It does not sign, submit, or broadcast transactions.
+
+1. Check out the feature branch and install dependencies only if needed:
+   ```bash
+   git checkout feature/arc-quote-session-d1-worker-20261109
+   git pull origin feature/arc-quote-session-d1-worker-20261109
+   ```
+2. Confirm that Cloudflare `API_TOKEN` and the Vercel Preview variable `AGFUSION_QUOTE_SESSION_STORE_TOKEN` contain the same random 32-byte hex value. If the original value is no longer available, generate a new value locally with `openssl rand -hex 32`, then update both secret stores directly. Do not paste the value into chat or commit it.
+3. Run the script from a local terminal. It prompts for the token without echoing it:
+   ```bash
+   export AGFUSION_QUOTE_SESSION_STORE_URL="https://agfusion-quote-session-store.sayedhasan01740.workers.dev"
+   read -rsp "Worker API_TOKEN: " AGFUSION_QUOTE_SESSION_STORE_TOKEN
+   echo
+   export AGFUSION_QUOTE_SESSION_STORE_TOKEN
+   node scripts/test-arc-quote-session-worker-http.mjs
+   unset AGFUSION_QUOTE_SESSION_STORE_TOKEN
+   ```
+4. Save the pass/fail summary (not the secret) and attach it to PR #58. The script verifies authentication, validation, registration, exactly-one-winner concurrent consume, replay rejection, wallet binding, and body-size limits.
+
+The script creates a small number of synthetic D1 rows with short expiries. The hourly cleanup job removes expired rows after the retention window. Do not use a real quote-session token or real customer wallet address.
+
 ## Validation evidence (2026-11-09)
 
 ### Confirmed
