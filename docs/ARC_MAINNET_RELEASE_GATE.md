@@ -117,7 +117,7 @@ Cloudflare resources were provisioned and checked on 2026-11-09:
 - The OpenNext Cloudflare feature-branch build and `wrangler preview` deploy completed successfully on commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`.
 - Vercel Preview is READY for the feature branch. Its Preview environment contains `AGFUSION_QUOTE_SESSION_STORE_URL`, a sensitive `AGFUSION_QUOTE_SESSION_SECRET`, and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
 - The one missing Preview credential is `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Rotate the write-only Worker `API_TOKEN` in Cloudflare, then enter the same new value directly in Vercel Preview. Do not paste it into chat or commit it.
-- Cloudflare currently reports production `workers.dev` and public Preview URLs disabled (`enabled=false`, `previews_enabled=false`). No public Worker URL was enabled as part of this work.
+- The dedicated quote-session Worker has its authenticated `workers.dev` route enabled at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`, with its Preview URL disabled. The main application Worker `agfusion` still has both `workers.dev` and Preview routes disabled. The quote-session endpoint will reject Vercel requests until the exact Cloudflare `API_TOKEN` value is entered directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`.
 
 The direct D1 SQL validation used synthetic test hashes and confirmed:
 - Concurrent conditional consume updates returned changes `1` and `0` for the same row.
