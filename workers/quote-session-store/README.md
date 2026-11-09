@@ -2,26 +2,36 @@
 
 This Worker stores only SHA-256 digests of encrypted quote-session tokens. The Next.js application never sends the raw token to this service.
 
-## Provision and deploy
+## Current deployment
 
-1. In the Cloudflare account, create a dedicated D1 database named `agfusion-quote-sessions`.
-2. Replace the placeholder `database_id` in `wrangler.toml` with the ID returned by Cloudflare. Do not commit account secrets.
-3. Create a random API token with at least 32 characters and store it as a Worker secret:
-   ```bash
-   npx wrangler secret put API_TOKEN
-   ```
-4. Apply the schema:
+Provisioned on 2026-11-09:
+
+- D1: `agfusion-quote-sessions`, ID `1e10c8f3-2dbe-4574-b599-65fe690d17b5`.
+- Worker: `agfusion-quote-session-store`.
+- URL: `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`.
+- Binding: D1 as `DB`; secret `API_TOKEN`.
+- Cron: `17 * * * *`.
+
+The database table and two indexes have been applied. The Worker secret is write-only; rotate it to a new random value in Cloudflare, then enter the same value directly into the Vercel Preview variable `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Add a separate random `AGFUSION_QUOTE_SESSION_SECRET` in Vercel Preview. Both variables must target branch `feature/arc-quote-session-d1-worker-20261109`. Do not put either secret in Git or chat.
+
+The Vercel Preview branch already has the Worker URL and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`. Remote Worker HTTP/concurrency tests remain pending.
+
+## Provision and deploy (for a fresh account or replacement Worker)
+
+1. Create a dedicated D1 database named `agfusion-quote-sessions` only if absent.
+2. Add its ID to `wrangler.toml`.
+3. Apply the schema:
    ```bash
    npx wrangler d1 execute agfusion-quote-sessions --remote --file=./schema.sql
+   ```
+4. Set a new Worker secret:
+   ```bash
+   npx wrangler secret put API_TOKEN
    ```
 5. Deploy:
    ```bash
    npx wrangler deploy
    ```
-6. Configure the Vercel Preview branch with:
-   - `AGFUSION_QUOTE_SESSION_STORE_URL=https://<deployed-worker-host>`
-   - `AGFUSION_QUOTE_SESSION_STORE_TOKEN=<same API_TOKEN>`
-   - `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`
 
 Never set these values in Production until a separate security review and release decision. Keep the API token server-only. The Worker has no browser CORS access and requires bearer authentication on every request.
 
