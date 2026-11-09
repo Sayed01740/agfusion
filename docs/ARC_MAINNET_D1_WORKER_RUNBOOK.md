@@ -17,7 +17,9 @@ The Cloudflare account resources have now been created and verified:
 - Worker URL: `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`
 - D1 binding: `DB`; Worker secret binding: `API_TOKEN`
 - Cleanup cron: `17 * * * *`
-- Vercel Preview branch already has `AGFUSION_QUOTE_SESSION_STORE_URL` and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+- Vercel Preview branch has `AGFUSION_QUOTE_SESSION_STORE_URL`, `AGFUSION_QUOTE_SESSION_SECRET` (sensitive), and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+- The matching Vercel Preview variable `AGFUSION_QUOTE_SESSION_STORE_TOKEN` is not set yet. The Worker `API_TOKEN` is write-only in Cloudflare and must be rotated to a new random value, then the same value entered directly in Vercel Preview. Do not paste it into chat.
+- Cloudflare Workers Build/Preview for the feature branch completed successfully on commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`. The `wrangler preview` deploy command succeeded. The Worker subdomain API currently reports `enabled=false` and `previews_enabled=false`, so neither a production `workers.dev` URL nor a public Preview URL was opened. Keep this access setting deliberate; configure Cloudflare Access before enabling a publicly reachable Preview.
 
 The Cloudflare Worker secret value is write-only and is not retrievable through the account API. Rotate `API_TOKEN` in Cloudflare to a new random value, then enter that exact value directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Separately create a random AES-256-GCM key and enter it directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_SECRET`. Both variables must be scoped to branch `feature/arc-quote-session-d1-worker-20261109`. Do not paste either value into chat.
 
@@ -58,7 +60,18 @@ The AGFusion Next.js app is configured for Cloudflare Workers with OpenNext on t
 - Preview deploy command: `npx wrangler preview`; production deploy command remains `npx wrangler deploy`.
 - Cloudflare Workers Builds environment has `NODE_VERSION=22` and `NPM_CONFIG_LEGACY_PEER_DEPS=true` in production and preview settings. The feature branch Preview has its own matching settings.
 
-The exact feature-branch commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` passed a clean install, `npm audit` (0 vulnerabilities), the elliptic leading-zero/RFC 6979 regression test, and `npx opennextjs-cloudflare build` in an isolated 8 GB Node 22 sandbox. The Vercel Preview for the same commit is READY. Cloudflare's real Workers Preview build for that commit was queued for execution; its Cloudflare-side result still needs confirmation. The normal PR CI, dependency-audit, and PostgreSQL integration runs for this commit returned `action_required` without creating jobs, so those checks are not reported as passing.
+The feature-branch commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` passed a clean install, `npm audit` (0 vulnerabilities), the elliptic leading-zero/RFC 6979 regression test, and `npx opennextjs-cloudflare build` in an isolated 8 GB Node 22 sandbox. On the latest config commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`, Vercel Preview is READY and Cloudflare Workers Build/Preview completed successfully, including the `wrangler preview` deploy command. GitHub CI, dependency audit, and disposable PostgreSQL integration checks all passed on that same commit.
+## Direct D1 SQL validation (2026-11-09)
+
+Using synthetic test hashes against the provisioned Cloudflare D1 database, the conditional consume SQL was exercised directly:
+
+- Two concurrent consume UPDATE statements against the same row returned `meta.changes` values `1` and `0`; exactly one update won.
+- Wrong account and wrong chain each returned `0` changes.
+- The correct account/chain could subsequently consume the row after the rejected mismatched attempts.
+- An expired session's consume UPDATE returned `0` changes.
+- All synthetic test rows were removed after validation.
+
+This confirms the D1 SQL atomicity and row-binding conditions. It is not a substitute for a full HTTP test through the deployed Worker and the Next.js client; those checks remain pending.
 ## Atomic replay boundary
 
 - Registration is a parameterized D1 INSERT with a unique primary key on `token_hash`.
@@ -84,7 +97,7 @@ All SQL values are bound through prepared statements. No SQL string interpolatio
 
 Cloudflare D1 and the dedicated Worker are provisioned. The schema and cleanup schedule are verified through Cloudflare's API. The `API_TOKEN` secret exists on the Worker, but its write-only value must be rotated and entered directly by the owner in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. The separate `AGFUSION_QUOTE_SESSION_SECRET` also remains to be set in Vercel Preview. The Worker URL and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false` are already configured for the feature branch. The Vercel Preview deployment for commit `77ef5b6d52a635a8b1cabbcede1b22ff788c80ad` is READY; the Cloudflare Workers Preview build for the same commit is queued. Do not treat either result as remote D1 concurrency validation.
 
-Remote HTTP validation, including concurrent consume, wrong-account, wrong-chain, expiry, unauthenticated request, and oversized-body cases, is still pending. The optional real-D1 integration test has not yet passed. Do not describe the D1 integration as fully validated until those tests pass.
+Direct D1 SQL tests passed for concurrent consume (one `meta.changes=1`, one `0`), wrong account, wrong chain, and expiry. Full HTTP validation through the Worker, including bearer authorization, oversized-body handling, Worker outage behavior, and the Next.js client integration, remains pending because the matching Preview bearer token is not yet configured. Do not describe the full Worker HTTP integration as validated until those tests pass.
 
 ## Remaining Mainnet release gates
 
