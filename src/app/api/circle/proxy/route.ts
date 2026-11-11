@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { getServerKitKey } from "@/lib/circle-kit-server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedText } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,13 +61,14 @@ async function proxy(req: Request): Promise<Response> {
     );
   }
 
-  const body = await req.text();
-  if (new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES) {
+  const bodyResult = await readLimitedText(req, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
     return NextResponse.json(
-      { error: "payload_too_large" },
-      { status: 413 },
+      { error: bodyResult.error },
+      { status: bodyResult.status },
     );
   }
+  const body = bodyResult.value;
 
   // Require JSON so callers cannot use this endpoint as an arbitrary byte
   // forwarder. Circle validates the actual swap schema upstream.
