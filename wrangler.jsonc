@@ -1,9 +1,10 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
   "name": "agfusion",
-  "compatibility_date": "2026-11-09",
+  "compatibility_date": "2026-11-11",
   "compatibility_flags": [
+    "nodejs_compat",
     "global_fetch_strictly_public"
   ],
   "assets": {
@@ -26,5 +27,6 @@
     "images": {
       "binding": "IMAGES"
     }
-  }
+  },
+  "upload_source_maps": true
 }
