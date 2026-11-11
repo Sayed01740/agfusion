@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { enforceAgentSpendingPolicy, type AgentSpendAction } from "@/lib/agent-spending-policy";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/session";
+import { readLimitedJson } from "@/lib/read-limited-json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ACTIONS = new Set<AgentSpendAction>(["bridge", "swap", "send", "route", "unified_spend", "x402"]);
+const bodySchema = z.object({
+  action: z.enum(["bridge", "swap", "send", "route", "unified_spend", "x402"]),
+  amount: z.union([z.string().max(128), z.number().finite()]).transform(String),
+  smartAccountAddress: z.string().trim().regex(/^0x[a-fA-F0-9]{40}$/),
+  operationId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9:_-]+$/).optional(),
+  recipient: z.string().max(256).optional(),
+});
 
 export async function POST(req: Request) {
   const rl = rateLimit(`agent-policy-check:${clientIp(req)}`, {
@@ -17,31 +25,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ allowed: false, reason: "rate_limited" }, { status: 429 });
   }
 
+  const limited = await readLimitedJson(req, 8 * 1024);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { allowed: false, reason: limited.error },
+      { status: limited.status },
+    );
+  }
+
+  const parsed = bodySchema.safeParse(limited.value);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { allowed: false, reason: "invalid_request" },
+      { status: 400 },
+    );
+  }
+
   try {
-    const body = await req.json();
     const session = await getSessionUser();
     if (!session) {
       return NextResponse.json({ allowed: false, reason: "authentication_required" }, { status: 401 });
     }
 
-    const action = String(body?.action || "") as AgentSpendAction;
-    const amount = String(body?.amount || "");
-    if (!ACTIONS.has(action)) return NextResponse.json({ allowed: false, reason: "Unsupported agent spending action." }, { status: 400 });
+    const body = parsed.data;
+    const action = body.action as AgentSpendAction;
+    const amount = body.amount;
+    const walletAddress = body.smartAccountAddress;
+    const operationId = body.operationId || `check_${walletAddress.toLowerCase()}_${Date.now()}`;
 
-    const walletAddress = String(body?.smartAccountAddress || "").trim();
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-      return NextResponse.json(
-        { allowed: false, reason: "A valid smart account address is required for an agent policy check." },
-        { status: 400 },
-      );
-    }
-    const operationId = String(body?.operationId || `check_${walletAddress.toLowerCase()}_${Date.now()}`);
-    if (operationId.length > 128 || !/^[a-zA-Z0-9:_-]+$/.test(operationId)) {
-      return NextResponse.json(
-        { allowed: false, reason: "Invalid operation ID." },
-        { status: 400 },
-      );
-    }
     // A syntactically valid address is not proof of ownership. Bind this public
     // policy endpoint to the authenticated SIWE session and reject attempts to
     // reserve budget against another wallet. Smart-account identities require
@@ -60,7 +71,7 @@ export async function POST(req: Request) {
       walletAddress: session.address,
       amount,
       action,
-      recipient: body?.recipient ? String(body.recipient) : undefined,
+      recipient: body.recipient || undefined,
       isAgent: true,
       operationId,
     });
