@@ -1,5 +1,5 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
   "name": "agfusion",
   "compatibility_date": "2026-11-11",
@@ -27,5 +27,6 @@
     "images": {
       "binding": "IMAGES"
     }
-  }
+  },
+  "upload_source_maps": true
 }
