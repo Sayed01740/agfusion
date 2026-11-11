@@ -69,7 +69,7 @@ export async function readLimitedText(
   maxBytes: number,
 ): Promise<LimitedTextResult> {
   const declaredLength = request.headers.get("content-length");
-  if (declaredLength && /^\\d+$/.test(declaredLength) && Number(declaredLength) > maxBytes) {
+  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > maxBytes) {
     return { ok: false, status: 413, error: "payload_too_large" };
   }
 
