@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import {
   fetchOwnedWallet,
@@ -26,7 +27,11 @@ export async function POST(req: Request) {
 
   let body: { userToken?: unknown; walletId?: unknown; address?: unknown };
   try {
-    body = await req.json();
+    const limited = await readLimitedJson(req, 16384);
+    if (!limited.ok) {
+      return NextResponse.json({ error: limited.error }, { status: limited.status });
+    }
+    body = limited.value as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
