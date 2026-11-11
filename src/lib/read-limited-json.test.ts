@@ -56,4 +56,31 @@ describe("readLimitedJson", () => {
       error: "invalid_json",
     });
   });
+  it("rejects a streamed body when Content-Length understates its size", async () => {
+    const request = new Request("https://agfusion.test/api", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": "1" },
+      body: JSON.stringify({ message: "x".repeat(128) }),
+    });
+
+    await expect(readLimitedJson(request, 32)).resolves.toEqual({
+      ok: false,
+      status: 413,
+      error: "payload_too_large",
+    });
+  });
+
+  it("rejects a request with no body", async () => {
+    const request = new Request("https://agfusion.test/api", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    });
+
+    await expect(readLimitedJson(request, 32)).resolves.toEqual({
+      ok: false,
+      status: 400,
+      error: "invalid_json",
+    });
+  });
+
 });
