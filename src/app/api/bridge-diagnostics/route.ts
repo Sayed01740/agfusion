@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { listBridgeDiagnosticEvents, logBridgeDiagnosticEvent } from "@/lib/tx-store";
 
@@ -26,7 +27,11 @@ export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ ok: false, error: "payload_too_large" }, { status: 413 });
   try {
-    const body = (await request.json()) as { sessionId?: string; event?: unknown; walletAddress?: string };
+    const limited = await readLimitedJson(request, MAX_BODY_BYTES);
+    if (!limited.ok) {
+      return NextResponse.json({ ok: false, error: limited.error }, { status: limited.status });
+    }
+    const body = limited.value as { sessionId?: string; event?: unknown; walletAddress?: string };
     if (!body.sessionId || !body.event) return NextResponse.json({ ok: false, error: "sessionId_and_event_required" }, { status: 400 });
     const event = redact(body.event);
     const saved = await logBridgeDiagnosticEvent(event, body.sessionId, body.walletAddress);
