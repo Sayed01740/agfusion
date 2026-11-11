@@ -22,13 +22,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isMainnetPreparationEnabled(): boolean {
+  return process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED === "true" &&
+    process.env.VERCEL_ENV !== "production";
+}
+
+/** Read-only release gate used by the browser before requesting a Permit2 signature. */
+export async function GET() {
+  return NextResponse.json(
+    { enabled: isMainnetPreparationEnabled(), executionEnabled: false },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function POST(req: Request) {
   const rl = rateLimit(`uniswap-arc-swap-prepare:${clientIp(req)}`, { windowMs: 60_000, max: 8 });
   if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
   // Transaction preparation stays disabled unless explicitly enabled for a controlled
   // Preview review. This flag does not enable wallet signing or transaction broadcast.
-  if (process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED !== "true") {
+  if (!isMainnetPreparationEnabled()) {
     return NextResponse.json({ error: "mainnet_swap_preparation_disabled" }, { status: 403 });
   }
 
