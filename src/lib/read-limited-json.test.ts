@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readLimitedJson } from "@/lib/read-limited-json";
+import { readLimitedJson, readLimitedText } from "@/lib/read-limited-json";
 
 describe("readLimitedJson", () => {
   it("parses valid JSON within the byte limit", async () => {
@@ -83,4 +83,54 @@ describe("readLimitedJson", () => {
     });
   });
 
+});
+describe("readLimitedText", () => {
+  it("reads valid UTF-8 text within the byte limit", async () => {
+    const request = new Request("https://agfusion.test/api", {
+      method: "POST",
+      body: "hello",
+    });
+
+    await expect(readLimitedText(request, 16)).resolves.toEqual({
+      ok: true,
+      value: "hello",
+    });
+  });
+
+  it("rejects an oversized declared text body before reading", async () => {
+    const request = new Request("https://agfusion.test/api", {
+      method: "POST",
+      headers: { "content-length": "1000" },
+      body: "hello",
+    });
+
+    await expect(readLimitedText(request, 16)).resolves.toEqual({
+      ok: false,
+      status: 413,
+      error: "payload_too_large",
+    });
+  });
+
+  it("rejects an oversized streamed text body when Content-Length is understated", async () => {
+    const request = new Request("https://agfusion.test/api", {
+      method: "POST",
+      headers: { "content-length": "1" },
+      body: "x".repeat(32),
+    });
+
+    await expect(readLimitedText(request, 16)).resolves.toEqual({
+      ok: false,
+      status: 413,
+      error: "payload_too_large",
+    });
+  });
+
+  it("treats an absent body as an empty string", async () => {
+    const request = new Request("https://agfusion.test/api", { method: "POST" });
+
+    await expect(readLimitedText(request, 16)).resolves.toEqual({
+      ok: true,
+      value: "",
+    });
+  });
 });
