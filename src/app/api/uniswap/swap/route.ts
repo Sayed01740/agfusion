@@ -24,7 +24,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isMainnetPreparationEnabled(): boolean {
   return process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED === "true" &&
-    process.env.VERCEL_ENV !== "production";
+    process.env.VERCEL_ENV === "preview";
 }
 
 /** Read-only release gate used by the browser before requesting a Permit2 signature. */
