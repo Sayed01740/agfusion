@@ -14,9 +14,6 @@ import { getInjectedProvider } from "@/sdk/wallet-adapter";
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 const ARC_SWAP_TOKENS: ArcSwapToken[] = ["USDC", "EURC", "cirBTC"];
 const SLIPPAGE_PRESETS = ["0.5", "1", "1.5", "2", "3"];
-const MAINNET_PREPARATION_ENABLED =
-  process.env.NEXT_PUBLIC_AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED === "true";
-
 type SwapQuote = {
   amountOut?: string;
   minimumAmountOut?: string;
@@ -208,7 +205,9 @@ export function ProductionSwapPanel() {
 
   async function prepareMainnetTransaction() {
     if (!quote?.quoteSession || !walletAddress) throw new Error("Request a fresh Mainnet quote before preparing a transaction.");
-    if (!MAINNET_PREPARATION_ENABLED) {
+    const gateResponse = await fetch("/api/uniswap/swap", { method: "GET", cache: "no-store" });
+    const gate: unknown = await gateResponse.json().catch(() => null);
+    if (!gateResponse.ok || !isRecord(gate) || gate.enabled !== true || gate.executionEnabled !== false) {
       setNotice("Mainnet transaction preparation is disabled in this deployment. The quote is read-only; no wallet signature or transaction was requested.");
       return;
     }
@@ -426,8 +425,8 @@ export function ProductionSwapPanel() {
           <Button type="button" variant="outline" className="w-full text-xs h-9" disabled={swapBusy} onClick={() => void getQuote()}>
             <RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh Quote
           </Button>
-          {meta.isMainnet && !MAINNET_PREPARATION_ENABLED && (
-            <p className="text-center text-[10px] text-slate-500">Transaction preparation is disabled pending independent security review. Mainnet quote requests remain read-only.</p>
+          {meta.isMainnet && (
+            <p className="text-center text-[10px] text-slate-500">Preparation is controlled by a server-side Preview gate. Production transaction preparation remains blocked.</p>
           )}
         </div>
       )}
