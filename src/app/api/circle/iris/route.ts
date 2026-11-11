@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedText } from "@/lib/read-limited-json";
 
 /**
  * Server-side proxy for Circle's IRIS CCTP API.
@@ -21,6 +22,7 @@ const IRIS_BASE = IS_MAINNET
   ? "https://iris-api.circle.com"
   : "https://iris-api-sandbox.circle.com";
 const TIMEOUT_MS = 20_000;
+const MAX_BODY_BYTES = 256_000;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,9 +113,13 @@ export async function POST(req: Request) {
   const target = getTarget(req);
   if (target instanceof Response) return target;
 
+  const bodyResult = await readLimitedText(req, MAX_BODY_BYTES);
+  if (!bodyResult.ok) {
+    return NextResponse.json({ error: bodyResult.error }, { status: bodyResult.status });
+  }
+
   try {
-    const body = await req.text();
-    const upstream = await forward(target, "POST", req.headers, body);
+    const upstream = await forward(target, "POST", req.headers, bodyResult.value);
     const text = await upstream.text();
     return new NextResponse(text, {
       status: upstream.status,
