@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const mocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
@@ -137,6 +137,21 @@ function setup() {
 }
 
 describe("POST /api/uniswap/swap", () => {
+  it("reports the read-only preparation gate without exposing configuration", async () => {
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ enabled: false, executionEnabled: false });
+  });
+
+  it("never enables transaction preparation in Production even if the flag is set", async () => {
+    vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+    vi.stubEnv("VERCEL_ENV", "production");
+    const response = await POST(request({ quoteSession: "opaque" }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "mainnet_swap_preparation_disabled" });
+    expect(mocks.decrypt).not.toHaveBeenCalled();
+  });
+
   it("fails closed unless Preview transaction preparation is explicitly enabled", async () => {
     const response = await POST(request({ quoteSession: "opaque" }));
     expect(response.status).toBe(403);
