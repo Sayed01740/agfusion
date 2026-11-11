@@ -92,13 +92,6 @@ export function ProductionSwapPanel() {
   const { addTransaction, setActiveTx, setThinking, walletAddress, walletChainId } = usePilotStore();
   const meta = getArcNetworkMeta(walletChainId);
 
-  useEffect(() => {
-    setQuote(null);
-    setPrepared(null);
-    setError(null);
-    setNotice(null);
-  }, [walletAddress, walletChainId]);
-
   const [tokenIn, setTokenIn] = useState<ArcSwapToken>("USDC");
   const [tokenOut, setTokenOut] = useState<ArcSwapToken>("EURC");
   const [amount, setAmount] = useState("0.50");
@@ -109,6 +102,14 @@ export function ProductionSwapPanel() {
   const [swapBusy, setSwapBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQuote(null);
+    setPrepared(null);
+    setError(null);
+    setNotice(null);
+  }, [walletAddress, walletChainId]);
+
 
   const slippageBps = useMemo(() => {
     try {
