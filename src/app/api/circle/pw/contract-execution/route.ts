@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { formatUnits } from "viem";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import {
@@ -45,7 +46,11 @@ export async function POST(req: Request) {
     chainId?: unknown;
   };
   try {
-    body = await req.json();
+    const limited = await readLimitedJson(req, 131072);
+    if (!limited.ok) {
+      return NextResponse.json({ error: limited.error }, { status: limited.status });
+    }
+    body = limited.value as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
