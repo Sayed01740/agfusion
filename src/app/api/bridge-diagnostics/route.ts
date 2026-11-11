@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { listBridgeDiagnosticEvents, logBridgeDiagnosticEvent } from "@/lib/tx-store";
 
@@ -6,14 +7,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 256_000;
 
-function redact(value: unknown): unknown {
+function redact(
+  value: unknown,
+  depth = 0,
+  budget = { nodes: 0 },
+): unknown {
+  budget.nodes += 1;
+  if (depth > 12 || budget.nodes > 2_000) return "[truncated]";
   if (value === null || value === undefined || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
-  if (Array.isArray(value)) return value.slice(0, 200).map(redact);
+  if (Array.isArray(value)) return value.slice(0, 200).map((item) => redact(item, depth + 1, budget));
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 500)) {
       if (/private|secret|seed|mnemonic|password|authorization|cookie|access.?token|refresh.?token|api.?key/i.test(key)) out[key] = "[redacted]";
-      else out[key] = redact(item);
+      else out[key] = redact(item, depth + 1, budget);
     }
     return out;
   }
@@ -26,8 +33,26 @@ export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > MAX_BODY_BYTES) return NextResponse.json({ ok: false, error: "payload_too_large" }, { status: 413 });
   try {
-    const body = (await request.json()) as { sessionId?: string; event?: unknown; walletAddress?: string };
-    if (!body.sessionId || !body.event) return NextResponse.json({ ok: false, error: "sessionId_and_event_required" }, { status: 400 });
+    const limited = await readLimitedJson(request, MAX_BODY_BYTES);
+    if (!limited.ok) {
+      return NextResponse.json({ ok: false, error: limited.error }, { status: limited.status });
+    }
+    const body = limited.value as { sessionId?: string; event?: unknown; walletAddress?: string };
+    if (
+      typeof body.sessionId !== "string" ||
+      !body.sessionId.trim() ||
+      body.sessionId.length > 128 ||
+      !body.event
+    ) {
+      return NextResponse.json({ ok: false, error: "sessionId_and_event_required" }, { status: 400 });
+    }
+    if (
+      body.walletAddress !== undefined &&
+      (typeof body.walletAddress !== "string" ||
+        !/^0x[a-fA-F0-9]{40}$/.test(body.walletAddress))
+    ) {
+      return NextResponse.json({ ok: false, error: "invalid_wallet_address" }, { status: 400 });
+    }
     const event = redact(body.event);
     const saved = await logBridgeDiagnosticEvent(event, body.sessionId, body.walletAddress);
     console.info("[AGFUSION_BRIDGE_DIAGNOSTIC]", JSON.stringify({ sessionId: body.sessionId, event }));

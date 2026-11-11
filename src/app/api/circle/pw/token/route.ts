@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { createHash } from "crypto";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getCircleApiKey, isValidEmail } from "@/lib/circle-pw-server";
@@ -17,7 +18,11 @@ export async function POST(req: Request) {
 
   let body: { email?: unknown };
   try {
-    body = await req.json();
+    const limited = await readLimitedJson(req, 4096);
+    if (!limited.ok) {
+      return NextResponse.json({ error: limited.error }, { status: limited.status });
+    }
+    body = limited.value as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }

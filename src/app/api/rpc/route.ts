@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { readLimitedText } from "@/lib/read-limited-json";
 import {
   RPC_UPSTREAMS,
   chainKey,
@@ -22,6 +23,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+const MAX_RPC_BODY_BYTES = 256 * 1024;
 
 const ARC_BRIDGE_WRITE_TARGETS = new Set([
   "0x3600000000000000000000000000000000000000",
@@ -102,9 +104,23 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: string;
+  const limited = await readLimitedText(req, MAX_RPC_BODY_BYTES);
+  if (!limited.ok) {
+    return NextResponse.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32600,
+          message: limited.error === "payload_too_large" ? "Request body too large" : "Invalid request body",
+        },
+      },
+      { status: limited.status },
+    );
+  }
+
+  const body = limited.value;
   try {
-    body = await req.text();
     JSON.parse(body);
   } catch {
     return NextResponse.json(

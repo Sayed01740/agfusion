@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { orchestrateUserMessage } from "@/ai/orchestrator";
 import { resolveLlmConfig } from "@/lib/llm-config";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { sanitizeAgentText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
+
+const bodySchema = z.object({
+  message: z.string().trim().min(1).max(4_000),
+  execute: z.boolean().optional(),
+});
 
 /**
  * AI chat + action orchestration.
@@ -11,15 +18,19 @@ export const runtime = "nodejs";
  * when a server LLM key is present.
  */
 export async function POST(req: Request) {
+  const limited = await readLimitedJson(req, 16 * 1024);
+  if (!limited.ok) {
+    return NextResponse.json({ error: limited.error }, { status: limited.status });
+  }
+
+  const parsed = bodySchema.safeParse(limited.value);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
   try {
-    const body = await req.json();
-    const message = String(body.message || "").trim();
-    const execute = Boolean(body.execute);
-
-    if (!message) {
-      return NextResponse.json({ error: "message required" }, { status: 400 });
-    }
-
+    const message = parsed.data.message;
+    const execute = parsed.data.execute ?? false;
     let result = await orchestrateUserMessage(message, { execute });
 
     const llm = resolveLlmConfig();

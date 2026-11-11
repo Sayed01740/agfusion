@@ -10,6 +10,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { readLimitedJson } from "@/lib/read-limited-json";
 import { assessRouteRisk } from "@/lib/agent-economy";
 import { estimateBridgeDemo } from "@/blockchain/appkit-service";
 import type { ChainId } from "@/types";
@@ -235,7 +236,11 @@ export async function POST(req: Request) {
     payer?: string;
   };
   try {
-    body = await req.json();
+    const limited = await readLimitedJson(req, 8 * 1024);
+    if (!limited.ok) {
+      return NextResponse.json({ error: limited.error }, { status: limited.status });
+    }
+    body = limited.value as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
