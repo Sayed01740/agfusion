@@ -9,6 +9,7 @@ import { getArcDexSwapQuote } from "@/blockchain/production-swap";
 import { executeSwap } from "@/lib/client-actions";
 import { usePilotStore } from "@/store/pilot-store";
 import { getArcNetworkMeta } from "@/lib/arc-chain";
+import { ProductionSwapPanel } from "@/components/panels/production-swap-panel";
 import type { TransactionRecord } from "@/types";
 
 const SLIPPAGE_PRESETS = [50, 100, 300];
@@ -56,6 +57,14 @@ export function SwapCard({ connected }: { connected: boolean }) {
   // Debounced live quote (requires a connected wallet).
   useEffect(() => {
     setResult(null);
+    if (meta.isMainnet) {
+      setAmountOut("");
+      setMinimumAmountOut("");
+      setRoute(null);
+      setError(null);
+      setQuoting(false);
+      return;
+    }
     const n = Number(amountIn);
     if (!connected || !amountIn || !Number.isFinite(n) || n <= 0 || tokenIn.symbol === tokenOut.symbol) {
       setAmountOut("");
@@ -122,7 +131,9 @@ export function SwapCard({ connected }: { connected: boolean }) {
     }
   }
 
-  const disabled = busy || meta.isMainnet || !connected || !amountIn || Number(amountIn) <= 0 || tokenIn.symbol === tokenOut.symbol || !amountOut;
+  if (meta.isMainnet) return <ProductionSwapPanel />;
+
+  const disabled = busy || !connected || !amountIn || Number(amountIn) <= 0 || tokenIn.symbol === tokenOut.symbol || !amountOut;
   const minReceived =
     minimumAmountOut && Number(minimumAmountOut) > 0
       ? minimumAmountOut
@@ -199,8 +210,6 @@ export function SwapCard({ connected }: { connected: boolean }) {
           <>
             <Loader2 className="h-4 w-4 animate-spin" /> Swapping…
           </>
-        ) : meta.isMainnet ? (
-          "Mainnet quote only · swap disabled"
         ) : !connected ? (
           "Connect wallet to swap"
         ) : tokenIn.symbol === tokenOut.symbol ? (
