@@ -122,6 +122,7 @@ function setup() {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(now * 1000));
   vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+  vi.stubEnv("VERCEL_ENV", "preview");
   vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", "test-only-quote-session-secret-with-over-32-bytes");
   vi.stubEnv("UNISWAP_API_KEY", "test-uniswap-key");
   mocks.decrypt.mockReturnValue(session);
