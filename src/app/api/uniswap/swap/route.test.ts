@@ -162,6 +162,7 @@ describe("POST /api/uniswap/swap", () => {
 
   it("requires a valid encrypted quote session", async () => {
     vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+    vi.stubEnv("VERCEL_ENV", "preview");
     mocks.decrypt.mockImplementation(() => { throw new Error("bad session"); });
     const response = await POST(request({ quoteSession: "opaque" }));
     expect(response.status).toBe(400);
