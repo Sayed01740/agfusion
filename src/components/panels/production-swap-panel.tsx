@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDownUp, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +91,14 @@ async function getVerifiedMainnetProvider(expectedAddress: string) {
 export function ProductionSwapPanel() {
   const { addTransaction, setActiveTx, setThinking, walletAddress, walletChainId } = usePilotStore();
   const meta = getArcNetworkMeta(walletChainId);
+
+  useEffect(() => {
+    setQuote(null);
+    setPrepared(null);
+    setError(null);
+    setNotice(null);
+  }, [walletAddress, walletChainId]);
+
   const [tokenIn, setTokenIn] = useState<ArcSwapToken>("USDC");
   const [tokenOut, setTokenOut] = useState<ArcSwapToken>("EURC");
   const [amount, setAmount] = useState("0.50");
