@@ -144,6 +144,14 @@ describe("POST /api/uniswap/swap", () => {
     expect(await response.json()).toMatchObject({ enabled: false, executionEnabled: false });
   });
 
+  it("enables unsigned preparation only when the Preview gate is explicitly set", async () => {
+    vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ enabled: true, executionEnabled: false });
+  });
+
   it("never enables transaction preparation in Production even if the flag is set", async () => {
     vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
     vi.stubEnv("VERCEL_ENV", "production");
