@@ -9,7 +9,8 @@ import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
 import { getArcDexSwapQuote, normalizeSlippageBps } from "@/blockchain/production-swap";
 import { getArcNetworkMeta } from "@/lib/arc-chain";
-import { getInjectedProvider } from "@/sdk/wallet-adapter";
+import { getChainId, getInjectedProvider } from "@/sdk/wallet-adapter";
+import { assertArcMainnetWalletState } from "@/blockchain/uniswap-mainnet-adapter";
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 const ARC_SWAP_TOKENS: ArcSwapToken[] = ["USDC", "EURC", "cirBTC"];
@@ -63,29 +64,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function parseChainId(value: unknown): number {
-  if (typeof value === "number" && Number.isSafeInteger(value)) return value;
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (raw.startsWith("0x")) return Number.parseInt(raw.slice(2), 16);
-  if (/^\d+$/.test(raw)) return Number.parseInt(raw, 10);
-  return Number.NaN;
-}
-
 async function getVerifiedMainnetProvider(expectedAddress: string) {
   const provider = await getInjectedProvider();
-  const [rawChainId, rawAccounts] = await Promise.all([
-    provider.request({ method: "eth_chainId" }),
+  const [chainId, rawAccounts] = await Promise.all([
+    getChainId(provider),
     provider.request({ method: "eth_accounts" }),
   ]);
-  const chainId = parseChainId(rawChainId);
   const account = Array.isArray(rawAccounts) && typeof rawAccounts[0] === "string"
     ? rawAccounts[0]
-    : "";
-  if (chainId !== 5042) throw new Error("Connect the selected wallet to Arc Mainnet (chain ID 5042).");
-  if (!/^0x[0-9a-fA-F]{40}$/.test(account) || account.toLowerCase() !== expectedAddress.toLowerCase()) {
-    throw new Error("The connected wallet account changed. Reconnect the quoted wallet and request a new quote.");
-  }
-  return { provider, account };
+    : null;
+  assertArcMainnetWalletState({ chainId, account, expectedAccount: expectedAddress });
+  return { provider, account: account as string };
 }
 
 export function ProductionSwapPanel() {
