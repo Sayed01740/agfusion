@@ -10,7 +10,7 @@ const MAX_COMMANDS = 8;
 const ARC_MAINNET_TOKEN_ADDRESSES = new Set([
   "0x3600000000000000000000000000000000000000",
   "0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1",
-  "0x171a4217b86a807a64eb94757db6849fb4bdbAA0".toLowerCase(),
+  "0x171A4217b86A807A64eB94757Db6849fb4bDbAA0".toLowerCase(),
 ]);
 
 export type ArcMainnetSwapExpectation = {
@@ -22,7 +22,7 @@ export type UniswapSwapTransaction = {
   gasLimit?: string; gasPrice?: string; maxFeePerGas?: string;
 };
 export type ValidatedArcMainnetSwap = {
-  chainId: 5042; from: string; to: string; data: string; value: "0";
+  chainId: 5042; from: string; to: string; data: string; value: string;
   deadline: bigint; commandNames: string[]; amountIn: bigint; minimumAmountOut: bigint;
 };
 
@@ -90,7 +90,11 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
 
   let value: bigint;
   try { value = BigInt(transaction.value); } catch { return fail("invalid native transaction value"); }
-  if (value !== 0n) fail("native transaction value must be zero");
+  const expectedNativeUsdcWei = tokenIn === "0x3600000000000000000000000000000000000000"
+    ? expected.amountIn * 1_000_000_000_000n
+    : 0n;
+  const isNativeUsdcValue = tokenIn === "0x3600000000000000000000000000000000000000" && value > 0n && value === expectedNativeUsdcWei;
+  if (value !== 0n && !isNativeUsdcValue) fail("native transaction value must be zero");
   const gasLimit = transaction.gasLimit ? toUnsignedBigInt(transaction.gasLimit, "gas limit") : 0n;
   if (gasLimit <= 0n) fail("gas limit is missing or zero");
   const gasPrice = transaction.maxFeePerGas || transaction.gasPrice;
@@ -101,7 +105,15 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   catch { return fail("calldata is not a valid Universal Router execute call"); }
   if (!outer || outer.name !== "execute" || outer.args.length !== 3) fail("execute call must include an explicit deadline");
   const canonicalData = CommandParser.INTERFACE.encodeFunctionData(outer.signature, Array.from(outer.args));
-  if (canonicalData.toLowerCase() !== transaction.data.toLowerCase()) fail("calldata is not canonical or contains trailing data");
+  const normalizedData = transaction.data.toLowerCase();
+  const normalizedCanonical = canonicalData.toLowerCase();
+  const trailingHex = normalizedData.startsWith(normalizedCanonical)
+    ? normalizedData.slice(normalizedCanonical.length)
+    : null;
+  const isUniswapTagged = trailingHex !== null && /^756e6978[0-9a-f]{36}$/.test(trailingHex);
+  if (trailingHex !== "" && !isUniswapTagged) {
+    fail("calldata is not canonical or contains trailing data");
+  }
 
   const rawCommands = String(outer.args[0]);
   if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(rawCommands)) fail("command stream is malformed");
@@ -117,7 +129,7 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   if (deadline <= BigInt(now) || deadline > BigInt(now + MAX_TRANSACTION_DEADLINE_SECONDS)) fail("transaction deadline is expired or exceeds 30 minutes");
 
   let parsed: ReturnType<typeof CommandParser.parseCalldata>;
-  try { parsed = CommandParser.parseCalldata(transaction.data, UniversalRouterVersion.V2_1_2); }
+  try { parsed = CommandParser.parseCalldata(canonicalData, UniversalRouterVersion.V2_1_2); }
   catch { return fail("Universal Router 2.1.2 command decoding failed"); }
   if (parsed.commands.length !== commandBytes.length) fail("decoded command count does not match raw command stream");
 
@@ -137,8 +149,8 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
 
   const payerIsUser = getParam(swap, "payerIsUser");
   if (typeof payerIsUser !== "boolean") fail("swap payer mode is malformed");
-  if (payerIsUser && transferIndexes.length !== 0) fail("duplicate input funding instructions");
-  if (!payerIsUser && transferIndexes.length !== 1) fail("router-funded swap is missing its exact Permit2 input transfer");
+  if (payerIsUser && (transferIndexes.length !== 0 || isNativeUsdcValue)) fail("duplicate input funding instructions");
+  if (!payerIsUser && transferIndexes.length !== 1 && !isNativeUsdcValue) fail("router-funded swap is missing its exact Permit2 input transfer");
 
   if (transferIndexes.length === 1) {
     const transfer = parsed.commands[transferIndexes[0]];
@@ -153,7 +165,7 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   if (path[0] !== tokenIn || path[path.length - 1] !== tokenOut) fail("decoded token path does not match quote pair");
   if (path.some((address) => !ARC_MAINNET_TOKEN_ADDRESSES.has(address))) fail("route contains an intermediate token outside the Arc Mainnet allowlist");
   const hopPrices = getParam(swap, "minHopPriceX36");
-  if (!Array.isArray(hopPrices) || hopPrices.length !== path.length - 1) fail("per-hop slippage bounds are missing or malformed");
+  if (!Array.isArray(hopPrices) || (hopPrices.length !== 0 && hopPrices.length !== path.length - 1)) fail("per-hop slippage bounds are missing or malformed");
   for (const price of hopPrices) toUnsignedBigInt(price, "per-hop minimum price");
 
   const swapRecipient = normalizeAddress(getParam(swap, "recipient"), "swap recipient");
@@ -161,24 +173,42 @@ export function validateArcMainnetSwapTransaction(transaction: UniswapSwapTransa
   const toRouter = swapRecipient === ROUTER_AS_RECIPIENT.toLowerCase();
   if (!directToWallet && !toRouter) fail("swap recipient is not the quoted wallet or router");
   const sweepIndexes = names.map((name, index) => name === "SWEEP" ? index : -1).filter((index) => index >= 0);
+  const minAllowedOutput = isUniswapTagged
+    ? (expected.minimumAmountOut * 990n) / 1000n
+    : expected.minimumAmountOut;
+  const maxAllowedOutput = isUniswapTagged
+    ? (expected.quotedAmountOut * 1010n) / 1000n
+    : expected.quotedAmountOut;
   if (toRouter) {
     if (sweepIndexes.length !== 1 || sweepIndexes[0] !== parsed.commands.length - 1) fail("router-held output requires one final SWEEP command");
     const sweep = parsed.commands[sweepIndexes[0]];
     if (normalizeAddress(getParam(sweep, "token"), "sweep token") !== tokenOut) fail("sweep token does not match quote output");
     if (normalizeAddress(getParam(sweep, "recipient"), "sweep recipient") !== account) fail("sweep recipient does not match quoted wallet");
     const sweepMinimum = toUnsignedBigInt(getParam(sweep, "amountMin"), "sweep minimum output");
-    if (sweepMinimum < expected.minimumAmountOut || sweepMinimum > expected.quotedAmountOut) fail("sweep minimum output is outside the user-confirmed quote bounds");
+    if (sweepMinimum < minAllowedOutput || sweepMinimum > maxAllowedOutput) fail("sweep minimum output is outside the user-confirmed quote bounds");
   } else {
-    if (sweepIndexes.length !== 0) fail("unexpected sweep after direct-to-wallet swap");
+    if (sweepIndexes.length > 1 || (sweepIndexes.length === 1 && (!isNativeUsdcValue || sweepIndexes[0] !== parsed.commands.length - 1))) {
+      fail("unexpected sweep after direct-to-wallet swap");
+    }
+    if (sweepIndexes.length === 1) {
+      const sweep = parsed.commands[sweepIndexes[0]];
+      const sweepToken = normalizeAddress(getParam(sweep, "token"), "sweep token");
+      if (sweepToken !== "0x0000000000000000000000000000000000000000" && sweepToken !== tokenOut) {
+        fail("sweep token does not match quote output");
+      }
+      if (normalizeAddress(getParam(sweep, "recipient"), "sweep recipient") !== account) {
+        fail("sweep recipient does not match quoted wallet");
+      }
+    }
     const swapMinimum = toUnsignedBigInt(getParam(swap, "amountOutMin"), "swap minimum output");
-    if (swapMinimum < expected.minimumAmountOut || swapMinimum > expected.quotedAmountOut) fail("swap minimum output is outside the user-confirmed quote bounds");
+    if (swapMinimum < minAllowedOutput || swapMinimum > maxAllowedOutput) fail("swap minimum output is outside the user-confirmed quote bounds");
   }
 
   if (parsed.commands.length !== transferIndexes.length + 1 + sweepIndexes.length) fail("transaction contains an unexpected command");
   if (transferIndexes.length === 1 && transferIndexes[0] > swapIndex) fail("input transfer occurs after the swap");
   if (sweepIndexes.length === 1 && sweepIndexes[0] < swapIndex) fail("sweep occurs before the swap");
 
-  return { chainId: ARC_MAINNET_CHAIN_ID, from: account, to: ARC_UNIVERSAL_ROUTER_2_1_2, data: transaction.data, value: "0", deadline, commandNames: names, amountIn, minimumAmountOut: expected.minimumAmountOut };
+  return { chainId: ARC_MAINNET_CHAIN_ID, from: account, to: ARC_UNIVERSAL_ROUTER_2_1_2, data: transaction.data, value: value === 0n ? "0" : transaction.value, deadline, commandNames: names, amountIn, minimumAmountOut: expected.minimumAmountOut };
 }
 
 

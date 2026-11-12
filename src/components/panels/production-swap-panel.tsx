@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
 import { getArcDexSwapQuote, normalizeSlippageBps } from "@/blockchain/production-swap";
-import { getArcNetworkMeta } from "@/lib/arc-chain";
+import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
+import { arcPublicClient } from "@/lib/dapp/erc20";
 import { getChainId, getInjectedProvider } from "@/sdk/wallet-adapter";
 import { assertArcMainnetWalletState } from "@/blockchain/uniswap-mainnet-adapter";
+import { uid } from "@/lib/utils";
 
 type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
 const ARC_SWAP_TOKENS: ArcSwapToken[] = ["USDC", "EURC", "cirBTC"];
@@ -27,12 +29,18 @@ type SwapQuote = {
 };
 
 type PreparedMainnetTransaction = {
+  executionEnabled: boolean;
+  receiptVerificationTicket?: string;
   transaction: {
     chainId: number;
     from: string;
     to: string;
+    data: string;
     value: string;
     gasLimit: string;
+    maxFeePerGas?: string;
+    maxPriorityFeePerGas?: string;
+    gasPrice?: string;
   };
   validation?: {
     estimatedGas?: string;
@@ -40,6 +48,16 @@ type PreparedMainnetTransaction = {
     minimumAmountOut?: string;
     commandNames?: string[];
   };
+};
+
+type PendingApprovalTransaction = {
+  chainId: number;
+  from: string;
+  to: string;
+  data: string;
+  value: string;
+  spender: string;
+  amount: string;
 };
 
 function prettyAmount(value?: string) {
@@ -87,6 +105,7 @@ export function ProductionSwapPanel() {
   const [slippage, setSlippage] = useState("1");
   const [quote, setQuote] = useState<SwapQuote | null>(null);
   const [prepared, setPrepared] = useState<PreparedMainnetTransaction | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<PendingApprovalTransaction | null>(null);
   const [quoteBusy, setQuoteBusy] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +114,7 @@ export function ProductionSwapPanel() {
   useEffect(() => {
     setQuote(null);
     setPrepared(null);
+    setPendingApproval(null);
     setError(null);
     setNotice(null);
   }, [walletAddress, walletChainId]);
@@ -117,6 +137,7 @@ export function ProductionSwapPanel() {
     setSlippage(value);
     setQuote(null);
     setPrepared(null);
+    setPendingApproval(null);
     setError(null);
     setNotice(null);
   }
@@ -126,6 +147,7 @@ export function ProductionSwapPanel() {
     setTokenOut(tokenIn);
     setQuote(null);
     setPrepared(null);
+    setPendingApproval(null);
     setError(null);
     setNotice(null);
   }
@@ -153,6 +175,7 @@ export function ProductionSwapPanel() {
     setError(null);
     setNotice(null);
     setPrepared(null);
+    setPendingApproval(null);
     setQuote(null);
     try {
       if (meta.isMainnet) {
@@ -201,11 +224,146 @@ export function ProductionSwapPanel() {
     }
   }
 
+  async function approvePermit2InWallet() {
+    if (!pendingApproval || !walletAddress) return;
+    setSwapBusy(true);
+    setThinking(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { provider, account } = await getVerifiedMainnetProvider(walletAddress);
+      if (pendingApproval.from.toLowerCase() !== account.toLowerCase() || pendingApproval.chainId !== 5042) {
+        throw new Error("Approval transaction does not match connected Arc Mainnet wallet.");
+      }
+      const approveTxHash = String(
+        await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: account,
+              to: pendingApproval.to,
+              data: pendingApproval.data,
+              value: "0x0",
+            },
+          ],
+        }),
+      );
+      setNotice(`Waiting for Permit2 approval confirmation (${approveTxHash.slice(0, 10)}…)…`);
+      await arcPublicClient(true).waitForTransactionReceipt({
+        hash: approveTxHash as `0x${string}`,
+        timeout: 90_000,
+      });
+      setPendingApproval(null);
+      setQuote(null);
+      setNotice("Exact-amount Permit2 approval confirmed on Arc Mainnet! Click 'Get Quote' to prepare your swap.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Permit2 approval failed.");
+    } finally {
+      setSwapBusy(false);
+      setThinking(false);
+    }
+  }
+
+  async function executePreparedMainnetSwap() {
+    if (!prepared || !walletAddress) return;
+    setSwapBusy(true);
+    setThinking(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { provider, account } = await getVerifiedMainnetProvider(walletAddress);
+      if (
+        prepared.transaction.chainId !== 5042 ||
+        prepared.transaction.from.toLowerCase() !== account.toLowerCase() ||
+        !prepared.transaction.data.startsWith("0x")
+      ) {
+        throw new Error("Prepared transaction no longer matches the connected Arc Mainnet account.");
+      }
+
+      const gasHex = prepared.transaction.gasLimit
+        ? `0x${BigInt(prepared.transaction.gasLimit).toString(16)}`
+        : undefined;
+      const rawValue = prepared.transaction.value || "0";
+      const valueHex = rawValue && rawValue !== "0" && rawValue !== "0x0"
+        ? (rawValue.startsWith("0x") ? rawValue : `0x${BigInt(rawValue).toString(16)}`)
+        : "0x0";
+      const txParams: Record<string, string> = {
+        from: account,
+        to: prepared.transaction.to,
+        data: prepared.transaction.data,
+        value: valueHex,
+      };
+      if (gasHex) txParams.gas = gasHex;
+
+      const txHash = String(
+        await provider.request({
+          method: "eth_sendTransaction",
+          params: [txParams],
+        }),
+      );
+
+      setNotice(`Swap broadcast (${txHash.slice(0, 10)}…). Waiting for Arc Mainnet confirmation…`);
+      const receipt = await arcPublicClient(true).waitForTransactionReceipt({
+        hash: txHash as `0x${string}`,
+        timeout: 90_000,
+      });
+      if (receipt.status !== "success") {
+        throw new Error(`Swap transaction reverted on Arc Mainnet (${txHash}).`);
+      }
+
+      if (prepared.receiptVerificationTicket) {
+        const verifyRes = await fetch("/api/uniswap/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            receiptVerificationTicket: prepared.receiptVerificationTicket,
+            transactionHash: txHash,
+          }),
+          cache: "no-store",
+        });
+        if (!verifyRes.ok && verifyRes.status !== 202) {
+          console.warn("[AGFusion] Receipt verification warning", { status: verifyRes.status });
+        }
+      }
+
+      const txId = uid("swap");
+      addTransaction({
+        id: txId,
+        type: "swap",
+        status: "success",
+        amount,
+        token: `${tokenIn} → ${tokenOut}`,
+        fromChain: "Arc",
+        toChain: "Arc",
+        recipient: account,
+        txHash,
+        explorerUrl: explorerTxUrl(txHash, 5042),
+        steps: [
+          { name: "Validate Quote & Permit2", state: "success" },
+          { name: "Simulate Universal Router 2.1.2", state: "success" },
+          { name: "Broadcast Swap on Arc Mainnet", state: "success", txHash },
+        ],
+        createdAt: new Date().toISOString(),
+        message: `Swapped ${amount} ${tokenIn} for ~${prettyAmount(quote?.amountOut)} ${tokenOut} on Arc Mainnet`,
+        executionMode: "live",
+      });
+      setActiveTx(txId);
+      setPrepared(null);
+      setQuote(null);
+      setNotice(`Swap confirmed on Arc Mainnet! Tx: ${txHash.slice(0, 14)}…`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Mainnet swap execution failed.");
+    } finally {
+      setSwapBusy(false);
+      setThinking(false);
+    }
+  }
+
   async function prepareMainnetTransaction() {
     if (!quote?.quoteSession || !walletAddress) throw new Error("Request a fresh Mainnet quote before preparing a transaction.");
     const gateResponse = await fetch("/api/uniswap/swap", { method: "GET", cache: "no-store" });
     const gate: unknown = await gateResponse.json().catch(() => null);
-    if (!gateResponse.ok || !isRecord(gate) || gate.enabled !== true || gate.executionEnabled !== false) {
+    if (!gateResponse.ok || !isRecord(gate) || gate.enabled !== true || typeof gate.executionEnabled !== "boolean") {
       setNotice("Mainnet transaction preparation is disabled in this deployment. The quote is read-only; no wallet signature or transaction was requested.");
       return;
     }
@@ -245,7 +403,17 @@ export function ProductionSwapPanel() {
     const data: unknown = await response.json().catch(() => null);
     if (!response.ok || !isRecord(data)) {
       if (isRecord(data) && isRecord(data.approvalTransaction)) {
-        throw new Error("An exact ERC-20 approval to Permit2 is required first. This interface does not submit approval transactions. Request a fresh quote after completing approval through an approved wallet flow.");
+        const appTx = data.approvalTransaction;
+        setPendingApproval({
+          chainId: Number(appTx.chainId || 5042),
+          from: String(appTx.from || account),
+          to: String(appTx.to || ""),
+          data: String(appTx.data || ""),
+          value: String(appTx.value || "0"),
+          spender: String(appTx.spender || ""),
+          amount: String(appTx.amount || ""),
+        });
+        throw new Error("An exact ERC-20 approval to Permit2 is required first. Click 'Approve Exact Amount to Permit2' below, wait for confirmation, then request a fresh quote.");
       }
       const message = isRecord(data) && typeof data.detail === "string"
         ? data.detail
@@ -256,7 +424,7 @@ export function ProductionSwapPanel() {
     }
     if (
       data.ok !== true ||
-      data.executionEnabled !== false ||
+      typeof data.executionEnabled !== "boolean" ||
       !isRecord(data.transaction) ||
       Number(data.chainId) !== 5042 ||
       Number(data.transaction.chainId) !== 5042 ||
@@ -267,12 +435,18 @@ export function ProductionSwapPanel() {
 
     const validation = isRecord(data.validation) ? data.validation : undefined;
     setPrepared({
+      executionEnabled: Boolean(data.executionEnabled),
+      receiptVerificationTicket: typeof data.receiptVerificationTicket === "string" ? data.receiptVerificationTicket : undefined,
       transaction: {
         chainId: 5042,
         from: String(data.transaction.from),
         to: String(data.transaction.to),
+        data: String(data.transaction.data || ""),
         value: String(data.transaction.value || "0"),
         gasLimit: String(data.transaction.gasLimit || ""),
+        maxFeePerGas: typeof data.transaction.maxFeePerGas === "string" ? data.transaction.maxFeePerGas : undefined,
+        maxPriorityFeePerGas: typeof data.transaction.maxPriorityFeePerGas === "string" ? data.transaction.maxPriorityFeePerGas : undefined,
+        gasPrice: typeof data.transaction.gasPrice === "string" ? data.transaction.gasPrice : undefined,
       },
       validation: validation ? {
         estimatedGas: typeof validation.estimatedGas === "string" ? validation.estimatedGas : undefined,
@@ -281,7 +455,11 @@ export function ProductionSwapPanel() {
         commandNames: Array.isArray(validation.commandNames) ? validation.commandNames.filter((v): v is string => typeof v === "string") : undefined,
       } : undefined,
     });
-    setNotice("Unsigned Mainnet transaction prepared and validated. AGFusion did not sign or broadcast the transaction.");
+    setNotice(
+      data.executionEnabled
+        ? "Mainnet transaction validated and simulated. Review the details below and click 'Sign & Broadcast Mainnet Swap' to execute."
+        : "Unsigned Mainnet transaction prepared and validated. AGFusion did not sign or broadcast the transaction.",
+    );
   }
 
   async function swap() {
@@ -335,7 +513,7 @@ export function ProductionSwapPanel() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-cyan-300/90">{meta.name} Swap</p>
-        <Badge variant="cyan" className="shrink-0">{meta.isMainnet ? "Uniswap · Quote only" : "USDC · EURC"}</Badge>
+        <Badge variant="cyan" className="shrink-0">{meta.isMainnet ? "Uniswap · Live Swap" : "USDC · EURC"}</Badge>
       </div>
 
       <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
@@ -397,16 +575,31 @@ export function ProductionSwapPanel() {
         </div>
       )}
 
+      {pendingApproval && (
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3.5 space-y-2.5">
+          <p className="text-xs font-semibold text-amber-200">Permit2 ERC-20 Approval Required</p>
+          <p className="text-[11px] text-slate-300">Approve the exact input amount ({pendingApproval.amount} base units) to Permit2 ({pendingApproval.spender}).</p>
+          <Button className="w-full font-semibold" disabled={swapBusy} onClick={() => void approvePermit2InWallet()}>
+            {swapBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Approving in wallet…</> : "Approve Exact Amount to Permit2"}
+          </Button>
+        </div>
+      )}
+
       {prepared && (
-        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3.5 space-y-2">
-          <p className="text-xs font-semibold text-amber-200">Unsigned Mainnet transaction prepared</p>
-          <p className="text-[11px] text-slate-300">The server validated the transaction and simulation. It has not been signed or broadcast.</p>
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3.5 space-y-2.5">
+          <p className="text-xs font-semibold text-amber-200">{prepared.executionEnabled ? "Validated Mainnet Swap Ready" : "Unsigned Mainnet transaction prepared"}</p>
+          <p className="text-[11px] text-slate-300">{prepared.executionEnabled ? "The server validated the Universal Router 2.1.2 calldata and passed simulation." : "The server validated the transaction and simulation. It has not been signed or broadcast."}</p>
           <div className="grid grid-cols-2 gap-2 text-[10px]">
             <div><span className="text-slate-500">Destination</span><p className="break-all text-slate-200">{prepared.transaction.to}</p></div>
             <div><span className="text-slate-500">Gas limit</span><p className="text-slate-200">{prepared.transaction.gasLimit}</p></div>
             {prepared.validation?.estimatedGas && <div><span className="text-slate-500">Estimated gas</span><p className="text-slate-200">{prepared.validation.estimatedGas}</p></div>}
             {prepared.validation?.estimatedGasCost && <div><span className="text-slate-500">Estimated gas cost</span><p className="text-slate-200">{prepared.validation.estimatedGasCost} wei</p></div>}
           </div>
+          {prepared.executionEnabled && (
+            <Button className="w-full font-semibold" disabled={swapBusy} onClick={() => void executePreparedMainnetSwap()}>
+              {swapBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Broadcasting Swap…</> : "Sign & Broadcast Mainnet Swap"}
+            </Button>
+          )}
         </div>
       )}
 
@@ -424,7 +617,7 @@ export function ProductionSwapPanel() {
             <RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh Quote
           </Button>
           {meta.isMainnet && (
-            <p className="text-center text-[10px] text-slate-500">Preparation is controlled by a server-side Preview gate. Production transaction preparation remains blocked.</p>
+            <p className="text-center text-[10px] text-slate-500">Secured by Uniswap Universal Router 2.1.2 &amp; Permit2 on Arc Mainnet.</p>
           )}
         </div>
       )}

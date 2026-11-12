@@ -78,6 +78,7 @@ export function BridgePanelBody() {
   const [amount, setAmount] = useState("10");
   const [from, setFrom] = useState<ChainId>(defaultFrom);
   const [to, setTo] = useState<ChainId>(defaultTo);
+  const [bridgeMode, setBridgeMode] = useState<"fast-direct" | "auto-relayer">("fast-direct");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -184,6 +185,7 @@ export function BridgePanelBody() {
         toChain: to,
         token: "USDC",
         preferLive: true,
+        bridgeMode,
         txId,
       });
 
@@ -277,7 +279,44 @@ export function BridgePanelBody() {
             </select>
           </Field>
         </div>
-        <FeeLineItems quote={quoteBridgeFee(amount)} compact />
+        <div className="rounded-xl border border-white/10 bg-slate-950/40 p-2 space-y-1.5">
+          <label className="text-[11px] font-medium text-slate-300">Bridge Execution Mode</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setBridgeMode("fast-direct")}
+              className={cn(
+                "rounded-lg p-2 text-left border transition-all text-xs",
+                bridgeMode === "fast-direct"
+                  ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
+                  : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/15",
+              )}
+            >
+              <div className="font-semibold text-slate-200">⚡ Fast Direct</div>
+              <div className="text-[10px] text-emerald-400 font-medium">0.00 USDC Fee</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">Self-mint on dest</div>
+            </button>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setBridgeMode("auto-relayer")}
+              className={cn(
+                "rounded-lg p-2 text-left border transition-all text-xs",
+                bridgeMode === "auto-relayer"
+                  ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
+                  : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/15",
+              )}
+            >
+              <div className="font-semibold text-slate-200">🤖 Auto-Relayer</div>
+              <div className="text-[10px] text-cyan-300 font-medium">Low Tier Fee</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">Gasless dest mint</div>
+            </button>
+          </div>
+        </div>
+
+        <FeeLineItems quote={quoteBridgeFee(amount, bridgeMode)} compact />
 
         {/* Real bridge progress (Phase 10) — restored from persisted state after reload */}
         {lastTxId && currentBridgeState && (
@@ -301,8 +340,8 @@ export function BridgePanelBody() {
       <ConfirmDialog
         open={confirm}
         title="Confirm transfer"
-        summary={`Move ${amount} USDC from ${from.replace(/_/g, " ")} to ${to.replace(/_/g, " ")}. Review fees, then confirm in your wallet.`}
-        feeQuote={quoteBridgeFee(amount)}
+        summary={`Move ${amount} USDC from ${from.replace(/_/g, " ")} to ${to.replace(/_/g, " ")} via ${bridgeMode === "fast-direct" ? "Fast Direct (0.00 USDC Circle fee)" : "Auto-Relayer (low fee)"}. Review fees, then confirm in your wallet.`}
+        feeQuote={quoteBridgeFee(amount, bridgeMode)}
         mode={mode}
         busy={busy}
         onCancel={() => setConfirm(false)}
@@ -892,6 +931,7 @@ export function UnifiedBalancePanelBody() {
           Deposit USDC from <strong className="text-slate-300">{from.replace(/_/g, " ")}</strong> into your Unified Balance. 
           This abstracts away the underlying chain so it can be spent on Arc.
         </p>
+
         <FeeLineItems quote={quoteBridgeFee(amount)} compact />
         {error && (
           <p className="text-xs text-red-300 whitespace-pre-wrap leading-relaxed">

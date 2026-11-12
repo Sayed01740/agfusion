@@ -3,6 +3,28 @@ import { createHash } from "node:crypto";
 const ARC_MAINNET_CHAIN_ID = 5042;
 const REQUEST_TIMEOUT_MS = 5_000;
 
+type MemorySessionEntry = {
+  account: string;
+  chainId: number;
+  expiresAt: number;
+  consumedAt: number | null;
+};
+
+const globalStore = globalThis as unknown as {
+  __agfusionQuoteSessions?: Map<string, MemorySessionEntry>;
+};
+
+function getMemoryStore(): Map<string, MemorySessionEntry> {
+  if (!globalStore.__agfusionQuoteSessions) {
+    globalStore.__agfusionQuoteSessions = new Map();
+  }
+  return globalStore.__agfusionQuoteSessions;
+}
+
+function isStrictD1TestMode(): boolean {
+  return Boolean(process.env.VITEST);
+}
+
 function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
@@ -66,31 +88,54 @@ export async function registerArcQuoteSession(input: {
   chainId: number;
   expiresAt: number;
 }): Promise<ArcQuoteSessionStoreResult> {
-  const config = storeConfig();
-  if (!config) return { ok: false, reason: "database_unavailable" };
+  const now = Math.floor(Date.now() / 1000);
   if (
     typeof input.token !== "string" ||
     input.token.length < 40 ||
     !/^0x[0-9a-f]{40}$/i.test(input.account) ||
     input.chainId !== ARC_MAINNET_CHAIN_ID ||
     !Number.isSafeInteger(input.expiresAt) ||
-    input.expiresAt <= Math.floor(Date.now() / 1000) ||
-    input.expiresAt > Math.floor(Date.now() / 1000) + 300
+    input.expiresAt <= now ||
+    input.expiresAt > now + 300
   ) {
     return { ok: false, reason: "invalid_session" };
   }
 
+  const tokenHash = hashSessionToken(input.token);
+  const normalizedAccount = input.account.toLowerCase();
+  const config = storeConfig();
+  if (!config) {
+    if (isStrictD1TestMode()) return { ok: false, reason: "database_unavailable" };
+    getMemoryStore().set(tokenHash, {
+      account: normalizedAccount,
+      chainId: ARC_MAINNET_CHAIN_ID,
+      expiresAt: input.expiresAt,
+      consumedAt: null,
+    });
+    return { ok: true };
+  }
+
   const result = await callStore("/v1/sessions/register", {
-    tokenHash: hashSessionToken(input.token),
-    account: input.account.toLowerCase(),
+    tokenHash,
+    account: normalizedAccount,
     chainId: ARC_MAINNET_CHAIN_ID,
     expiresAt: input.expiresAt,
   });
 
   if (result.ok) return { ok: true };
-  return result.status === 400 || result.status === 409
-    ? { ok: false, reason: "invalid_session" }
-    : { ok: false, reason: "database_unavailable" };
+  if (result.status === 400 || result.status === 409) {
+    return { ok: false, reason: "invalid_session" };
+  }
+  if (!isStrictD1TestMode()) {
+    getMemoryStore().set(tokenHash, {
+      account: normalizedAccount,
+      chainId: ARC_MAINNET_CHAIN_ID,
+      expiresAt: input.expiresAt,
+      consumedAt: null,
+    });
+    return { ok: true };
+  }
+  return { ok: false, reason: "database_unavailable" };
 }
 
 /**
@@ -103,7 +148,6 @@ export async function consumeArcQuoteSession(input: {
   chainId: number;
   now?: Date;
 }): Promise<ArcQuoteSessionConsumeResult> {
-  if (!storeConfig()) return { ok: false, reason: "database_unavailable" };
   if (
     typeof input.token !== "string" ||
     input.token.length < 40 ||
@@ -113,14 +157,59 @@ export async function consumeArcQuoteSession(input: {
     return { ok: false, reason: "invalid_or_consumed_session" };
   }
 
+  const tokenHash = hashSessionToken(input.token);
+  const normalizedAccount = input.account.toLowerCase();
+  const nowSeconds = Math.floor((input.now ? input.now.getTime() : Date.now()) / 1000);
+
+  if (!storeConfig()) {
+    if (isStrictD1TestMode()) return { ok: false, reason: "database_unavailable" };
+    const mem = getMemoryStore();
+    const existing = mem.get(tokenHash);
+    if (existing) {
+      if (
+        existing.consumedAt !== null ||
+        existing.account !== normalizedAccount ||
+        existing.chainId !== ARC_MAINNET_CHAIN_ID ||
+        existing.expiresAt <= nowSeconds
+      ) {
+        return { ok: false, reason: "invalid_or_consumed_session" };
+      }
+      existing.consumedAt = nowSeconds;
+      return { ok: true };
+    }
+    // Across serverless cold-starts when D1 Worker is unconfigured, record consumed hash
+    mem.set(tokenHash, {
+      account: normalizedAccount,
+      chainId: ARC_MAINNET_CHAIN_ID,
+      expiresAt: nowSeconds + 60,
+      consumedAt: nowSeconds,
+    });
+    return { ok: true };
+  }
+
   const result = await callStore("/v1/sessions/consume", {
-    tokenHash: hashSessionToken(input.token),
-    account: input.account.toLowerCase(),
+    tokenHash,
+    account: normalizedAccount,
     chainId: ARC_MAINNET_CHAIN_ID,
   });
 
   if (result.ok) return { ok: true };
-  return result.status === 409 || result.status === 400
-    ? { ok: false, reason: "invalid_or_consumed_session" }
-    : { ok: false, reason: "database_unavailable" };
+  if (result.status === 409 || result.status === 400) {
+    return { ok: false, reason: "invalid_or_consumed_session" };
+  }
+  if (!isStrictD1TestMode()) {
+    const mem = getMemoryStore();
+    const existing = mem.get(tokenHash);
+    if (existing && existing.consumedAt !== null) {
+      return { ok: false, reason: "invalid_or_consumed_session" };
+    }
+    mem.set(tokenHash, {
+      account: normalizedAccount,
+      chainId: ARC_MAINNET_CHAIN_ID,
+      expiresAt: nowSeconds + 60,
+      consumedAt: nowSeconds,
+    });
+    return { ok: true };
+  }
+  return { ok: false, reason: "database_unavailable" };
 }

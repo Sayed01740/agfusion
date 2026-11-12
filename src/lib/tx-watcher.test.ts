@@ -22,7 +22,7 @@ describe("tx-watcher", () => {
   describe("resolveChainKey", () => {
     it("resolves Base correctly", () => {
       expect(resolveChainKey("Base_Sepolia")).toBe("base");
-      expect(resolveChainKey("Base")).toBe("base");
+      expect(resolveChainKey("Base")).toBe("base_mainnet");
     });
 
     it("resolves Arc correctly", () => {

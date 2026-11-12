@@ -100,7 +100,7 @@ export async function validateArcPermit2Signature(
   const domain = permitData.domain;
   if (
     domain.name !== "Permit2" ||
-    domain.version !== "1" ||
+    (domain.version !== undefined && domain.version !== "1") ||
     Number(domain.chainId) !== ARC_PERMIT2_CHAIN_ID ||
     normalizeAddress(domain.verifyingContract, "Permit2 verifying contract") !== ARC_PERMIT2_CONTRACT.toLowerCase()
   ) {
@@ -141,7 +141,7 @@ export async function validateArcPermit2Signature(
     recoveredSigner = (await recoverTypedDataAddress({
       domain: {
         name: "Permit2",
-        version: "1",
+        ...(typeof domain.version === "string" ? { version: domain.version } : {}),
         chainId: ARC_PERMIT2_CHAIN_ID,
         verifyingContract: ARC_PERMIT2_CONTRACT,
       },

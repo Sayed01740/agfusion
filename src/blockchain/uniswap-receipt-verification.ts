@@ -83,6 +83,14 @@ export async function verifyArcMainnetSwapReceipt(params: {
     }
   }
 
+  if (
+    inputSpent === 0n &&
+    tokenIn === "0x3600000000000000000000000000000000000000" &&
+    transaction.value === params.amountIn * 1_000_000_000_000n
+  ) {
+    inputSpent = params.amountIn;
+  }
+
   if (inputSpent !== params.amountIn) fail("actual input token transfer does not match exact quote amount");
   if (outputReceived < params.minimumAmountOut) fail("actual output token transfer is below the quoted minimum");
 

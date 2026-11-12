@@ -22,15 +22,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isMainnetExecutionEnabled(): boolean {
+  return process.env.AGFUSION_MAINNET_SWAP_EXECUTION_ENABLED?.trim().toLowerCase() === "true";
+}
+
 function isMainnetPreparationEnabled(): boolean {
-  return process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED === "true" &&
-    process.env.VERCEL_ENV === "preview";
+  return (
+    isMainnetExecutionEnabled() ||
+    (process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED?.trim().toLowerCase() === "true" &&
+      process.env.VERCEL_ENV?.trim().toLowerCase() === "preview")
+  );
 }
 
 /** Read-only release gate used by the browser before requesting a Permit2 signature. */
 export async function GET() {
   return NextResponse.json(
-    { enabled: isMainnetPreparationEnabled(), executionEnabled: false },
+    { enabled: isMainnetPreparationEnabled(), executionEnabled: isMainnetExecutionEnabled() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -196,6 +203,7 @@ export async function POST(req: Request) {
       account: session.account,
       to: validated.to,
       data: validated.data,
+      ...(validated.value !== "0" ? { value: validated.value } : {}),
       gasLimit: String(swap.gasLimit || ""),
       maxFeePerGas,
       nativeGasBalance: preflight.nativeGasBalance,
@@ -222,7 +230,7 @@ export async function POST(req: Request) {
         from: validated.from,
         to: validated.to,
         data: validated.data,
-        value: "0",
+        value: validated.value,
         gasLimit: String(swap.gasLimit),
         ...(typeof swap.maxFeePerGas === "string" ? { maxFeePerGas: swap.maxFeePerGas } : {}),
         ...(typeof swap.maxPriorityFeePerGas === "string" ? { maxPriorityFeePerGas: swap.maxPriorityFeePerGas } : {}),
@@ -240,7 +248,7 @@ export async function POST(req: Request) {
         localEthCall: "passed",
         localGasEstimate: "passed",
       },
-      executionEnabled: false,
+      executionEnabled: isMainnetExecutionEnabled(),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.warn("[AGFusion] Arc Mainnet swap preparation rejected", {

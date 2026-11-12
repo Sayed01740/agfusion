@@ -3,6 +3,7 @@
  * Public config is intentionally minimal — no internal infra details.
  */
 
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { llmPublicStatus } from "@/lib/llm-config";
 
 export type AppExecutionMode = "demo" | "live";
@@ -28,7 +29,8 @@ export function agentRateLimitConfig() {
 }
 
 export function maxTransferAmount(): number {
-  return Number(process.env.MAX_TRANSFER_AMOUNT || 10_000);
+  const defaultCap = IS_ARC_MAINNET ? 500 : 10_000;
+  return Number(process.env.MAX_TRANSFER_AMOUNT || defaultCap);
 }
 
 /**
@@ -54,8 +56,8 @@ export function getAppConfigPublic() {
 
   return {
     product: "AGFusion",
-    network: "Arc Testnet",
-    chainId: 5042002,
+    network: ARC_NETWORK_NAME,
+    chainId: ARC_CHAIN_ID,
     liveOnly: true,
     kitKeyConfigured,
     kitKeyHint,
@@ -84,7 +86,7 @@ export function getAppConfigInternal() {
   return {
     executionMode: "live" as const,
     allowDemo: false,
-    chainId: 5042002,
+    chainId: ARC_CHAIN_ID,
     maxTransferAmount: maxTransferAmount(),
     version: "1.0.0-final",
   };

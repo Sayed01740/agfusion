@@ -8,7 +8,7 @@
  */
 import { encodeFunctionData, parseUnits, type Address } from "viem";
 import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
-import { arcPublicClient } from "@/lib/dapp/erc20";
+import { arcPublicClient, readErc20BalanceRaw } from "@/lib/dapp/erc20";
 import { isAddress, type ArcToken } from "@/lib/dapp/tokens";
 import {
   getChainId,
@@ -85,28 +85,60 @@ export async function sendArcToken(params: {
   steps[2].state = "active";
   emit();
 
-  const data = encodeFunctionData({
-    abi: TRANSFER_ABI,
-    functionName: "transfer",
-    args: [to as Address, parseUnits(params.amount.trim(), params.token.decimals)],
-  });
+  const requiredUnits = parseUnits(params.amount.trim(), params.token.decimals);
+  try {
+    const balance = await readErc20BalanceRaw(params.token.address, from, meta.isMainnet);
+    if (balance < requiredUnits) {
+      throw new Error(
+        `Insufficient ${params.token.symbol} balance. Your wallet has ${Number(balance) / 10 ** params.token.decimals} ${params.token.symbol}, but you entered ${params.amount} ${params.token.symbol}.`,
+      );
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Insufficient")) throw err;
+  }
 
   let hash: `0x${string}`;
   try {
-    hash = String(
-      await provider.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from,
-            to: params.token.address,
-            data,
-            gas: `0x${TRANSFER_GAS.toString(16)}`,
-            value: "0x0",
-          },
-        ],
-      }),
-    ) as `0x${string}`;
+    if (params.token.native) {
+      // USDC is the native gas asset on Arc (18 decimals in EVM native value field).
+      // Standard native send prevents Rabby/MetaMask ERC-20 precompile simulation failure (#-39000)
+      // and consumes only 21,000 gas instead of 100,000.
+      const nativeWei = parseUnits(params.amount.trim(), 18);
+      hash = String(
+        await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from,
+              to,
+              value: `0x${nativeWei.toString(16)}`,
+              gas: "0x5208", // 21,000 standard transfer gas
+            },
+          ],
+        }),
+      ) as `0x${string}`;
+    } else {
+      const data = encodeFunctionData({
+        abi: TRANSFER_ABI,
+        functionName: "transfer",
+        args: [to as Address, requiredUnits],
+      });
+      hash = String(
+        await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from,
+              to: params.token.address,
+              data,
+              gas: `0x${TRANSFER_GAS.toString(16)}`,
+              value: "0x0",
+            },
+          ],
+        }),
+      ) as `0x${string}`;
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (/4001|reject|denied|cancel/i.test(msg)) throw new Error(`${params.token.symbol} transfer cancelled in wallet.`);

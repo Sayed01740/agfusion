@@ -11,9 +11,9 @@ import { defineChain, type Chain } from "viem";
  */
 
 export const IS_ARC_MAINNET =
-  process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ||
-  process.env.NEXT_PUBLIC_ARC_CHAIN_ID === "5042" ||
-  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.toLowerCase() === "0x13b2";
+  process.env.NEXT_PUBLIC_ARC_NETWORK?.trim().toLowerCase() === "mainnet" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_ID?.trim() === "5042" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.trim().toLowerCase() === "0x13b2";
 
 export const ARC_CHAIN_ID = IS_ARC_MAINNET ? 5042 : 5042002;
 export const ARC_CHAIN_ID_HEX = IS_ARC_MAINNET ? "0x13b2" : "0x4cef52";

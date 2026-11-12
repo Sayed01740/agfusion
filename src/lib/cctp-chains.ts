@@ -30,9 +30,9 @@ const CCTP_V2_MSG_TRANSMITTER =
 // --- Production Mainnet CCTP v2 contracts (Circle Iris Production) ---
 // Source: https://developers.circle.com/stablecoins/docs/evm-smart-contracts
 const CCTP_V2_TOKEN_MESSENGER_MAINNET =
-  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5f" as const;
+  "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" as const;
 const CCTP_V2_MSG_TRANSMITTER_MAINNET =
-  "0x81D40f21B21285853e618Cc442bB505f0D2c72AF" as const;
+  "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" as const;
 
 export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
   Arc: {
@@ -41,8 +41,8 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     circleBlockchain: "ARC",
     domain: 26,
     usdc: "0x3600000000000000000000000000000000000000",
-    tokenMessenger: CCTP_V2_TOKEN_MESSENGER,
-    messageTransmitter: CCTP_V2_MSG_TRANSMITTER,
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 1,
     rpcProxyKey: "arc_mainnet",
     explorerUrl: "https://explorer.arc.io",
@@ -180,7 +180,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 5,
-    rpcProxyKey: "base",
+    rpcProxyKey: "base_mainnet",
     explorerUrl: "https://basescan.org",
   },
   Ethereum: {
@@ -192,7 +192,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 65,
-    rpcProxyKey: "eth",
+    rpcProxyKey: "eth_mainnet",
     explorerUrl: "https://etherscan.io",
   },
   Arbitrum: {
@@ -204,7 +204,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 65,
-    rpcProxyKey: "arb",
+    rpcProxyKey: "arb_mainnet",
     explorerUrl: "https://arbiscan.io",
   },
   Optimism: {
@@ -216,7 +216,7 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
     messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
     confirmations: 65,
-    rpcProxyKey: "op",
+    rpcProxyKey: "op_mainnet",
     explorerUrl: "https://optimistic.etherscan.io",
   },
 };

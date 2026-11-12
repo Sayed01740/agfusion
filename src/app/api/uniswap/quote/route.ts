@@ -169,7 +169,7 @@ export async function POST(req: Request) {
         !isRecord(permitData.values.details) ||
         !isRecord(permitData.types) ||
         permitData.domain.name !== "Permit2" ||
-        permitData.domain.version !== "1" ||
+        (permitData.domain.version !== undefined && permitData.domain.version !== "1") ||
         Number(permitData.domain.chainId) !== ARC_MAINNET_CHAIN_ID ||
         String(permitData.domain.verifyingContract || "").toLowerCase() !== ARC_PERMIT2_CONTRACT.toLowerCase() ||
         String(permitData.values.details.token || "").toLowerCase() !== tokenInMeta.address.toLowerCase() ||
@@ -180,7 +180,8 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!process.env.AGFUSION_QUOTE_SESSION_SECRET) {
+    const sessionSecret = process.env.AGFUSION_QUOTE_SESSION_SECRET?.trim();
+    if (!sessionSecret || sessionSecret.length < 32) {
       return NextResponse.json({ error: "quote_session_not_configured" }, { status: 503 });
     }
 

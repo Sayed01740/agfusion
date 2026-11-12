@@ -9,9 +9,9 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
+import { explorerTxUrl, getArcNetworkMeta, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { arcPublicClient, encodeApprove, readAllowance } from "@/lib/dapp/erc20";
-import { ARC_TOKENS, isAddress, type ArcToken } from "@/lib/dapp/tokens";
+import { ARC_TOKENS, getArcTokens, isAddress, type ArcToken } from "@/lib/dapp/tokens";
 import {
   getChainId,
   getInjectedProvider,
@@ -129,22 +129,47 @@ export type OnChainEscrowTask = {
 
 const STATUS_MAP = ["Active", "Submitted", "Released", "Disputed", "Refunded"] as const;
 
-export async function fetchEscrowTask(taskId: number): Promise<OnChainEscrowTask | null> {
+export async function fetchEscrowTask(
+  taskId: number,
+  isMainnet: boolean = IS_ARC_MAINNET,
+): Promise<OnChainEscrowTask | null> {
   if (!ESCROW_ADDRESS) return null;
   try {
-    const raw = (await arcPublicClient().readContract({
+    const raw = (await arcPublicClient(isMainnet).readContract({
       address: ESCROW_ADDRESS,
       abi: ESCROW_ABI,
       functionName: "getTask",
       args: [BigInt(taskId)],
-    })) as any;
+    })) as {
+      id: bigint;
+      client: string;
+      agent: string;
+      token: string;
+      amount: bigint;
+      createdAt: bigint;
+      deadline: bigint;
+      status: number;
+      taskDetailsUri: string;
+      proofUri: string;
+    };
+
+    const tokenAddr = String(raw.token || "").toLowerCase();
+    let decimals = 6;
+    if (tokenAddr === "0x0000000000000000000000000000000000000000") {
+      decimals = 18;
+    } else {
+      const matched = Object.values(getArcTokens(isMainnet)).find(
+        (t) => t.address.toLowerCase() === tokenAddr,
+      );
+      if (matched) decimals = matched.decimals;
+    }
 
     return {
       id: Number(raw.id),
       client: raw.client,
       agent: raw.agent,
       token: raw.token,
-      amountFormatted: formatUnits(raw.amount, 18),
+      amountFormatted: formatUnits(raw.amount, decimals),
       createdAt: Number(raw.createdAt),
       deadline: Number(raw.deadline),
       status: STATUS_MAP[raw.status] ?? "Active",
@@ -205,7 +230,7 @@ export async function runCreateEscrowTask({
   emit();
 
   if (!isNative) {
-    const currentAllowance = await readAllowance(tokenAddr, user, escrowContract);
+    const currentAllowance = await readAllowance(tokenAddr, user, escrowContract, meta.isMainnet);
     if (currentAllowance < parsedAmount) {
       steps[0] = {
         name: `Approve ${token.symbol} for Escrow`,
@@ -235,7 +260,7 @@ export async function runCreateEscrowTask({
       };
       emit();
 
-      await arcPublicClient().waitForTransactionReceipt({
+      await arcPublicClient(meta.isMainnet).waitForTransactionReceipt({
         hash: approveTxHash as `0x${string}`,
       });
     }
@@ -293,7 +318,7 @@ export async function runCreateEscrowTask({
   };
   emit();
 
-  const receipt = await arcPublicClient().waitForTransactionReceipt({
+  const receipt = await arcPublicClient(meta.isMainnet).waitForTransactionReceipt({
     hash: txHash as `0x${string}`,
   });
 
@@ -332,6 +357,9 @@ export async function runReleaseEscrowPayment(taskId: number): Promise<string> {
   const escrowContract = ESCROW_ADDRESS;
   if (!escrowContract) throw new Error("Escrow contract not configured.");
 
+  const currentChainId = await getChainId(provider);
+  const meta = getArcNetworkMeta(currentChainId);
+
   const accounts = await requestAccounts(provider);
   const user = accounts[0]?.toLowerCase() as Address;
 
@@ -346,7 +374,7 @@ export async function runReleaseEscrowPayment(taskId: number): Promise<string> {
     params: [{ from: user, to: escrowContract, data }],
   })) as string;
 
-  await arcPublicClient().waitForTransactionReceipt({
+  await arcPublicClient(meta.isMainnet).waitForTransactionReceipt({
     hash: txHash as `0x${string}`,
   });
 

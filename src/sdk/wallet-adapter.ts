@@ -492,6 +492,38 @@ export const EVM_CHAIN_PARAMS: Record<
     explorers: ["https://sepolia-optimism.etherscan.io"],
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   },
+  Base: {
+    chainId: 8453,
+    chainIdHex: "0x2105",
+    chainName: "Base",
+    rpcUrls: ["https://mainnet.base.org"],
+    explorers: ["https://basescan.org"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  },
+  Ethereum: {
+    chainId: 1,
+    chainIdHex: "0x1",
+    chainName: "Ethereum Mainnet",
+    rpcUrls: ["https://eth.llamarpc.com", "https://rpc.ankr.com/eth"],
+    explorers: ["https://etherscan.io"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  },
+  Arbitrum: {
+    chainId: 42161,
+    chainIdHex: "0xa4b1",
+    chainName: "Arbitrum One",
+    rpcUrls: ["https://arb1.arbitrum.io/rpc"],
+    explorers: ["https://arbiscan.io"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  },
+  Optimism: {
+    chainId: 10,
+    chainIdHex: "0xa",
+    chainName: "OP Mainnet",
+    rpcUrls: ["https://mainnet.optimism.io"],
+    explorers: ["https://optimistic.etherscan.io"],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  },
   // Polygon Amoy is registered under two keys so switchToChainId works with
   // both the AppKit name (Polygon_Amoy) and the chains.ts id (Polygon_Amoy_Testnet)
   Polygon_Amoy: {
