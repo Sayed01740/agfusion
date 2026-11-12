@@ -22,10 +22,11 @@ export type ArcUniswapQuoteSession = {
 };
 
 function deriveKey(secret: string): Buffer {
-  if (typeof secret !== "string" || secret.length < 32) {
+  const clean = typeof secret === "string" ? secret.trim() : "";
+  if (clean.length < 32) {
     throw new Error("Arc quote session secret is not configured or is too short");
   }
-  return createHash("sha256").update(secret, "utf8").digest();
+  return createHash("sha256").update(clean, "utf8").digest();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

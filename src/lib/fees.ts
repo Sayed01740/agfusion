@@ -53,8 +53,35 @@ export function quoteSendFee(amount?: string): FeeQuote {
   };
 }
 
-export function quoteBridgeFee(amount?: string): FeeQuote {
+export function quoteBridgeFee(amount?: string, mode: "fast-direct" | "auto-relayer" = "fast-direct"): FeeQuote {
   const n = Math.max(0, Number(amount) || 0);
+  if (mode === "fast-direct") {
+    // Zero-Fee CCTP v2 direct burn (Option 1)
+    // Circle bridge fee is 0.0000 USDC; only tiny Arc settlement gas applies (~0.001 USDC).
+    const arcGas = 0.0011;
+    return {
+      totalUsdc: arcGas,
+      currency: "USDC",
+      lineItems: [
+        {
+          id: "protocol",
+          label: "Circle CCTP Protocol Fee",
+          amountUsdc: 0,
+          note: "0.00 USDC · Fast Direct Mint",
+        },
+        {
+          id: "gas",
+          label: "Arc Gas (USDC)",
+          amountUsdc: arcGas,
+          note: "Native gas on Arc",
+        },
+      ],
+      headline: formatUsdc(arcGas),
+      tip: "0.00 USDC Circle fee — self-mint on destination.",
+    };
+  }
+
+  // Auto-Relayer Mode (Option 2)
   const gas = ARC_BASE_GAS;
   const protocol = BRIDGE_PROTOCOL + (n > 0 ? Math.min(n * 0.0001, 0.05) : 0);
   const total = gas + protocol;
@@ -64,7 +91,7 @@ export function quoteBridgeFee(amount?: string): FeeQuote {
     lineItems: [
       {
         id: "protocol",
-        label: "Cross-chain protocol",
+        label: "Cross-chain relayer fee",
         amountUsdc: protocol,
       },
       {
@@ -74,7 +101,7 @@ export function quoteBridgeFee(amount?: string): FeeQuote {
       },
     ],
     headline: formatUsdc(total),
-    tip: "Predictable dollar-based costs for transfer + settlement.",
+    tip: "Gasless destination mint handled by Circle forwarder.",
   };
 }
 

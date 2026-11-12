@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const mocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
@@ -122,6 +122,7 @@ function setup() {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(now * 1000));
   vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+  vi.stubEnv("VERCEL_ENV", "preview");
   vi.stubEnv("AGFUSION_QUOTE_SESSION_SECRET", "test-only-quote-session-secret-with-over-32-bytes");
   vi.stubEnv("UNISWAP_API_KEY", "test-uniswap-key");
   mocks.decrypt.mockReturnValue(session);
@@ -137,6 +138,29 @@ function setup() {
 }
 
 describe("POST /api/uniswap/swap", () => {
+  it("reports the read-only preparation gate without exposing configuration", async () => {
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ enabled: false, executionEnabled: false });
+  });
+
+  it("enables unsigned preparation only when the Preview gate is explicitly set", async () => {
+    vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ enabled: true, executionEnabled: false });
+  });
+
+  it("never enables transaction preparation in Production even if the flag is set", async () => {
+    vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+    vi.stubEnv("VERCEL_ENV", "production");
+    const response = await POST(request({ quoteSession: "opaque" }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: "mainnet_swap_preparation_disabled" });
+    expect(mocks.decrypt).not.toHaveBeenCalled();
+  });
+
   it("fails closed unless Preview transaction preparation is explicitly enabled", async () => {
     const response = await POST(request({ quoteSession: "opaque" }));
     expect(response.status).toBe(403);
@@ -146,6 +170,7 @@ describe("POST /api/uniswap/swap", () => {
 
   it("requires a valid encrypted quote session", async () => {
     vi.stubEnv("AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED", "true");
+    vi.stubEnv("VERCEL_ENV", "preview");
     mocks.decrypt.mockImplementation(() => { throw new Error("bad session"); });
     const response = await POST(request({ quoteSession: "opaque" }));
     expect(response.status).toBe(400);

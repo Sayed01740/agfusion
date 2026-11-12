@@ -31,6 +31,7 @@ Arc Mainnet requests to the Circle swap-preparation route are always rejected. T
 
 1. CI passes on the exact proposed release commit: Circle SDK compatibility, Elliptic regression, lint, typecheck, unit tests, and production build.
 2. Dependency audit passes, with any skipped enforcement step explicitly reviewed.
+   - The `@mapped/elliptic@6.6.10` fork provenance, full source diff, RFC 6979 regression vectors, and actual signing call path require independent verification tracked in [issue #30](https://github.com/Sayed01740/agfusion/issues/30). A green npm audit alone does not satisfy this gate.
 3. Independent security review confirms chain binding, RPC trust, token/quote integrity, and that the endpoint only prepares unsigned transaction data.
 4. Preview verification confirms Testnet default behavior, Mainnet disabled behavior, and gated Mainnet preparation using non-production credentials and no wallet signing or broadcast.
 5. Confirm the production RPC, explorer, Circle App Kit Mainnet support, and Mainnet token metadata against current official Circle documentation before enabling the flag.
@@ -86,36 +87,49 @@ The validation-only adapter at `src/blockchain/uniswap-mainnet-adapter.ts` verif
 The adapter is not wired into the browser swap flow. The backend now implements Permit2 typed-data validation, exact ERC-20 approval calldata construction, read-only allowance/balance checks, strict Mainnet simulation, a wallet chain/account guard helper, and read-only receipt verification. The browser confirmation/orchestration UI, wallet signing, transaction submission, and post-submission tracking remain mandatory work before any Mainnet execution review.
 
 
-## Current implementation checkpoint (2026-11-08)
+## Current implementation checkpoint (2026-11-09)
 
-The following backend groundwork is implemented on the isolated Arc Mainnet feature branch:
+Backend groundwork on the isolated Arc Mainnet feature branch includes encrypted quote sessions, Permit2 typed-data validation, exact approval calldata construction, read-only allowance/balance checks, strict Mainnet simulation, wallet chain/account guard helpers, and read-only receipt verification. The Uniswap adapter validates Arc chain ID 5042, the official Universal Router 2.1.2 destination, sender, quote freshness, token path, slippage bounds, minimum output, native value, gas fields, and execute deadline. It rejects unsupported command paths.
 
-- AES-256-GCM encrypted quote sessions with a 60-second lifetime, binding wallet, chain 5042, token pair, exact input, quoted output, minimum output, raw quote, and Permit2 payload.
-- Preview-only sensitive `AGFUSION_QUOTE_SESSION_SECRET`; no Production or Development target.
-- `POST /api/uniswap/preflight`: read-only token/native-gas balances and ERC-20/Permit2 allowance/nonce/expiry checks; unsigned exact-amount Permit2 approval data only when needed.
-- Permit2 EIP-712 schema/domain/signer validation, exact amount and spender checks, and nonce comparison against current Arc Mainnet state.
-- `POST /api/uniswap/swap`: disabled unless `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=true`. The current Preview branch explicitly sets it to `false`. If separately enabled for controlled review, it requests Uniswap `/swap` with upstream simulation, validates Universal Router 2.1.2 calldata, runs local `eth_call` and `eth_estimateGas`, and returns unsigned transaction data only.
-- A pure wallet chain/account recheck helper for chain 5042.
-- Encrypted 24-hour receipt tickets and read-only `POST /api/uniswap/receipt` verification of transaction chain/sender/router, successful receipt, exact input transfer, and minimum output transfer.
-- Automated tests cover session encryption/tampering/expiry, Permit2 signature validation, exact approvals, preflight validation, transaction preparation gating, local simulation, wallet-state checks, and receipt verification.
+The browser approval/Permit2/swap confirmation flow, wallet signing, transaction broadcast, post-submission tracking, live-liquidity end-to-end validation, and independent security review are not complete. The browser Mainnet execution path remains fail-closed, and the Swap action remains disabled.
 
-Durable atomic one-time quote-session consumption/replay protection is implemented on the follow-up branch using PostgreSQL conditional updates and is covered by unit and disposable PostgreSQL concurrency tests. It is not yet runtime-validated in Vercel Preview because this branch has no isolated Preview database configured. Still not implemented: wallet UI orchestration, user-facing confirmation screens for approval/Permit2/swap, wallet signing, transaction broadcast, post-submission UI tracking, live liquidity validation, and independent security review. Do not enable the Preview preparation switch, wire a wallet signer, or promote this feature until these gates are reviewed and separately approved.
+## Durable quote-session replay protection (2026-11-09)
 
+The quote-session replay guard now uses a dedicated Cloudflare D1 Worker rather than Prisma/PostgreSQL:
 
-## Durable quote-session replay protection (2026-11-08)
+- Quote creation hashes the opaque encrypted session token with SHA-256 and sends only the digest to the authenticated Worker over HTTPS. The raw token and encrypted quote payload are never sent to D1.
+- The Worker stores the digest, normalized wallet account, fixed Arc chain ID 5042, expiry, and consumption timestamp.
+- Registration uses a parameterized INSERT with a unique token-hash primary key.
+- Consumption uses one parameterized conditional SQL UPDATE requiring the digest, account, chain ID, unexpired timestamp, and `consumed_at IS NULL`. Exactly one request can update the row; replays return HTTP 409.
+- Missing configuration, network timeout, Worker authentication/configuration failure, or D1 outage fails closed with HTTP 503.
+- A scheduled cleanup removes expired records older than 24 hours in bounded batches.
+- The Prisma `ArcQuoteSession` model and its migration have been removed. Prisma/PostgreSQL remains the application's existing data layer for unrelated user, transaction, and x402 records.
 
-The follow-up branch `feature/arc-quote-session-replay-guard-20261108` adds a PostgreSQL-backed one-time quote-session claim:
+The Worker source, D1 schema, Wrangler template, Next.js client, and unit tests are in `workers/quote-session-store` and `src/lib/arc-quote-session-store.ts`. See [the D1 Worker runbook](./ARC_MAINNET_D1_WORKER_RUNBOOK.md).
 
-- Quote creation stores only a SHA-256 digest of the opaque AES-256-GCM session token, plus the normalized account, fixed chain ID 5042, expiry, and consumption timestamp. Raw quote data and the opaque token are not persisted.
-- Swap preparation validates the encrypted session and Permit2/preflight requirements first, then performs a conditional PostgreSQL `updateMany` claim immediately before the external Uniswap swap-preparation request.
-- The conditional update requires the token digest, account, chain ID, unexpired timestamp, and `consumedAt IS NULL`. Exactly one concurrent request can claim the row; later/replayed requests receive HTTP 409.
-- If PostgreSQL is unavailable, quote issuance and swap preparation fail closed with HTTP 503. A quote cannot be returned without a durable row.
-- A migration creates the `ArcQuoteSession` table with a unique token digest and expiry/account indexes. Unit tests cover token hashing, account/chain binding, successful atomic claim, replay/concurrency loser, malformed bindings, and database outages.
+### Provisioning and validation status
 
-The feature remains disabled by default. A successful claim is consumed even if the upstream preparation request later fails; the user must request a fresh quote. This is intentional fail-closed behavior and avoids ambiguous retry semantics.
+Cloudflare resources were provisioned and checked on 2026-11-09:
 
-### Preview database prerequisite
+- Dedicated D1 database `agfusion-quote-sessions` exists with the `arc_quote_sessions` table and both supporting indexes.
+- Dedicated Worker `agfusion-quote-session-store` is deployed at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`.
+- The Worker has its D1 binding, write-only `API_TOKEN` secret binding, and hourly cleanup cron.
+- The OpenNext Cloudflare feature-branch build and `wrangler preview` deploy completed successfully on commit `c64f32fa9db0554201481998aa82ffd15c8d90d2`.
+- Vercel Preview is READY for the feature branch. Its Preview environment contains `AGFUSION_QUOTE_SESSION_STORE_URL`, a sensitive `AGFUSION_QUOTE_SESSION_SECRET`, and `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`.
+- The one missing Preview credential is `AGFUSION_QUOTE_SESSION_STORE_TOKEN`. Rotate the write-only Worker `API_TOKEN` in Cloudflare, then enter the same new value directly in Vercel Preview. Do not paste it into chat or commit it.
+- The dedicated quote-session Worker has its authenticated `workers.dev` route enabled at `https://agfusion-quote-session-store.sayedhasan01740.workers.dev`, with its Preview URL disabled. The main application Worker `agfusion` still has both `workers.dev` and Preview routes disabled. The quote-session endpoint will reject Vercel requests until the exact Cloudflare `API_TOKEN` value is entered directly in Vercel Preview as `AGFUSION_QUOTE_SESSION_STORE_TOKEN`.
 
-The Vercel project currently exposes a Production `DATABASE_URL` but no Preview `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` for this branch. Do not point Preview at the Production database. Select and provision an isolated durable Preview database. If PostgreSQL is selected, set its pooled URL as `POSTGRES_PRISMA_URL` and its direct URL as `POSTGRES_URL_NON_POOLING` for this Preview branch only, then apply the migration and verify the integration tests against that isolated database. Do not assume Neon is already connected or reuse Production credentials.
+The direct D1 SQL validation used synthetic test hashes and confirmed:
+- Concurrent conditional consume updates returned changes `1` and `0` for the same row.
+- Wrong-account and wrong-chain updates returned zero changes.
+- An expired session consume returned zero changes.
+- The synthetic rows were removed after the test.
 
-Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. No Mainnet signing or broadcast is enabled by this work.
+These results validate the D1 atomic SQL boundary. The HTTP integration path through the deployed Worker and Next.js client remains pending until the matching Preview bearer token is configured and the request-level tests pass.
+
+Cloudflare's D1 documentation confirms that Worker bindings use prepared statements and parameter binding, and that D1 write results expose `meta.changes`. The consume path relies on a single conditional UPDATE, not a read-then-write sequence:
+- https://developers.cloudflare.com/d1/worker-api/
+- https://developers.cloudflare.com/d1/worker-api/prepared-statements/
+- https://developers.cloudflare.com/d1/worker-api/return-object/
+
+Still not implemented: wallet UI approval/Permit2/swap orchestration, user-facing transaction confirmations, wallet signing/broadcast, post-submission tracking, live liquidity validation, and independent security review. Keep `AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED=false`. No Mainnet signing or broadcast is enabled by this work.

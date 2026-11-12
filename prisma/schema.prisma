@@ -121,19 +121,6 @@ model X402RateLimitBucket {
   @@index([expiresAt])
 }
 
-model ArcQuoteSession {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
-  account   String
-  chainId   Int
-  expiresAt DateTime
-  consumedAt DateTime?
-  createdAt DateTime @default(now())
-
-  @@index([expiresAt])
-  @@index([account, expiresAt])
-}
-
 model AgentRun {
   id            String   @id @default(cuid())
   userId        String?

@@ -1,0 +1,29 @@
+﻿{
+    "contracts":  {
+                      "AGFusionRegistry":  {
+                                               "address":  "0xf25757227337130Fb33A70A31aFFD782FfA44f6D",
+                                               "txHash":  "0xab66eac920a45fce0a2d6e861bde671ea2a851ed4ae44ef4016ba46884ff8c1b",
+                                               "path":  "src/AGFusionRegistry.sol:AGFusionRegistry",
+                                               "constructorArgs":  "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003868747470733a2f2f6167667573696f6e2e76657263656c2e6170702f6964656e746974792f6167667573696f6e2d6167656e742e6a736f6e0000000000000000",
+                                               "deployedAt":  "2026-11-13T00:51:31.6482534+06:00"
+                                           },
+                      "AGFusionEscrow":  {
+                                             "address":  "0x23554d16C1F397fde97cf394FF603d7372b61f20",
+                                             "txHash":  "0x20eeda61acc3203224565f92b9f3ebafdbe18444ec65d45031a259402458b82d",
+                                             "path":  "src/AGFusionEscrow.sol:AGFusionEscrow",
+                                             "constructorArgs":  "0x000000000000000000000000b00f41172c23d31571a3be850aa0e81e58ab88280000000000000000000000000000000000000000000000000000000000000032000000000000000000000000b00f41172c23d31571a3be850aa0e81e58ab8828",
+                                             "deployedAt":  "2026-11-13T00:51:46.2728854+06:00"
+                                         },
+                      "AGFusionDisperse":  {
+                                               "address":  "0x376323cCE5233C0C20339BBeeCFEB838602B5578",
+                                               "txHash":  "0xd24b5819d9c90a2118e2f77f97af58745b84893798533ae0c4b2a1b5b69c4f7a",
+                                               "path":  "src/AGFusionDisperse.sol:AGFusionDisperse",
+                                               "constructorArgs":  null,
+                                               "deployedAt":  "2026-11-13T00:52:02.1182450+06:00"
+                                           }
+                  },
+    "network":  "arc-mainnet",
+    "chainId":  5042,
+    "deployer":  "0xB00f41172c23d31571a3bE850AA0e81e58Ab8828",
+    "explorer":  "https://explorer.arc.io"
+}

@@ -1,0 +1,11 @@
+name = "agfusion-quote-session-store"
+main = "src/index.ts"
+compatibility_date = "2026-11-09"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agfusion-quote-sessions"
+database_id = "1e10c8f3-2dbe-4574-b599-65fe690d17b5"
+
+[triggers]
+crons = ["17 * * * *"]

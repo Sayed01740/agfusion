@@ -16,6 +16,7 @@ export async function executeCircleCctpBridge(params: {
   fromChain: ChainId;
   toChain: ChainId;
   recipient?: string;
+  bridgeMode?: "fast-direct" | "auto-relayer";
   txId?: string;
 }): Promise<TransactionRecord> {
   const debugId = params.txId || uid("bridge");
@@ -27,6 +28,7 @@ export async function executeCircleCctpBridge(params: {
       fromChain: params.fromChain,
       toChain: params.toChain,
       recipient: params.recipient,
+      bridgeMode: params.bridgeMode,
       txId: debugId,
     });
   }

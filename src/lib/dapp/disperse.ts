@@ -158,7 +158,7 @@ export async function runBatchDisperse(params: {
 
   // --- Step 1: approval (only when the current allowance is insufficient) ---
   let approvalTxHash: `0x${string}` | undefined;
-  const allowance = await readAllowance(params.token.address, from, spender);
+  const allowance = await readAllowance(params.token.address, from, spender, meta.isMainnet);
   if (allowance < total) {
     try {
       approvalTxHash = String(
@@ -224,12 +224,12 @@ export async function runBatchDisperse(params: {
   emit();
 
   let status: TransactionRecord["status"] = "success";
-  let finalityMessage = "Confirmed on Arc Testnet";
+  let finalityMessage = `Confirmed on ${networkLabel}`;
   try {
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
     if (receipt.status !== "success") {
       status = "error";
-      finalityMessage = "Batch reverted on Arc Testnet";
+      finalityMessage = `Batch reverted on ${networkLabel}`;
       steps[4].state = "error";
       steps[4].message = finalityMessage;
     } else {
@@ -258,7 +258,7 @@ export async function runBatchDisperse(params: {
     feeUsd: 0.04,
     steps,
     txHash: hash,
-    explorerUrl: explorerTxUrl(hash),
+    explorerUrl: explorerTxUrl(hash, meta.chainId),
     createdAt: new Date().toISOString(),
     message: `Single-signature batch of ${recipients.length} ${params.token.symbol} payouts — ${finalityMessage}`,
     executionMode: "live",

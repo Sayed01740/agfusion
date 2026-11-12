@@ -22,13 +22,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isMainnetExecutionEnabled(): boolean {
+  return process.env.AGFUSION_MAINNET_SWAP_EXECUTION_ENABLED?.trim().toLowerCase() === "true";
+}
+
+function isMainnetPreparationEnabled(): boolean {
+  return (
+    isMainnetExecutionEnabled() ||
+    (process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED?.trim().toLowerCase() === "true" &&
+      process.env.VERCEL_ENV?.trim().toLowerCase() === "preview")
+  );
+}
+
+/** Read-only release gate used by the browser before requesting a Permit2 signature. */
+export async function GET() {
+  return NextResponse.json(
+    { enabled: isMainnetPreparationEnabled(), executionEnabled: isMainnetExecutionEnabled() },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function POST(req: Request) {
   const rl = rateLimit(`uniswap-arc-swap-prepare:${clientIp(req)}`, { windowMs: 60_000, max: 8 });
   if (!rl.ok) return NextResponse.json({ error: "rate_limited" }, { status: 429 });
 
   // Transaction preparation stays disabled unless explicitly enabled for a controlled
   // Preview review. This flag does not enable wallet signing or transaction broadcast.
-  if (process.env.AGFUSION_MAINNET_SWAP_PREPARATION_ENABLED !== "true") {
+  if (!isMainnetPreparationEnabled()) {
     return NextResponse.json({ error: "mainnet_swap_preparation_disabled" }, { status: 403 });
   }
 
@@ -183,6 +203,7 @@ export async function POST(req: Request) {
       account: session.account,
       to: validated.to,
       data: validated.data,
+      ...(validated.value !== "0" ? { value: validated.value } : {}),
       gasLimit: String(swap.gasLimit || ""),
       maxFeePerGas,
       nativeGasBalance: preflight.nativeGasBalance,
@@ -209,7 +230,7 @@ export async function POST(req: Request) {
         from: validated.from,
         to: validated.to,
         data: validated.data,
-        value: "0",
+        value: validated.value,
         gasLimit: String(swap.gasLimit),
         ...(typeof swap.maxFeePerGas === "string" ? { maxFeePerGas: swap.maxFeePerGas } : {}),
         ...(typeof swap.maxPriorityFeePerGas === "string" ? { maxPriorityFeePerGas: swap.maxPriorityFeePerGas } : {}),
@@ -227,7 +248,7 @@ export async function POST(req: Request) {
         localEthCall: "passed",
         localGasEstimate: "passed",
       },
-      executionEnabled: false,
+      executionEnabled: isMainnetExecutionEnabled(),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.warn("[AGFusion] Arc Mainnet swap preparation rejected", {

@@ -138,10 +138,13 @@ export async function readArcMainnetPermit2Preflight(params: {
   ]);
 
   const [permit2AllowanceToRouter, permit2Expiration, permit2Nonce] = permit2Allowance;
+  const isNativeUsdc = token.toLowerCase() === ARC_MAINNET_SWAP_TOKENS.USDC.toLowerCase();
   const hasTokenBalance = tokenBalance >= params.amount;
   const hasGasReserve = nativeGasBalance >= ARC_MAINNET_GAS_RESERVE;
-  const requiresErc20Approval = erc20Allowance < params.amount;
-  const requiresPermit2Signature = permit2AllowanceToRouter < params.amount || BigInt(permit2Expiration) <= BigInt(now);
+  const requiresErc20Approval = isNativeUsdc ? false : erc20Allowance < params.amount;
+  const requiresPermit2Signature = isNativeUsdc
+    ? false
+    : permit2AllowanceToRouter < params.amount || BigInt(permit2Expiration) <= BigInt(now);
 
   return {
     chainId: ARC_MAINNET_CHAIN_ID,
@@ -151,8 +154,8 @@ export async function readArcMainnetPermit2Preflight(params: {
     tokenBalance,
     nativeGasBalance,
     erc20AllowanceToPermit2: erc20Allowance,
-    permit2AllowanceToRouter,
-    permit2Expiration,
+    permit2AllowanceToRouter: isNativeUsdc ? params.amount : permit2AllowanceToRouter,
+    permit2Expiration: isNativeUsdc ? now + 3600 : permit2Expiration,
     permit2Nonce,
     hasTokenBalance,
     hasGasReserve,
@@ -167,6 +170,7 @@ export async function simulateArcMainnetSwapTransaction(params: {
   account: string;
   to: string;
   data: string;
+  value?: string;
   gasLimit: string;
   maxFeePerGas: string;
   nativeGasBalance: bigint;
@@ -182,23 +186,28 @@ export async function simulateArcMainnetSwapTransaction(params: {
   const gasLimit = BigInt(params.gasLimit);
   const maxFeePerGas = BigInt(params.maxFeePerGas);
   if (gasLimit <= 0n || maxFeePerGas <= 0n) fail("gas limit and max fee must be positive");
+  let txValue = 0n;
+  if (params.value && params.value !== "0") {
+    try { txValue = BigInt(params.value); } catch { fail("invalid simulation value"); }
+    if (txValue < 0n) fail("invalid simulation value");
+  }
 
   await publicClient.call({
     account,
     to,
     data: params.data as `0x${string}`,
-    value: 0n,
+    value: txValue,
   });
   const estimatedGas = await publicClient.estimateGas({
     account,
     to,
     data: params.data as `0x${string}`,
-    value: 0n,
+    value: txValue,
   });
   if (estimatedGas <= 0n || estimatedGas > gasLimit) fail("on-chain gas estimate exceeds the Uniswap transaction gas limit");
 
   const estimatedGasCost = estimatedGas * maxFeePerGas;
-  const requiredNativeBalance = estimatedGasCost + ARC_MAINNET_GAS_RESERVE;
+  const requiredNativeBalance = txValue + estimatedGasCost + ARC_MAINNET_GAS_RESERVE;
   if (params.nativeGasBalance < requiredNativeBalance) fail("native USDC balance is insufficient for estimated gas plus safety reserve");
 
   return { estimatedGas, maxFeePerGas, estimatedGasCost, requiredNativeBalance };

@@ -21,6 +21,7 @@ export function BridgeCard({ connected }: { connected: boolean }) {
   const [routeIdx, setRouteIdx] = useState(0);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [bridgeMode, setBridgeMode] = useState<"fast-direct" | "auto-relayer">("fast-direct");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TransactionRecord | null>(null);
@@ -48,6 +49,7 @@ export function BridgeCard({ connected }: { connected: boolean }) {
         toChain: route.to as ChainId,
         token: "USDC",
         recipient: recipient.trim() ? recipient.trim() : undefined,
+        bridgeMode,
       });
       addTransaction(tx);
       setResult(tx);
@@ -100,6 +102,41 @@ export function BridgeCard({ connected }: { connected: boolean }) {
         onMax={connected && fromArc ? () => setAmount(bal.balance) : undefined}
         lockToken
       />
+
+      <div className="rounded-2xl border border-white/[0.06] bg-[#0a1017] p-2.5 space-y-1.5">
+        <label className="text-[11px] font-medium text-slate-400">Bridge Mode</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setBridgeMode("fast-direct")}
+            className={`rounded-xl p-2.5 text-left border transition-all text-xs ${
+              bridgeMode === "fast-direct"
+                ? "border-cyan-400 bg-cyan-400/10 text-cyan-200"
+                : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/15"
+            }`}
+          >
+            <div className="font-semibold text-slate-100">⚡ Fast Direct</div>
+            <div className="text-[10px] text-emerald-400 font-medium">0.00 USDC Fee</div>
+            <div className="text-[9px] text-slate-500 mt-0.5">Self-mint on dest</div>
+          </button>
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setBridgeMode("auto-relayer")}
+            className={`rounded-xl p-2.5 text-left border transition-all text-xs ${
+              bridgeMode === "auto-relayer"
+                ? "border-cyan-400 bg-cyan-400/10 text-cyan-200"
+                : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/15"
+            }`}
+          >
+            <div className="font-semibold text-slate-100">🤖 Auto-Relayer</div>
+            <div className="text-[10px] text-cyan-300 font-medium">Low Tier Fee</div>
+            <div className="text-[9px] text-slate-500 mt-0.5">Gasless dest mint</div>
+          </button>
+        </div>
+      </div>
 
       <div>
         <label className="mb-1.5 block px-1 text-[12px] text-slate-500">

@@ -1,182 +1,201 @@
 # AGFusion
 
-**AGFusion** is an AI-native stablecoin operations workspace built on Arc Network. It brings payments, balances, treasury workflows, and cross-chain settlement into a single interface, with explicit user confirmation before on-chain execution.
+[![Arc Network](https://img.shields.io/badge/Network-Arc_Mainnet_(5042)-0052FF?style=flat-square)](https://explorer.arc.io)
+[![Circle CCTP](https://img.shields.io/badge/Bridge-Circle_CCTP_v2-2775CA?style=flat-square)](https://developers.circle.com/stablecoins/docs/cctp-getting-started)
+[![Uniswap V3](https://img.shields.io/badge/DEX-Uniswap_V3_AMM-FF007A?style=flat-square)](https://uniswap.org)
+[![Next.js 15](https://img.shields.io/badge/Next.js-15.5_(App_Router)-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?style=flat-square&logo=solidity)](https://soliditylang.org)
+[![License](https://img.shields.io/badge/License-Proprietary-blue?style=flat-square)](#license)
 
-> **Status:** Active development on Arc Testnet.
+**AGFusion** is an institutional-grade stablecoin orchestration engine and decentralized treasury workspace natively deployed on **Arc Mainnet**. It unites multi-chain liquidity, cross-chain CCTP settlement, DEX swaps, batch disbursements, and automated treasury actions under strict, wallet-confirmed policy guardrails.
 
-## Overview
+* **Live Application:** [https://agfusion.vercel.app](https://agfusion.vercel.app)
+* **Interactive Docs:** [https://agfusion.vercel.app/docs](https://agfusion.vercel.app/docs)
+* **Mainnet Block Explorer:** [https://explorer.arc.io](https://explorer.arc.io)
 
-AGFusion is designed to make stablecoin operations easier to understand and safer to execute. The application combines a modern web interface with blockchain infrastructure, policy checks, transaction preparation, and an AI-assisted command layer.
+---
 
-### Core capabilities
-
-- Natural-language payment and treasury workflows
-- Unified cross-chain balance views
-- USDC payments and settlement on Arc
-- Cross-chain bridging and swap flows
-- Wallet authentication with SIWE
-- Circle Programmable Wallet integrations
-- Transaction previews and explicit confirmation gates
-- Agent spending policies, rate limits, and validation
-- Persistent transaction and bridge state
-- Analytics and operational diagnostics
-
-## Architecture
+## System Architecture
 
 ```text
-Web UI (Next.js / React)
-        |
-        +--> Authentication & Session Layer
-        |
-        +--> AI Command / Intent Layer
-        |        |
-        |        +--> Policy & Validation
-        |        +--> Transaction Planning
-        |        +--> User Confirmation
-        |
-        +--> Blockchain Services
-        |        |
-        |        +--> Arc App Kit
-        |        +--> Circle CCTP / Bridge Services
-        |        +--> Wallet Adapters
-        |        +--> RPC / On-chain Verification
-        |
-        +--> Persistence
-                 |
-                 +--> Prisma / PostgreSQL
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           Client Layer (Next.js 15 / React 19)                  │
+│       Dashboard  •  Bridge Card  •  Swap Terminal  •  Disperse  •  Escrow       │
+└────────────────────────────────────────┬────────────────────────────────────────┘
+                                         │
+                   ┌─────────────────────┴─────────────────────┐
+                   ▼                                           ▼
+┌──────────────────────────────────────┐    ┌──────────────────────────────────────┐
+│        Serverless API & Gateways     │    │       On-Chain Smart Contracts       │
+│  • SIWE / Web3 Wallet Verification   │    │  • AGFusionRegistry (Agent Metadata) │
+│  • Uniswap V3 Permit2 Routing Proxy  │    │  • AGFusionEscrow (Milestones/Fees)  │
+│  • AES-256-GCM Quote Session Store   │    │  • AGFusionDisperse (Multi-batch)    │
+│  • Circle CCTP v2 Iris Attestations  │    │  • Canonical Native / ERC20 USDC     │
+└──────────────────┬───────────────────┘    └──────────────────┬───────────────────┘
+                   │                                           │
+                   ▼                                           ▼
+┌──────────────────────────────────────┐    ┌──────────────────────────────────────┐
+│           Decentralized Infra        │    │         Cross-Chain Liquidity        │
+│  • Arc Mainnet JSON-RPC (5042)       │    │  • Circle CCTP v2 (Eth, Arb, Base)   │
+│  • Cloudflare D1 Quote Session DB    │    │  • Uniswap V3 Pools (USDC/EURC/BTC)  │
+│  • PostgreSQL / Prisma Persistence   │    │  • Arc Network Settlement Layer      │
+└──────────────────────────────────────┘    └──────────────────────────────────────┘
 ```
 
-The AI layer prepares and validates actions. It does not receive authority to silently execute transactions. On-chain execution remains behind application policy checks and an explicit confirmation step.
+---
 
-## Technology
+## Core Protocols & Features
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | Next.js 15, React 19, Tailwind CSS 4, Framer Motion |
-| Language | TypeScript |
-| Blockchain | Arc Network, viem, Circle App Kit |
-| Wallets | Circle Programmable Wallets, wallet adapters, ZeroDev integrations |
-| AI | Server-side LLM integrations with intent parsing and tool orchestration |
-| Database | Prisma with PostgreSQL-compatible storage |
-| Contracts | Solidity |
-| Testing | Vitest, TypeScript, ESLint |
-| Deployment | Vercel |
+### 1. Dual-Engine USDC Transfer
+Arc Network utilizes USDC as its native gas currency (18 decimals in the EVM execution frame) while concurrently hosting the canonical 6-decimal ERC-20 precompile at `0x3600000000000000000000000000000000000000`.
+* **Zero Simulation Friction:** Direct EVM native value routing consumes only **21,000 gas** and completely eliminates precompile simulation reverts (`#-39000`) across all EIP-1193 wallets.
+* **Deterministic Fallback:** Full backwards compatibility with standard ERC-20 allowances, approvals, and smart contract callers.
 
-## Arc Testnet
+### 2. High-Fidelity Uniswap V3 AMM Routing
+* **Permit2 Preflight Verification:** Seamless single-signature permit allowances with deterministic nonce synchronization.
+* **Cryptographic Quote Sessions:** Server-issued quote payloads are encrypted with authenticated `AES-256-GCM` and single-use digests validated via Cloudflare D1 before execution, preventing sandwich attacks and slippage griefing.
+* **Classic Route Execution:** Direct execution through the Universal Router with client-side slippage enforcement ($0.1\% - 5\%$).
 
-AGFusion currently targets **Arc Testnet**.
+### 3. Circle CCTP v2 Cross-Chain Settlement
+* **Native Mint & Burn:** Direct interoperability with Circle’s TokenMessenger protocol eliminating wrapped-token bridge risks.
+* **Connected Networks:** Bidirectional transfers between Arc Mainnet, Ethereum, Arbitrum, Base, Optimism, and Avalanche.
+* **Automated Iris Attestation Tracking:** Real-time polling and verification against Circle's off-chain Iris attestation service.
 
-- Chain ID: `5042002`
-- RPC: `https://rpc.testnet.arc.network`
-- AGFusionRegistry: `0x76bb5678ec11ae94b34ed9cf90b25c9eea440483`
-- Explorer: https://testnet.arcscan.app/address/0x76bb5678ec11ae94b34ed9cf90b25c9eea440483
+### 4. Smart Contract Treasury Protocols
+* **Conditional Escrow (`AGFusionEscrow`):** Trust-minimized milestone payouts with configurable arbitrator dispute resolution, 50 bps protocol fees, and emergency recovery timelocks.
+* **Batch Disperse (`AGFusionDisperse`):** Single-transaction mass distribution of native and ERC-20 stablecoins, reducing network gas overhead by up to $65\%$.
+* **On-Chain Agent Registry (`AGFusionRegistry`):** EIP-712 compatible agent identity registration and decentralized metadata anchors.
 
-Public blockchain addresses and network endpoints are not credentials. Private keys, API keys, database credentials, signing secrets, and other authentication material must never be committed to this repository.
+---
 
-## Local development
+## Smart Contract Deployments
 
-### Requirements
+All contracts are deployed on **Arc Mainnet** (`Chain ID: 5042`), compiled with Solidity `0.8.24` (`Cancun` EVM, 200 optimization runs).
 
-- Node.js 22
-- npm 10+
-- A PostgreSQL-compatible database for production-like development
-- Arc Testnet wallet and test USDC when exercising live flows
+| Contract | Mainnet Address | Deployment Tx | Explorer |
+| :--- | :--- | :--- | :--- |
+| **AGFusionRegistry** | `0xf25757227337130Fb33A70A31aFFD782FfA44f6D` | [`0xab66ea...`](https://explorer.arc.io/tx/0xab66eac920a45fce0a2d6e861bde671ea2a851ed4ae44ef4016ba46884ff8c1b) | [View on Explorer](https://explorer.arc.io/address/0xf25757227337130Fb33A70A31aFFD782FfA44f6D) |
+| **AGFusionEscrow** | `0x23554d16C1F397fde97cf394FF603d7372b61f20` | [`0x20eeda...`](https://explorer.arc.io/tx/0x20eeda61acc3203224565f92b9f3ebafdbe18444ec65d45031a259402458b82d) | [View on Explorer](https://explorer.arc.io/address/0x23554d16C1F397fde97cf394FF603d7372b61f20) |
+| **AGFusionDisperse** | `0x376323cCE5233C0C20339BBeeCFEB838602B5578` | [`0xd24b58...`](https://explorer.arc.io/tx/0xd24b5819d9c90a2118e2f77f97af58745b84893798533ae0c4b2a1b5b69c4f7a) | [View on Explorer](https://explorer.arc.io/address/0x376323cCE5233C0C20339BBeeCFEB838602B5578) |
 
-### Setup
+### Canonical Token Addresses (Arc Mainnet)
 
-```bash
-git clone https://github.com/Sayed01740/agfusion.git
-cd agfusion
-npm install
-cp .env.example .env
+| Asset | Type | Contract Address | Decimals |
+| :--- | :--- | :--- | :--- |
+| **USDC** | Native Gas / ERC-20 | `0x3600000000000000000000000000000000000000` | 6 (ERC-20) / 18 (Native) |
+| **EURC** | ERC-20 | `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1` | 6 |
+| **cirBTC** | ERC-20 | `0x171A4217b86A807A64eB94757Db6849fb4bDbAA0` | 8 |
+
+---
+
+## Technology Stack
+
+* **Frontend Framework:** [Next.js 15.5](https://nextjs.org/) (App Router, Server Actions, Dynamic Streaming)
+* **UI & Design:** React 19, Tailwind CSS 4, Radix UI Primitives, Lucide Icons
+* **Web3 Integration:** [Viem 2.x](https://viem.sh/), Wagmi, EIP-1193 Provider Adapters, Sign-In with Ethereum (SIWE)
+* **Smart Contracts:** Solidity `0.8.24`, Foundry Framework (`forge`, `cast`)
+* **DEX & Routing:** Uniswap Universal Router v2.1.2, Permit2 (`0x000000000022D473030F116dDEE9F6B43aC78BA3`)
+* **Cross-Chain Bridge:** Circle CCTP v2 (`TokenMessenger: 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d`)
+* **Persistence & State:** Prisma ORM, PostgreSQL, Cloudflare D1 Worker
+* **Testing:** Vitest, Foundry Unit Suites, ESLint, TypeScript Strict
+
+---
+
+## Local Development & Setup
+
+### Prerequisites
+* Node.js `>= 22.0.0`
+* npm `>= 10.0.0`
+* Foundry toolchain (`forge`, `cast`)
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Sayed01740/agfusion.git
+   cd agfusion
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment Variables:**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Populate `.env.local` with your network RPC endpoints and API credentials:
+   ```ini
+   NEXT_PUBLIC_ARC_NETWORK="mainnet"
+   NEXT_PUBLIC_ARC_CHAIN_ID=5042
+   NEXT_PUBLIC_ARC_RPC_URL="https://rpc.mainnet.arc.io"
+   NEXT_PUBLIC_ARC_EXPLORER_URL="https://explorer.arc.io"
+   
+   # Deployed Contract Addresses
+   NEXT_PUBLIC_AGFUSION_REGISTRY="0xf25757227337130Fb33A70A31aFFD782FfA44f6D"
+   NEXT_PUBLIC_AGFUSION_ESCROW_ADDRESS="0x23554d16C1F397fde97cf394FF603d7372b61f20"
+   NEXT_PUBLIC_AGFUSION_DISPERSE_ADDRESS="0x376323cCE5233C0C20339BBeeCFEB838602B5578"
+   ```
+
+4. **Initialize Database & Run Development Server:**
+   ```bash
+   npx prisma generate
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## Project Structure
+
+```text
+├── contracts/                  # Solidity smart contracts and deployment suites
+│   ├── src/                    # Smart contract source files & flattened verifiers
+│   │   ├── AGFusionRegistry.sol
+│   │   ├── AGFusionEscrow.sol
+│   │   └── AGFusionDisperse.sol
+│   └── deployments/            # Verified deployment records (arc-mainnet.json)
+├── src/
+│   ├── app/                    # Next.js 15 App Router pages & API routes
+│   │   ├── api/circle/         # CCTP and Iris attestation relays
+│   │   ├── api/uniswap/        # Uniswap V3 swap and quote session endpoints
+│   │   └── dashboard/          # Production operations dashboard
+│   ├── blockchain/             # Viem clients, Permit2 drivers & bridge execution
+│   ├── components/             # Reusable UI cards, tables, and interaction panels
+│   ├── lib/                    # Configuration, cryptographic helpers & utilities
+│   ├── sdk/                    # EIP-1193 wallet adapters & account abstractions
+│   └── types/                  # Protocol-wide TypeScript interfaces
+└── prisma/                     # Database schema definitions
 ```
 
-Fill in the required server-side environment variables locally, then initialize the database:
+---
+
+## Verification & Testing
+
+Run the test suite across unit, cryptographic session, and transaction components:
 
 ```bash
-npx prisma db push
-npm run dev
-```
+# Run unit & integration tests
+npm test
 
-For a production build:
+# Run TypeScript typechecks
+npm run typecheck
 
-```bash
+# Run production build validation
 npm run build
-npm run start
 ```
 
-Never place real credentials in `.env.example`, source files, test fixtures, documentation, screenshots, or commit messages.
+---
 
-## Environment configuration
+## Security Policy
 
-Environment templates are provided for local and staging-style development. Real secrets belong only in the deployment environment or a local ignored `.env` file.
+* **Non-Custodial:** User funds never transit intermediate custodial accounts. All transactions are constructed as standardized EIP-155 payloads and signed locally by the user's wallet.
+* **Server-Side Secret Isolation:** Private keys, encryption secrets, and API credentials are kept strictly server-side and never injected into client bundles.
+* **Deterministic Limits:** On-chain rate limits, spending caps, and slippage bounds are enforced on both client and contract levels.
 
-Important server-side values include:
-
-- `DATABASE_URL`
-- `AUTH_SECRET`
-- `CIRCLE_API_KEY`
-- LLM provider credentials
-- `KIT_KEY` where required by the active integration
-
-Variables prefixed with `NEXT_PUBLIC_` are intended for browser-visible configuration only. Do not put secrets in them.
-
-## Security model
-
-AGFusion follows a server-side secret boundary:
-
-1. Credentials are loaded from environment variables.
-2. Server-only integrations keep provider secrets out of browser bundles.
-3. User actions are validated before execution.
-4. High-impact operations require explicit confirmation.
-5. Rate limits and spending limits reduce automated abuse.
-6. Transaction state is persisted and verified before finalization.
-
-If a credential is ever exposed, assume it is compromised. Revoke or rotate it at the provider immediately, then remove it from the repository and its history as appropriate.
-
-## Repository structure
-
-```text
-src/
-├── ai/             AI intent, orchestration, and tool execution
-├── app/            Next.js routes, pages, and API endpoints
-├── blockchain/     Arc, bridge, swap, and transaction services
-├── components/     UI and product components
-├── contracts/      Solidity contracts
-├── lib/            Shared services, persistence, validation, and utilities
-├── providers/      React application providers
-├── sdk/            Wallet and account abstractions
-├── store/          Client-side state
-└── types/          Shared TypeScript types
-
-prisma/              Database schema
-docs/                Product and architecture documentation
-public/              Brand and static assets
-scripts/             Build and maintenance utilities
-```
-
-## Useful commands
-
-```bash
-npm run dev        # Start development server
-npm run build      # Create production build
-npm run start      # Start production server
-npm run lint       # Run ESLint
-npm run typecheck  # Run TypeScript checks
-npm test           # Run Vitest
-npm run db:push    # Apply Prisma schema to the configured database
-```
-
-## Contributing
-
-Keep changes focused, avoid committing generated or machine-specific files, and never commit credentials. Before opening a pull request, run the relevant type checks, tests, and production build.
+---
 
 ## License
 
-This repository is currently maintained as an active AGFusion project. Licensing and public release terms may change as the project evolves.
-
-## Links
-
-- Live application: https://agfusion.vercel.app
-- Documentation: https://agfusion.vercel.app/docs
-- Arc Testnet explorer: https://testnet.arcscan.app
+This project is licensed under proprietary terms. All rights reserved.

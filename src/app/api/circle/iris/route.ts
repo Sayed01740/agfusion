@@ -13,9 +13,9 @@ import { readLimitedText } from "@/lib/read-limited-text";
 
 // Detect mainnet from server-side env (mirrors arc-chain.ts IS_ARC_MAINNET logic)
 const IS_MAINNET =
-  process.env.NEXT_PUBLIC_ARC_NETWORK === "mainnet" ||
-  process.env.NEXT_PUBLIC_ARC_CHAIN_ID === "5042" ||
-  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.toLowerCase() === "0x13b2";
+  process.env.NEXT_PUBLIC_ARC_NETWORK?.trim() === "mainnet" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_ID?.trim() === "5042" ||
+  process.env.NEXT_PUBLIC_ARC_CHAIN_HEX?.trim().toLowerCase() === "0x13b2";
 
 // Circle's CCTP IRIS API — production for mainnet, sandbox for testnet
 const IRIS_BASE = IS_MAINNET

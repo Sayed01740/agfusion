@@ -20,7 +20,11 @@
     "db:studio": "prisma studio",
     "verify:arc-mainnet": "node scripts/verify-arc-mainnet.mjs",
     "test:circle-sdk-compat": "node scripts/patch-circle-zod-compat.mjs && node scripts/check-circle-app-kit-runtime.mjs && node scripts/test-zod-v3-security.mjs",
-    "test:elliptic-leading-zero": "node scripts/test-mapped-elliptic-leading-zero.mjs"
+    "test:elliptic-leading-zero": "node scripts/test-mapped-elliptic-leading-zero.mjs",
+    "preview": "npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare preview",
+    "deploy": "npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare deploy",
+    "upload": "npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.13.0",
@@ -61,7 +65,9 @@
     "globals": "^17.14.0",
     "prisma": "^6.10.1",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "@opennextjs/cloudflare": "1.20.16",
+    "wrangler": "4.158.0"
   },
   "optionalDependencies": {
     "lightningcss-win32-x64-msvc": "^1.32.0"
@@ -91,6 +97,7 @@
       "@uniswap/universal-router": {
         "@openzeppelin/contracts": "5.0.2"
       }
-    }
+    },
+    "glob": "14.0.4"
   }
 }

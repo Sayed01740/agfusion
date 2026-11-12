@@ -65,6 +65,40 @@ describe("POST /api/circle/swap/prepare request-body limit", () => {
     expect(mocks.estimateSwap).toHaveBeenCalledOnce();
   });
 
+  it("allows a keyless permissionless Arc Testnet estimate and omits kitKey from config", async () => {
+    mocks.getServerKitKey.mockReturnValue(undefined);
+    mocks.estimateSwap.mockResolvedValue({
+      estimatedOutput: { amount: "0.01845", token: "EURC" },
+      stopLimit: { amount: "0.018266", token: "EURC" },
+      fees: [],
+    });
+
+    const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: "0x1111111111111111111111111111111111111111",
+        amount: "0.01",
+        tokenIn: "USDC",
+        tokenOut: "EURC",
+        chainId: 5042002,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      chainId: 5042002,
+      network: "testnet",
+      estimate: { estimatedOutput: { amount: "0.01845", token: "EURC" } },
+    });
+    expect(mocks.getServerKitKey).toHaveBeenCalledOnce();
+    expect(mocks.estimateSwap).toHaveBeenCalledOnce();
+    expect(mocks.estimateSwap.mock.calls[0]?.[0]?.config).toEqual({
+      slippageBps: 100,
+      allowanceStrategy: "approve",
+    });
+  });
+
   it("keeps Arc Mainnet disabled unless the server release flag is enabled", async () => {
     const response = await POST(new Request("http://localhost/api/circle/swap/prepare", {
       method: "POST",
