@@ -29,10 +29,16 @@ import {
 import { runCircleSafeSwapFlow } from "@/blockchain/circle-safe-swap";
 import { CHAINS, resolveChain } from "@/lib/chains";
 import { formatUsd } from "@/lib/utils";
-import { IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 const DEFAULT_ARC_CHAIN: ChainId = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
 const DEFAULT_PEER_CHAIN: ChainId = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
+
+function activeArcChainForWallet(wallet?: WalletContext): ChainId {
+  if (wallet?.chainId === 5042) return "Arc_Mainnet";
+  if (wallet?.chainId === 5042002) return "Arc_Testnet";
+  return DEFAULT_ARC_CHAIN;
+}
 
 export type WalletContext = {
   address?: string | null;
@@ -394,13 +400,14 @@ export async function executeTool(
         const live = ctx.wallet.liveBalanceUsdc;
         const n = Number(String(live || "0").replace(/,/g, ""));
         const amount = Number.isFinite(n) ? n : 0;
+        const arcChain = activeArcChainForWallet(ctx.wallet);
         const snap: UnifiedBalanceSnapshot = ctx.wallet.address
           ? {
             totalUsd: amount,
             balances: [
               {
-                chain: "Arc_Testnet",
-                chainLabel: "Arc Testnet",
+                chain: arcChain,
+                chainLabel: CHAINS[arcChain]?.label ?? ARC_NETWORK_NAME,
                 token: "USDC",
                 amount,
                 usdValue: amount,
@@ -426,16 +433,20 @@ export async function executeTool(
       }
 
       case "get_wallet_state": {
-        const onArc = ctx.wallet.chainId === 5042002;
+        const onArc =
+          ctx.wallet.chainId === 5042 || ctx.wallet.chainId === 5042002;
+        const arcChain = activeArcChainForWallet(ctx.wallet);
         return {
           ok: true,
           summary: ctx.wallet.address
-            ? `Connected ${ctx.wallet.address.slice(0, 8)}… chain=${ctx.wallet.chainId ?? "?"} ${onArc ? "(Arc)" : ""}`
+            ? `Connected ${ctx.wallet.address.slice(0, 8)}… chain=${ctx.wallet.chainId ?? "?"} ${onArc ? `(${CHAINS[arcChain]?.label ?? ARC_NETWORK_NAME})` : ""}`
             : "No wallet — connect to execute live",
           data: {
             address: ctx.wallet.address ?? null,
             chainId: ctx.wallet.chainId ?? null,
             onArc,
+            activeArcChain: arcChain,
+            activeNetwork: ARC_NETWORK_NAME,
             liveBalanceUsdc: ctx.wallet.liveBalanceUsdc ?? null,
             mode: "live",
             forceDemo: false,
@@ -781,7 +792,7 @@ export async function executeTool(
       case "explain_arc": {
         const topic = String(args.topic || "arc").toLowerCase();
         const blurbs: Record<string, string> = {
-          arc: "Arc is Circle's open Layer-1 — the Economic OS for programmable money. USDC gas, sub-second finality, EVM-compatible. Testnet chain ID 5042002.",
+          arc: `Arc is Circle's open Layer-1 — the Economic OS for programmable money. USDC gas, sub-second finality, EVM-compatible. Active network: ${ARC_NETWORK_NAME} (chain ID ${ARC_CHAIN_ID}).`,
           transfer:
             "Cross-chain USDC moves via approve → lock/burn → attestation → credit on Arc. AGFusion tracks each step and supports recovery.",
           bridge:
@@ -887,14 +898,16 @@ export async function executeTool(
         try {
           const { registerErc8004Agent } = await import("@/lib/erc8004");
           const result = await registerErc8004Agent();
+          const arcChain = activeArcChainForWallet(ctx.wallet);
+          const arcLabel = CHAINS[arcChain]?.label ?? ARC_NETWORK_NAME;
           const transaction: TransactionRecord = {
             id: `tx_${Math.random().toString(36).slice(2, 11)}`,
             type: "deploy",
             status: "success",
             amount: "0",
             token: "USDC",
-            fromChain: DEFAULT_ARC_CHAIN,
-            toChain: DEFAULT_ARC_CHAIN,
+            fromChain: arcChain,
+            toChain: arcChain,
             feeUsd: 0.05,
             steps: [
               { name: "Prepare Payload", state: "success" },
@@ -912,17 +925,18 @@ export async function executeTool(
           };
           return {
             ok: true,
-            summary: `ERC-8004 Agent '${name}' registered on Arc Testnet · tx ${result.txHash.slice(0, 10)}…`,
+            summary: `ERC-8004 Agent '${name}' registered on ${arcLabel} · tx ${result.txHash.slice(0, 10)}…`,
             transaction,
             data: result,
           };
         } catch (e) {
+          const arcLabel = CHAINS[activeArcChainForWallet(ctx.wallet)]?.label ?? ARC_NETWORK_NAME;
           return {
             ok: false,
             summary:
               e instanceof Error
                 ? e.message
-                : "ERC-8004 registration failed — connect a wallet on Arc Testnet and try again.",
+                : `ERC-8004 registration failed — connect a wallet on ${arcLabel} and try again.`,
           };
         }
       }

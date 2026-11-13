@@ -22,6 +22,7 @@ import {
   anthropicMessages,
   type ClaudeMessage,
 } from "@/lib/claude-client";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { uid } from "@/lib/utils";
 
 type ChatMsg = {
@@ -119,6 +120,10 @@ async function runAnthropicAgentLoop(input: {
     address: wallet.address ?? null,
     chainId: wallet.chainId ?? null,
     liveBalanceUsdc: wallet.liveBalanceUsdc ?? null,
+    activeNetwork: ARC_NETWORK_NAME,
+    activeArcChainId: ARC_CHAIN_ID,
+    defaultArcChain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+    defaultPeerChain: IS_ARC_MAINNET ? "Base" : "Base_Sepolia",
     userConfirmedExecute: execute,
   })}`;
 
@@ -302,6 +307,10 @@ async function runOpenAiCompatAgentLoop(input: {
     address: wallet.address ?? null,
     chainId: wallet.chainId ?? null,
     liveBalanceUsdc: wallet.liveBalanceUsdc ?? null,
+    activeNetwork: ARC_NETWORK_NAME,
+    activeArcChainId: ARC_CHAIN_ID,
+    defaultArcChain: IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet",
+    defaultPeerChain: IS_ARC_MAINNET ? "Base" : "Base_Sepolia",
     forceDemo: wallet.forceDemo ?? false,
     userConfirmedExecute: execute,
   })}`;
@@ -562,7 +571,7 @@ export async function runSmartAgent(input: {
       try {
         const llm = await runLlmAgentLoop({
           ...input,
-          message: `${input.message}\n\n[Internal: a confirm card was already built. Write a short helpful plan summary for the user. Do not invent tx hashes. Mention they must press Confirm & open wallet to sign.]`,
+          message: `${input.message}\n\n[Internal: a confirm card was already built for ${ARC_NETWORK_NAME} (chain ${ARC_CHAIN_ID}). Write a short helpful plan summary for the user. Never refer to Arc Testnet when active network is ${ARC_NETWORK_NAME}. Do not invent tx hashes. Mention they must press Confirm & open wallet to sign.]`,
         });
         if (llm?.message?.content) {
           const content = llm.message.content.trim();

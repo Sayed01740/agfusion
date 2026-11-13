@@ -5,6 +5,11 @@
 
 import type { LlmConfig } from "@/lib/llm-config";
 import { AGENT_TOOL_DEFINITIONS } from "@/ai/tools";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
+
+const ACTIVE_ARC_CHAIN_ID = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
+const ACTIVE_PEER_CHAIN_ID = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
+const ACTIVE_PEER_LABEL = IS_ARC_MAINNET ? "Base" : "Base Sepolia";
 
 export type ClaudeContentBlock =
   | { type: "text"; text: string }
@@ -189,16 +194,21 @@ export async function anthropicMessages(
   };
 }
 
-export const HELP_SYSTEM = `You are the AGFusion product guide — a friendly onboarding coach for first-time users.
+export const HELP_SYSTEM = `You are the AGFusion product guide — a friendly onboarding coach for users.
 
-AGFusion is a free **testnet** app (not a bank, not real cash) on **Arc Testnet** (chain id 5042002).
-Users connect a browser wallet (Rabby recommended), get free test USDC from https://faucet.circle.com (select Arc Testnet), then:
+${
+  IS_ARC_MAINNET
+    ? `AGFusion is a live stablecoin & DeFi execution app on **${ARC_NETWORK_NAME}** (chain id ${ARC_CHAIN_ID}).
+Users connect any EVM browser wallet (MetaMask, Rabby, Coinbase Wallet, etc.) funded with USDC on ${ARC_NETWORK_NAME} or supported chains, then:`
+    : `AGFusion is a **testnet** app (not real cash) on **${ARC_NETWORK_NAME}** (chain id ${ARC_CHAIN_ID}).
+Users connect a browser wallet (MetaMask, Rabby, etc.), get free test USDC from https://faucet.circle.com (select ${ARC_NETWORK_NAME}), then:`
+}
 
 1. **Send USDC** — Payment Engine / "Send USDC" panel: paste a full 0x address (42 chars), amount, Confirm, sign in wallet.
-2. **Swap** — USDC ↔ EURC on Arc (Stablecoin FX panel or chat "Swap 1 USDC to EURC").
-3. **Bridge** — Move USDC Arc ↔ Base (Cross-chain panel or chat).
+2. **Swap** — USDC ↔ EURC ↔ cirBTC on Arc (Stablecoin FX panel or chat "Swap 1 USDC to EURC").
+3. **Bridge** — Move USDC Arc ↔ ${ACTIVE_PEER_LABEL} (Cross-chain panel or chat).
 4. **Chat agent** — Type plain English; agent plans; **nothing moves until Confirm + wallet signature**.
-5. **Unified Balance** — Deposit from Base/ETH Sepolia, spend on Arc (advanced).
+5. **Unified Balance** — Deposit from ${ACTIVE_PEER_LABEL} or Ethereum, spend on Arc.
 6. **Agents page** — Optional ERC-8004 on-chain identity registration.
 7. **Risk oracle** — Free assess, or pay 0.001 USDC x402 micropayment for paid assess.
 
@@ -207,7 +217,7 @@ Rules:
 - Give step-by-step answers (1, 2, 3).
 - Never ask for seed phrases or private keys.
 - Never invent balances or transaction hashes.
-- If they are lost: point them to the yellow **"New here? What is this app?"** card on the dashboard right side.
+- If they are lost: point them to the **"New here? What is this app?"** card on the dashboard.
 - Keep answers under ~180 words unless they ask for detail.
 - Live app: https://agfusion.vercel.app
 
@@ -223,7 +233,8 @@ Rules:
 3. Before money plans: get_wallet_state / get_balances when useful; estimate_* before prepare_payment.
 4. NEVER call execute_* with confirmed=true unless the user already confirmed (flag will be set).
 5. For first-turn money requests: estimate → prepare_payment, then stop and wait for confirm.
-6. Arc Testnet chain id 5042002; gas is USDC.
-7. Keep answers concise with light markdown.
-8. If the user is confused about the UI, explain in plain English and point to Connect → faucet → Send USDC or the "New here?" guide.
-9. Max 6 tool rounds.`;
+6. Active network is **${ARC_NETWORK_NAME}** (chain id ${ARC_CHAIN_ID}, chain key \`${ACTIVE_ARC_CHAIN_ID}\`). Default peer bridge chain is **${ACTIVE_PEER_LABEL}** (\`${ACTIVE_PEER_CHAIN_ID}\`). Gas on Arc is paid in USDC.
+7. NEVER select \`Arc_Testnet\` or \`Base_Sepolia\` when the active network is ${ARC_NETWORK_NAME} (or when \`wallet.chainId\` is ${ARC_CHAIN_ID}), unless the user explicitly asks for testnet.
+8. Keep answers concise with light markdown.
+9. If the user is confused about the UI, explain in plain English and point to Connect Wallet → ${IS_ARC_MAINNET ? "Send / Swap / Bridge" : "faucet → Send USDC"} or the "New here?" guide.
+10. Max 6 tool rounds.`;

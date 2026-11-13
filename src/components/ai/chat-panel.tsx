@@ -27,6 +27,10 @@ import { runAgentStream } from "@/lib/agent-client";
 import { runUnifiedRouteFlow } from "@/blockchain/appkit-service";
 import { requireSafeRecipient } from "@/lib/balances-empty";
 import { sanitizeAgentText } from "@/lib/sanitize";
+import { ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
+
+const ACTIVE_ARC_CHAIN = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
+const ACTIVE_PEER_CHAIN = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
 
 const SUGGESTIONS = [
   "What can you do?",
@@ -167,7 +171,7 @@ export function ChatPanel() {
             addMessage({
               id: uid("msg"),
               role: "assistant",
-              content: `**Agent error:** ${err}\n\nTip: Connect Rabby (or your wallet) first, then try again. For payments, confirm the plan before execute.`,
+              content: `**Agent error:** ${err}\n\nTip: Connect your wallet first, then try again. For payments, confirm the plan before executing.`,
               createdAt: new Date().toISOString(),
             });
           },
@@ -229,17 +233,24 @@ export function ChatPanel() {
       return;
 
     setChatError(null);
-    const effectiveAddress =
-      walletAddress ||
-      (await import("@/sdk/active-wallet")).getActiveWalletMeta()?.address;
+    const activeMeta = (await import("@/sdk/active-wallet")).getActiveWalletMeta();
+    const effectiveAddress = walletAddress || activeMeta?.address;
+    const defaultArcChain =
+      walletChainId === 5042
+        ? "Arc_Mainnet"
+        : walletChainId === 5042002
+          ? "Arc_Testnet"
+          : ACTIVE_ARC_CHAIN;
+    const defaultArcLabel =
+      defaultArcChain === "Arc_Mainnet" ? "Arc Mainnet" : "Arc Testnet";
 
     if (!effectiveAddress && preview.requiresWallet !== false) {
-      setChatError("Connect your wallet, switch to Arc Testnet, then confirm the action again.");
+      setChatError(`Connect your wallet, switch to ${defaultArcLabel}, then confirm the action again.`);
       addMessage({
         id: uid("msg"),
         role: "assistant",
         content:
-          "**Connect your wallet first** (Rabby recommended), switch to **Arc Testnet**, then press **Confirm & open wallet** again.",
+          `**Connect your wallet first**, switch to **${defaultArcLabel}**, then press **Confirm & open wallet** again.`,
         createdAt: new Date().toISOString(),
       });
       return;
@@ -263,7 +274,7 @@ export function ChatPanel() {
           amount,
           tokenIn: preview.token || "USDC",
           tokenOut: preview.tokenOut || "EURC",
-          chain: "Arc_Testnet",
+          chain: preview.toChain || defaultArcChain,
         });
       } else if (preview.type === "send") {
         const recipient = requireSafeRecipient(
@@ -273,7 +284,7 @@ export function ChatPanel() {
         tx = await executeSend({
           amount,
           token: preview.token || "USDC",
-          chain: "Arc_Testnet",
+          chain: preview.toChain || defaultArcChain,
           recipient,
           recipientLabel: preview.recipientLabel,
           preferLive: true,
@@ -281,8 +292,8 @@ export function ChatPanel() {
       } else if (preview.type === "bridge") {
         tx = await executeBridge({
           amount,
-          fromChain: preview.fromChain || "Arc_Testnet",
-          toChain: preview.toChain || "Base_Sepolia",
+          fromChain: preview.fromChain || defaultArcChain,
+          toChain: preview.toChain || ACTIVE_PEER_CHAIN,
           token: "USDC",
           preferLive: true,
         });
@@ -294,12 +305,12 @@ export function ChatPanel() {
         tx = await runUnifiedRouteFlow({
           amount,
           token: "USDC",
-          fromChain: preview.fromChain || "Base_Sepolia",
+          fromChain: preview.fromChain || ACTIVE_PEER_CHAIN,
           recipient,
           recipientLabel: preview.recipientLabel,
         });
       } else if (preview.type === "deploy") {
-        // Real ERC-8004 registration on Arc Testnet — never fabricate a hash.
+        // Real ERC-8004 registration on active Arc network — never fabricate a hash.
         const { registerErc8004Agent } = await import("@/lib/erc8004");
         const result = await registerErc8004Agent();
         tx = {
@@ -308,8 +319,8 @@ export function ChatPanel() {
           status: "success",
           amount: "0",
           token: "USDC",
-          fromChain: "Arc_Testnet",
-          toChain: "Arc_Testnet",
+          fromChain: defaultArcChain,
+          toChain: defaultArcChain,
           feeUsd: 0.05,
           steps: [
             { name: "Prepare Payload", state: "success" },
@@ -362,8 +373,8 @@ export function ChatPanel() {
           err,
           "",
           preview.type === "swap"
-            ? "Swap needs: valid kit key (Save key in Stablecoin FX) · Rabby on Arc · USDC balance from faucet.circle.com"
-            : "Check wallet connection, Arc Testnet, and funds.",
+            ? `Swap needs: ${ARC_NETWORK_NAME} selected in your wallet and sufficient token balance for the trade & USDC gas.`
+            : `Check wallet connection, ${ARC_NETWORK_NAME} network, and funds.`,
         ].join("\n"),
         createdAt: new Date().toISOString(),
       });

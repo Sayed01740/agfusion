@@ -9,6 +9,7 @@ import { HELP_SYSTEM, anthropicMessages } from "@/lib/claude-client";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { sanitizeAgentText } from "@/lib/sanitize";
 import { readLimitedJson } from "@/lib/read-limited-json";
+import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,11 +22,13 @@ const bodySchema = z.object({
 const LOCAL_HELP = [
   "**Quick start:**",
   "",
-  "1. Click **Connect** (top right) → Rabby → **Arc Testnet**",
-  "2. Free test USDC: https://faucet.circle.com (select Arc Testnet)",
-  "3. Right side → **Send USDC** → `0.05` → full `0x` address → Confirm",
+  `1. Click **Connect Wallet** (top right) and select **${ARC_NETWORK_NAME}** (Chain \`${ARC_CHAIN_ID}\`)`,
+  IS_ARC_MAINNET
+    ? "2. Ensure you hold **USDC** on Arc Mainnet (or bridge from Base / Ethereum)"
+    : "2. Free test USDC: https://faucet.circle.com (select Arc Testnet)",
+  "3. Right side → **Send USDC** → amount → full `0x` address → Confirm & sign",
   "",
-  "Open the yellow **“New here? What is this app?”** card for more.",
+  "Open the **“New here? What is this app?”** card for more.",
 ].join("\n");
 
 async function helpWithProvider(
