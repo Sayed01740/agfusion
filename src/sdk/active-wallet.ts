@@ -8,6 +8,7 @@ import type { DiscoveredWallet, InjectedProvider } from "@/sdk/wallet-adapter";
 
 const STORAGE_KEY = "agfusion_active_wallet_v1";
 const CIRCLE_META_KEY = "agfusion_circle_wallet_meta_v1";
+const DISCONNECT_FLAG_KEY = "agfusion_wallet_disconnected_v1";
 
 type WalletRpcConfig = {
   name: string;
@@ -199,11 +200,39 @@ function wrapWalletRpcGuard(
   } as InjectedProvider;
 }
 
+export function isWalletManuallyDisconnected(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      localStorage.getItem(DISCONNECT_FLAG_KEY) === "1" ||
+      sessionStorage.getItem(DISCONNECT_FLAG_KEY) === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function setWalletManuallyDisconnected(disconnected: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (disconnected) {
+      localStorage.setItem(DISCONNECT_FLAG_KEY, "1");
+      sessionStorage.setItem(DISCONNECT_FLAG_KEY, "1");
+    } else {
+      localStorage.removeItem(DISCONNECT_FLAG_KEY);
+      sessionStorage.removeItem(DISCONNECT_FLAG_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function setActiveWallet(
   wallet: DiscoveredWallet,
   address?: string,
   smartAccountAddress?: string,
 ): void {
+  setWalletManuallyDisconnected(false);
   // Selecting an injected EVM wallet explicitly ends the Circle selection.
   clearCircleSelectionMarker();
   const meta: ActiveWalletMeta = {
@@ -219,12 +248,15 @@ export function setActiveWallet(
 }
 
 export function setActiveProvider(provider: InjectedProvider, meta: ActiveWalletMeta): void {
+  setWalletManuallyDisconnected(false);
   activeProvider = wrapWalletRpcGuard(provider, meta);
   activeMeta = meta;
   saveMeta(meta);
 }
 
 export function clearActiveWallet(): void {
+  setWalletManuallyDisconnected(true);
+  clearCircleSelectionMarker();
   activeProvider = null;
   activeMeta = null;
   saveMeta(null);
@@ -267,6 +299,7 @@ async function restoreCircleActiveWallet(): Promise<{ provider: InjectedProvider
 export async function resolveActiveProvider(
   discover: () => Promise<DiscoveredWallet[]>,
 ): Promise<{ provider: InjectedProvider; meta: ActiveWalletMeta } | null> {
+  if (isWalletManuallyDisconnected()) return null;
   if (activeProvider && activeMeta) return { provider: activeProvider, meta: activeMeta };
 
   const meta = getActiveWalletMeta();

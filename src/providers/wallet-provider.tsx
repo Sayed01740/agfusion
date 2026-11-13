@@ -12,7 +12,7 @@ import { formatEther, type Address } from "viem";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
 import {
   ARC_CHAIN_ID,
-  arcTestnet,
+  ARC_NETWORK_NAME,
   getArcNetworkMeta,
   type ArcNetworkMeta,
 } from "@/lib/arc-chain";
@@ -31,7 +31,9 @@ import {
 import {
   getActiveProvider,
   getActiveWalletMeta,
+  isWalletManuallyDisconnected,
   setActiveProvider,
+  setWalletManuallyDisconnected,
 } from "@/sdk/active-wallet";
 import { usePilotStore } from "@/store/pilot-store";
 import { isAppKitInstalled } from "@/sdk/appkit-client";
@@ -103,6 +105,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     isAppKitInstalled().then(setAppKitReady);
     const storedName = getStoredWalletName();
     if (storedName) setWalletName(storedName);
+
+    // If the user explicitly clicked Disconnect, never auto-reconnect on reload.
+    if (isWalletManuallyDisconnected()) {
+      setWallet(null, null);
+      setLiveBalance(null);
+      setAuthLocal(false);
+      setAuthenticated(false);
+      setWalletName(null);
+      return;
+    }
 
     // Restore a persisted Circle Email Wallet session (Phase 4)
     void import("@/sdk/circle-pw")
@@ -296,7 +308,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         const walletClient = createWalletClient({
           account: address as Address,
-          chain: arcTestnet,
+          chain: getArcNetworkMeta(usePilotStore.getState().walletChainId).chain,
           transport: custom(p as never),
         });
 
@@ -371,8 +383,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         attachListeners(agentProvider, accounts[0]);
         alert(
           "Auto-Agent enabled successfully! Your autonomous smart account is ready.\n\n" +
-          "IMPORTANT: Since the agent signs automatically without Rabby, it has its own unique address. " +
-          "You must transfer some USDC on Arc Testnet to this new address before the Agent can swap for you."
+          "IMPORTANT: Since the agent signs automatically without a wallet prompt, it has its own unique address. " +
+          `You must transfer some USDC on ${ARC_NETWORK_NAME} to this new address before the Agent can swap for you.`
         );
       }
     } catch (e: any) {
@@ -482,6 +494,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const connectCircleWallet = useCallback(
     (circleProvider: InjectedProvider, address: string) => {
+      setWalletManuallyDisconnected(false);
       setProvider(circleProvider);
       setWallet(address, ARC_CHAIN_ID);
       setWalletName("Circle Email Wallet");

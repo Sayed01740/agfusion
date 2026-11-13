@@ -587,6 +587,12 @@ export async function switchToChainId(
   provider: InjectedProvider,
   appKitChain: string,
 ): Promise<number> {
+  if (appKitChain === "Arc_Mainnet") {
+    return switchToArcMainnet(provider);
+  }
+  if (appKitChain === "Arc") {
+    return switchToArcNetwork(provider, ARC_CHAIN_ID as 5042 | 5042002);
+  }
   if (appKitChain === "Arc_Testnet") {
     return switchToArcTestnet(provider);
   }
@@ -673,7 +679,7 @@ export async function connectWallet(
   // Sticky selection BEFORE any later getInjectedProvider() calls
   setActiveWallet(wallet, address);
 
-  await switchToArcTestnet(provider);
+  await switchToArcNetwork(provider, ARC_CHAIN_ID as 5042 | 5042002);
 
   let chainId = ARC_CHAIN_ID;
   try {
