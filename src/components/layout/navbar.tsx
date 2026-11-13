@@ -79,7 +79,7 @@ export function Navbar() {
   }
 
   return <>
-    <header className="app-navbar sticky top-0 z-50 border-b border-white/[0.08] bg-[#070a0e]/80 text-foreground shadow-2xl backdrop-blur-3xl transition-colors">
+    <header className="app-navbar sticky top-0 z-50 border-b border-white/[0.08] bg-[#070a0e]/90 text-foreground shadow-xl backdrop-blur-md transition-colors">
       <div className="mx-auto grid min-h-16 w-full max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 md:flex md:justify-between sm:px-6">
         <Link href="/" className={cn("group flex min-h-11 min-w-11 items-center gap-2.5 justify-self-start rounded-lg", focusClass)} aria-label="AGFusion home" aria-current={pathname === "/" ? "page" : undefined} onClick={() => setOpenMenu(null)}>
           <BrandLogo variant="icon" height={38} priority className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />

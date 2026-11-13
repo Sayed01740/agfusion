@@ -266,7 +266,7 @@ export function BridgePanelBody() {
           </div>
           <Field label="To network">
             <select
-              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
+              className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground min-w-0 focus:border-accent focus:outline-none"
               value={to}
               disabled={busy}
               onChange={(e) => setTo(e.target.value as ChainId)}
@@ -279,23 +279,23 @@ export function BridgePanelBody() {
             </select>
           </Field>
         </div>
-        <div className="rounded-xl border border-white/10 bg-slate-950/40 p-2 space-y-1.5">
-          <label className="text-[11px] font-medium text-slate-300">Bridge Execution Mode</label>
+        <div className="rounded-xl border border-border bg-muted/40 p-2.5 space-y-1.5">
+          <label className="text-[11px] font-medium text-muted-foreground">Bridge Execution Mode</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={busy}
               onClick={() => setBridgeMode("fast-direct")}
               className={cn(
-                "rounded-lg p-2 text-left border transition-all text-xs",
+                "rounded-lg p-2 text-left border transition-colors text-xs",
                 bridgeMode === "fast-direct"
-                  ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
-                  : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/15",
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border bg-card/70 text-muted-foreground hover:border-border/80 hover:text-foreground",
               )}
             >
-              <div className="font-semibold text-slate-200">⚡ Fast Direct</div>
-              <div className="text-[10px] text-emerald-400 font-medium">0.00 USDC Fee</div>
-              <div className="text-[9px] text-slate-400 mt-0.5">Self-mint on dest</div>
+              <div className="font-semibold text-foreground">⚡ Fast Direct</div>
+              <div className="text-[10px] text-accent font-medium">0.00 USDC Fee</div>
+              <div className="text-[9px] text-muted-foreground mt-0.5">Self-mint on dest</div>
             </button>
 
             <button
@@ -303,15 +303,15 @@ export function BridgePanelBody() {
               disabled={busy}
               onClick={() => setBridgeMode("auto-relayer")}
               className={cn(
-                "rounded-lg p-2 text-left border transition-all text-xs",
+                "rounded-lg p-2 text-left border transition-colors text-xs",
                 bridgeMode === "auto-relayer"
-                  ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
-                  : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/15",
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border bg-card/70 text-muted-foreground hover:border-border/80 hover:text-foreground",
               )}
             >
-              <div className="font-semibold text-slate-200">🤖 Auto-Relayer</div>
-              <div className="text-[10px] text-cyan-300 font-medium">Low Tier Fee</div>
-              <div className="text-[9px] text-slate-400 mt-0.5">Gasless dest mint</div>
+              <div className="font-semibold text-foreground">🤖 Auto-Relayer</div>
+              <div className="text-[10px] text-accent font-medium">Low Tier Fee</div>
+              <div className="text-[9px] text-muted-foreground mt-0.5">Gasless dest mint</div>
             </button>
           </div>
         </div>

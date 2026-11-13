@@ -427,10 +427,10 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-[65vh] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl glass-cockpit transition-all duration-500 motion-reduce:transition-none ${
+      className={`flex h-[65vh] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl glass-cockpit transition-colors duration-200 motion-reduce:transition-none ${
         isThinking
-          ? "ring-1 ring-accent/60 shadow-[0_0_35px_-5px_rgba(16,185,129,0.2)]"
-          : "border border-border/80 shadow-xl sm:shadow-2xl hover:border-accent/30"
+          ? "ring-1 ring-accent/60 shadow-[0_0_24px_-6px_rgba(5,242,155,0.2)]"
+          : "border border-border/80 shadow-xl sm:shadow-2xl"
       }`}
     >
 
@@ -439,7 +439,7 @@ export function ChatPanel() {
       </p>
       <p role="alert" aria-atomic="true" className="sr-only">{chatError}</p>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card/80 px-4 py-3 sm:px-5 sm:py-3.5 backdrop-blur-md relative z-10 shrink-0">
+      <div className="flex items-center justify-between border-b border-border bg-card/95 px-4 py-3 sm:px-5 sm:py-3.5 relative z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 ring-1 ring-accent/30">
             <Bot className="h-4 w-4 text-accent" />
@@ -498,7 +498,7 @@ export function ChatPanel() {
                     : "max-w-[95%] min-w-0 rounded-2xl rounded-bl-md bg-card border border-border px-4 py-3 text-sm space-y-3 text-foreground shadow-md"
                 }
               >
-                <div className="text-foreground break-words">{renderMarkdownish(m.content)}</div>
+                <div className="text-foreground break-words [overflow-wrap:anywhere]">{renderMarkdownish(m.content)}</div>
 
                 {m.toolTrace && m.toolTrace.length > 0 && (
                   <div className="rounded-xl border border-border bg-background p-3 space-y-1.5 shadow-[inset_0_1px_4px_rgba(0,0,0,0.5)]">

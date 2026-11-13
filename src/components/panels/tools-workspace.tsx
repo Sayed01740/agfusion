@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
+  ArrowLeftRight,
   ChevronDown,
   MoreHorizontal,
   QrCode,
@@ -44,7 +45,7 @@ const TABS: Array<{
     id: "swap",
     label: "Swap",
     short: "Exchange",
-    icon: Waypoints,
+    icon: ArrowLeftRight,
   },
   {
     id: "bridge",
@@ -143,7 +144,7 @@ export function ToolsWorkspace({
           </h2>
         </div>
 
-        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-3.5 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted/80 p-1.5 ring-1 ring-border/80 backdrop-blur-md">
+        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-3.5 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted/90 p-1.5 ring-1 ring-border/80">
           {TABS.map((t, index) => {
             const Icon = t.icon;
             const on = tab === t.id;

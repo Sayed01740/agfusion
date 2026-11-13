@@ -114,7 +114,7 @@ export default function DocsPage() {
         {/* Documentation Content Body */}
         <div className="space-y-12 lg:col-span-3 text-slate-200">
           {/* Section 1: Overview */}
-          <section id="overview" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="overview" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <BookOpen className="h-4 w-4" />
@@ -143,7 +143,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 2: Arc Network & USDC Gas */}
-          <section id="arc-network" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="arc-network" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <Fuel className="h-4 w-4" />
@@ -181,7 +181,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 3: Core Engine */}
-          <section id="core-engine" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="core-engine" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
                 <Layers className="h-4 w-4" />
@@ -217,7 +217,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 4: Batch Disperse & CSV */}
-          <section id="batch-payroll" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="batch-payroll" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <FileSpreadsheet className="h-4 w-4" />
@@ -249,7 +249,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 5: Escrow */}
-          <section id="escrow" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="escrow" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <Shield className="h-4 w-4" />
@@ -280,7 +280,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 6: Session Keys */}
-          <section id="session-keys" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="session-keys" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400">
                 <KeyRound className="h-4 w-4" />
@@ -299,7 +299,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 7: x402 Micropayments */}
-          <section id="x402" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="x402" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
                 <Cpu className="h-4 w-4" />
@@ -319,7 +319,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 8: MCP Server */}
-          <section id="mcp-server" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="mcp-server" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <Terminal className="h-4 w-4" />
@@ -363,7 +363,7 @@ export default function DocsPage() {
           </section>
 
           {/* Section 9: Verified Contracts */}
-          <section id="contracts" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/80 p-6 sm:p-8 backdrop-blur-xl">
+          <section id="contracts" className="rounded-3xl border border-white/[0.08] bg-[#0b1017]/95 p-4 sm:p-7">
             <div className="flex items-center gap-2.5 mb-4">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <Code2 className="h-4 w-4" />

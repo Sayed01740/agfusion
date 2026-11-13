@@ -146,9 +146,6 @@ export default function DashboardPage() {
     <div className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-background px-0 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-foreground sm:px-5 sm:py-6 lg:px-8 lg:py-8">
       <header className="mb-3.5 sm:mb-6">
         <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border glass-cockpit p-3.5 sm:p-6 lg:p-8 relative shadow-2xl">
-          {/* Subtle ambient lighting inside card */}
-          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent/10 blur-[80px]" />
-          
           <div className="flex min-w-0 flex-col gap-4 sm:gap-7 relative z-[1]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div className="min-w-0 max-w-3xl">
@@ -243,7 +240,7 @@ export default function DashboardPage() {
         )}
       </header>
 
-      <div role="group" aria-label="Dashboard view" className="sticky top-[4.25rem] z-30 mb-3.5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl lg:hidden">
+      <div role="group" aria-label="Dashboard view" className="sticky top-[4.15rem] z-30 mb-3.5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card/95 p-1.5 shadow-lg lg:hidden">
         <button
           type="button"
           aria-pressed={mobileTab === "chat"}
@@ -278,7 +275,7 @@ export default function DashboardPage() {
 
 
       <section className="grid w-full min-w-0 gap-4 pb-2 sm:gap-5 lg:grid-cols-12">
-        <div id="dashboard-chat" className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8", mobileTab !== "chat" && "hidden lg:block")}><div className="[&>div]:!h-[clamp(420px,calc(100dvh-260px),680px)] [&>div]:!min-h-[420px] sm:[&>div]:!h-full sm:[&>div]:!min-h-[520px]"><ChatPanel /></div></div>
+        <div id="dashboard-chat" className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8", mobileTab !== "chat" && "hidden lg:block")}><div className="[&>div]:!h-[clamp(390px,calc(100dvh-14.5rem),640px)] [&>div]:!min-h-[390px] lg:[&>div]:!h-[calc(100dvh-11rem)] lg:[&>div]:!min-h-[540px] lg:[&>div]:!max-h-[760px]"><ChatPanel /></div></div>
         <div id="dashboard-tools" className={cn("min-w-0 w-full space-y-4 lg:col-span-5 xl:col-span-4", mobileTab !== "tools" && "hidden lg:block")}>
           <UserGuideCard open={guideOpen} onOpenChange={setGuideOpen} />
           <div className="min-w-0 w-full overflow-hidden"><ToolsWorkspace defaultTab="send" /></div>

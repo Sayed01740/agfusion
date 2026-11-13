@@ -60,12 +60,12 @@ body {
 
 /* Header styling */
 .ag-premium-shell .app-navbar {
-  background: rgba(7, 10, 14, 0.92);
+  background: rgba(7, 10, 14, 0.94);
   color: var(--ag-text);
   border-color: var(--ag-border);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Explorer & hash links */
@@ -88,9 +88,6 @@ body {
   .ag-premium-shell select {
     min-height: 44px;
     font-size: 16px !important;
-  }
-  .ag-premium-shell button {
-    min-height: 44px;
   }
   .ag-premium-shell nav.fixed.bottom-0 {
     left: 8px;
