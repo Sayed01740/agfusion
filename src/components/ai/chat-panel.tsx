@@ -29,6 +29,7 @@ import { requireSafeRecipient } from "@/lib/balances-empty";
 import { sanitizeAgentText } from "@/lib/sanitize";
 import { ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { publishSwapHandoff } from "@/lib/swap-handoff";
+import { runMainnetUniswapSwap } from "@/blockchain/uniswap-mainnet-flow";
 
 const ACTIVE_ARC_CHAIN = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
 const ACTIVE_PEER_CHAIN = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
@@ -284,34 +285,37 @@ export function ChatPanel() {
 
       if (preview.type === "swap") {
         if (defaultArcChain === "Arc_Mainnet") {
-          // Mainnet swaps run through the Uniswap/Permit2 flow in the Swap tab
-          // (approve → sign → broadcast). Hand the planned swap over and auto-quote.
-          publishSwapHandoff({
+          // Mainnet: run the full Uniswap/Permit2 flow right here — the wallet
+          // prompts (approve → sign → send) pop up automatically, no extra clicks.
+          try {
+            tx = await runMainnetUniswapSwap({
+              amount,
+              tokenIn: preview.token || "USDC",
+              tokenOut: preview.tokenOut || "EURC",
+              walletAddress: effectiveAddress as string,
+              onStatus: (m) => setStatusLine(m),
+            });
+          } catch (swapErr) {
+            // Fall back to the Swap tab (pre-filled + live quote) so the user can finish manually.
+            publishSwapHandoff({
+              amount,
+              tokenIn: preview.token || "USDC",
+              tokenOut: preview.tokenOut || "EURC",
+              autoQuote: true,
+            });
+            const msg = swapErr instanceof Error ? swapErr.message : String(swapErr);
+            throw new Error(
+              `${msg}\n\nI also opened the Swap tab with your swap pre-filled so you can retry there.`,
+            );
+          }
+        } else {
+          tx = await executeSwap({
             amount,
             tokenIn: preview.token || "USDC",
             tokenOut: preview.tokenOut || "EURC",
-            autoQuote: true,
+            chain: defaultArcChain,
           });
-          addMessage({
-            id: uid("msg"),
-            role: "assistant",
-            content: [
-              `🔁 **Swap ready on Arc Mainnet**`,
-              "",
-              `${amount} ${preview.token || "USDC"} → ${preview.tokenOut || "EURC"}`,
-              "",
-              "I opened the **Swap** tab and loaded a live Uniswap quote. Review it and press the swap button — the app will guide you through approve → sign → send in your wallet.",
-            ].join("\n"),
-            createdAt: new Date().toISOString(),
-          });
-          return;
         }
-        tx = await executeSwap({
-          amount,
-          tokenIn: preview.token || "USDC",
-          tokenOut: preview.tokenOut || "EURC",
-          chain: defaultArcChain,
-        });
       } else if (preview.type === "send") {
         const recipient = requireSafeRecipient(
           preview.recipient,
