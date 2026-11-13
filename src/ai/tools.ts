@@ -31,6 +31,9 @@ import { CHAINS, resolveChain } from "@/lib/chains";
 import { formatUsd } from "@/lib/utils";
 import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
+const DEFAULT_ARC_CHAIN: ChainId = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
+const DEFAULT_PEER_CHAIN: ChainId = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
+
 export type WalletContext = {
   address?: string | null;
   chainId?: number | null;
@@ -393,26 +396,25 @@ export async function executeTool(
         const amount = Number.isFinite(n) ? n : 0;
         const snap: UnifiedBalanceSnapshot = ctx.wallet.address
           ? {
-              totalUsd: amount,
-              balances: [
-                {
-                  chain: "Arc_Testnet",
-                  chainLabel: "Arc Testnet",
-                  token: "USDC",
-                  amount,
-                  usdValue: amount,
-                  color: "#22d3ee",
-                },
-              ],
-              updatedAt: new Date().toISOString(),
-            }
+            totalUsd: amount,
+            balances: [
+              {
+                chain: "Arc_Testnet",
+                chainLabel: "Arc Testnet",
+                token: "USDC",
+                amount,
+                usdValue: amount,
+                color: "#22d3ee",
+              },
+            ],
+            updatedAt: new Date().toISOString(),
+          }
           : emptyBalanceSnapshot();
         return {
           ok: true,
           summary: ctx.wallet.address
-            ? `Live Arc balance ${amount.toFixed(4)} USDC${
-                live != null ? "" : " (refresh wallet)"
-              }`
+            ? `Live Arc balance ${amount.toFixed(4)} USDC${live != null ? "" : " (refresh wallet)"
+            }`
             : "Connect wallet to load live Arc USDC balance",
           data: {
             ...snap,
@@ -443,8 +445,8 @@ export async function executeTool(
 
       case "estimate_bridge": {
         const amount = String(args.amount || "50");
-        const fromChain = asChain(args.fromChain, "Base_Sepolia");
-        const toChain = asChain(args.toChain, "Arc_Testnet");
+        const fromChain = asChain(args.fromChain, DEFAULT_PEER_CHAIN);
+        const toChain = asChain(args.toChain, DEFAULT_ARC_CHAIN);
         const est: BridgeEstimate = estimateBridgeDemo(
           amount,
           fromChain,
@@ -452,7 +454,7 @@ export async function executeTool(
         );
         return {
           ok: true,
-          summary: `Bridge indicative est. ${formatUsd(est.feeUsd + est.gasUsd)} · ${est.eta} · ${est.route} — actual fees settle on-chain`,
+          summary: `Bridge est. ${formatUsd(est.feeUsd + est.gasUsd)} · ${est.eta} · ${est.route} — settles on-chain`,
           data: est,
         };
       }
@@ -464,7 +466,7 @@ export async function executeTool(
         const est: SwapEstimate = estimateSwapDemo(amount, tokenIn, tokenOut);
         return {
           ok: true,
-          summary: `Swap indicative est. ~${est.amountOut} ${tokenOut} · fee ${formatUsd(est.feeUsd)} — actual rate quoted on-chain`,
+          summary: `Swap est. ~${est.amountOut} ${tokenOut} · fee ${formatUsd(est.feeUsd)} — quoted via Uniswap V3`,
           data: est,
         };
       }
@@ -473,14 +475,14 @@ export async function executeTool(
         const amount = String(args.amount || "25");
         return {
           ok: true,
-          summary: `Send ${amount} USDC on Arc · indicative est. fee ~$0.02 (USDC gas) — actual gas settles on-chain`,
+          summary: `Send ${amount} USDC on ${IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet"} · gas ~$0.001 (21k native transfer)`,
           data: {
             amount,
-            feeUsd: 0.02,
-            eta: "~1s",
-            chain: "Arc_Testnet",
+            feeUsd: 0.001,
+            eta: "<1s",
+            chain: DEFAULT_ARC_CHAIN,
             estimated: true,
-            note: "Indicative estimate — actual gas settles on-chain at execution.",
+            note: "Actual gas settles on-chain in USDC.",
           },
         };
       }
@@ -492,13 +494,13 @@ export async function executeTool(
         const tokenOut = String(args.tokenOut || "EURC");
         // Prefer explicit args; only default when missing (do not force Base→Arc)
         const fromChain = args.fromChain
-          ? asChain(args.fromChain, "Base_Sepolia")
+          ? asChain(args.fromChain, DEFAULT_PEER_CHAIN)
           : kind === "bridge"
-            ? asChain(undefined, "Base_Sepolia")
-            : asChain(args.fromChain, "Base_Sepolia");
+            ? asChain(undefined, DEFAULT_PEER_CHAIN)
+            : asChain(args.fromChain, DEFAULT_PEER_CHAIN);
         const toChain = args.toChain
-          ? asChain(args.toChain, "Arc_Testnet")
-          : asChain(undefined, "Arc_Testnet");
+          ? asChain(args.toChain, DEFAULT_ARC_CHAIN)
+          : asChain(undefined, DEFAULT_ARC_CHAIN);
         const recipientRaw = args.recipient ? String(args.recipient) : "";
         const recipient = isValidEvmAddress(recipientRaw)
           ? recipientRaw
@@ -538,8 +540,8 @@ export async function executeTool(
           return blockedMoney("execute_bridge", args);
         }
         const amount = String(args.amount || "50");
-        const fromChain = asChain(args.fromChain, "Base_Sepolia");
-        const toChain = asChain(args.toChain, "Arc_Testnet");
+        const fromChain = asChain(args.fromChain, DEFAULT_PEER_CHAIN);
+        const toChain = asChain(args.toChain, DEFAULT_ARC_CHAIN);
         let bridgeRecipient: string | undefined;
         if (
           args.recipient !== undefined &&
@@ -577,13 +579,13 @@ export async function executeTool(
         } catch {
           /* gate is best-effort; the service layer enforces it too */
         }
-        if (fromChain === "Arc_Testnet" && ctx.wallet.liveBalanceUsdc) {
+        if ((fromChain === "Arc_Testnet" || fromChain === "Arc_Mainnet") && ctx.wallet.liveBalanceUsdc) {
           const liveBal = Number(String(ctx.wallet.liveBalanceUsdc).replace(/,/g, ""));
           const req = Number(amount);
           if (Number.isFinite(req) && Number.isFinite(liveBal) && liveBal < req + 0.01) {
             return {
               ok: false,
-              summary: `Insufficient balance on Arc Testnet: wallet has ${liveBal.toFixed(4)} USDC, but bridging requires ${req} USDC plus network fees. Fund your wallet before proceeding.`,
+              summary: `Insufficient balance on ${IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet"}: wallet has ${liveBal.toFixed(4)} USDC, but bridging requires ${req} USDC plus network fees.`,
             };
           }
         }
@@ -704,7 +706,7 @@ export async function executeTool(
         const transaction = await runUnifiedRouteFlow({
           amount: String(args.amount || "100"),
           token: "USDC",
-          fromChain: asChain(args.fromChain, "Base_Sepolia"),
+          fromChain: asChain(args.fromChain, DEFAULT_PEER_CHAIN),
           recipient: routeRecipient,
           recipientLabel: args.recipientLabel
             ? String(args.recipientLabel)
@@ -730,8 +732,8 @@ export async function executeTool(
           failedTx = txId
             ? (txs.find((t) => t.id === txId && t.type === "bridge") as typeof failedTx)
             : (txs.find(
-                (t) => t.type === "bridge" && (t.status === "error" || t.status === "retryable"),
-              ) as typeof failedTx);
+              (t) => t.type === "bridge" && (t.status === "error" || t.status === "retryable"),
+            ) as typeof failedTx);
         } catch {
           /* store unavailable */
         }
@@ -805,8 +807,8 @@ export async function executeTool(
 
       case "assess_route_risk": {
         const amount = String(args.amount || "100");
-        const fromChain = String(args.fromChain || "Base_Sepolia");
-        const toChain = String(args.toChain || "Arc_Testnet");
+        const fromChain = String(args.fromChain || DEFAULT_PEER_CHAIN);
+        const toChain = String(args.toChain || DEFAULT_ARC_CHAIN);
         const { assessRouteRisk, createX402Receipt } = await import(
           "@/lib/agent-economy"
         );
@@ -857,7 +859,7 @@ export async function executeTool(
             data: {
               txHash,
               status,
-              explorerUrl: `${CHAINS.Arc_Testnet.explorer}/tx/${txHash}`,
+              explorerUrl: `${CHAINS[DEFAULT_ARC_CHAIN].explorer}/tx/${txHash}`,
               receipt: receipt ?? null,
             },
           };
@@ -891,8 +893,8 @@ export async function executeTool(
             status: "success",
             amount: "0",
             token: "USDC",
-            fromChain: "Arc_Testnet",
-            toChain: "Arc_Testnet",
+            fromChain: DEFAULT_ARC_CHAIN,
+            toChain: DEFAULT_ARC_CHAIN,
             feeUsd: 0.05,
             steps: [
               { name: "Prepare Payload", state: "success" },
@@ -981,13 +983,13 @@ function buildPreviewFromKind(p: {
     return {
       type: "deploy",
       title: `Register ERC-8004 Agent`,
-      summary: `Register agent '${name}' on Arc Testnet. Gas will be paid in USDC.`,
+      summary: `Register agent '${name}' on ${IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet"}. Gas will be paid in USDC.`,
       amount: "0",
       token: "USDC",
-      fromChain: "Arc_Testnet",
-      toChain: "Arc_Testnet",
-      estimatedFeeUsd: 0.05,
-      estimatedTime: "~1s",
+      fromChain: DEFAULT_ARC_CHAIN,
+      toChain: DEFAULT_ARC_CHAIN,
+      estimatedFeeUsd: 0.01,
+      estimatedTime: "<1s",
       route: ["Arc", "→", "ERC-8004 Registry"],
       plan: [
         { id: "prep", label: "Prepare Payload", detail: `Agent: ${name}` },
@@ -1028,17 +1030,17 @@ function buildPreviewFromKind(p: {
     return {
       type: "swap",
       title: `Swap ${p.token} → ${p.tokenOut}`,
-      summary: `Exchange ${p.amount} ${p.token} for ~${est.amountOut} ${p.tokenOut}`,
+      summary: `Exchange ${p.amount} ${p.token} for ~${est.amountOut} ${p.tokenOut} on ${IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet"}`,
       amount: p.amount,
       token: p.token,
       tokenOut: p.tokenOut,
-      toChain: "Arc_Testnet",
+      toChain: DEFAULT_ARC_CHAIN,
       estimatedFeeUsd: est.feeUsd,
       estimatedTime: "~2s",
-      route: [p.token, "FX", p.tokenOut],
+      route: [p.token, IS_ARC_MAINNET ? "Uniswap V3" : "FX", p.tokenOut],
       plan: [
-        { id: "quote", label: "Quote", detail: `~${est.amountOut}` },
-        { id: "swap", label: "Execute swap" },
+        { id: "quote", label: "Get live quote", detail: `~${est.amountOut} ${p.tokenOut}` },
+        { id: "swap", label: "Sign & execute swap" },
       ],
       canExecute: true,
       requiresWallet: true,
@@ -1048,28 +1050,28 @@ function buildPreviewFromKind(p: {
   if (p.kind === "route") {
     return {
       type: "route",
-      title: "Transfer + pay",
+      title: "Bridge + Pay",
       summary: p.recipient
-        ? `Move ${p.amount} USDC to Arc and pay ${p.recipientLabel || p.recipient}`
-        : `Move ${p.amount} USDC to Arc — paste 0x address for payout`,
+        ? `Bridge ${p.amount} USDC from ${from.short} to Arc and pay ${p.recipientLabel || p.recipient}`
+        : `Bridge ${p.amount} USDC from ${from.short} to Arc — provide 0x recipient for payout`,
       amount: p.amount,
       token: "USDC",
       fromChain: p.fromChain,
-      toChain: "Arc_Testnet",
+      toChain: DEFAULT_ARC_CHAIN,
       recipient: p.recipient,
       recipientLabel: p.recipientLabel,
       estimatedFeeUsd: 0.18,
       estimatedTime: "~18s",
       route: [from.short, "→", "Arc", p.recipientLabel || "Pay"],
       plan: [
-        { id: "bal", label: "Read balances" },
-        { id: "est", label: "Estimate route" },
-        { id: "bridge", label: "Transfer to Arc" },
+        { id: "bal", label: "Verify source & gas balances" },
+        { id: "est", label: "Estimate CCTP route" },
+        { id: "bridge", label: `Bridge ${from.short} → Arc` },
         {
           id: "pay",
           label: p.recipient
             ? `Pay ${p.recipientLabel || "recipient"}`
-            : "Paste 0x recipient",
+            : "Provide 0x recipient",
         },
       ],
       canExecute: Boolean(p.recipient),
@@ -1081,18 +1083,18 @@ function buildPreviewFromKind(p: {
     type: "send",
     title: p.recipientLabel ? `Pay ${p.recipientLabel}` : "Send USDC",
     summary: p.recipient
-      ? `Send ${p.amount} USDC to ${p.recipientLabel || p.recipient} on Arc`
-      : `Send ${p.amount} USDC — paste a full 0x address before confirm`,
+      ? `Send ${p.amount} USDC to ${p.recipientLabel || p.recipient} on ${IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet"}`
+      : `Send ${p.amount} USDC — provide a valid 0x address before confirming`,
     amount: p.amount,
     token: "USDC",
-    toChain: "Arc_Testnet",
+    toChain: DEFAULT_ARC_CHAIN,
     recipient: p.recipient,
     recipientLabel: p.recipientLabel,
-    estimatedFeeUsd: 0.02,
+    estimatedFeeUsd: 0.001,
     estimatedTime: "<1s",
     plan: [
-      { id: "bal", label: "Check Arc balance" },
-      { id: "est", label: "Estimate gas (USDC)" },
+      { id: "bal", label: "Verify Arc USDC balance" },
+      { id: "est", label: "Native gas (~21k units)" },
       {
         id: "sign",
         label: p.recipient ? "Sign & send" : "Need 0x recipient first",

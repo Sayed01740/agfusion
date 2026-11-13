@@ -4,19 +4,27 @@ import { IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 const TOKENS: StableToken[] = ["USDC", "EURC", "USDT", "USDe", "DAI", "PYUSD"];
 
+function normalizeTokenSymbol(raw: string): StableToken {
+  const upper = raw.toUpperCase();
+  if (upper === "CIRBTC") return "cirBTC" as unknown as StableToken;
+  if (upper === "USDE") return "USDe";
+  return upper as StableToken;
+}
+
 function extractAmount(text: string): string | undefined {
   const m =
     text.match(/\$\s*([\d,]+(?:\.\d+)?)/i) ||
-    text.match(/([\d,]+(?:\.\d+)?)\s*(?:usdc|eurc|usdt|usd|dollars?)/i) ||
+    text.match(/([\d,]+(?:\.\d+)?)\s*(?:usdc|eurc|cirbtc|usdt|usd|dollars?)/i) ||
     text.match(/\b([\d,]+(?:\.\d+)?)\b/);
   if (!m) return undefined;
   return m[1].replace(/,/g, "");
 }
 
 function extractToken(text: string, fallback: StableToken = "USDC"): StableToken {
+  if (/\bcirbtc\b/i.test(text)) return "cirBTC" as unknown as StableToken;
   const upper = text.toUpperCase();
   for (const t of TOKENS) {
-    if (upper.includes(t)) return t;
+    if (upper.includes(t.toUpperCase())) return t;
   }
   if (/\beur\b|euro/i.test(text)) return "EURC";
   return fallback;
@@ -24,12 +32,12 @@ function extractToken(text: string, fallback: StableToken = "USDC"): StableToken
 
 function extractTokensPair(text: string): { token?: StableToken; tokenOut?: StableToken } {
   const swapMatch = text.match(
-    /(USDC|EURC|USDT|USDE|DAI|PYUSD)\s*(?:to|→|->|for)\s*(USDC|EURC|USDT|USDE|DAI|PYUSD)/i,
+    /(USDC|EURC|cirBTC|USDT|USDE|DAI|PYUSD)\s*(?:to|→|->|for)\s*(USDC|EURC|cirBTC|USDT|USDE|DAI|PYUSD)/i,
   );
   if (swapMatch) {
     return {
-      token: swapMatch[1].toUpperCase() as StableToken,
-      tokenOut: swapMatch[2].toUpperCase() as StableToken,
+      token: normalizeTokenSymbol(swapMatch[1]),
+      tokenOut: normalizeTokenSymbol(swapMatch[2]),
     };
   }
   return { token: extractToken(text) };
@@ -92,7 +100,7 @@ function classify(text: string): { type: IntentType; confidence: number } {
   if (/risk|assess route|route risk|oracle|safe to (send|bridge|transfer)/i.test(t)) return { type: "explain", confidence: 0.9 };
   if ((/bridge|move.*(to|onto)|transfer.*(across|cross)/i.test(t) && /pay|send/.test(t)) || /move\s+\$?[\d.]+.*pay/i.test(t) || /and pay\s+\w+/i.test(t)) return { type: "route", confidence: 0.95 };
   if (/\bbridge\b|move funds|move \$|cross-?chain transfer|cross-?chain bridge|transfer.*(base|eth|arc).*arc|transfer.*(arc).*(base|eth)|arc\s*(to|→|->)\s*base|base\s*(to|→|->)\s*arc|(?:move|send)\s+\$?[\d.]+\s*usdc\s+(?:from\s+)?(?:arc|base).*(?:to|→|->)\s*(?:arc|base)|(?:move|send)\s+\$?[\d.]+\s*usdc\s+to\s+(?:arc|base)\s+from\s+(?:arc|base)/i.test(t)) return { type: "bridge", confidence: 0.93 };
-  if (/\bswap\b|convert|exchange|usdc\s*(to|→|->)\s*eurc|eurc\s*(to|→|->)\s*usdc/i.test(t)) return { type: "swap", confidence: 0.93 };
+  if (/\bswap\b|convert|exchange|(?:usdc|eurc|cirbtc)\s*(?:to|→|->|for)\s*(?:usdc|eurc|cirbtc)/i.test(t)) return { type: "swap", confidence: 0.93 };
   if (/cheapest|fastest|payout route|optimize route|best route|routing/i.test(t)) return { type: "route", confidence: 0.9 };
   if (/\bsend\b|\bpay\b|\bpayout\b|transfer \$|invoice|send\s+\d/i.test(t)) return { type: "send", confidence: 0.92 };
   if (/agent|erc-?8004|erc-?8183|reputation|autonomous|payroll|job escrow/i.test(t)) return { type: "agent", confidence: 0.88 };

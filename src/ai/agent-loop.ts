@@ -16,6 +16,17 @@ import type {
   TransactionRecord,
 } from "@/types";
 import { formatUsd, uid } from "@/lib/utils";
+import { IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { CHAINS } from "@/lib/chains";
+
+const DEFAULT_ARC_CHAIN = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
+const DEFAULT_PEER_CHAIN = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
+const NETWORK_LABEL = IS_ARC_MAINNET ? "Arc Mainnet" : "Arc Testnet";
+
+function chainDisplay(id?: string): string {
+  if (!id) return NETWORK_LABEL;
+  return CHAINS[id as keyof typeof CHAINS]?.label || id.replace(/_/g, " ");
+}
 
 export type AgentEvent =
   | { type: "status"; message: string }
@@ -117,23 +128,25 @@ export async function runAgentLoop(
     )
   ) {
     const amount = intent.amount || "100";
-    const fromChain = intent.fromChain || "Base_Sepolia";
-    const toChain = intent.toChain || "Arc_Testnet";
+    const fromChain = intent.fromChain || DEFAULT_PEER_CHAIN;
+    const toChain = intent.toChain || DEFAULT_ARC_CHAIN;
     const risk = await emitTool("assess_route_risk", {
       amount,
       fromChain,
       toChain,
     });
     const content = [
-      "**Route risk assessment** (x402-style oracle)",
+      "**Route Risk Assessment** (x402 Oracle)",
       "",
-      risk.summary,
+      `• **Route:** ${chainDisplay(fromChain)} → ${chainDisplay(toChain)}`,
+      `• **Amount:** ${amount} USDC`,
+      `• **Assessment:** ${risk.summary}`,
       "",
       wallet.address
         ? `Wallet connected: \`${wallet.address.slice(0, 10)}…\``
-        : "Tip: connect Rabby to execute payments after reviewing risk.",
+        : "Connect a wallet (top right) to execute transfers after reviewing route risk.",
       "",
-      "Next: **Send**, **Bridge**, or **Swap** when you’re ready.",
+      "Ready when you are — ask me to **Send**, **Bridge**, or **Swap**.",
     ].join("\n");
     return finish(content, "explain", { toolTrace, onEvent });
   }
@@ -143,17 +156,17 @@ export async function runAgentLoop(
       const bal = await emitTool("get_balances", {});
       const walletState = toolTrace.find((t) => t.name === "get_wallet_state");
       const content = [
-        "**Your balances**",
+        `**Portfolio & Balances (${NETWORK_LABEL})**`,
         "",
         bal.summary,
         "",
         walletState?.summary || "",
         "",
         wallet.address
-          ? "Live Arc USDC comes from your connected wallet (RPC)."
-          : "Connect **Rabby** (or MetaMask) on Arc Testnet for live USDC.",
+          ? `Live balances fetched directly via ${NETWORK_LABEL} RPC.`
+          : `Connect your wallet on **${NETWORK_LABEL}** to view live balances and execute transactions.`,
         "",
-        "Try: `Swap 1 USDC to EURC` or `Bridge 5 USDC from Arc to Base`",
+        "Next: `Swap 10 USDC to EURC` · `Bridge 5 USDC from Arc to Base` · `Send 1 USDC to 0x…`",
       ]
         .filter(Boolean)
         .join("\n");
@@ -209,19 +222,19 @@ export async function runAgentLoop(
 
       if (smallTalk) {
         const content = [
-          "I'm doing well — thanks for asking! 👋",
+          "Doing great — ready to help with your on-chain operations.",
           "",
-          "I'm the **AGFusion** agent. I help with Arc Testnet stablecoin actions (practice money, not a bank).",
+          `I'm the **AGFusion** execution assistant for **${NETWORK_LABEL}** (USDC payments, Uniswap V3 swaps, and Circle CCTP v2 bridging).`,
           "",
           wallet.address
-            ? `Your wallet is connected (\`${wallet.address.slice(0, 8)}…\`).`
-            : "Connect **Rabby** (top right) when you want live balances or sends.",
+            ? `Wallet connected: \`${wallet.address.slice(0, 8)}…${wallet.address.slice(-4)}\``
+            : "Connect your wallet (top right) to check live balances or execute transactions.",
           "",
-          "Try:",
+          "Try asking:",
           '• "Show my balances"',
           '• "Swap 1 USDC to EURC"',
           '• "Bridge 5 USDC from Arc to Base"',
-          '• "What is Arc?"',
+          '• "Send 0.5 USDC to 0x…"',
         ].join("\n");
         return finish(content, "explain", { toolTrace, onEvent });
       }
@@ -229,24 +242,24 @@ export async function runAgentLoop(
       if (whoAmI || greet) {
         const content = [
           wallet.address
-            ? `Hey — wallet connected (\`${wallet.address.slice(0, 8)}…\`).`
-            : "Hey — I’m the **AGFusion** agent for Arc stablecoin ops.",
+            ? `Wallet connected (\`${wallet.address.slice(0, 8)}…${wallet.address.slice(-4)}\`) on **${NETWORK_LABEL}**.`
+            : `Welcome to **AGFusion** — your stablecoin operations workspace on **${NETWORK_LABEL}**.`,
           "",
-          "I can:",
-          "• Check balances",
-          "• Plan **send / swap / bridge** (with fee estimates)",
-          "• Assess route risk",
-          "• Answer simple questions about Arc / this app",
+          "Capabilities:",
+          "• **Send** — Instant native USDC transfers (21k gas, sub-second finality)",
+          "• **Swap** — Uniswap V3 quotes & Permit2 execution (USDC, EURC, cirBTC)",
+          "• **Bridge** — Circle CCTP v2 across Arc, Base, Ethereum, Arbitrum, Optimism",
+          "• **Balances & Risk** — Live RPC balances and x402 route risk checks",
           "",
           "Examples:",
           '• "Show my balances"',
           '• "Bridge 5 USDC from Arc to Base"',
           '• "Swap 5 USDC to EURC"',
-          '• "How are you?" / "What is Arc?"',
+          '• "Send 1 USDC to 0xYourRecipient…"',
           "",
           wallet.address
-            ? "Money moves only after you press **Confirm & execute** and sign in your wallet."
-            : "Connect **Rabby** first for live sends.",
+            ? "Every money movement requires your explicit **Confirm** click and wallet signature."
+            : "Connect your Web3 wallet first to sign and execute transactions.",
         ].join("\n");
         return finish(content, "explain", { toolTrace, onEvent });
       }
@@ -254,19 +267,18 @@ export async function runAgentLoop(
       await emitTool("explain_arc", { topic: raw });
       const last = toolTrace[toolTrace.length - 1];
       const content = [
-        last?.summary || "Arc is a stablecoin-native L1 (USDC gas, sub-second finality).",
+        last?.summary || `Arc is a stablecoin-native L1 with USDC gas and sub-second finality (${NETWORK_LABEL}).`,
         "",
-        "Ask me to **send**, **swap**, **bridge**, or **show balances**.",
+        "Ask me to **send**, **swap**, **bridge**, or **check balances**.",
       ].join("\n");
       return finish(content, "explain", { toolTrace, onEvent });
     }
 
     case "bridge": {
       const amount = intent.amount || "10";
-      // Never hardcode Base→Arc — honor parseIntent direction (Arc→Base etc.)
-      const fromChain = intent.fromChain || "Base_Sepolia";
-      const toChain = intent.toChain || "Arc_Testnet";
-      // Safety: if user said "Arc to Base" but both ended up same, force from intent.raw
+      // Honor parseIntent direction; fall back to active network defaults
+      const fromChain = intent.fromChain || DEFAULT_PEER_CHAIN;
+      const toChain = intent.toChain || DEFAULT_ARC_CHAIN;
       let from = fromChain;
       let to = toChain;
       const rawL = intent.raw.toLowerCase();
@@ -275,15 +287,15 @@ export async function runAgentLoop(
         /\bbase\b/.test(rawL) &&
         /arc[\s\S]{0,24}(?:to|→|->)[\s\S]{0,12}base/.test(rawL)
       ) {
-        from = "Arc_Testnet";
-        to = "Base_Sepolia";
+        from = DEFAULT_ARC_CHAIN;
+        to = DEFAULT_PEER_CHAIN;
       } else if (
         /\barc\b/.test(rawL) &&
         /\bbase\b/.test(rawL) &&
         /base[\s\S]{0,24}(?:to|→|->)[\s\S]{0,12}arc/.test(rawL)
       ) {
-        from = "Base_Sepolia";
-        to = "Arc_Testnet";
+        from = DEFAULT_PEER_CHAIN;
+        to = DEFAULT_ARC_CHAIN;
       }
 
       await emitTool("estimate_bridge", {
@@ -356,13 +368,12 @@ export async function runAgentLoop(
             [
               "**Bridge could not complete**",
               "",
-              ex.summary,
+              `• **Reason:** ${ex.summary}`,
               "",
-              "Checklist:",
-              `1. Connect **Rabby**`,
-              `2. Have **USDC on ${from}** (source chain)`,
-              `3. Press green **Confirm & open wallet to transfer**`,
-              "4. Approve network switch + signatures in the wallet",
+              "**Quick Checklist:**",
+              `1. Ensure your Web3 wallet is connected`,
+              `2. Confirm sufficient **USDC + gas** on **${chainDisplay(from)}**`,
+              `3. Approve the network switch & CCTP signature prompts in your wallet`,
             ].join("\n"),
             "bridge",
             { toolTrace, preview, transaction, onEvent },
@@ -376,19 +387,19 @@ export async function runAgentLoop(
         });
       }
 
-      const fromLabel = String(from).replace(/_/g, " ");
-      const toLabel = String(to).replace(/_/g, " ");
+      const fromLabel = chainDisplay(from);
+      const toLabel = chainDisplay(to);
       return finish(
         [
           planBlurb("Bridge", preview, toolTrace, wallet),
           "",
-          `**Direction:** ${fromLabel} → ${toLabel}`,
-          `⚠️ USDC is taken from **${fromLabel}** (source). You need balance there.`,
-          from === "Arc_Testnet"
-            ? "Stay on Arc for the first signature; wallet may switch networks during the flow."
-            : `Rabby will switch to **${fromLabel}** first, then complete the bridge.`,
+          `**Route:** ${fromLabel} → ${toLabel} (Circle CCTP v2)`,
+          `• **Source requirement:** ${amount} USDC + gas on **${fromLabel}**`,
+          from === DEFAULT_ARC_CHAIN
+            ? "• Your wallet will sign the burn on Arc first, then switch to the destination network to mint."
+            : `• Your wallet will switch to **${fromLabel}** to burn USDC, then finalize on **${toLabel}**.`,
           "",
-          "👇 **Press Confirm & open wallet** below to start.",
+          "Press **Confirm & execute** below to open your wallet.",
         ].join("\n"),
         "bridge",
         {
@@ -418,18 +429,18 @@ export async function runAgentLoop(
       preview = prep.preview ?? {
         type: "swap" as const,
         title: `Swap ${tokenIn} → ${tokenOut}`,
-        summary: `Exchange ${amount} ${tokenIn} for ${tokenOut} on Arc Testnet`,
+        summary: `Exchange ${amount} ${tokenIn} for ${tokenOut} on ${NETWORK_LABEL}`,
         amount,
         token: tokenIn,
         tokenOut,
-        toChain: "Arc_Testnet" as const,
+        toChain: DEFAULT_ARC_CHAIN,
         estimatedFeeUsd: 0.05,
         estimatedTime: "~2s",
         canExecute: true,
         requiresWallet: true,
         plan: [
-          { id: "q", label: "Quote" },
-          { id: "s", label: "Sign swap in wallet" },
+          { id: "q", label: "Get live Uniswap quote" },
+          { id: "s", label: "Sign & execute swap" },
         ],
       };
       if (preview) onEvent?.({ type: "confirm", preview });
@@ -447,12 +458,12 @@ export async function runAgentLoop(
             [
               "**Swap could not complete**",
               "",
-              ex.summary,
+              `• **Reason:** ${ex.summary}`,
               "",
-              "1. Save kit key in **Stablecoin FX** panel",
-              "2. Connect Rabby on Arc Testnet",
-              "3. Fund USDC from faucet.circle.com",
-              "4. Press the green **Confirm & open wallet to swap** button on the plan card",
+              "**Quick Checklist:**",
+              `1. Connect your wallet on **${NETWORK_LABEL}**`,
+              `2. Verify sufficient **${tokenIn}** balance and USDC gas`,
+              "3. For interactive Permit2 quotes, you can also use the **Swap** tab directly",
             ].join("\n"),
             "swap",
             { toolTrace, preview, transaction, onEvent },
@@ -470,7 +481,7 @@ export async function runAgentLoop(
         [
           planBlurb("Swap", preview, toolTrace, wallet),
           "",
-          "👇 **Press the button below** to open your wallet and complete the swap.",
+          "Press **Confirm & execute** below to open your wallet and complete the swap.",
         ].join("\n"),
         "swap",
         {
@@ -522,7 +533,7 @@ export async function runAgentLoop(
             [
               "**Cannot execute send** — no wallet connected.",
               "",
-              "Click **Connect**, choose **Rabby**, switch to Arc Testnet, then Confirm again.",
+              `Click **Connect Wallet**, switch to **${NETWORK_LABEL}**, then press Confirm again.`,
             ].join("\n"),
             "send",
             { toolTrace, preview, onEvent },
@@ -540,9 +551,9 @@ export async function runAgentLoop(
             [
               "**Send failed**",
               "",
-              ex.summary,
+              `• **Reason:** ${ex.summary}`,
               "",
-              "Check: Arc Testnet selected · enough USDC · approve the Rabby popup.",
+              `**Check:** ${NETWORK_LABEL} selected · sufficient USDC balance · approve signature in your wallet.`,
             ].join("\n"),
             "send",
             { toolTrace, preview, transaction, onEvent },
@@ -564,7 +575,7 @@ export async function runAgentLoop(
 
     case "route": {
       const amount = intent.amount || "10";
-      const fromChain = intent.fromChain || "Base_Sepolia";
+      const fromChain = intent.fromChain || DEFAULT_PEER_CHAIN;
       const recipient = intent.recipient;
       const recipientLabel = intent.recipientLabel;
       const hasAddr = Boolean(
@@ -574,7 +585,7 @@ export async function runAgentLoop(
       await emitTool("estimate_bridge", {
         amount,
         fromChain,
-        toChain: "Arc_Testnet",
+        toChain: DEFAULT_ARC_CHAIN,
       });
       await emitTool("estimate_send", { amount, recipient: recipient || "" });
       const prep = await emitTool("prepare_payment", {
@@ -662,28 +673,28 @@ export async function runAgentLoop(
             ? "You're welcome!"
             : "I'm here and ready to help.",
           "",
-          "I'm the AGFusion agent for **Arc Testnet** (send / swap / bridge USDC).",
+          `I'm the AGFusion execution assistant for **${NETWORK_LABEL}** (Send · Swap · Bridge).`,
           "",
-          'Say something like: "Show my balances" or "Swap 1 USDC to EURC".',
+          'Try: `"Show my balances"`, `"Swap 1 USDC to EURC"`, or `"Bridge 5 USDC from Arc to Base"`.',
         ].join("\n");
         return finish(content, "unknown", { toolTrace, onEvent });
       }
 
       const content = [
-        "I’m the **AGFusion** agent for Arc.",
+        `I’m the **AGFusion** assistant for **${NETWORK_LABEL}**.`,
         "",
         wallet.address
-          ? `Wallet: \`${wallet.address.slice(0, 10)}…\` · chain ${wallet.chainId ?? "?"}`
-          : "No wallet connected yet — use **Connect** (Rabby recommended).",
+          ? `Wallet: \`${wallet.address.slice(0, 8)}…${wallet.address.slice(-4)}\` · Chain ID \`${wallet.chainId ?? "?"}\``
+          : "No wallet connected yet — click **Connect Wallet** (top right) to begin.",
         "",
-        "I respond best to clear actions:",
-        '• "Show my balances"',
-        '• "Swap 1 USDC to EURC"',
-        '• "Swap 5 USDC to EURC"',
-        '• "Bridge 20 from Base to Arc"',
-        '• "What is Arc?" / "How are you?" / "Help"',
+        "**Supported commands:**",
+        '• `"Show my balances"`',
+        '• `"Swap 5 USDC to EURC"` (or `cirBTC`)',
+        '• `"Bridge 10 USDC from Arc to Base"`',
+        '• `"Send 1 USDC to 0x…"`',
+        '• `"What is Arc?"` / `"Help"`',
         "",
-        "Payments need **Confirm & execute** + wallet signature.",
+        "Every transaction displays a plan card first and executes only after you click **Confirm & execute** and sign in your wallet.",
       ].join("\n");
       return finish(content, "unknown", { toolTrace, onEvent });
     }
@@ -698,46 +709,48 @@ function planBlurb(
 ): string {
   const tools = trace
     .filter((t) => t.ok)
-    .map((t) => `✓ ${t.name}: ${t.summary}`)
+    .map((t) => `✓ \`${t.name}\` — ${t.summary}`)
     .join("\n");
   const failed = trace.filter((t) => !t.ok);
   return [
-    `**${title} plan ready**`,
+    `**${title} Plan Ready** (${NETWORK_LABEL})`,
     "",
     preview?.summary || "",
     preview?.estimatedFeeUsd != null
-      ? `Est. fees: **${formatUsd(preview.estimatedFeeUsd)}** (USDC gas) · ETA ${preview.estimatedTime || "—"}`
+      ? `• **Est. Fee:** ${formatUsd(preview.estimatedFeeUsd)} (USDC gas) · **ETA:** ${preview.estimatedTime || "<2s"}`
       : "",
     preview?.recipientLabel || preview?.recipient
-      ? `To: **${preview.recipientLabel || preview.recipient}**`
+      ? `• **Recipient:** ${preview.recipientLabel ? `${preview.recipientLabel} (\`${preview.recipient}\`)` : `\`${preview.recipient}\``}`
       : "",
     "",
     wallet.address
-      ? `Wallet ready: \`${wallet.address.slice(0, 10)}…\``
-      : "⚠️ Connect a wallet before Confirm — live signature required.",
+      ? `• **Signer:** \`${wallet.address.slice(0, 8)}…${wallet.address.slice(-4)}\``
+      : "• ⚠️ **Signer:** Connect your wallet before confirming.",
     "",
-    tools ? `**Checks**\n${tools}` : "",
+    tools ? `**Pre-flight Checks**\n${tools}` : "",
     failed.length
-      ? `**Notes**\n${failed.map((f) => `• ${f.name}: ${f.summary}`).join("\n")}`
+      ? `**Notices**\n${failed.map((f) => `• \`${f.name}\`: ${f.summary}`).join("\n")}`
       : "",
     "",
-    "No funds moved yet. Press **Confirm & execute**, then approve in **Rabby**.",
+    "No funds have moved yet. Click **Confirm & execute** below to sign in your wallet.",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 function successBlurb(title: string, tx?: TransactionRecord): string {
-  if (!tx) return `**${title}** finished.`;
+  if (!tx) return `✅ **${title}** completed.`;
   return [
-    `✅ **${title} completed** · ${tx.executionMode || "live"} · **${tx.status}**`,
+    `✅ **${title} Confirmed** (${tx.executionMode || "live"} · ${tx.status})`,
     "",
-    `${tx.amount} ${tx.token}${tx.tokenOut ? ` → ${tx.tokenOut}` : ""}`,
-    tx.recipientLabel ? `To **${tx.recipientLabel}**` : "",
-    typeof tx.feeUsd === "number" ? `Fee ~ ${formatUsd(tx.feeUsd)} USDC gas` : "",
-    tx.txHash ? `Tx: \`${tx.txHash}\`` : "",
-    tx.explorerUrl ? `Explorer: ${tx.explorerUrl}` : "",
-    tx.message || "",
+    `• **Amount:** ${tx.amount} ${tx.token}${tx.tokenOut ? ` → ${tx.tokenOut}` : ""}`,
+    tx.recipientLabel || tx.recipient
+      ? `• **Recipient:** ${tx.recipientLabel || `\`${tx.recipient}\``}`
+      : "",
+    typeof tx.feeUsd === "number" ? `• **Gas Fee:** ~${formatUsd(tx.feeUsd)} (USDC)` : "",
+    tx.txHash ? `• **Tx Hash:** \`${tx.txHash}\`` : "",
+    tx.explorerUrl ? `• **Explorer:** [View Transaction](${tx.explorerUrl})` : "",
+    tx.message ? `\n${tx.message}` : "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -203,18 +203,10 @@ export async function liveSendUsdcOnArc(params: {
     }
   }
 
-  // Arc exposes USDC through two linked interfaces:
-  // - native gas view: 18 decimals
-  // - ERC-20 USDC view: 6 decimals
-  // User transfers must use the ERC-20 USDC interface. The previous
-  // implementation used a native `value` transfer, which is what triggered
-  // wallet simulation/preview incompatibilities on Arc.
-  const amountBaseUnits = parseUnits(params.amount, USDC_DECIMALS);
-  const data = encodeFunctionData({
-    abi: ERC20_TRANSFER_ABI,
-    functionName: "transfer",
-    args: [to, amountBaseUnits],
-  });
+  // USDC is Arc's native gas asset (18 decimals in the EVM native value field).
+  // Sending native value avoids Rabby/MetaMask ERC-20 precompile simulation
+  // reverts (#-39000) and requires only 21,000 gas instead of 100,000.
+  const nativeWei = parseUnits(params.amount.trim(), 18);
 
   let hash: `0x${string}`;
   try {
@@ -224,12 +216,9 @@ export async function liveSendUsdcOnArc(params: {
         params: [
           {
             from,
-            to: ARC_USDC,
-            data,
-            // Explicit gas avoids Arc's unreliable eth_estimateGas path for
-            // USDC writes and gives the wallet a deterministic transaction.
-            gas: `0x${ARC_USDC_TRANSFER_GAS.toString(16)}`,
-            value: "0x0",
+            to,
+            gas: "0x5208", // 21,000 standard transfer gas
+            value: `0x${nativeWei.toString(16)}`,
           },
         ],
       }),
