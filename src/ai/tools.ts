@@ -640,7 +640,15 @@ export async function executeTool(
             };
           }
         }
-        const activeChain = (ctx.wallet.chainId === 5042 || IS_ARC_MAINNET) ? "Arc_Mainnet" : "Arc_Testnet";
+        const activeChain = (ctx.wallet.chainId === 5042 || (IS_ARC_MAINNET && ctx.wallet.chainId !== 5042002)) ? "Arc_Mainnet" : "Arc_Testnet";
+        if (activeChain === "Arc_Mainnet") {
+          // Mainnet swaps use the interactive Uniswap/Permit2 flow in the Swap tab.
+          return {
+            ok: true,
+            summary: `Swap ${args.amount || ""} ${args.tokenIn || "USDC"} → ${args.tokenOut || "EURC"} is ready on Arc Mainnet. Open the Swap tab: it loads a live Uniswap quote, then guides approve → sign → send in your wallet.`,
+            data: { handoff: "swap_tab", network: "Arc_Mainnet" },
+          };
+        }
         const transaction = await runCircleSafeSwapFlow({
           amount: String(args.amount || "50"),
           tokenIn: String(args.tokenIn || "USDC"),
@@ -680,7 +688,7 @@ export async function executeTool(
             summary: e instanceof Error ? e.message : "Invalid recipient",
           };
         }
-        const activeChain = (ctx.wallet.chainId === 5042 || IS_ARC_MAINNET) ? "Arc_Mainnet" : "Arc_Testnet";
+        const activeChain = (ctx.wallet.chainId === 5042 || (IS_ARC_MAINNET && ctx.wallet.chainId !== 5042002)) ? "Arc_Mainnet" : "Arc_Testnet";
         const transaction = await runSendFlow({
           amount: String(args.amount || "25"),
           token: "USDC",

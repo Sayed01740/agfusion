@@ -24,6 +24,7 @@ import { BatchPayrollCard } from "@/components/pay/batch-payroll";
 import { RiskOracleCard } from "@/components/pay/risk-oracle";
 import { UnifiedBalanceCard } from "@/components/balance/unified-balance";
 import { ARC_NETWORK_NAME } from "@/lib/arc-chain";
+import { SWAP_HANDOFF_EVENT } from "@/lib/swap-handoff";
 
 type TabId = "send" | "swap" | "bridge" | "more";
 
@@ -116,6 +117,16 @@ export function ToolsWorkspace({
 }) {
   const [tab, setTab] = useState<TabId>(defaultTab);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // Chat agent hands a planned swap to the Swap tab (Mainnet Permit2 flow).
+  useEffect(() => {
+    const onHandoff = () => {
+      setTab("swap");
+      document.getElementById("tools")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener(SWAP_HANDOFF_EVENT, onHandoff);
+    return () => window.removeEventListener(SWAP_HANDOFF_EVENT, onHandoff);
+  }, []);
 
   return (
     <section

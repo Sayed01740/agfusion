@@ -28,6 +28,7 @@ import { runUnifiedRouteFlow } from "@/blockchain/appkit-service";
 import { requireSafeRecipient } from "@/lib/balances-empty";
 import { sanitizeAgentText } from "@/lib/sanitize";
 import { ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { publishSwapHandoff } from "@/lib/swap-handoff";
 
 const ACTIVE_ARC_CHAIN = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
 const ACTIVE_PEER_CHAIN = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
@@ -269,12 +270,47 @@ export function ChatPanel() {
       let tx;
       const amount = preview.amount || "10";
 
+      // The connected wallet network is the source of truth: if the model/LLM
+      // picked the "other" Arc network, snap it to the one the wallet is on.
+      const isArcId = (c?: string) => c === "Arc" || c === "Arc_Mainnet" || c === "Arc_Testnet";
+      const arcOr = (c: string | undefined, fallback: string) =>
+        isArcId(c) ? defaultArcChain : c || fallback;
+      const peerOr = (c: string | undefined) => {
+        if (!c) return ACTIVE_PEER_CHAIN;
+        if (IS_ARC_MAINNET && c === "Base_Sepolia") return "Base";
+        if (!IS_ARC_MAINNET && c === "Base") return "Base_Sepolia";
+        return c;
+      };
+
       if (preview.type === "swap") {
+        if (defaultArcChain === "Arc_Mainnet") {
+          // Mainnet swaps run through the Uniswap/Permit2 flow in the Swap tab
+          // (approve → sign → broadcast). Hand the planned swap over and auto-quote.
+          publishSwapHandoff({
+            amount,
+            tokenIn: preview.token || "USDC",
+            tokenOut: preview.tokenOut || "EURC",
+            autoQuote: true,
+          });
+          addMessage({
+            id: uid("msg"),
+            role: "assistant",
+            content: [
+              `🔁 **Swap ready on Arc Mainnet**`,
+              "",
+              `${amount} ${preview.token || "USDC"} → ${preview.tokenOut || "EURC"}`,
+              "",
+              "I opened the **Swap** tab and loaded a live Uniswap quote. Review it and press the swap button — the app will guide you through approve → sign → send in your wallet.",
+            ].join("\n"),
+            createdAt: new Date().toISOString(),
+          });
+          return;
+        }
         tx = await executeSwap({
           amount,
           tokenIn: preview.token || "USDC",
           tokenOut: preview.tokenOut || "EURC",
-          chain: preview.toChain || defaultArcChain,
+          chain: defaultArcChain,
         });
       } else if (preview.type === "send") {
         const recipient = requireSafeRecipient(
@@ -284,7 +320,7 @@ export function ChatPanel() {
         tx = await executeSend({
           amount,
           token: preview.token || "USDC",
-          chain: preview.toChain || defaultArcChain,
+          chain: arcOr(preview.toChain, defaultArcChain) as never,
           recipient,
           recipientLabel: preview.recipientLabel,
           preferLive: true,
@@ -292,8 +328,8 @@ export function ChatPanel() {
       } else if (preview.type === "bridge") {
         tx = await executeBridge({
           amount,
-          fromChain: preview.fromChain || defaultArcChain,
-          toChain: preview.toChain || ACTIVE_PEER_CHAIN,
+          fromChain: (preview.fromChain ? (isArcId(preview.fromChain) ? defaultArcChain : peerOr(preview.fromChain)) : defaultArcChain) as never,
+          toChain: (preview.toChain ? (isArcId(preview.toChain) ? defaultArcChain : peerOr(preview.toChain)) : ACTIVE_PEER_CHAIN) as never,
           token: "USDC",
           preferLive: true,
         });
@@ -305,7 +341,7 @@ export function ChatPanel() {
         tx = await runUnifiedRouteFlow({
           amount,
           token: "USDC",
-          fromChain: preview.fromChain || ACTIVE_PEER_CHAIN,
+          fromChain: peerOr(preview.fromChain) as never,
           recipient,
           recipientLabel: preview.recipientLabel,
         });

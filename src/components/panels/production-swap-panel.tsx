@@ -16,6 +16,12 @@ import { ARC_PERMIT2_CONTRACT } from "@/blockchain/uniswap-permit2";
 import { getChainId, getInjectedProvider } from "@/sdk/wallet-adapter";
 import { assertArcMainnetWalletState } from "@/blockchain/uniswap-mainnet-adapter";
 import { uid } from "@/lib/utils";
+import {
+  SWAP_HANDOFF_EVENT,
+  clearSwapHandoff,
+  consumeSwapHandoff,
+  type SwapHandoff,
+} from "@/lib/swap-handoff";
 
 const ERC20_APPROVE_ABI = [
   {
@@ -139,6 +145,34 @@ export function ProductionSwapPanel() {
     setError(null);
     setNotice(null);
   }, [walletAddress, walletChainId]);
+
+  // Chat Agent handoff: pre-fill tokens/amount and fetch a live quote automatically.
+  const [autoQuote, setAutoQuote] = useState(false);
+
+  useEffect(() => {
+    const SYMBOLS: Record<string, ArcSwapToken> = { USDC: "USDC", EURC: "EURC", CIRBTC: "cirBTC" };
+    const apply = (req: SwapHandoff) => {
+      const nextIn = SYMBOLS[req.tokenIn.toUpperCase()];
+      const nextOut = SYMBOLS[req.tokenOut.toUpperCase()];
+      if (nextIn) setTokenIn(nextIn);
+      if (nextOut) setTokenOut(nextOut);
+      if (req.amount) setAmount(req.amount);
+      setQuote(null);
+      setPrepared(null);
+      setPendingApproval(null);
+      setError(null);
+      setNotice("Swap prepared by the AI Agent. Review the live quote, then press the swap button to approve & sign.");
+      if (req.autoQuote !== false) setAutoQuote(true);
+    };
+    const pending = consumeSwapHandoff();
+    if (pending) apply(pending);
+    const onHandoff = (e: Event) => {
+      clearSwapHandoff();
+      apply((e as CustomEvent<SwapHandoff>).detail);
+    };
+    window.addEventListener(SWAP_HANDOFF_EVENT, onHandoff);
+    return () => window.removeEventListener(SWAP_HANDOFF_EVENT, onHandoff);
+  }, []);
 
 
   const slippageBps = useMemo(() => {
@@ -271,6 +305,14 @@ export function ProductionSwapPanel() {
       setQuoteBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!autoQuote) return;
+    if (!walletAddress) return; // wait until wallet is available
+    setAutoQuote(false);
+    if (canQuote) void getQuote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoQuote, canQuote, walletAddress]);
 
   async function approvePermit2InWallet() {
     if (!pendingApproval || !walletAddress) return;
