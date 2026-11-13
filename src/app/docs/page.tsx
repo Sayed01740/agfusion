@@ -96,8 +96,12 @@ export default function DocsPage() {
 
             <div className="mt-6 pt-4 border-t border-white/[0.06] px-2 text-[11px] text-slate-400 space-y-1.5">
               <div className="flex items-center justify-between">
+                <span>Arc Mainnet:</span>
+                <span className="font-mono text-emerald-400">5042</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span>Arc Testnet:</span>
-                <span className="font-mono text-emerald-400">5042002</span>
+                <span className="font-mono text-cyan-400">5042002</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Gas Token:</span>
@@ -105,7 +109,7 @@ export default function DocsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span>Architecture:</span>
-                <span className="font-mono text-cyan-400">Non-custodial</span>
+                <span className="font-mono text-indigo-400">Non-custodial</span>
               </div>
             </div>
           </div>
@@ -125,17 +129,18 @@ export default function DocsPage() {
               <strong>AGFusion</strong> is an AI-assisted stablecoin workspace and agentic command layer built on <strong>Arc Network</strong>.
               It eliminates multi-dapp fragmentation by unifying payments, token swaps, cross-chain CCTP bridging, and corporate treasury management into a single, high-performance interface.
             </p>
-            <div className="rounded-2xl border border-white/[0.06] bg-black/40 p-4 font-mono text-xs text-slate-300 space-y-2 mb-4">
+            <div className="rounded-2xl border border-white/[0.06] bg-black/40 p-4 font-mono text-xs text-slate-300 space-y-2 mb-4 overflow-x-auto">
               <div className="text-emerald-400 font-bold">// High-Level System Architecture</div>
-              <div>Web UI (Next.js 15 / React 19 / Viem)</div>
+              <div>Web UI (Next.js 15 / React 19 / Viem / Explicit-Disconnect Wallet Persistence)</div>
               <div>&nbsp;&nbsp;│</div>
-              <div>&nbsp;&nbsp;├── AI Intent / Function-Calling Loop (Natural Language &rarr; Structured Plan)</div>
+              <div>&nbsp;&nbsp;├── AI Operator Loop (Natural Language &rarr; Structured Plan &rarr; Auto-Prompted Signing)</div>
               <div>&nbsp;&nbsp;├── Policy Engine &amp; ERC-7715 Autonomous Session Keys</div>
-              <div>&nbsp;&nbsp;├── Blockchain Layer (Arc Testnet 5042002 · Native USDC Gas)</div>
+              <div>&nbsp;&nbsp;├── Blockchain Layer (Arc Mainnet 5042 &amp; Testnet 5042002 · Native USDC Gas)</div>
+              <div>&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── Uniswap Universal Router v2.1.2 + Permit2 (1-Click Guided Swaps)</div>
               <div>&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── AGFusionDisperse.sol (Single-Signature Batch Payouts)</div>
               <div>&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;├── AGFusionEscrow.sol (Milestone-based Agent Escrow)</div>
-              <div>&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── Circle CCTP v2 (Cross-Chain Settlement Arc &harr; Base Sepolia)</div>
-              <div>&nbsp;&nbsp;└── Machine-to-Machine HTTP-402 Micropayment Infrastructure</div>
+              <div>&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;└── Circle CCTP v2 (Fast Direct &amp; Auto-Relayer Arc &harr; Base / Ethereum / L2s)</div>
+              <div>&nbsp;&nbsp;└── Machine-to-Machine HTTP-402 Micropayment &amp; MCP Infrastructure</div>
             </div>
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-emerald-300">
               <strong>Core Money-Safety Rule:</strong> The AI layer prepares and validates actions. It never holds private keys. On-chain execution remains behind policy boundaries and cryptographic wallet authorization (or scoped session keys).
@@ -155,9 +160,19 @@ export default function DocsPage() {
               <strong>Arc Network revolutionizes this: native gas is paid directly in USDC (18 decimals).</strong>
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 text-xs">
+              <div className="rounded-2xl border border-emerald-500/20 bg-black/40 p-4">
+                <div className="text-emerald-400 font-semibold mb-1.5">Arc Mainnet (Production)</div>
+                <div className="space-y-1 font-mono break-all">
+                  <div><strong>Chain ID:</strong> 5042 (<span className="text-slate-400">0x13b2</span>)</div>
+                  <div><strong>RPC:</strong> https://rpc.mainnet.arc.network</div>
+                  <div><strong>Explorer:</strong> https://explorer.arc.io</div>
+                  <div><strong>Gas Token:</strong> Native USDC (18 decimals)</div>
+                  <div><strong>Wallet Mode:</strong> Respects active network</div>
+                </div>
+              </div>
               <div className="rounded-2xl border border-white/[0.06] bg-black/40 p-4">
-                <div className="text-slate-400 mb-1">Arc Testnet Parameters</div>
-                <div className="space-y-1 font-mono">
+                <div className="text-cyan-400 font-semibold mb-1.5">Arc Testnet (Sandbox)</div>
+                <div className="space-y-1 font-mono break-all">
                   <div><strong>Chain ID:</strong> 5042002 (<span className="text-slate-400">0x4cef52</span>)</div>
                   <div><strong>RPC:</strong> https://rpc.testnet.arc.network</div>
                   <div><strong>Explorer:</strong> https://testnet.arcscan.app</div>
@@ -165,18 +180,18 @@ export default function DocsPage() {
                   <div><strong>Faucet:</strong> https://faucet.circle.com</div>
                 </div>
               </div>
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-4">
-                <div className="text-emerald-400 font-bold mb-1">USDC Gas Cost Advantage</div>
-                <p className="text-slate-300 mb-2 leading-relaxed">
-                  A standard 21,000 gas transfer at 1.5 Gwei costs:
-                </p>
-                <div className="font-mono text-emerald-300 text-sm font-bold">
-                  21,000 × 1.5e-9 = 0.0000315 USDC
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">
-                  Compared to ~$2.80 on Ethereum L1, Arc provides over <strong>99.9% cost reduction</strong> with zero volatile asset exposure.
-                </p>
+            </div>
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-4 text-xs">
+              <div className="text-emerald-400 font-bold mb-1">USDC Gas Cost Advantage</div>
+              <p className="text-slate-300 mb-2 leading-relaxed">
+                A standard 21,000 gas transfer at 1.5 Gwei costs:
+              </p>
+              <div className="font-mono text-emerald-300 text-sm font-bold">
+                21,000 × 1.5e-9 = 0.0000315 USDC
               </div>
+              <p className="text-[11px] text-slate-400 mt-2">
+                Compared to ~$2.80 on Ethereum L1, Arc provides over <strong>99.9% cost reduction</strong> with zero volatile asset exposure.
+              </p>
             </div>
           </section>
 
@@ -193,24 +208,24 @@ export default function DocsPage() {
             </p>
             <div className="space-y-3 text-xs">
               <div className="rounded-xl border border-white/[0.06] bg-black/30 p-3.5 flex items-start gap-3">
-                <span className="font-mono text-emerald-400 font-bold">Swap</span>
+                <span className="font-mono text-emerald-400 font-bold shrink-0">Swap</span>
                 <div>
-                  <div className="text-white font-semibold">Decentralized Stablecoin Exchange</div>
-                  <div className="text-slate-400">Live quotes via Arc Uniswap-V2 style DEX router between USDC, EURC, and wrapped assets.</div>
+                  <div className="text-white font-semibold">Uniswap Universal Router v2.1.2 + Permit2 (1-Click Guided)</div>
+                  <div className="text-slate-400">Live DEX &amp; RFQ quotes between USDC, EURC, and cirBTC across Arc Mainnet &amp; Testnet. Supports gasless EIP-712 Permit2 signatures, guided multi-step approvals, and AI Operator auto-execution.</div>
                 </div>
               </div>
               <div className="rounded-xl border border-white/[0.06] bg-black/30 p-3.5 flex items-start gap-3">
-                <span className="font-mono text-cyan-400 font-bold">Send</span>
+                <span className="font-mono text-cyan-400 font-bold shrink-0">Send</span>
                 <div>
-                  <div className="text-white font-semibold">Canonical ERC-20 &amp; Native Transfer</div>
-                  <div className="text-slate-400">Direct transfer with explicit gas calculation and verification on ArcScan.</div>
+                  <div className="text-white font-semibold">Native 21k-Gas USDC &amp; Canonical ERC-20 Transfers</div>
+                  <div className="text-slate-400">Fast direct transfers on Arc Mainnet (5042) &amp; Testnet (5042002) with pre-flight balance checks, instant wallet signature prompting, and live explorer receipt links.</div>
                 </div>
               </div>
               <div className="rounded-xl border border-white/[0.06] bg-black/30 p-3.5 flex items-start gap-3">
-                <span className="font-mono text-indigo-400 font-bold">Bridge</span>
+                <span className="font-mono text-indigo-400 font-bold shrink-0">Bridge</span>
                 <div>
-                  <div className="text-white font-semibold">Circle CCTP Cross-Chain Burn &amp; Mint</div>
-                  <div className="text-slate-400">Moves native USDC between Arc Testnet and Base Sepolia with server-side attestation tracking.</div>
+                  <div className="text-white font-semibold">Circle CCTP v2 (Fast Direct &amp; Auto-Relayer)</div>
+                  <div className="text-slate-400">Native USDC cross-chain settlement between Arc and Ethereum, Base, Arbitrum, Optimism, Polygon, Avalanche, and Solana. Supports 0.00-fee Fast Direct burn &amp; mint or automated destination relaying.</div>
                 </div>
               </div>
             </div>
@@ -309,9 +324,9 @@ export default function DocsPage() {
             <p className="text-sm leading-relaxed text-slate-300 mb-4">
               Arc Network is the ideal home for machine-to-machine commerce. AGFusion implements the <strong>HTTP-402 (Payment Required)</strong> specification for pay-per-call AI endpoints:
             </p>
-            <div className="rounded-xl border border-white/[0.08] bg-black/40 p-3 font-mono text-xs text-slate-300 mb-3">
+            <div className="rounded-xl border border-white/[0.08] bg-black/40 p-3 font-mono text-xs text-slate-300 mb-3 overflow-x-auto">
               <span className="text-amber-400">GET /api/x402/agent-service</span> &rarr; HTTP 402 Payment Required<br />
-              Headers: X-Payment-Token: USDC | X-Payment-Amount: 0.001 | X-Payment-ChainId: 5042002
+              Headers: X-Payment-Token: USDC | X-Payment-Amount: 0.001 | X-Payment-ChainId: 5042 (Mainnet) / 5042002 (Testnet)
             </div>
             <p className="text-xs text-slate-400">
               When an agent pays $0.001 USDC on Arc and provides the transaction hash in <code className="text-emerald-400">X-Payment-Tx</code>, the endpoint unlocks live algorithmic liquidity and routing telemetry.
@@ -346,12 +361,12 @@ export default function DocsPage() {
                   {copiedText === "mcp-config" ? "Copied" : "Copy"}
                 </button>
               </div>
-              <pre className="text-slate-300 whitespace-pre">
+              <pre className="text-slate-300 whitespace-pre overflow-x-auto">
 {`{
   "mcpServers": {
     "agfusion-arc": {
       "command": "node",
-      "args": ["C:/Users/sayed/.grok/bin/agfusion/mcp/server.mjs"]
+      "args": ["<PATH_TO_PROJECT>/mcp/server.mjs"]
     }
   }
 }`}
@@ -368,42 +383,142 @@ export default function DocsPage() {
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
                 <Code2 className="h-4 w-4" />
               </span>
-              <h2 className="text-xl font-bold text-white sm:text-2xl">9. Verified Contracts on ArcScan</h2>
+              <h2 className="text-xl font-bold text-white sm:text-2xl">9. Verified Contracts &amp; Canonical Tokens</h2>
             </div>
-            <div className="space-y-3 text-xs">
-              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-white">AGFusionRegistry</div>
-                  <div className="font-mono text-[11px] text-slate-400">0x76bb5678ec11ae94b34ed9cf90b25c9eea440483</div>
+            <p className="text-xs sm:text-sm text-slate-300 mb-4 leading-relaxed">
+              Public on-chain protocol contracts and canonical token addresses deployed and verified on Arc Mainnet (<code className="text-emerald-300">5042</code>) and Arc Testnet (<code className="text-cyan-300">5042002</code>).
+            </p>
+
+            <div className="space-y-5 text-xs">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400 mb-2">
+                  Arc Mainnet (Chain ID 5042)
                 </div>
-                <a
-                  href="https://testnet.arcscan.app/address/0x76bb5678ec11ae94b34ed9cf90b25c9eea440483"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-emerald-400 hover:text-emerald-300"
-                >
-                  ArcScan Explorer <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                <div className="space-y-2.5">
+                  {[
+                    {
+                      name: "AGFusionRegistry",
+                      desc: "Protocol registry & metadata directory",
+                      address: "0xf25757227337130Fb33A70A31aFFD782FfA44f6D",
+                    },
+                    {
+                      name: "AGFusionEscrow",
+                      desc: "Milestone-based agent & freelancer escrow",
+                      address: "0x23554d16C1F397fde97cf394FF603d7372b61f20",
+                    },
+                    {
+                      name: "AGFusionDisperse",
+                      desc: "Single-signature batch payroll & disperse",
+                      address: "0x376323cCE5233C0C20339BBeeCFEB838602B5578",
+                    },
+                    {
+                      name: "Permit2 (Uniswap Canonical)",
+                      desc: "Gasless EIP-712 swap approval verification",
+                      address: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+                    },
+                    {
+                      name: "Universal Router Spender",
+                      desc: "Uniswap v2.1.2 swap execution router",
+                      address: "0x8702463e73f74d0b6765aBceb314Ef07aCb92650",
+                    },
+                    {
+                      name: "Circle CCTP v2 TokenMessenger",
+                      desc: "Cross-chain native USDC burn & mint settlement",
+                      address: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.address}
+                      className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold text-white">{item.name}</div>
+                        <div className="text-[11px] text-slate-400 mb-0.5">{item.desc}</div>
+                        <div className="font-mono text-[11px] text-emerald-300 break-all">{item.address}</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => copyCode(item.address, item.address)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 transition-colors"
+                          title="Copy address"
+                        >
+                          {copiedText === item.address ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedText === item.address ? "Copied" : "Copy"}</span>
+                        </button>
+                        <a
+                          href={`https://explorer.arc.io/address/${item.address}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          ArcScan <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-white">AGFusionDisperse (Batch Payouts)</div>
-                  <div className="font-mono text-[11px] text-slate-400">contracts/src/AGFusionDisperse.sol</div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-cyan-400 mb-2">
+                  Canonical Mainnet Tokens (5042)
                 </div>
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
-                  Foundry Tested
-                </Badge>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { symbol: "USDC", meta: "6 ERC-20 / 18 Native Gas", address: "0x3600000000000000000000000000000000000000" },
+                    { symbol: "EURC", meta: "6 decimals · Circle Euro", address: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1" },
+                    { symbol: "cirBTC", meta: "8 decimals · Wrapped BTC", address: "0x171A4217b86A807A64eB94757Db6849fb4bDbAA0" },
+                  ].map((token) => (
+                    <div key={token.symbol} className="p-3 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-col justify-between gap-2">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-white">{token.symbol}</span>
+                          <button
+                            onClick={() => copyCode(token.address, token.symbol)}
+                            className="text-slate-400 hover:text-white transition-colors"
+                            title={`Copy ${token.symbol} address`}
+                          >
+                            {copiedText === token.symbol ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">{token.meta}</div>
+                      </div>
+                      <a
+                        href={`https://explorer.arc.io/address/${token.address}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-[11px] text-cyan-300 hover:text-cyan-200 break-all"
+                      >
+                        {token.address}
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-white">AGFusionEscrow (Agent Milestones)</div>
-                  <div className="font-mono text-[11px] text-slate-400">contracts/src/AGFusionEscrow.sol</div>
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Arc Testnet Reference (Chain ID 5042002)
                 </div>
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
-                  Foundry Tested
-                </Badge>
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white">AGFusionRegistry (Testnet)</div>
+                    <div className="font-mono text-[11px] text-slate-400 break-all">0x76bb5678ec11ae94b34ed9cf90b25c9eea440483</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+                      Foundry Tested
+                    </Badge>
+                    <a
+                      href="https://testnet.arcscan.app/address/0x76bb5678ec11ae94b34ed9cf90b25c9eea440483"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-cyan-400 hover:text-cyan-300"
+                    >
+                      Testnet ArcScan <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -411,8 +526,8 @@ export default function DocsPage() {
           {/* Quick Action Return */}
           <div className="flex flex-wrap items-center justify-between gap-4 p-6 rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 to-cyan-950/40">
             <div>
-              <h3 className="font-bold text-white text-base">Ready to test AGFusion?</h3>
-              <p className="text-xs text-slate-300">Launch the live unified swap, batch payroll, or agent workspace on Arc Testnet.</p>
+              <h3 className="font-bold text-white text-base">Ready to use AGFusion?</h3>
+              <p className="text-xs text-slate-300">Launch the live unified swap, CCTP v2 bridge, batch payroll, or AI agent workspace on Arc Mainnet &amp; Testnet.</p>
             </div>
             <Link href="/">
               <Button size="lg" className="bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-bold">
