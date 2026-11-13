@@ -729,63 +729,63 @@ export function ProductionSwapPanel() {
   const minOutput = quote?.minimumAmountOut || (quote?.amountOut ? minimumReceived(quote.amountOut, slippage) : "—");
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-300/90">{meta.name} Swap</p>
-        <Badge variant="cyan" className="shrink-0">{meta.isMainnet ? "Uniswap · Live Swap" : "USDC · EURC"}</Badge>
+    <div className="space-y-3.5 sm:space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-accent">{meta.name} Swap</p>
+        <Badge variant={meta.isMainnet ? "success" : "cyan"} className="shrink-0">{meta.isMainnet ? "Uniswap · Live Swap" : "USDC · EURC"}</Badge>
       </div>
 
-      <div className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
-        <div className="flex items-end gap-2">
-          <label className="min-w-0 flex-1">
-            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">From</span>
-            <select value={tokenIn} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenIn(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-semibold text-slate-100">
+      <div className="rounded-xl border border-border bg-muted/40 p-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">From</span>
+            <select value={tokenIn} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenIn(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-border bg-card px-2.5 sm:px-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none">
               {ARC_SWAP_TOKENS.map((token) => <option key={token}>{token}</option>)}
             </select>
           </label>
           <Button type="button" variant="outline" size="sm" className="mb-0.5 h-10 w-10 shrink-0 px-0 rounded-xl" disabled={quoteBusy || swapBusy} onClick={flip} aria-label="Reverse swap"><ArrowDownUp className="h-4 w-4" /></Button>
-          <label className="min-w-0 flex-1">
-            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">To</span>
-            <select value={tokenOut} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenOut(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-semibold text-slate-100">
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">To</span>
+            <select value={tokenOut} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenOut(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-border bg-card px-2.5 sm:px-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none">
               {ARC_SWAP_TOKENS.map((token) => <option key={token}>{token}</option>)}
             </select>
           </label>
         </div>
 
         <label className="mt-3 block">
-          <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Amount</span>
+          <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Amount</span>
           <Input type="number" min="0" step="any" inputMode="decimal" value={amount} disabled={quoteBusy || swapBusy} onChange={(e) => { setAmount(e.target.value); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} placeholder="0.50" />
         </label>
 
-        <div className="mt-3 rounded-xl border border-white/[0.06] bg-slate-950/40 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div><span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">Slippage tolerance</span></div>
-            <div className="flex items-center gap-1.5">
+        <div className="mt-3 rounded-xl border border-border bg-card/70 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div><span className="block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Slippage tolerance</span></div>
+            <div className="flex flex-wrap items-center gap-1.5">
               {SLIPPAGE_PRESETS.map((preset) => (
-                <button key={preset} type="button" disabled={quoteBusy || swapBusy} onClick={() => updateSlippage(preset)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${slippage === preset ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 bg-white/[0.02] text-slate-400 hover:text-slate-200"}`}>
+                <button key={preset} type="button" disabled={quoteBusy || swapBusy} onClick={() => updateSlippage(preset)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${slippage === preset ? "border-accent/50 bg-accent/15 text-accent" : "border-border bg-muted/50 text-muted-foreground hover:text-foreground"}`}>
                   {preset}%
                 </button>
               ))}
             </div>
           </div>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2.5 flex items-center gap-2">
             <Input type="number" min="0.1" max="5" step="0.1" inputMode="decimal" value={slippage} disabled={quoteBusy || swapBusy} onChange={(e) => updateSlippage(e.target.value)} className="h-8 w-20 text-center text-xs" aria-label="Custom slippage percentage" />
-            <span className="text-[11px] text-slate-500">%</span>
-            <span className="ml-auto text-[10px] text-slate-500">Range: 0.1%–5%</span>
+            <span className="text-[11px] text-muted-foreground">%</span>
+            <span className="ml-auto text-[10px] text-muted-foreground">Range: 0.1%–5%</span>
           </div>
         </div>
       </div>
 
       {quote && (
-        <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/[0.04] p-3.5 space-y-2.5">
-          <div className="flex items-center justify-between gap-3"><span className="text-[11px] text-slate-400">Estimated receive</span><span className="text-sm font-semibold text-slate-50">{prettyAmount(quote.amountOut)} {tokenOut}</span></div>
+        <div className="rounded-xl border border-accent/25 bg-accent/[0.04] p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between gap-3"><span className="text-[11px] text-muted-foreground">Estimated receive</span><span className="text-sm font-semibold text-foreground tabular-nums">{prettyAmount(quote.amountOut)} {tokenOut}</span></div>
           <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2"><p className="text-slate-500 text-[10px]">Minimum receive</p><p className="mt-0.5 text-slate-200 font-medium">{prettyAmount(minOutput)} {tokenOut}</p></div>
-            <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2"><p className="text-slate-500 text-[10px]">Route</p><p className="mt-0.5 text-slate-200 font-medium">{quote.route || "Arc DEX"}</p></div>
+            <div className="rounded-lg border border-border bg-card/70 p-2"><p className="text-muted-foreground text-[10px]">Minimum receive</p><p className="mt-0.5 text-foreground font-medium tabular-nums">{prettyAmount(minOutput)} {tokenOut}</p></div>
+            <div className="rounded-lg border border-border bg-card/70 p-2"><p className="text-muted-foreground text-[10px]">Route</p><p className="mt-0.5 text-foreground font-medium truncate">{quote.route || "Arc DEX"}</p></div>
           </div>
-          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-500">
-            <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />{meta.isMainnet ? "Server-validated quote" : "Verified on-chain"}</span>
-            <span className="font-semibold text-cyan-300">{slippage}% slippage</span>
+          <div className="flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-accent" />{meta.isMainnet ? "Server-validated quote" : "Verified on-chain"}</span>
+            <span className="font-semibold text-accent">{slippage}% slippage</span>
           </div>
           {meta.isMainnet && tokenIn !== "USDC" && (
             <div className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-2.5 py-2 text-[10px]">

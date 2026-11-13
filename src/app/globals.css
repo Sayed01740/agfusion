@@ -37,7 +37,7 @@
   * { border-color: var(--color-border); }
   html { scroll-behavior: smooth; scroll-padding-top: 6rem; background: var(--color-background); }
   body {
-    background: #070a0e;
+    background: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: "ss01" on, "cv11" on;
@@ -313,17 +313,15 @@
    DEVICE SPECIFIC ERGONOMIC STYLES (Desktop / Laptop / Mobile)
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* Mobile (< 768px): Native app feel, touch targets >= 44px, bottom dock buffer */
+/* Mobile (< 768px): Native app feel, iOS zoom prevention, bottom dock buffer */
 @media (max-width: 767px) {
   .app-content {
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
-    padding-inline: 0.875rem;
+    padding-inline: 0.75rem;
+    padding-top: 0.75rem;
   }
   input, textarea, select {
     font-size: 16px !important; /* Prevents auto-zoom in iOS Safari */
-    min-height: 46px;
-  }
-  button {
     min-height: 44px;
   }
 }

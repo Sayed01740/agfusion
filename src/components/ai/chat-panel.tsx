@@ -427,10 +427,10 @@ export function ChatPanel() {
 
   return (
     <div
-      className={`flex h-[65vh] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden sm:rounded-3xl glass-cockpit transition-all duration-500 motion-reduce:transition-none ${
+      className={`flex h-[65vh] min-h-[300px] sm:h-full sm:min-h-[520px] sm:max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl glass-cockpit transition-all duration-500 motion-reduce:transition-none ${
         isThinking
           ? "ring-1 ring-accent/60 shadow-[0_0_35px_-5px_rgba(16,185,129,0.2)]"
-          : "border-y sm:border border-border/80 sm:shadow-2xl hover:border-accent/30"
+          : "border border-border/80 shadow-xl sm:shadow-2xl hover:border-accent/30"
       }`}
     >
 
@@ -590,15 +590,15 @@ export function ChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border bg-card/60 p-3 sm:p-4 space-y-3 shrink-0">
-        <div className="flex gap-2 overflow-x-auto scrollbar-thin [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:[scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block pb-1">
+      <div className="border-t border-border bg-card/60 p-2.5 sm:p-4 space-y-2.5 sm:space-y-3 shrink-0">
+        <div className="flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-thin [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:[scrollbar-width:thin] sm:[&::-webkit-scrollbar]:block pb-0.5">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
               type="button"
               disabled={isThinking}
               onClick={() => send(s)}
-              className="shrink-0 rounded-full border border-border bg-muted px-4 py-2 min-h-11 flex items-center justify-center text-sm text-foreground hover:text-accent hover:border-accent/40 transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset disabled:opacity-50"
+              className="shrink-0 rounded-full border border-border bg-muted/80 px-3 py-1.5 min-h-9 flex items-center justify-center text-xs text-foreground hover:text-accent hover:border-accent/40 transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset disabled:opacity-50"
             >
               {s}
             </button>

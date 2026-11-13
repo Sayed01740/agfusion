@@ -143,23 +143,23 @@ export default function DashboardPage() {
   async function fulfillPayRequest() { if (!payRequest || !walletAddress) return; const to = payRequest.to || walletAddress; if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return; setPayBusy(true); setThinking(true); try { const tx = await executeSend({ amount: payRequest.amount, token: "USDC", chain: "Arc_Testnet", recipient: to, recipientLabel: payRequest.memo || "Payment request", preferLive: true }); addTransaction(tx); setActiveTx(tx.id); setPayRequest(null); } catch (e) { addMessage({ id: `msg_payerr_${Date.now()}`, role: "assistant", content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`, createdAt: new Date().toISOString() }); setMobileTab("chat"); } finally { setPayBusy(false); setThinking(false); } }
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-background px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] text-foreground sm:px-5 sm:py-6 lg:px-8 lg:py-8">
-      <header className="mb-5 sm:mb-6">
-        <div className="overflow-hidden rounded-3xl border border-border glass-cockpit p-5 sm:p-6 lg:p-8 relative shadow-2xl">
+    <div className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-background px-0 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-foreground sm:px-5 sm:py-6 lg:px-8 lg:py-8">
+      <header className="mb-3.5 sm:mb-6">
+        <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border glass-cockpit p-3.5 sm:p-6 lg:p-8 relative shadow-2xl">
           {/* Subtle ambient lighting inside card */}
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent/10 blur-[80px]" />
           
-          <div className="flex min-w-0 flex-col gap-6 sm:gap-7 relative z-[1]">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-7 relative z-[1]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div className="min-w-0 max-w-3xl">
-                <div className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
+                <div className="mb-1.5 sm:mb-2.5 flex items-center gap-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.16em] text-accent">
                   <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent animate-pulse" />
                   Arc Network Workspace
                 </div>
-                <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+                <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl lg:text-4xl">
                   Move money <span className="text-gradient">intelligently.</span>
                 </h1>
-                <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-muted-foreground">
                   AI-assisted crosschain operations on Arc with USDC gas and fast finality.
                 </p>
               </div>
@@ -194,34 +194,34 @@ export default function DashboardPage() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Available Balance</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent/60 group-hover:bg-accent transition-colors" />
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4">
+              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-3 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span className="truncate">Available Balance</span>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent/60 group-hover:bg-accent transition-colors" />
                 </p>
-                <p className="mt-2 break-words text-lg font-bold text-foreground sm:text-2xl font-display tabular-nums">
+                <p className="mt-1.5 sm:mt-2 break-words text-base font-bold text-foreground sm:text-2xl font-display tabular-nums">
                   {liveBalanceUsdc ? `${formatUsdc(Number(liveBalanceUsdc))} ` : "0.00 "}
                   <span className="text-xs sm:text-sm font-semibold text-accent">USDC</span>
                 </p>
               </div>
 
-              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Connected Account</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-3 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span className="truncate">Account</span>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
                 </p>
-                <p className="mt-2 break-words font-mono text-sm sm:text-base font-semibold text-foreground">
+                <p className="mt-1.5 sm:mt-2 break-words font-mono text-xs sm:text-base font-semibold text-foreground">
                   {walletAddress ? shortenAddress(walletAddress, 4) : "Not connected"}
                 </p>
               </div>
 
-              <div className="col-span-2 sm:col-span-1 group min-w-0 rounded-2xl border border-border bg-card/90 p-4 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <div className="col-span-2 sm:col-span-1 group min-w-0 rounded-2xl border border-border bg-card/90 p-3 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span>Recent Activity</span>
                   <span className="h-1.5 w-1.5 rounded-full bg-accent/60" />
                 </p>
-                <p className="mt-2 text-lg font-bold text-foreground sm:text-2xl font-display tabular-nums">
+                <p className="mt-1.5 sm:mt-2 text-base font-bold text-foreground sm:text-2xl font-display tabular-nums">
                   {transactions.length.toString().padStart(2, "0")}{" "}
                   <span className="text-xs sm:text-sm font-medium text-muted-foreground">Transactions</span>
                 </p>
@@ -243,7 +243,7 @@ export default function DashboardPage() {
         )}
       </header>
 
-      <div role="group" aria-label="Dashboard view" className="mb-4 grid grid-cols-2 rounded-2xl border border-border bg-card/80 p-1.5 shadow-lg backdrop-blur-xl lg:hidden">
+      <div role="group" aria-label="Dashboard view" className="sticky top-[4.25rem] z-30 mb-3.5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card/90 p-1.5 shadow-lg backdrop-blur-xl lg:hidden">
         <button
           type="button"
           aria-pressed={mobileTab === "chat"}
@@ -278,7 +278,7 @@ export default function DashboardPage() {
 
 
       <section className="grid w-full min-w-0 gap-4 pb-2 sm:gap-5 lg:grid-cols-12">
-        <div id="dashboard-chat" className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8", mobileTab !== "chat" && "hidden lg:block")}><div className="[&>div]:!h-[clamp(430px,calc(100dvh-330px),680px)] [&>div]:!min-h-[430px] sm:[&>div]:!h-full sm:[&>div]:!min-h-[520px]"><ChatPanel /></div></div>
+        <div id="dashboard-chat" className={cn("min-w-0 w-full lg:col-span-7 xl:col-span-8", mobileTab !== "chat" && "hidden lg:block")}><div className="[&>div]:!h-[clamp(420px,calc(100dvh-260px),680px)] [&>div]:!min-h-[420px] sm:[&>div]:!h-full sm:[&>div]:!min-h-[520px]"><ChatPanel /></div></div>
         <div id="dashboard-tools" className={cn("min-w-0 w-full space-y-4 lg:col-span-5 xl:col-span-4", mobileTab !== "tools" && "hidden lg:block")}>
           <UserGuideCard open={guideOpen} onOpenChange={setGuideOpen} />
           <div className="min-w-0 w-full overflow-hidden"><ToolsWorkspace defaultTab="send" /></div>

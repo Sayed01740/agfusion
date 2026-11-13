@@ -169,8 +169,11 @@ export function Navbar() {
               <div className="my-1 h-px bg-border" />
               <Button variant="ghost" size="sm" type="button" onClick={() => { void onWalletClick(); closeMenu(); }} className={cn("min-h-11 w-full justify-start gap-2.5 rounded-xl text-danger hover:bg-danger/10", focusClass)}><LogOut aria-hidden="true" className="h-4 w-4" /> Disconnect</Button>
             </div>
-          </div> : <Button variant="default" size="sm" type="button" onClick={() => { setOpenMenu(null); void onWalletClick(); }} className={cn("min-h-11 gap-2 rounded-xl border-accent bg-accent bg-none px-3 text-accent-foreground hover:bg-accent/90", focusClass)} disabled={connecting} title="Connect MetaMask, Rabby, Coinbase, Brave...">
-            <Wallet aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="font-medium" role="status">{connecting ? "Connecting..." : "Connect Wallet"}</span>
+          </div> : <Button variant="default" size="sm" type="button" onClick={() => { setOpenMenu(null); void onWalletClick(); }} className={cn("min-h-10 sm:min-h-11 gap-2 rounded-xl border-accent bg-accent bg-none px-3 text-accent-foreground hover:bg-accent/90", focusClass)} disabled={connecting} title="Connect MetaMask, Rabby, Coinbase, Brave...">
+            <Wallet aria-hidden="true" className="h-4 w-4 shrink-0" />
+            <span className="font-medium" role="status">
+              {connecting ? "Connecting..." : <><span className="sm:hidden">Connect</span><span className="hidden sm:inline">Connect Wallet</span></>}
+            </span>
           </Button>}
         </div>
       </div>
