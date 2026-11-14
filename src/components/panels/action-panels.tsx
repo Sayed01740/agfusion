@@ -63,9 +63,15 @@ export function ActionPanels() {
 }
 
 export function BridgePanelBody() {
-  const { addTransaction, setActiveTx, setThinking, executionMode, walletType, walletChainId } =
+  const { addTransaction, setActiveTx, setThinking, executionMode, walletType, walletChainId, networkMode } =
     usePilotStore();
-  const meta = getArcNetworkMeta(walletChainId);
+  const effectiveChainId =
+    walletChainId === 5042 || walletChainId === 5042002
+      ? walletChainId
+      : networkMode === "mainnet"
+        ? 5042
+        : 5042002;
+  const meta = getArcNetworkMeta(effectiveChainId);
   const isMainnet = meta.isMainnet;
 
   const CCTP_BRIDGE_CHAINS: ChainId[] = useMemo(() => {
@@ -731,9 +737,15 @@ export function SwapPanelBody() {
 }
 
 export function SendPanelBody() {
-  const { addTransaction, setActiveTx, setThinking, executionMode, walletChainId } =
+  const { addTransaction, setActiveTx, setThinking, executionMode, walletChainId, networkMode } =
     usePilotStore();
-  const meta = getArcNetworkMeta(walletChainId);
+  const effectiveChainId =
+    walletChainId === 5042 || walletChainId === 5042002
+      ? walletChainId
+      : networkMode === "mainnet"
+        ? 5042
+        : 5042002;
+  const meta = getArcNetworkMeta(effectiveChainId);
   const [amount, setAmount] = useState("0.05");
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);

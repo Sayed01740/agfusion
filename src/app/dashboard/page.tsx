@@ -15,6 +15,8 @@ import { Activity, ArrowRight, MessageSquare, Wrench, ExternalLink } from "lucid
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
 import { ARC_EXPLORER, ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
+import { SupportedNetworks } from "@/components/brand/supported-networks";
+import { getInjectedProvider } from "@/sdk/wallet-adapter";
 import type { TransactionRecord, TxStep } from "@/types";
 
 function getActivityError(tx: TransactionRecord): { step?: string; message?: string } {
@@ -66,12 +68,22 @@ export default function DashboardPage() {
     setThinking,
     walletAddress,
     walletChainId,
+    networkMode,
+    setNetworkMode,
+    setWallet,
     refreshBalances,
     loadServerTransactions,
     addMessage,
     liveBalanceUsdc,
   } = usePilotStore();
-  const detectedMeta = getArcNetworkMeta(walletChainId);
+  const effectiveChainId =
+    walletChainId === 5042 || walletChainId === 5042002
+      ? walletChainId
+      : networkMode === "mainnet"
+        ? 5042
+        : 5042002;
+  const detectedMeta = getArcNetworkMeta(effectiveChainId);
+  const [switchingNetwork, setSwitchingNetwork] = useState(false);
   const active = transactions.find((t) => t.id === activeTxId) || transactions[0];
   const [mobileTab, setMobileTab] = useState<"chat" | "tools">("chat");
   const [guideOpen, setGuideOpen] = useState(false);
@@ -140,7 +152,49 @@ export default function DashboardPage() {
     } finally { setThinking(false); }
   }
 
-  async function fulfillPayRequest() { if (!payRequest || !walletAddress) return; const to = payRequest.to || walletAddress; if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return; setPayBusy(true); setThinking(true); try { const tx = await executeSend({ amount: payRequest.amount, token: "USDC", chain: "Arc_Testnet", recipient: to, recipientLabel: payRequest.memo || "Payment request", preferLive: true }); addTransaction(tx); setActiveTx(tx.id); setPayRequest(null); } catch (e) { addMessage({ id: `msg_payerr_${Date.now()}`, role: "assistant", content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`, createdAt: new Date().toISOString() }); setMobileTab("chat"); } finally { setPayBusy(false); setThinking(false); } }
+  async function switchNetworkMode(target: "mainnet" | "testnet") {
+    if (switchingNetwork) return;
+    setSwitchingNetwork(true);
+    setNetworkMode(target);
+    try {
+      const targetMeta = getArcNetworkMeta(target === "mainnet" ? 5042 : 5042002);
+      if (walletAddress) {
+        const provider = await getInjectedProvider();
+        if (provider) {
+          try {
+          await provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: targetMeta.chainIdHex }],
+          });
+          setWallet(walletAddress, targetMeta.chainId);
+        } catch (err) {
+          const code = (err as { code?: number } | null)?.code;
+          if (code === 4902) {
+            await provider.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: targetMeta.chainIdHex,
+                  chainName: targetMeta.name,
+                  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+                  rpcUrls: [targetMeta.rpc],
+                  blockExplorerUrls: [targetMeta.explorer],
+                },
+              ],
+            });
+            setWallet(walletAddress, targetMeta.chainId);
+          }
+        }
+        }
+      }
+    } catch {
+      /* keep UI mode switched even if wallet rejects or is disconnected */
+    } finally {
+      setSwitchingNetwork(false);
+    }
+  }
+
+  async function fulfillPayRequest() { if (!payRequest || !walletAddress) return; const to = payRequest.to || walletAddress; if (!/^0x[a-fA-F0-9]{40}$/.test(to)) return; setPayBusy(true); setThinking(true); try { const tx = await executeSend({ amount: payRequest.amount, token: "USDC", chain: detectedMeta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet", recipient: to, recipientLabel: payRequest.memo || "Payment request", preferLive: true }); addTransaction(tx); setActiveTx(tx.id); setPayRequest(null); } catch (e) { addMessage({ id: `msg_payerr_${Date.now()}`, role: "assistant", content: `**Payment failed:** ${e instanceof Error ? e.message : "unknown"}`, createdAt: new Date().toISOString() }); setMobileTab("chat"); } finally { setPayBusy(false); setThinking(false); } }
 
   return (
     <div className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-background px-0 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-foreground sm:px-5 sm:py-6 lg:px-8 lg:py-8">
@@ -161,8 +215,40 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {/* Network Status Chip */}
-              <div className="flex items-center gap-2">
+              {/* Mainnet / Testnet Switcher + Network Status Chip */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div
+                  role="group"
+                  aria-label="Network mode"
+                  className="inline-flex items-center rounded-xl border border-border bg-card/90 p-0.5"
+                >
+                  <button
+                    type="button"
+                    disabled={switchingNetwork}
+                    onClick={() => void switchNetworkMode("mainnet")}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                      detectedMeta.isMainnet
+                        ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Mainnet
+                  </button>
+                  <button
+                    type="button"
+                    disabled={switchingNetwork}
+                    onClick={() => void switchNetworkMode("testnet")}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                      detectedMeta.isTestnet
+                        ? "bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Testnet
+                  </button>
+                </div>
                 <Badge
                   variant="outline"
                   className={cn(
@@ -224,6 +310,8 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
+
+            <SupportedNetworks isMainnet={detectedMeta.isMainnet} />
           </div>
         </div>
 

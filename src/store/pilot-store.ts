@@ -46,6 +46,7 @@ interface PilotState {
   walletAddress: string | null;
   walletChainId: number | null;
   walletType: "evm" | "circle";
+  networkMode: "mainnet" | "testnet";
   liveBalanceUsdc: string | null;
   hydrated: boolean;
   authenticated: boolean;
@@ -58,6 +59,7 @@ interface PilotState {
   setThinking: (v: boolean) => void;
   setWallet: (address: string | null, chainId?: number | null) => void;
   setWalletType: (t: "evm" | "circle") => void;
+  setNetworkMode: (mode: "mainnet" | "testnet") => void;
   setLiveBalance: (v: string | null) => void;
   setForceDemo: (v: boolean) => void;
   setAuthenticated: (v: boolean) => void;
@@ -82,6 +84,7 @@ export const usePilotStore = create<PilotState>((set, get) => ({
   walletAddress: null,
   walletChainId: null,
   walletType: "evm",
+  networkMode: IS_ARC_MAINNET ? "mainnet" : "testnet",
   liveBalanceUsdc: null,
   hydrated: false,
   authenticated: false,
@@ -176,11 +179,22 @@ export const usePilotStore = create<PilotState>((set, get) => ({
       const next = (address || "").toLowerCase();
       let transactions = s.transactions;
       if (prev !== next) transactions = address ? loadTransactions(address) : loadTransactions(null);
-      return { walletAddress: address, walletChainId: chainId ?? null, transactions };
+      const nextMode =
+        chainId === 5042
+          ? "mainnet"
+          : chainId === 5042002
+            ? "testnet"
+            : s.networkMode;
+      return { walletAddress: address, walletChainId: chainId ?? null, networkMode: nextMode, transactions };
     }),
   setWalletType: (t) => {
     try { window.localStorage?.setItem("agfusion_wallet_type_v1", t); } catch { /* ignore */ }
     set({ walletType: t });
+  },
+  setNetworkMode: (mode) => {
+    try { window.localStorage?.setItem("agfusion_network_mode_v1", mode); } catch { /* ignore */ }
+    set({ networkMode: mode });
+    get().refreshBalances();
   },
   setLiveBalance: (v) => set({ liveBalanceUsdc: v }),
   setForceDemo: () => set({ forceDemo: false }),
@@ -213,14 +227,20 @@ export const usePilotStore = create<PilotState>((set, get) => ({
     const addr = get().walletAddress;
     const live = get().liveBalanceUsdc;
     const chainId = get().walletChainId;
-    const meta = getArcNetworkMeta(chainId);
+    const effectiveChainId =
+      chainId === 5042 || chainId === 5042002
+        ? chainId
+        : get().networkMode === "mainnet"
+          ? 5042
+          : 5042002;
+    const meta = getArcNetworkMeta(effectiveChainId);
     if (addr || live) {
       const n = Number(String(live || "0").replace(/,/g, ""));
       const amount = Number.isFinite(n) ? n : 0;
       const activeChain = meta.isMainnet ? "Arc_Mainnet" : "Arc_Testnet";
       set({ balances: { totalUsd: amount, balances: [{ chain: activeChain, chainLabel: meta.name, token: "USDC", amount, usdValue: amount, color: "#22d3ee" }], updatedAt: new Date().toISOString() } });
       if (addr) {
-        const cIdQuery = chainId ? `&chainId=${chainId}` : "";
+        const cIdQuery = `&chainId=${effectiveChainId}`;
         void fetch(`/api/balances?address=${encodeURIComponent(addr)}${cIdQuery}`, { cache: "no-store" })
           .then((r) => r.json())
           .then((data) => {
@@ -243,7 +263,9 @@ export const usePilotStore = create<PilotState>((set, get) => ({
     const stored = loadTransactions(get().walletAddress);
     let walletType: "evm" | "circle" = "evm";
     try { const wt = window.localStorage?.getItem("agfusion_wallet_type_v1"); if (wt === "circle" || wt === "evm") walletType = wt; } catch { /* ignore */ }
-    set({ transactions: stored.map(normalizeTransactionForActivity), hydrated: true, forceDemo: false, walletType });
+    let networkMode: "mainnet" | "testnet" = IS_ARC_MAINNET ? "mainnet" : "testnet";
+    try { const nm = window.localStorage?.getItem("agfusion_network_mode_v1"); if (nm === "mainnet" || nm === "testnet") networkMode = nm; } catch { /* ignore */ }
+    set({ transactions: stored.map(normalizeTransactionForActivity), hydrated: true, forceDemo: false, walletType, networkMode });
   },
   executionMode: () => "live",
   clearTransactions: () => { clearStoredTransactions(get().walletAddress); set({ transactions: [] }); },

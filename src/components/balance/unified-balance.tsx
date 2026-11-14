@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Layers, RefreshCw, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +49,7 @@ export function UnifiedBalanceCard({
     liveBalanceUsdc,
     walletAddress,
     walletChainId,
+    networkMode,
     addTransaction,
     setActiveTx,
     setThinking,
@@ -56,7 +57,13 @@ export function UnifiedBalanceCard({
     refreshBalances,
   } = usePilotStore();
 
-  const isMainnet = getArcNetworkMeta(walletChainId).isMainnet;
+  const effectiveChainId =
+    walletChainId === 5042 || walletChainId === 5042002
+      ? walletChainId
+      : networkMode === "mainnet"
+        ? 5042
+        : 5042002;
+  const isMainnet = getArcNetworkMeta(effectiveChainId).isMainnet;
   const gatewayChains = isMainnet ? MAINNET_GATEWAY_CHAINS : TESTNET_GATEWAY_CHAINS;
 
   const liveN = Number(String(liveBalanceUsdc || "").replace(/,/g, ""));
@@ -75,6 +82,15 @@ export function UnifiedBalanceCard({
   const [spendToChain, setSpendToChain] = useState<ChainId>(
     isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
   );
+
+  useEffect(() => {
+    if (!gatewayChains.some((c) => c.id === depositFrom)) {
+      setDepositFrom(isMainnet ? "Base" : "Base_Sepolia");
+    }
+    if (!gatewayChains.some((c) => c.id === spendToChain)) {
+      setSpendToChain(isMainnet ? "Arc_Mainnet" : "Arc_Testnet");
+    }
+  }, [isMainnet, gatewayChains, depositFrom, spendToChain]);
   const [useForwarder, setUseForwarder] = useState(true);
   const [gatewayTotal, setGatewayTotal] = useState<string | null>(null);
   const [syncingGateway, setSyncingGateway] = useState(false);
