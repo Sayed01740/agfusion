@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ChainMark } from "@/components/brand/chain-mark";
+import { TokenMark } from "@/components/brand/token-mark";
 import { usePilotStore } from "@/store/pilot-store";
 import { CHAIN_LIST, CHAINS } from "@/lib/chains";
 import { ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
@@ -232,19 +234,24 @@ export function BridgePanelBody() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="sm:col-span-1">
             <Field label="Token">
-              <select
-                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-semibold text-slate-100"
-                value={bridgeToken}
-                disabled={busy}
-                onChange={(e) =>
-                  setBridgeToken(e.target.value as "USDC" | "EURC" | "cirBTC" | "wETH")
-                }
-              >
-                <option value="USDC">USDC</option>
-                <option value="EURC">EURC</option>
-                <option value="cirBTC">cirBTC</option>
-                <option value="wETH">wETH</option>
-              </select>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                  <TokenMark token={bridgeToken} size={18} />
+                </span>
+                <select
+                  className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 pl-9 pr-3 text-sm font-semibold text-slate-100"
+                  value={bridgeToken}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setBridgeToken(e.target.value as "USDC" | "EURC" | "cirBTC" | "wETH")
+                  }
+                >
+                  <option value="USDC">USDC</option>
+                  <option value="EURC">EURC</option>
+                  <option value="cirBTC">cirBTC</option>
+                  <option value="wETH">wETH</option>
+                </select>
+              </div>
             </Field>
           </div>
           <div className="sm:col-span-1">
@@ -275,18 +282,23 @@ export function BridgePanelBody() {
         </div>
         <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
           <Field label="From network">
-            <select
-              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
-              value={from}
-              disabled={busy}
-              onChange={(e) => setFrom(e.target.value as ChainId)}
-            >
-              {CCTP_BRIDGE_CHAINS.map((id) => (
-                <option key={id} value={id}>
-                  {CHAINS[id]?.label ?? id.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                <ChainMark chain={from} compact size={16} />
+              </span>
+              <select
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100 min-w-0"
+                value={from}
+                disabled={busy}
+                onChange={(e) => setFrom(e.target.value as ChainId)}
+              >
+                {CCTP_BRIDGE_CHAINS.map((id) => (
+                  <option key={id} value={id}>
+                    {CHAINS[id]?.label ?? id.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
           </Field>
           <div className="flex justify-center sm:block sm:pb-0.5">
             <Button
@@ -302,18 +314,23 @@ export function BridgePanelBody() {
             </Button>
           </div>
           <Field label="To network">
-            <select
-              className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground min-w-0 focus:border-accent focus:outline-none"
-              value={to}
-              disabled={busy}
-              onChange={(e) => setTo(e.target.value as ChainId)}
-            >
-              {CCTP_BRIDGE_CHAINS.map((id) => (
-                <option key={id} value={id}>
-                  {CHAINS[id]?.label ?? id.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                <ChainMark chain={to} compact size={16} />
+              </span>
+              <select
+                className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm text-foreground min-w-0 focus:border-accent focus:outline-none"
+                value={to}
+                disabled={busy}
+                onChange={(e) => setTo(e.target.value as ChainId)}
+              >
+                {CCTP_BRIDGE_CHAINS.map((id) => (
+                  <option key={id} value={id}>
+                    {CHAINS[id]?.label ?? id.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
           </Field>
         </div>
         <div className="rounded-xl border border-border bg-muted/40 p-2.5 space-y-1.5">
@@ -764,14 +781,20 @@ export function SendPanelBody() {
     <>
       <div className="space-y-3">
         <Field label="Amount (USDC)">
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            disabled={busy}
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+              <TokenMark token="USDC" size={16} />
+            </span>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              className="pl-9"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              disabled={busy}
+            />
+          </div>
         </Field>
         <Field label="Recipient Address">
           <Input
@@ -951,18 +974,23 @@ export function UnifiedBalancePanelBody() {
           />
         </Field>
         <Field label="From network">
-          <select
-            className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100 min-w-0"
-            value={from}
-            disabled={busy}
-            onChange={(e) => setFrom(e.target.value as ChainId)}
-          >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+              <ChainMark chain={from} compact size={16} />
+            </span>
+            <select
+              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100 min-w-0"
+              value={from}
+              disabled={busy}
+              onChange={(e) => setFrom(e.target.value as ChainId)}
+            >
             {CHAIN_LIST.filter((c) => c.id !== "Solana_Devnet").map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
               </option>
             ))}
           </select>
+          </div>
         </Field>
         <p className="text-[11px] text-slate-500 leading-relaxed">
           Deposit USDC from <strong className="text-slate-300">{from.replace(/_/g, " ")}</strong> into your Unified Balance. 

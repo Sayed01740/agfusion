@@ -6,6 +6,7 @@ import { encodeFunctionData, maxUint256, parseUnits, type Address } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { TokenMark } from "@/components/brand/token-mark";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
 import { getArcDexSwapQuote, normalizeSlippageBps } from "@/blockchain/production-swap";
@@ -739,16 +740,26 @@ export function ProductionSwapPanel() {
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
           <label className="min-w-0">
             <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">From</span>
-            <select value={tokenIn} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenIn(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-border bg-card px-2.5 sm:px-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none">
-              {ARC_SWAP_TOKENS.map((token) => <option key={token}>{token}</option>)}
-            </select>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                <TokenMark token={tokenIn} size={18} />
+              </span>
+              <select value={tokenIn} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenIn(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-border bg-card pl-9 pr-2.5 sm:pr-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none">
+                {ARC_SWAP_TOKENS.map((token) => <option key={token}>{token}</option>)}
+              </select>
+            </div>
           </label>
           <Button type="button" variant="outline" size="sm" className="mb-0.5 h-10 w-10 shrink-0 px-0 rounded-xl" disabled={quoteBusy || swapBusy} onClick={flip} aria-label="Reverse swap"><ArrowDownUp className="h-4 w-4" /></Button>
           <label className="min-w-0">
             <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">To</span>
-            <select value={tokenOut} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenOut(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-border bg-card px-2.5 sm:px-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none">
-              {ARC_SWAP_TOKENS.map((token) => <option key={token}>{token}</option>)}
-            </select>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                <TokenMark token={tokenOut} size={18} />
+              </span>
+              <select value={tokenOut} disabled={quoteBusy || swapBusy} onChange={(e) => { setTokenOut(e.target.value as ArcSwapToken); setQuote(null); setPrepared(null); setError(null); setNotice(null); }} className="h-11 w-full rounded-xl border border-border bg-card pl-9 pr-2.5 sm:pr-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none">
+                {ARC_SWAP_TOKENS.map((token) => <option key={token}>{token}</option>)}
+              </select>
+            </div>
           </label>
         </div>
 

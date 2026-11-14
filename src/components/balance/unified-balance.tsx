@@ -17,6 +17,8 @@ import {
 import { getArcNetworkMeta } from "@/lib/arc-chain";
 import type { ChainId } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ChainMark } from "@/components/brand/chain-mark";
+import { TokenMark } from "@/components/brand/token-mark";
 
 const MAINNET_GATEWAY_CHAINS: Array<{ id: ChainId; label: string }> = [
   { id: "Arc_Mainnet", label: "Arc Mainnet" },
@@ -135,7 +137,7 @@ export function UnifiedBalanceCard({
       setActiveTx(tx.id);
       setLastNote(
         tx.message ||
-          `Deposited ${amount} USDC from ${depositFrom.replace(/_/g, " ")}`,
+        `Deposited ${amount} USDC from ${depositFrom.replace(/_/g, " ")}`,
       );
       await Promise.resolve(refreshBalances());
     } catch (e) {
@@ -316,46 +318,62 @@ export function UnifiedBalanceCard({
         <label className="text-[11px] uppercase tracking-wider text-slate-500">
           Amount (USDC)
         </label>
-        <Input
-          type="number"
-          min="0"
-          step="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          disabled={busy}
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+            <TokenMark token="USDC" size={16} />
+          </span>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            className="pl-9"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={busy}
+          />
+        </div>
         <label className="text-[11px] uppercase tracking-wider text-slate-500">
           Deposit from chain
         </label>
-        <select
-          className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
-          value={depositFrom}
-          disabled={busy}
-          onChange={(e) => setDepositFrom(e.target.value as ChainId)}
-        >
-          {gatewayChains.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+            <ChainMark chain={depositFrom} compact size={16} />
+          </span>
+          <select
+            className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100"
+            value={depositFrom}
+            disabled={busy}
+            onChange={(e) => setDepositFrom(e.target.value as ChainId)}
+          >
+            {gatewayChains.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <label className="text-[11px] uppercase tracking-wider text-slate-500">
               Spend destination chain
             </label>
-            <select
-              className="mt-1 h-10 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-xs text-slate-100"
-              value={spendToChain}
-              disabled={busy}
-              onChange={(e) => setSpendToChain(e.target.value as ChainId)}
-            >
+            <div className="relative mt-1">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                <ChainMark chain={spendToChain} compact size={16} />
+              </span>
+              <select
+                className="h-10 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-xs text-slate-100"
+                value={spendToChain}
+                disabled={busy}
+                onChange={(e) => setSpendToChain(e.target.value as ChainId)}
+              >
               {gatewayChains.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
               ))}
             </select>
+            </div>
           </div>
           <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-300 sm:mt-5 cursor-pointer">
             <input
