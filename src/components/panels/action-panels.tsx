@@ -233,17 +233,17 @@ export function BridgePanelBody() {
           <div className="sm:col-span-1">
             <Field label="Token">
               <select
-                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-semibold text-slate-100"
                 value={bridgeToken}
                 disabled={busy}
                 onChange={(e) =>
                   setBridgeToken(e.target.value as "USDC" | "EURC" | "cirBTC" | "wETH")
                 }
               >
-                <option value="USDC">USDC (CCTP v2)</option>
-                <option value="EURC">EURC (CCTPx)</option>
-                <option value="cirBTC">cirBTC (CCTPx)</option>
-                <option value="wETH">wETH (CCTPx)</option>
+                <option value="USDC">USDC</option>
+                <option value="EURC">EURC</option>
+                <option value="cirBTC">cirBTC</option>
+                <option value="wETH">wETH</option>
               </select>
             </Field>
           </div>
@@ -262,13 +262,13 @@ export function BridgePanelBody() {
           <div className="sm:col-span-1">
             <Field label="Speed">
               <select
-                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm font-semibold text-slate-100"
                 value={transferSpeed}
                 disabled={busy}
                 onChange={(e) => setTransferSpeed(e.target.value as "FAST" | "SLOW")}
               >
-                <option value="FAST">FAST (~8-20s)</option>
-                <option value="SLOW">SLOW (Finality)</option>
+                <option value="FAST">Fast (~15s)</option>
+                <option value="SLOW">Standard</option>
               </select>
             </Field>
           </div>

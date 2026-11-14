@@ -141,7 +141,7 @@ export function ToolsWorkspace({
       <TransactionAmountResetter />
       <div className="border-b border-border/80 px-4 pt-5 pb-4 sm:px-6">
         <div className="flex items-center justify-between gap-3">
-          <h2 id="tools-heading" className="font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
+          <h2 id="tools-heading" className="font-display text-lg font-extrabold tracking-tight text-foreground sm:text-xl">
             Actions
           </h2>
         </div>
@@ -177,13 +177,13 @@ export function ToolsWorkspace({
                 className={cn(
                   "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center transition-all duration-200 active:scale-[0.97] motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   on
-                    ? "bg-card text-accent ring-1 ring-accent/40 shadow-sm font-semibold"
-                    : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
+                    ? "bg-card text-accent ring-1 ring-accent/40 shadow-sm font-bold"
+                    : "text-foreground/80 hover:bg-card/60 hover:text-foreground font-semibold",
                 )}
               >
-                <Icon aria-hidden="true" className={cn("h-4 w-4", on ? "text-accent" : "text-muted-foreground")} />
-                <span className="text-xs font-semibold leading-snug">{t.label}</span>
-                <span className="hidden text-[10px] leading-snug text-muted-foreground sm:block">{t.short}</span>
+                <Icon aria-hidden="true" className={cn("h-4 w-4", on ? "text-accent" : "text-foreground/75")} />
+                <span className="text-[13px] font-bold tracking-tight leading-snug">{t.label}</span>
+                <span className={cn("hidden text-[10px] font-medium leading-snug sm:block", on ? "text-foreground/80" : "text-muted-foreground")}>{t.short}</span>
               </button>
             );
           })}
