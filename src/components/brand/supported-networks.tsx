@@ -14,18 +14,27 @@ const NETWORKS: SupportedChainMark[] = [
 export function SupportedNetworks() {
   return (
     <section aria-label="Supported networks" className="mt-5">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
         <div>
-          <p className="ag-eyebrow">Connected infrastructure</p>
-          <p className="mt-1 text-[11px] text-slate-400">Supported Mainnet &amp; Testnet routes</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Connected infrastructure
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Supported Mainnet &amp; Testnet routes
+          </p>
         </div>
-        <span className="font-mono text-[10px] text-slate-400">{NETWORKS.length} NETWORKS</span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {NETWORKS.length} NETWORKS
+        </span>
       </div>
-      <div className="ag-network-rail">
+      <div className="flex flex-wrap items-center gap-2">
         {NETWORKS.map((chain) => (
-          <div key={chain} className="ag-network-chip">
-            <ChainMark chain={chain} compact />
-            <span className="text-[11px] font-medium text-slate-200">
+          <div
+            key={chain}
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/80 px-2.5 py-1.5"
+          >
+            <ChainMark chain={chain} compact size={18} />
+            <span className="text-xs font-medium text-foreground">
               {chain === "Arc_Mainnet" ? "Arc" : chain.replace(/_/g, " ")}
             </span>
           </div>

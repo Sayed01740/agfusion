@@ -7,64 +7,52 @@ function TokenSvg({ token, size }: { token: SupportedTokenMark; size: number }) 
     case "USDC":
     case "NATIVE":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <circle cx="16" cy="16" r="16" fill="#2775CA" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <circle cx="16" cy="16" r="15" fill="#2775CA" />
           <path
-            d="M12.2 8.8a8.2 8.2 0 0 0 0 14.4M19.8 8.8a8.2 8.2 0 0 1 0 14.4"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2.1"
-            strokeLinecap="round"
+            d="M20.02 18.08c0-2.06-1.23-2.77-3.68-3.06-1.75-.24-2.1-.7-2.1-1.52 0-.82.61-1.35 1.81-1.35 1.09 0 1.69.37 1.99 1.24.05.16.2.26.37.26h.85c.22 0 .39-.18.37-.4-.25-1.29-1.15-2.25-2.63-2.49V9.3c0-.21-.17-.38-.38-.38h-.81c-.21 0-.38.17-.38.38v1.4c-1.76.24-2.9 1.38-2.9 2.9 0 1.94 1.19 2.71 3.63 3.01 1.65.24 2.16.66 2.16 1.58 0 .93-.81 1.54-1.93 1.54-1.5 0-2.02-.63-2.22-1.48-.04-.17-.19-.29-.37-.29h-.9c-.22 0-.39.19-.37.41.28 1.54 1.27 2.49 3.02 2.74v1.43c0 .21.17.38.38.38h.81c.21 0 .38-.17.38-.38v-1.45c1.82-.28 2.91-1.44 2.91-3.01Z"
+            fill="#fff"
           />
           <path
-            d="M16 9.5v13M18.6 13.1c0-1.2-1.1-2-2.6-2s-2.6.8-2.6 2c0 1.3 1.1 1.8 2.6 2.2 1.5.4 2.6.9 2.6 2.2 0 1.3-1.1 2.1-2.6 2.1s-2.6-.8-2.6-2"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2"
-            strokeLinecap="round"
+            d="M12.66 24.42c-4.66-1.84-6.95-7.11-5.11-11.77.89-2.26 2.67-4.05 4.94-4.96.22-.09.33-.33.25-.55l-.29-.75a.41.41 0 0 0-.54-.23c-5.43 2.14-8.1 8.27-5.96 13.7a10.6 10.6 0 0 0 6.08 5.99c.22.09.46-.02.55-.23l.3-.75a.42.42 0 0 0-.22-.45Zm7.33-17.99-.29.75c-.09.22.02.46.24.55 4.66 1.84 6.95 7.11 5.11 11.77a8.96 8.96 0 0 1-4.94 4.96.42.42 0 0 0-.25.55l.29.75c.09.21.33.32.54.23 5.43-2.14 8.1-8.27 5.96-13.7a10.6 10.6 0 0 0-6.08-5.99.41.41 0 0 0-.58.13Z"
+            fill="#fff"
           />
         </svg>
       );
     case "EURC":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <circle cx="16" cy="16" r="16" fill="#1B4F9C" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <circle cx="16" cy="16" r="15" fill="#1C509D" />
           <path
-            d="M11.8 8.8a8.2 8.2 0 0 0 0 14.4M20.2 8.8a8.2 8.2 0 0 1 0 14.4"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2"
-            strokeLinecap="round"
+            d="M12.66 24.42c-4.66-1.84-6.95-7.11-5.11-11.77.89-2.26 2.67-4.05 4.94-4.96.22-.09.33-.33.25-.55l-.29-.75a.41.41 0 0 0-.54-.23c-5.43 2.14-8.1 8.27-5.96 13.7a10.6 10.6 0 0 0 6.08 5.99c.22.09.46-.02.55-.23l.3-.75a.42.42 0 0 0-.22-.45Zm7.33-17.99-.29.75c-.09.22.02.46.24.55 4.66 1.84 6.95 7.11 5.11 11.77a8.96 8.96 0 0 1-4.94 4.96.42.42 0 0 0-.25.55l.29.75c.09.21.33.32.54.23 5.43-2.14 8.1-8.27 5.96-13.7a10.6 10.6 0 0 0-6.08-5.99.41.41 0 0 0-.58.13Z"
+            fill="#fff"
           />
           <path
-            d="M19.2 12.2a4.3 4.3 0 1 0 0 7.6M11.6 14.7h6.2M11.6 17.3h5.4"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2"
-            strokeLinecap="round"
+            d="M16.95 10.7c1.48 0 2.66.6 3.36 1.61.1.15.05.35-.11.44l-.92.5c-.15.08-.34.03-.44-.11-.44-.63-1.08-.96-1.89-.96-1.29 0-2.23.75-2.55 1.97h3.74c.19 0 .34.15.34.34v.65c0 .19-.15.34-.34.34h-3.93c-.02.17-.03.34-.03.52s.01.35.03.52h3.48c.19 0 .34.15.34.34v.65c0 .19-.15.34-.34.34h-3.28c.32 1.22 1.26 1.97 2.55 1.97.81 0 1.45-.33 1.89-.96.1-.14.29-.19.44-.11l.92.5c.16.09.21.29.11.44-.7 1.01-1.88 1.61-3.36 1.61-2.23 0-3.83-1.36-4.23-3.45h-1.15a.34.34 0 0 1-.34-.34v-.65c0-.19.15-.34.34-.34h.99a5.2 5.2 0 0 1 0-1.04h-.99a.34.34 0 0 1-.34-.34v-.65c0-.19.15-.34.34-.34h1.15c.4-2.09 2-3.45 4.23-3.45Z"
+            fill="#fff"
           />
         </svg>
       );
     case "cirBTC":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <circle cx="16" cy="16" r="16" fill="#F7931A" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <circle cx="16" cy="16" r="15" fill="#F7931A" />
           <path
-            d="M14 9.5v13M17.2 9.5v13M12.2 11.4h5.3a2.4 2.4 0 0 1 0 4.6h-5.3m0 0h5.8a2.5 2.5 0 0 1 0 4.8h-5.8"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2.1"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            d="M21.92 14.08c.3-2.02-1.24-3.11-3.35-3.83l.68-2.75-1.67-.42-.67 2.67c-.44-.11-.89-.21-1.34-.31l.67-2.69-1.67-.42-.68 2.75c-.36-.08-.72-.17-1.07-.25v-.01l-2.31-.58-.44 1.79s1.24.28 1.21.3c.68.17.8.62.78.97l-.78 3.14c.05.01.11.03.18.06l-.18-.05-1.1 4.4c-.08.21-.3.52-.77.4.02.02-1.21-.3-1.21-.3l-.83 1.91 2.18.54c.4.1.8.21 1.19.31l-.69 2.78 1.67.42.68-2.75c.46.12.9.24 1.34.35l-.68 2.74 1.67.42.69-2.77c2.85.54 4.99.32 5.89-2.25.73-2.07-.04-3.27-1.53-4.05 1.09-.25 1.91-.97 2.13-2.45Zm-3.81 5.34c-.52 2.08-4.01.95-5.15.67l.92-3.68c1.13.28 4.77.84 4.23 3.01Zm.52-5.37c-.47 1.89-3.38.93-4.32.7l.83-3.34c.94.23 3.98.67 3.49 2.64Z"
+            fill="#fff"
           />
         </svg>
       );
     case "wETH":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <circle cx="16" cy="16" r="16" fill="#627EEA" />
-          <path d="M16 6.5 10.5 16l5.5 3.3 5.5-3.3L16 6.5Z" fill="#fff" fillOpacity="0.95" />
-          <path d="M16 25.5 10.5 17.7l5.5 3.3 5.5-3.3L16 25.5Z" fill="#fff" fillOpacity="0.75" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <circle cx="16" cy="16" r="15" fill="#627EEA" />
+          <path d="M16.25 6.5v6.95l5.88 2.63-5.88-9.58Z" fill="#fff" fillOpacity="0.6" />
+          <path d="M16.25 6.5 10.37 16.08l5.88-2.63V6.5Z" fill="#fff" />
+          <path d="M16.25 20.66v4.84l5.88-8.14-5.88 3.3Z" fill="#fff" fillOpacity="0.6" />
+          <path d="M16.25 25.5v-4.84l-5.88-3.3 5.88 8.14Z" fill="#fff" />
+          <path d="m16.25 19.56 5.88-3.48-5.88-2.63v6.11Z" fill="#fff" fillOpacity="0.2" />
+          <path d="m10.37 16.08 5.88 3.48v-6.11l-5.88 2.63Z" fill="#fff" fillOpacity="0.6" />
         </svg>
       );
   }
@@ -88,7 +76,7 @@ export function TokenMark({
   ) as SupportedTokenMark;
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5 shrink-0", className)} title={token}>
+    <span className={cn("inline-flex items-center justify-center gap-1.5 shrink-0", className)} title={token}>
       <TokenSvg token={key} size={size} />
       {showLabel && <span className="font-semibold text-foreground">{token}</span>}
     </span>

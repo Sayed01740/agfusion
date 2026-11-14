@@ -319,25 +319,28 @@ export function UnifiedBalanceCard({
           Amount (USDC)
         </label>
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
-            <TokenMark token="USDC" size={16} />
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+            <TokenMark token="USDC" size={18} />
           </span>
           <Input
             type="number"
             min="0"
             step="0.01"
-            className="pl-9"
+            className="pl-10 pr-14"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             disabled={busy}
           />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold tracking-wide text-slate-400">
+            USDC
+          </span>
         </div>
         <label className="text-[11px] uppercase tracking-wider text-slate-500">
           Deposit from chain
         </label>
         <div className="relative">
-          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
-            <ChainMark chain={depositFrom} compact size={16} />
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+            <ChainMark chain={depositFrom} compact size={18} />
           </span>
           <select
             className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100"
@@ -358,11 +361,11 @@ export function UnifiedBalanceCard({
               Spend destination chain
             </label>
             <div className="relative mt-1">
-              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
-                <ChainMark chain={spendToChain} compact size={16} />
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                <ChainMark chain={spendToChain} compact size={18} />
               </span>
               <select
-                className="h-10 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-xs text-slate-100"
+                className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100"
                 value={spendToChain}
                 disabled={busy}
                 onChange={(e) => setSpendToChain(e.target.value as ChainId)}

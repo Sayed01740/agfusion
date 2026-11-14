@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 export type SupportedChainMark =
@@ -62,99 +63,126 @@ const marks: Record<SupportedChainMark, { name: string; short: string; family: C
 };
 
 function ChainSvg({ family, size }: { family: ChainFamily; size: number }) {
+  const uid = useId().replace(/:/g, "");
+  const arcGradId = `arc-grad-${uid}`;
+  const solGradId = `sol-grad-${uid}`;
+
   switch (family) {
     case "arc":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <defs>
-            <linearGradient id="arc-official-grad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={arcGradId} x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#3B4CCA" />
-              <stop offset="65%" stopColor="#8B2D6D" />
-              <stop offset="100%" stopColor="#B83268" />
+              <stop offset="55%" stopColor="#8B2D6D" />
+              <stop offset="100%" stopColor="#D63A6F" />
             </linearGradient>
           </defs>
+          <circle cx="16" cy="16" r="15" fill="#0F172A" stroke={`url(#${arcGradId})`} strokeWidth="1.5" />
           <path
-            d="M7 26C8.2 14.2 11.4 6 16 6s7.8 8.2 9 20h-4c-.7-4.5-1.9-10.8-5-10.8-2.9 0-4.2 5.9-4.9 10.8H7Z"
-            fill="url(#arc-official-grad)"
+            d="M8.8 23.5c1-9.3 3.6-15.4 7.2-15.4s6.2 6.1 7.2 15.4h-3.1c-.6-3.7-1.6-8.7-4.1-8.7-2.4 0-3.4 4.8-4 8.7H8.8Z"
+            fill={`url(#${arcGradId})`}
           />
-          <path d="M11.5 21.2c3.2-1 6.7-.5 9.8 1.5l-1 3.1c-2.6-1.5-5.6-2-8.8-1.4v-3.2Z" fill="url(#arc-official-grad)" />
+          <path d="M12 19.6c2.6-.8 5.4-.4 7.9 1.2l-.8 2.4c-2.1-1.2-4.5-1.6-7.1-1.1v-2.5Z" fill="#F8FAFC" />
         </svg>
       );
     case "base":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <circle cx="16" cy="16" r="15" fill="#0052FF" />
-          <path d="M16 6.5a9.5 9.5 0 1 1-9.4 11h9.4v-3H6.6A9.5 9.5 0 0 1 16 6.5Z" fill="#fff" />
+          <path d="M16 6.8a9.2 9.2 0 1 1-9.05 10.8h9.05v-3.2H6.95A9.2 9.2 0 0 1 16 6.8Z" fill="#fff" />
         </svg>
       );
     case "ethereum":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <circle cx="16" cy="16" r="15" fill="#627EEA" />
-          <path d="M16 6.5 10.2 16.2 16 19.6l5.8-3.4L16 6.5Z" fill="#fff" />
-          <path d="M16 25.5 10.2 17.5 16 20.9l5.8-3.4L16 25.5Z" fill="#fff" fillOpacity="0.75" />
+          <path d="M16.25 6.5v6.95l5.88 2.63-5.88-9.58Z" fill="#fff" fillOpacity="0.6" />
+          <path d="M16.25 6.5 10.37 16.08l5.88-2.63V6.5Z" fill="#fff" />
+          <path d="M16.25 20.66v4.84l5.88-8.14-5.88 3.3Z" fill="#fff" fillOpacity="0.6" />
+          <path d="M16.25 25.5v-4.84l-5.88-3.3 5.88 8.14Z" fill="#fff" />
+          <path d="m16.25 19.56 5.88-3.48-5.88-2.63v6.11Z" fill="#fff" fillOpacity="0.2" />
+          <path d="m10.37 16.08 5.88 3.48v-6.11l-5.88 2.63Z" fill="#fff" fillOpacity="0.6" />
         </svg>
       );
     case "arbitrum":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="#213147" stroke="#28A0F0" strokeWidth="2" />
-          <path d="M11 22.5 16 9.5l5 13M13 18h6" fill="none" stroke="#28A0F0" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <path
+            d="M16 2.2 28 9.1v13.8L16 29.8 4 22.9V9.1L16 2.2Z"
+            fill="#213147"
+            stroke="#96BEDC"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+          <path d="m13.2 22.2 3.3-9.8 1.9 5.5-1.5 4.3h-3.7Z" fill="#28A0F0" />
+          <path d="m17.5 10.2 4.6 12h-3l-3.1-8.2 1.5-3.8Z" fill="#fff" />
+          <path d="m10.1 22.2 4.4-12h2.2l-4.2 12h-2.4Z" fill="#fff" />
         </svg>
       );
     case "optimism":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <circle cx="16" cy="16" r="15" fill="#FF0420" />
-          <text x="16" y="20" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="800" fontFamily="sans-serif">OP</text>
+          <path
+            d="M11.6 12.1c-2.3 0-3.8 1.6-3.8 4 0 2.3 1.4 3.9 3.6 3.9 2.3 0 3.8-1.6 3.8-4 0-2.3-1.4-3.9-3.6-3.9Zm-.1 6c-.9 0-1.4-.7-1.4-2.1 0-1.3.5-2.1 1.4-2.1s1.4.7 1.4 2.1c0 1.4-.5 2.1-1.4 2.1Zm9.6-5.9h-3.8l-1.4 7.7h2.3l.4-2.3h1.6c2.2 0 3.7-1.1 3.7-3 0-1.5-1.1-2.4-2.8-2.4Zm-.6 3.7h-1.2l.4-2h1c.7 0 1.1.3 1.1.9 0 .7-.5 1.1-1.3 1.1Z"
+            fill="#fff"
+          />
         </svg>
       );
     case "avalanche":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <circle cx="16" cy="16" r="15" fill="#E84142" />
-          <path d="M16 8.5 9.2 21.5h4.2l2.6-5.2 2.6 5.2h4.2L16 8.5Z" fill="#fff" />
+          <path
+            d="M19.8 16.4c.5-.8 1.2-.8 1.7 0l2.7 4.7c.4.8.1 1.4-.8 1.4h-5.5c-.9 0-1.2-.6-.8-1.4l2.7-4.7ZM14.8 8.3c.5-.8 1.2-.8 1.7 0l.8 1.5 1.9 3.5c.3.7.3 1.6 0 2.3l-3.8 6.5c-.4.6-1 .9-1.8.9H8.6c-.9 0-1.2-.6-.8-1.4l7-13.3Z"
+            fill="#fff"
+          />
         </svg>
       );
     case "polygon":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <circle cx="16" cy="16" r="15" fill="#8247E5" />
           <path
-            d="M19.8 12.2 16 10l-3.8 2.2v4.4l3.8 2.2 3.8-2.2v-4.4Zm-7.6 5.4-2.5 1.4v3.2l2.5 1.4 2.5-1.4v-3.2l-2.5-1.4Z"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2"
-            strokeLinejoin="round"
+            d="M21 12.8c-.4-.2-.9-.2-1.3 0l-2.9 1.7-2 1.1-2.9 1.7c-.4.2-.9.2-1.3 0l-2.3-1.3c-.4-.2-.6-.6-.6-1.1v-2.6c0-.4.2-.9.6-1.1l2.3-1.3c.4-.2.9-.2 1.3 0l2.3 1.3c.4.2.6.6.6 1.1v1.7l2-1.1v-1.7c0-.4-.2-.9-.6-1.1l-4.2-2.4c-.4-.2-.9-.2-1.3 0L6.4 9.2c-.4.2-.6.7-.6 1.1v4.8c0 .4.2.9.6 1.1l4.2 2.4c.4.2.9.2 1.3 0l2.9-1.7 2-1.1 2.9-1.7c.4-.2.9-.2 1.3 0l2.3 1.3c.4.2.6.6.6 1.1V19c0 .4-.2.9-.6 1.1l-2.3 1.3c-.4.2-.9.2-1.3 0l-2.3-1.3c-.4-.2-.6-.6-.6-1.1v-1.7l-2 1.1v1.7c0 .4.2.9.6 1.1l4.2 2.4c.4.2.9.2 1.3 0l4.2-2.4c.4-.2.6-.7.6-1.1v-4.8c0-.4-.2-.9-.6-1.1L21 12.8Z"
+            fill="#fff"
           />
         </svg>
       );
     case "solana":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
           <defs>
-            <linearGradient id="sol-grad" x1="0" y1="1" x2="1" y2="0">
+            <linearGradient id={solGradId} x1="8" y1="24" x2="24" y2="8" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#9945FF" />
-              <stop offset="100%" stopColor="#14F195" />
+              <stop offset="50%" stopColor="#19FB9B" />
+              <stop offset="100%" stopColor="#00FFA3" />
             </linearGradient>
           </defs>
-          <circle cx="16" cy="16" r="15" fill="#0B1017" stroke="url(#sol-grad)" strokeWidth="1.5" />
-          <path d="M9.5 11.2h11.5l1.8-2H11.3l-1.8 2Zm0 5.8h13l-1.8-2h-11.2l0 2Zm1.8 5.8h11.5l-1.8-2H9.5l1.8 2Z" fill="url(#sol-grad)" />
+          <circle cx="16" cy="16" r="15" fill="#0B1017" stroke={`url(#${solGradId})`} strokeWidth="1.4" />
+          <path
+            d="M9.6 20.8a.6.6 0 0 1 .4-.2h12.6c.3 0 .4.3.2.5l-2 2a.6.6 0 0 1-.4.2H7.8c-.3 0-.4-.3-.2-.5l2-2Zm0-11.6a.6.6 0 0 1 .4-.2h12.6c.3 0 .4.3.2.5l-2 2a.6.6 0 0 1-.4.2H7.8c-.3 0-.4-.3-.2-.5l2-2Zm11.2 5.7a.6.6 0 0 0-.4-.2H7.8c-.3 0-.4.3-.2.5l2 2c.1.1.3.2.4.2h12.6c.3 0 .4-.3.2-.5l-2-2Z"
+            fill={`url(#${solGradId})`}
+          />
         </svg>
       );
     case "unichain":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <circle cx="16" cy="16" r="15" fill="#FF007A" />
-          <circle cx="16" cy="16" r="6" fill="none" stroke="#fff" strokeWidth="2.5" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <circle cx="16" cy="16" r="15" fill="#F50DB4" />
+          <path
+            d="M16 7.8v6.1a2.1 2.1 0 0 0 2.1 2.1h6.1a8.2 8.2 0 0 1-8.2 8.2A8.2 8.2 0 0 1 7.8 16 8.2 8.2 0 0 1 16 7.8Z"
+            fill="#fff"
+          />
         </svg>
       );
     case "linea":
       return (
-        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="shrink-0">
-          <circle cx="16" cy="16" r="15" fill="#121212" stroke="#61DFFF" strokeWidth="1.5" />
-          <path d="M11 10v11h10" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" />
-          <circle cx="20" cy="11" r="2.2" fill="#61DFFF" />
+        <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" className="block shrink-0">
+          <circle cx="16" cy="16" r="15" fill="#121212" stroke="#61DFFF" strokeWidth="1.4" />
+          <path d="M11 10.5v10.5h9.5" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="20.5" cy="11" r="2.2" fill="#61DFFF" />
         </svg>
       );
   }
@@ -172,6 +200,8 @@ export function normalizeChainMark(chain: string): SupportedChainMark {
   if (lower.includes("avax") || lower.includes("aval")) return "Avalanche";
   if (lower.includes("poly")) return "Polygon";
   if (lower.includes("sol")) return "Solana";
+  if (lower.includes("uni")) return "Unichain";
+  if (lower.includes("linea")) return "Linea";
   return "Arc_Mainnet";
 }
 
@@ -189,10 +219,14 @@ export function ChainMark({
   const key = normalizeChainMark(String(chain));
   const mark = marks[key];
   return (
-    <span className={cn("inline-flex items-center shrink-0", compact ? "gap-1.5" : "gap-2", className)} title={mark.name}>
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04]">
+    <span className={cn("inline-flex items-center justify-center shrink-0", compact ? "gap-1.5" : "gap-2", className)} title={mark.name}>
+      {compact ? (
         <ChainSvg family={mark.family} size={size} />
-      </span>
+      ) : (
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04]">
+          <ChainSvg family={mark.family} size={size} />
+        </span>
+      )}
       {!compact && (
         <span className="min-w-0">
           <span className="block truncate text-[11px] font-medium text-slate-200">{mark.name}</span>

@@ -235,11 +235,11 @@ export function BridgePanelBody() {
           <div className="sm:col-span-1">
             <Field label="Token">
               <div className="relative">
-                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
                   <TokenMark token={bridgeToken} size={18} />
                 </span>
                 <select
-                  className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 pl-9 pr-3 text-sm font-semibold text-slate-100"
+                  className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm font-semibold text-foreground focus:border-accent focus:outline-none"
                   value={bridgeToken}
                   disabled={busy}
                   onChange={(e) =>
@@ -283,11 +283,11 @@ export function BridgePanelBody() {
         <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
           <Field label="From network">
             <div className="relative">
-              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
-                <ChainMark chain={from} compact size={16} />
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                <ChainMark chain={from} compact size={18} />
               </span>
               <select
-                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100 min-w-0"
+                className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm text-foreground min-w-0 focus:border-accent focus:outline-none"
                 value={from}
                 disabled={busy}
                 onChange={(e) => setFrom(e.target.value as ChainId)}
@@ -300,7 +300,7 @@ export function BridgePanelBody() {
               </select>
             </div>
           </Field>
-          <div className="flex justify-center sm:block sm:pb-0.5">
+          <div className="flex justify-center sm:block">
             <Button
               type="button"
               size="sm"
@@ -315,8 +315,8 @@ export function BridgePanelBody() {
           </div>
           <Field label="To network">
             <div className="relative">
-              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
-                <ChainMark chain={to} compact size={16} />
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                <ChainMark chain={to} compact size={18} />
               </span>
               <select
                 className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm text-foreground min-w-0 focus:border-accent focus:outline-none"
@@ -782,18 +782,21 @@ export function SendPanelBody() {
       <div className="space-y-3">
         <Field label="Amount (USDC)">
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
-              <TokenMark token="USDC" size={16} />
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+              <TokenMark token="USDC" size={18} />
             </span>
             <Input
               type="number"
               min="0"
               step="0.01"
-              className="pl-9"
+              className="pl-10 pr-14"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               disabled={busy}
             />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold tracking-wide text-muted-foreground">
+              USDC
+            </span>
           </div>
         </Field>
         <Field label="Recipient Address">
@@ -975,11 +978,11 @@ export function UnifiedBalancePanelBody() {
         </Field>
         <Field label="From network">
           <div className="relative">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2">
-              <ChainMark chain={from} compact size={16} />
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+              <ChainMark chain={from} compact size={18} />
             </span>
             <select
-              className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 pl-10 pr-3 text-sm text-slate-100 min-w-0"
+              className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm text-foreground min-w-0 focus:border-accent focus:outline-none"
               value={from}
               disabled={busy}
               onChange={(e) => setFrom(e.target.value as ChainId)}
