@@ -139,14 +139,17 @@ export function ToolsWorkspace({
       className="glow-border scroll-mt-24 overflow-hidden rounded-3xl border border-border glass-cockpit shadow-2xl focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
     >
       <TransactionAmountResetter />
-      <div className="border-b border-border/80 px-4 pt-5 pb-4 sm:px-6">
+      <div className="border-b border-white/[0.08] px-4 pt-5 pb-4 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <h2 id="tools-heading" className="font-display text-lg font-extrabold tracking-tight text-foreground sm:text-xl">
             Actions
           </h2>
+          <span className="rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
+            Instant Execution
+          </span>
         </div>
 
-        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-3.5 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted/90 p-1.5 ring-1 ring-border/80">
+        <div role="tablist" aria-label="Money tools" aria-orientation="horizontal" className="mt-3.5 grid grid-cols-4 gap-1.5 rounded-2xl bg-slate-950/70 p-1.5 ring-1 ring-white/[0.08]">
           {TABS.map((t, index) => {
             const Icon = t.icon;
             const on = tab === t.id;
@@ -175,15 +178,17 @@ export function ToolsWorkspace({
                   tabRefs.current[nextIndex]?.focus();
                 }}
                 className={cn(
-                  "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center transition-all duration-200 active:scale-[0.97] motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+                  "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center transition-all duration-200 active:scale-[0.97] motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
                   on
-                    ? "bg-card text-accent ring-1 ring-accent/40 shadow-sm font-bold"
-                    : "text-foreground/80 hover:bg-card/60 hover:text-foreground font-semibold",
+                    ? "bg-card text-accent ring-1 ring-accent/40 shadow-md shadow-accent/5 font-bold"
+                    : "text-slate-300 hover:bg-card/60 hover:text-foreground font-semibold",
                 )}
               >
-                <Icon aria-hidden="true" className={cn("h-4 w-4", on ? "text-accent" : "text-foreground/75")} />
-                <span className="text-[13px] font-bold tracking-tight leading-snug">{t.label}</span>
-                <span className={cn("hidden text-[10px] font-medium leading-snug sm:block", on ? "text-foreground/80" : "text-muted-foreground")}>{t.short}</span>
+                <span className={cn("flex h-7 w-7 items-center justify-center rounded-lg transition-colors", on ? "bg-accent/15 text-accent" : "bg-white/[0.04] text-slate-300")}>
+                  <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+                </span>
+                <span className="font-display text-[13px] font-bold tracking-tight leading-snug">{t.label}</span>
+                <span className={cn("hidden text-[10px] font-medium leading-snug sm:block", on ? "text-slate-200" : "text-slate-400")}>{t.short}</span>
               </button>
             );
           })}
@@ -247,24 +252,24 @@ function Accordion({
   const [open, setOpen] = useState(false);
   const contentId = useId();
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-muted">
+    <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-card/70 transition-colors hover:border-accent/30">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={contentId}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-11 w-full items-start gap-3 px-3.5 py-3 text-left transition-colors motion-reduce:transition-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+        className="flex min-h-11 w-full items-start gap-3 px-3.5 py-3 text-left transition-colors motion-reduce:transition-none hover:bg-card focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
       >
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card ring-1 ring-border">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
           <Icon aria-hidden="true" className="h-4 w-4 text-accent" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-foreground">{title}</span>
-          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{plain}</span>
+          <span className="block font-display text-sm font-bold tracking-tight text-foreground">{title}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">{plain}</span>
         </span>
-        <ChevronDown aria-hidden="true" className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none", open && "rotate-180 text-accent")} />
+        <ChevronDown aria-hidden="true" className={cn("mt-1.5 h-4 w-4 shrink-0 text-slate-400 transition-transform motion-reduce:transition-none", open && "rotate-180 text-accent")} />
       </button>
-      <div id={contentId} hidden={!open} className="border-t border-border px-3 pb-3 pt-3">{open && children}</div>
+      <div id={contentId} hidden={!open} className="border-t border-white/[0.08] px-3.5 pb-3.5 pt-3">{open && children}</div>
     </div>
   );
 }

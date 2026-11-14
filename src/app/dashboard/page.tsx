@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { cn, shortenAddress } from "@/lib/utils";
 import { formatUsdc } from "@/lib/fees";
-import { Activity, ArrowRight, MessageSquare, Wrench, ExternalLink } from "lucide-react";
+import { Activity, ArrowRight, Globe, History, MessageSquare, ShieldCheck, Wallet, Wrench, ExternalLink } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
 import { ARC_EXPLORER, ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
@@ -198,41 +198,42 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] overflow-x-clip bg-background px-0 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-foreground sm:px-5 sm:py-6 lg:px-8 lg:py-8">
-      <header className="mb-3.5 sm:mb-6">
-        <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-border glass-cockpit p-3.5 sm:p-6 lg:p-8 relative shadow-2xl">
-          <div className="flex min-w-0 flex-col gap-4 sm:gap-7 relative z-[1]">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+      <header className="mb-4 sm:mb-6">
+        <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-white/10 glass-cockpit bg-gradient-to-br from-card/95 via-card/90 to-emerald-950/20 p-4 sm:p-6 lg:p-8 relative shadow-2xl">
+          <div className="flex min-w-0 flex-col gap-5 sm:gap-7 relative z-[1]">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div className="min-w-0 max-w-3xl">
-                <div className="mb-1.5 sm:mb-2.5 flex items-center gap-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.16em] text-accent">
+                <div className="mb-2.5 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent">
                   <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent animate-pulse" />
                   Arc Network Workspace
                 </div>
-                <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+                <h1 className="font-display text-2xl font-extrabold leading-[1.15] tracking-tight text-foreground sm:text-3xl lg:text-4xl">
                   Move money <span className="text-gradient">intelligently.</span>
                 </h1>
-                <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-muted-foreground">
-                  AI-assisted crosschain operations on Arc with USDC gas and fast finality.
+                <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-slate-300/90">
+                  AI-assisted crosschain operations on Arc with native USDC gas and sub-second finality.
                 </p>
               </div>
 
               {/* Mainnet / Testnet Switcher + Network Status Chip */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <div
                   role="group"
                   aria-label="Network mode"
-                  className="inline-flex items-center rounded-xl border border-border bg-card/90 p-0.5"
+                  className="inline-flex items-center rounded-2xl border border-white/10 bg-slate-950/75 p-1 shadow-inner"
                 >
                   <button
                     type="button"
                     disabled={switchingNetwork}
                     onClick={() => void switchNetworkMode("mainnet")}
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all duration-200",
                       detectedMeta.isMainnet
-                        ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40 shadow-sm shadow-emerald-500/10"
+                        : "text-slate-400 hover:text-slate-200",
                     )}
                   >
+                    <Globe aria-hidden="true" className="h-3.5 w-3.5" />
                     Mainnet
                   </button>
                   <button
@@ -240,35 +241,36 @@ export default function DashboardPage() {
                     disabled={switchingNetwork}
                     onClick={() => void switchNetworkMode("testnet")}
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold tracking-tight transition-all duration-200",
                       detectedMeta.isTestnet
-                        ? "bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40 shadow-sm shadow-cyan-500/10"
+                        : "text-slate-400 hover:text-slate-200",
                     )}
                   >
+                    <Activity aria-hidden="true" className="h-3.5 w-3.5" />
                     Testnet
                   </button>
                 </div>
                 <Badge
                   variant="outline"
                   className={cn(
-                    "items-center gap-1.5 border px-3 py-1 text-xs font-mono transition-colors",
+                    "items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-mono font-semibold transition-colors",
                     detectedMeta.isMainnet
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                       : detectedMeta.isTestnet
                       ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
                       : "border-amber-500/30 bg-amber-500/10 text-amber-300"
                   )}
                 >
-                  <Activity
+                  <span
                     aria-hidden="true"
                     className={cn(
-                      "h-3 w-3",
+                      "h-1.5 w-1.5 rounded-full",
                       detectedMeta.isMainnet
-                        ? "text-emerald-400"
+                        ? "bg-emerald-400"
                         : detectedMeta.isTestnet
-                        ? "text-cyan-300"
-                        : "text-amber-300"
+                        ? "bg-cyan-400"
+                        : "bg-amber-400"
                     )}
                   />
                   {detectedMeta.name}
@@ -278,35 +280,47 @@ export default function DashboardPage() {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4">
-              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-3 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
-                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span className="truncate">Available Balance</span>
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent/60 group-hover:bg-accent transition-colors" />
-                </p>
-                <p className="mt-1.5 sm:mt-2 break-words text-base font-bold text-foreground sm:text-2xl font-display tabular-nums">
+              <div className="group min-w-0 rounded-2xl border border-white/[0.08] bg-card/90 p-3.5 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Available Balance
+                  </p>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent ring-1 ring-accent/20">
+                    <Wallet aria-hidden="true" className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-2.5 break-words font-display text-lg font-extrabold tracking-tight text-foreground sm:text-2xl tabular-nums">
                   {liveBalanceUsdc ? `${formatUsdc(Number(liveBalanceUsdc))} ` : "0.00 "}
-                  <span className="text-xs sm:text-sm font-semibold text-accent">USDC</span>
+                  <span className="text-xs sm:text-sm font-bold text-accent">USDC</span>
                 </p>
               </div>
 
-              <div className="group min-w-0 rounded-2xl border border-border bg-card/90 p-3 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
-                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span className="truncate">Account</span>
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                </p>
-                <p className="mt-1.5 sm:mt-2 break-words font-mono text-xs sm:text-base font-semibold text-foreground">
+              <div className="group min-w-0 rounded-2xl border border-white/[0.08] bg-card/90 p-3.5 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Account
+                  </p>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+                    <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-2.5 break-words font-mono text-sm font-bold tracking-tight text-foreground sm:text-lg">
                   {walletAddress ? shortenAddress(walletAddress, 4) : "Not connected"}
                 </p>
               </div>
 
-              <div className="col-span-2 sm:col-span-1 group min-w-0 rounded-2xl border border-border bg-card/90 p-3 sm:p-5 transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/5">
-                <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Recent Activity</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent/60" />
-                </p>
-                <p className="mt-1.5 sm:mt-2 text-base font-bold text-foreground sm:text-2xl font-display tabular-nums">
+              <div className="col-span-2 sm:col-span-1 group min-w-0 rounded-2xl border border-white/[0.08] bg-card/90 p-3.5 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                    Recent Activity
+                  </p>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300 ring-1 ring-cyan-500/20">
+                    <History aria-hidden="true" className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-2.5 font-display text-lg font-extrabold tracking-tight text-foreground sm:text-2xl tabular-nums">
                   {transactions.length.toString().padStart(2, "0")}{" "}
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground">Transactions</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-400">Transactions</span>
                 </p>
               </div>
             </div>
@@ -369,11 +383,18 @@ export default function DashboardPage() {
           <div className="min-w-0 w-full overflow-hidden"><ToolsWorkspace defaultTab="send" /></div>
           <LiveOperationPanel />
           {active && <TransactionProgress tx={active} onRetry={active.status === "error" || active.retryable ? () => void retryActive() : undefined} />}
-          <Card className="w-full overflow-hidden border-border bg-card shadow-lg">
+          <Card className="w-full overflow-hidden border-white/[0.08] bg-card/95 shadow-lg">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="truncate text-sm font-semibold text-foreground">Activity timeline</CardTitle>
-                <a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-accent hover:bg-muted transition-colors">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent ring-1 ring-accent/20">
+                    <History aria-hidden="true" className="h-3.5 w-3.5" />
+                  </span>
+                  <CardTitle className="truncate font-display text-sm font-bold tracking-tight text-foreground">
+                    Activity timeline
+                  </CardTitle>
+                </div>
+                <a href="#tools" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold text-accent hover:bg-muted transition-colors">
                   Operate <ArrowRight className="h-3 w-3" />
                 </a>
               </div>
