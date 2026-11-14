@@ -90,6 +90,8 @@ export async function getCircleSdk(): Promise<W3SSdk> {
     circleSdk = new W3SSdk();
     circleSdk.setAppSettings({ appId });
     circleSdkAppId = appId;
+    // Initialize the hosted iframe device session immediately so sdk.execute() never stalls.
+    await circleSdk.getDeviceId().catch(() => undefined);
   }
 
   const session = getCircleSession();
@@ -126,8 +128,22 @@ async function executeChallenge(challengeId: string): Promise<void> {
       sdk.execute(challengeId, (error) => {
         if (error) {
           const code = Number((error as any)?.code ?? -1);
-          const message = String((error as any)?.message || "Circle challenge failed.");
-          const wrapped = new Error(message);
+          const rawMessage = String((error as any)?.message || "Circle challenge failed.");
+          const mappedMessage =
+            code === 155106
+              ? "Wallet already initialized — loading existing Circle wallets."
+              : code === 155104
+              ? "Circle session expired. Please sign in again."
+              : code === 155101
+              ? "User already exists — refreshing session token."
+              : code === 155130 || code === 155131
+              ? "Verification code expired or invalid. Please request a new OTP."
+              : code === 155133 || code === 155134
+              ? "Incorrect verification code. Please check and re-enter."
+              : code === 155146
+              ? "Too many invalid OTP attempts. Please request a new code."
+              : rawMessage;
+          const wrapped = new Error(mappedMessage);
           (wrapped as any).code = code;
           reject(wrapped);
         } else resolve();

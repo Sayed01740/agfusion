@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeftRight,
   ChevronDown,
+  CreditCard,
   MoreHorizontal,
   QrCode,
   Send,
@@ -23,6 +24,7 @@ import { ProductionSwapPanel } from "@/components/panels/production-swap-panel";
 import { QrPayCard } from "@/components/pay/qr-pay";
 import { BatchPayrollCard } from "@/components/pay/batch-payroll";
 import { RiskOracleCard } from "@/components/pay/risk-oracle";
+import { OnrampCard } from "@/components/pay/onramp-card";
 import { UnifiedBalanceCard } from "@/components/balance/unified-balance";
 import { ARC_NETWORK_NAME } from "@/lib/arc-chain";
 import { SWAP_HANDOFF_EVENT } from "@/lib/swap-handoff";
@@ -204,6 +206,10 @@ export function ToolsWorkspace({
 function MoreTools() {
   return (
     <div className="space-y-2.5">
+      <Accordion icon={CreditCard} title="Buy USDC (Fiat Onramp)" plain="Fund your wallet with Debit Card, Apple Pay, Google Pay, or Bank Transfer.">
+        <OnrampCard embedded />
+      </Accordion>
+
       <Accordion icon={QrCode} title="QR & Payment Links" plain="Generate a shareable payment request or QR code.">
         <QrPayCard embedded />
       </Accordion>

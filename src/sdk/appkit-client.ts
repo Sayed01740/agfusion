@@ -19,6 +19,11 @@ export type AppKitLike = {
   unifiedBalance: {
     deposit: (params: unknown) => Promise<unknown>;
     spend: (params: unknown) => Promise<unknown>;
+    getBalances?: (params: unknown) => Promise<unknown>;
+  };
+  onramp?: {
+    mountIframe?: (params: unknown) => Promise<unknown> | unknown;
+    openWindow?: (params: unknown) => Promise<unknown> | unknown;
   };
   getSupportedChains: (op?: string) => unknown[];
 };

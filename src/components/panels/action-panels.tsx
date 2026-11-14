@@ -76,6 +76,8 @@ export function BridgePanelBody() {
   const defaultTo: ChainId = isMainnet ? "Base" : "Base_Sepolia";
 
   const [amount, setAmount] = useState("10");
+  const [bridgeToken, setBridgeToken] = useState<"USDC" | "EURC" | "cirBTC" | "wETH">("USDC");
+  const [transferSpeed, setTransferSpeed] = useState<"FAST" | "SLOW">("FAST");
   const [from, setFrom] = useState<ChainId>(defaultFrom);
   const [to, setTo] = useState<ChainId>(defaultTo);
   const [bridgeMode, setBridgeMode] = useState<"fast-direct" | "auto-relayer">("fast-direct");
@@ -183,9 +185,10 @@ export function BridgePanelBody() {
         amount,
         fromChain: from,
         toChain: to,
-        token: "USDC",
+        token: bridgeToken,
         preferLive: true,
         bridgeMode,
+        transferSpeed,
         txId,
       });
 
@@ -226,16 +229,50 @@ export function BridgePanelBody() {
   return (
     <>
       <div className="space-y-3">
-        <Field label="Amount (USDC)">
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            disabled={busy}
-          />
-        </Field>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="sm:col-span-1">
+            <Field label="Token">
+              <select
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+                value={bridgeToken}
+                disabled={busy}
+                onChange={(e) =>
+                  setBridgeToken(e.target.value as "USDC" | "EURC" | "cirBTC" | "wETH")
+                }
+              >
+                <option value="USDC">USDC (CCTP v2)</option>
+                <option value="EURC">EURC (CCTPx)</option>
+                <option value="cirBTC">cirBTC (CCTPx)</option>
+                <option value="wETH">wETH (CCTPx)</option>
+              </select>
+            </Field>
+          </div>
+          <div className="sm:col-span-1">
+            <Field label={`Amount (${bridgeToken})`}>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={busy}
+              />
+            </Field>
+          </div>
+          <div className="sm:col-span-1">
+            <Field label="Speed">
+              <select
+                className="h-11 w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
+                value={transferSpeed}
+                disabled={busy}
+                onChange={(e) => setTransferSpeed(e.target.value as "FAST" | "SLOW")}
+              >
+                <option value="FAST">FAST (~8-20s)</option>
+                <option value="SLOW">SLOW (Finality)</option>
+              </select>
+            </Field>
+          </div>
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
           <Field label="From network">
             <select

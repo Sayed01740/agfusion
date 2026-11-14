@@ -59,6 +59,7 @@ export function WalletModal({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [emailConnecting, setEmailConnecting] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const titleId = useId();
   const summaryId = useId();
   const emailId = useId();
@@ -136,11 +137,9 @@ export function WalletModal({
                 usePilotStore.getState().setWallet(address, ARC_CHAIN_ID);
                 usePilotStore.getState().setAuthenticated(true);
                 onConnectCircle?.(mockProvider as any, address);
-                
-                alert(`Connected Circle Email Wallet!\nYour wallet address is: ${address}\n\nFund this exact address with USDC on ${ARC_NETWORK_NAME}. This same Circle smart-wallet address can be used by Auto-Agent.`);
                 onClose();
               } catch (err: any) {
-                alert(err.message || "Failed to create Circle Wallet");
+                setEmailError(err?.message || "Failed to connect Circle Email Wallet.");
               } finally {
                 setEmailConnecting(false);
               }
@@ -174,8 +173,13 @@ export function WalletModal({
                 </Button>
               </div>
               <p id={emailHintId} className="text-[10px] text-muted-foreground">
-                Powered by Circle Programmable Wallets
+                Powered by Circle Programmable Wallets · Uses USDC for gas on Arc · Keep your email/PIN recovery active
               </p>
+              {emailError && (
+                <p role="alert" className="text-xs text-danger rounded-lg border border-danger/20 bg-danger/10 px-2.5 py-1.5">
+                  {emailError}
+                </p>
+              )}
             </div>
           </form>
           ) : (

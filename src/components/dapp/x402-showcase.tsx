@@ -12,10 +12,10 @@ export function X402Showcase() {
 
   // Safe challenge preview only. The paid flow stays disabled until the
   // server verifies Arc Testnet ERC-20 receipts and prevents payment replay.
-  async function testUnpaidRequest() {
+  async function testUnpaidRequest(endpoint = "/api/x402/agent-service") {
     setLoading(true);
     try {
-      const res = await fetch("/api/x402/agent-service");
+      const res = await fetch(endpoint);
       setResponseStatus(res.status);
       const data = await res.json();
       setPayload(data);
@@ -58,7 +58,7 @@ export function X402Showcase() {
         <Button
           size="sm"
           variant="outline"
-          onClick={testUnpaidRequest}
+          onClick={() => testUnpaidRequest("/api/x402/agent-service")}
           disabled={loading}
           className="text-xs text-amber-300 border-amber-500/30 hover:bg-amber-500/10"
         >
@@ -67,15 +67,22 @@ export function X402Showcase() {
           ) : (
             <Terminal className="h-3 w-3 mr-1" />
           )}
-          Check Payment Challenge
+          Check Legacy Challenge
         </Button>
 
         <Button
           size="sm"
-          disabled
-          className="text-xs bg-slate-700 text-slate-300 cursor-not-allowed"
+          variant="outline"
+          onClick={() => testUnpaidRequest("/api/x402/gateway")}
+          disabled={loading}
+          className="text-xs text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/10"
         >
-          Payment temporarily unavailable
+          {loading ? (
+            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+          ) : (
+            <Cpu className="h-3 w-3 mr-1" />
+          )}
+          Check Gateway Nanopayments (402)
         </Button>
       </div>
 

@@ -915,6 +915,8 @@ export async function runUnifiedSpend(params: {
   amount: string;
   recipient: string;
   recipientLabel?: string;
+  toChain?: ChainId;
+  useForwarder?: boolean;
 }): Promise<TransactionRecord> {
   if (typeof window === "undefined") {
     throw new Error("Unified Balance spend must run in the browser.");
@@ -942,6 +944,9 @@ export async function runUnifiedSpend(params: {
 
   const kit = await getAppKit();
   const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+  const targetChain: ChainId =
+    params.toChain || (IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet");
+  const sdkChainName = targetChain === "Arc_Mainnet" ? "Arc" : targetChain;
 
   if (kit?.unifiedBalance && wired) {
     try {
@@ -950,15 +955,21 @@ export async function runUnifiedSpend(params: {
       const spendParams: Record<string, unknown> = {
         amount: String(params.amount),
         token: "USDC",
-        from: { 
+        from: {
           adapter: wired.adapter,
           address: depositorAddress,
         },
-        to: {
-          adapter: wired.adapter,
-          chain: "Arc_Testnet",
-          address: recipient,
-        },
+        to: params.useForwarder
+          ? {
+              chain: sdkChainName,
+              recipientAddress: recipient,
+              useForwarder: true,
+            }
+          : {
+              adapter: wired.adapter,
+              chain: sdkChainName,
+              recipientAddress: recipient,
+            },
       };
       if (kitKey) {
         spendParams.config = { kitKey };
@@ -975,13 +986,13 @@ export async function runUnifiedSpend(params: {
         status: "success",
         amount: params.amount,
         token: "USDC",
-        toChain: "Arc_Testnet",
+        toChain: targetChain,
         recipient,
         recipientLabel: params.recipientLabel,
         feeUsd: 0.08,
         steps: [
           {
-            name: "Unified Balance spend → Arc",
+            name: `Unified Balance spend → ${sdkChainName}`,
             state: "success",
             txHash: result?.txHash,
           },
@@ -991,7 +1002,7 @@ export async function runUnifiedSpend(params: {
           result?.explorerUrl ||
           (result?.txHash ? explorerTxUrl(result.txHash) : undefined),
         createdAt: new Date().toISOString(),
-        message: `Unified Balance spend ${params.amount} USDC on Arc`,
+        message: `Unified Balance spend ${params.amount} USDC → ${sdkChainName.replace(/_/g, " ")}`,
         executionMode: "live",
       };
     } catch (e) {
@@ -1015,6 +1026,121 @@ export async function runUnifiedSpend(params: {
     recipient,
     recipientLabel: params.recipientLabel,
   });
+}
+
+export interface UnifiedGatewayBalanceSnapshot {
+  totalUsdc: string;
+  chains: Array<{ chain: string; balance: string }>;
+}
+
+export async function runUnifiedGetBalances(
+  address: string,
+): Promise<UnifiedGatewayBalanceSnapshot> {
+  if (typeof window === "undefined") {
+    throw new Error("Unified Balance lookup must run in the browser.");
+  }
+  const kit = await getAppKit();
+  if (!kit?.unifiedBalance || typeof kit.unifiedBalance.getBalances !== "function") {
+    throw new Error("Circle App Kit getBalances() is unavailable in this session.");
+  }
+  const raw = (await kit.unifiedBalance.getBalances({ address })) as
+    | { total?: string; totalBalance?: string; balances?: Array<{ chain?: string; balance?: string; amount?: string }> }
+    | Array<{ chain?: string; balance?: string; amount?: string }>;
+
+  const rows = Array.isArray(raw) ? raw : raw?.balances || [];
+  const chains = rows.map((r) => ({
+    chain: String(r.chain || "Unknown"),
+    balance: String(r.balance ?? r.amount ?? "0"),
+  }));
+  const sum = chains.reduce((acc, c) => acc + (Number(c.balance) || 0), 0);
+  const totalUsdc =
+    !Array.isArray(raw) && (raw?.total || raw?.totalBalance)
+      ? String(raw.total || raw.totalBalance)
+      : sum.toFixed(6);
+
+  return { totalUsdc, chains };
+}
+
+export async function runCctpxBridgeFlow(params: {
+  amount: string;
+  token: "EURC" | "cirBTC" | "wETH";
+  fromChain: ChainId;
+  toChain: ChainId;
+  recipient?: string;
+  transferSpeed?: "FAST" | "SLOW";
+}): Promise<TransactionRecord> {
+  if (typeof window === "undefined") {
+    throw new Error("CCTPx bridge must run in the browser.");
+  }
+  const n = Number(params.amount);
+  if (!params.amount || Number.isNaN(n) || n <= 0) {
+    throw new Error(`Enter a valid ${params.token} amount to bridge.`);
+  }
+  if (
+    (params.fromChain as string) === "Solana" ||
+    (params.toChain as string) === "Solana"
+  ) {
+    throw new Error(`${params.token} CCTPx bridging supports EVM-to-EVM routes only. Use USDC for Solana.`);
+  }
+
+  const { installCircleApiProxy } = await import("@/lib/circle-proxy");
+  installCircleApiProxy();
+  const { formatKitError } = await import("@/lib/kit-key");
+
+  const kit = await getAppKit();
+  const wired = await createAppKitAdapterFromBrowser({ requireArc: false });
+  if (!kit || !wired) {
+    throw new Error("Connect an EVM wallet before bridging CCTPx tokens.");
+  }
+
+  const fromSdkChain = params.fromChain === "Arc_Mainnet" ? "Arc" : params.fromChain;
+  const toSdkChain = params.toChain === "Arc_Mainnet" ? "Arc" : params.toChain;
+  const speed = params.transferSpeed || "FAST";
+  const bridgeParams = {
+    token: params.token,
+    amount: String(params.amount),
+    from: { adapter: wired.adapter, chain: fromSdkChain },
+    to: {
+      adapter: wired.adapter,
+      chain: toSdkChain,
+      ...(params.recipient ? { recipientAddress: params.recipient } : {}),
+    },
+    config: { transferSpeed: speed },
+  };
+
+  try {
+    // Per bridge-tokens SKILL.md: quote first with estimateBridge() before executing kit.bridge()
+    await kit.estimateBridge(bridgeParams).catch(() => undefined);
+    const result = (await kit.bridge(bridgeParams)) as BridgeSdkResult & {
+      txHash?: string;
+      explorerUrl?: string;
+    };
+
+    const destHash = findDestinationHash(result?.steps) || result?.txHash;
+    return {
+      id: uid("tx"),
+      type: "bridge",
+      status: result?.state === "error" ? "error" : "success",
+      amount: params.amount,
+      token: params.token,
+      fromChain: params.fromChain,
+      toChain: params.toChain,
+      recipient: params.recipient,
+      feeUsd: 0.08,
+      steps: (result?.steps || []).map((s, idx) => ({
+        name: s.name || `Step ${idx + 1}`,
+        state: (s.state as TxStep["state"]) || "success",
+        txHash: s.txHash,
+      })),
+      txHash: destHash,
+      explorerUrl: destHash ? explorerTxUrl(destHash) : result?.explorerUrl,
+      createdAt: new Date().toISOString(),
+      message: `CCTPx ${speed} bridge ${params.amount} ${params.token}: ${fromSdkChain} → ${toSdkChain}`,
+      executionMode: "live",
+    };
+  } catch (e) {
+    throw new Error(formatKitError(e));
+  }
 }
 
 export async function runUnifiedRouteFlow(params: {

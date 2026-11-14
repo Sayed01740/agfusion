@@ -12,8 +12,30 @@ import { formatUsd } from "@/lib/utils";
 import {
   executeUnifiedDeposit,
   executeUnifiedSpend,
+  fetchUnifiedGatewayBalances,
 } from "@/lib/client-actions";
+import { getArcNetworkMeta } from "@/lib/arc-chain";
+import type { ChainId } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
+const MAINNET_GATEWAY_CHAINS: Array<{ id: ChainId; label: string }> = [
+  { id: "Arc_Mainnet", label: "Arc Mainnet" },
+  { id: "Base", label: "Base" },
+  { id: "Ethereum", label: "Ethereum" },
+  { id: "Arbitrum", label: "Arbitrum" },
+  { id: "Optimism", label: "Optimism" },
+  { id: "Polygon", label: "Polygon" },
+  { id: "Avalanche", label: "Avalanche" },
+];
+
+const TESTNET_GATEWAY_CHAINS: Array<{ id: ChainId; label: string }> = [
+  { id: "Arc_Testnet", label: "Arc Testnet" },
+  { id: "Base_Sepolia", label: "Base Sepolia" },
+  { id: "Ethereum_Sepolia", label: "Ethereum Sepolia" },
+  { id: "Arbitrum_Sepolia", label: "Arbitrum Sepolia" },
+  { id: "Optimism_Sepolia", label: "Optimism Sepolia" },
+  { id: "Polygon_Amoy_Testnet", label: "Polygon Amoy" },
+];
 
 export function UnifiedBalanceCard({
   embedded = false,
@@ -24,12 +46,16 @@ export function UnifiedBalanceCard({
     balances,
     liveBalanceUsdc,
     walletAddress,
+    walletChainId,
     addTransaction,
     setActiveTx,
     setThinking,
     executionMode,
     refreshBalances,
   } = usePilotStore();
+
+  const isMainnet = getArcNetworkMeta(walletChainId).isMainnet;
+  const gatewayChains = isMainnet ? MAINNET_GATEWAY_CHAINS : TESTNET_GATEWAY_CHAINS;
 
   const liveN = Number(String(liveBalanceUsdc || "").replace(/,/g, ""));
   const hasVerifiedLiveBalance = Boolean(
@@ -41,14 +67,35 @@ export function UnifiedBalanceCard({
   // not as a fabricated/estimated amount.
   const total = hasVerifiedLiveBalance ? liveN : 0;
   const [amount, setAmount] = useState("1");
-  const [depositFrom, setDepositFrom] = useState<
-    "Base_Sepolia" | "Ethereum_Sepolia"
-  >("Base_Sepolia");
+  const [depositFrom, setDepositFrom] = useState<ChainId>(
+    isMainnet ? "Base" : "Base_Sepolia",
+  );
+  const [spendToChain, setSpendToChain] = useState<ChainId>(
+    isMainnet ? "Arc_Mainnet" : "Arc_Testnet",
+  );
+  const [useForwarder, setUseForwarder] = useState(true);
+  const [gatewayTotal, setGatewayTotal] = useState<string | null>(null);
+  const [syncingGateway, setSyncingGateway] = useState(false);
   const [spendTo, setSpendTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"deposit" | "spend" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [lastNote, setLastNote] = useState<string | null>(null);
+
+  async function syncGateway() {
+    if (!walletAddress) return;
+    setSyncingGateway(true);
+    setErr(null);
+    try {
+      const snap = await fetchUnifiedGatewayBalances(walletAddress);
+      setGatewayTotal(snap.totalUsdc);
+      setLastNote(`Gateway unified balance synced: ${snap.totalUsdc} USDC across ${snap.chains.length} chain(s).`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not fetch Gateway unified balance.");
+    } finally {
+      setSyncingGateway(false);
+    }
+  }
 
   const amountN = Number(amount);
   const validAmount = Number.isFinite(amountN) && amountN > 0;
@@ -128,7 +175,9 @@ export function UnifiedBalanceCard({
       const tx = await executeUnifiedSpend({
         amount,
         recipient: to,
-        recipientLabel: "Unified spend → Arc",
+        recipientLabel: `Unified spend → ${spendToChain.replace(/_/g, " ")}`,
+        toChain: spendToChain,
+        useForwarder,
       });
       addTransaction(tx);
       setActiveTx(tx.id);
@@ -174,17 +223,29 @@ export function UnifiedBalanceCard({
             : "Connect wallet for verified live Arc USDC"}
         </p>
         {walletAddress && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="mt-1 h-7 px-2 text-[11px]"
-            type="button"
-            disabled={busy}
-            onClick={() => refreshBalances()}
-          >
-            <RefreshCw className="mr-1 h-3 w-3" />
-            Refresh balance
-          </Button>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
+              type="button"
+              disabled={busy}
+              onClick={() => refreshBalances()}
+            >
+              <RefreshCw className="mr-1 h-3 w-3" />
+              Refresh balance
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px] border-cyan-500/30 text-cyan-300"
+              type="button"
+              disabled={busy || syncingGateway}
+              onClick={() => void syncGateway()}
+            >
+              {syncingGateway ? "Syncing…" : gatewayTotal !== null ? `Gateway: ${gatewayTotal} USDC` : "Sync Gateway"}
+            </Button>
+          </div>
         )}
         {hasVerifiedLiveBalance && (
           <p className="mt-1 text-[11px] text-emerald-400/90">
@@ -270,17 +331,44 @@ export function UnifiedBalanceCard({
           className="h-11 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-sm text-slate-100"
           value={depositFrom}
           disabled={busy}
-          onChange={(e) =>
-            setDepositFrom(
-              e.target.value as "Base_Sepolia" | "Ethereum_Sepolia",
-            )
-          }
+          onChange={(e) => setDepositFrom(e.target.value as ChainId)}
         >
-          <option value="Base_Sepolia">Base Sepolia</option>
-          <option value="Ethereum_Sepolia">Ethereum Sepolia</option>
+          {gatewayChains.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
         </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-slate-500">
+              Spend destination chain
+            </label>
+            <select
+              className="mt-1 h-10 w-full min-w-0 rounded-xl border border-white/10 bg-slate-950/60 px-3 text-xs text-slate-100"
+              value={spendToChain}
+              disabled={busy}
+              onChange={(e) => setSpendToChain(e.target.value as ChainId)}
+            >
+              {gatewayChains.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-300 sm:mt-5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useForwarder}
+              onChange={(e) => setUseForwarder(e.target.checked)}
+              className="accent-emerald-400"
+            />
+            <span>Gateway Forwarder (&lt;500ms)</span>
+          </label>
+        </div>
         <label className="text-[11px] uppercase tracking-wider text-slate-500">
-          Spend recipient on Arc (0x)
+          Spend recipient (0x)
         </label>
         <Input
           value={spendTo}
