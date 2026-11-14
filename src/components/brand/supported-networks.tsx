@@ -8,6 +8,8 @@ const MAINNET_NETWORKS: SupportedChainMark[] = [
   "Optimism",
   "Avalanche",
   "Polygon",
+  "Unichain",
+  "Linea",
   "Solana",
 ];
 
@@ -19,6 +21,8 @@ const TESTNET_NETWORKS: SupportedChainMark[] = [
   "Optimism_Sepolia",
   "Avalanche_Fuji",
   "Polygon_Amoy",
+  "Unichain_Sepolia",
+  "Linea_Sepolia",
   "Solana_Devnet",
 ];
 

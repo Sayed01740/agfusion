@@ -25,9 +25,13 @@ export const EXPECTED_CHAIN_IDS: Record<string, string> = {
   op: "0xaa37dc",
   op_mainnet: "0xa",
   polygon: "0x13882",
+  polygon_mainnet: "0x89",
   avax: "0xa869",
+  avax_mainnet: "0xa86a",
   unichain: "0x515",
+  unichain_mainnet: "0x82",
   linea: "0xe705",
+  linea_mainnet: "0xe708",
 };
 
 /** Ordered upstreams per chain key. First healthy provider wins. */
@@ -117,6 +121,26 @@ export const RPC_UPSTREAMS: Record<string, string[]> = {
     "https://linea-sepolia-rpc.publicnode.com",
     "https://rpc.sepolia.linea.build",
     "https://59141.rpc.thirdweb.com",
+  ],
+  polygon_mainnet: [
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://polygon-rpc.com",
+    "https://137.rpc.thirdweb.com",
+  ],
+  avax_mainnet: [
+    "https://avalanche-c-chain-rpc.publicnode.com",
+    "https://api.avax.network/ext/bc/C/rpc",
+    "https://43114.rpc.thirdweb.com",
+  ],
+  unichain_mainnet: [
+    "https://mainnet.unichain.org",
+    "https://unichain-rpc.publicnode.com",
+    "https://130.rpc.thirdweb.com",
+  ],
+  linea_mainnet: [
+    "https://rpc.linea.build",
+    "https://linea-rpc.publicnode.com",
+    "https://59144.rpc.thirdweb.com",
   ],
 };
 

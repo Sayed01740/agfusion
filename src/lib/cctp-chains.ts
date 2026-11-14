@@ -219,6 +219,54 @@ export const CCTP_CHAIN_CONFIG: Record<string, CctpChainConfig> = {
     rpcProxyKey: "op_mainnet",
     explorerUrl: "https://optimistic.etherscan.io",
   },
+  Polygon: {
+    chainId: 137,
+    appKitName: "Polygon",
+    circleBlockchain: "MATIC",
+    domain: 7,
+    usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "polygon_mainnet",
+    explorerUrl: "https://polygonscan.com",
+  },
+  Avalanche: {
+    chainId: 43114,
+    appKitName: "Avalanche",
+    circleBlockchain: "AVAX",
+    domain: 1,
+    usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "avax_mainnet",
+    explorerUrl: "https://snowtrace.io",
+  },
+  Unichain: {
+    chainId: 130,
+    appKitName: "Unichain",
+    circleBlockchain: null,
+    domain: 10,
+    usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "unichain_mainnet",
+    explorerUrl: "https://uniscan.xyz",
+  },
+  Linea: {
+    chainId: 59144,
+    appKitName: "Linea",
+    circleBlockchain: null,
+    domain: 11,
+    usdc: "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+    tokenMessenger: CCTP_V2_TOKEN_MESSENGER_MAINNET,
+    messageTransmitter: CCTP_V2_MSG_TRANSMITTER_MAINNET,
+    confirmations: 65,
+    rpcProxyKey: "linea_mainnet",
+    explorerUrl: "https://lineascan.build",
+  },
 };
 
 export const EVM_TESTNET_BRIDGE_CHAINS: ChainId[] = [
@@ -239,6 +287,10 @@ export const EVM_MAINNET_BRIDGE_CHAINS: ChainId[] = [
   "Ethereum",
   "Arbitrum",
   "Optimism",
+  "Polygon",
+  "Avalanche",
+  "Unichain",
+  "Linea",
 ];
 
 export function getEvmBridgeChains(isMainnet: boolean = IS_ARC_MAINNET): ChainId[] {
@@ -247,7 +299,7 @@ export function getEvmBridgeChains(isMainnet: boolean = IS_ARC_MAINNET): ChainId
 
 export function getCircleBridgeChains(isMainnet: boolean = IS_ARC_MAINNET): ChainId[] {
   return isMainnet
-    ? ["Arc_Mainnet", "Base", "Ethereum", "Arbitrum", "Optimism"]
+    ? ["Arc_Mainnet", "Base", "Ethereum", "Arbitrum", "Optimism", "Polygon", "Avalanche"]
     : ["Arc_Testnet", "Base_Sepolia", "Ethereum_Sepolia", "Arbitrum_Sepolia", "Optimism_Sepolia"];
 }
 
@@ -257,7 +309,7 @@ export const EVM_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
 
 /** IS_ARC_MAINNET-aware bridge chain list for the UI */
 export const CIRCLE_BRIDGE_CHAINS: ChainId[] = IS_ARC_MAINNET
-  ? ["Arc_Mainnet", "Base", "Ethereum", "Arbitrum", "Optimism"]
+  ? ["Arc_Mainnet", "Base", "Ethereum", "Arbitrum", "Optimism", "Polygon", "Avalanche"]
   : ["Arc_Testnet", "Base_Sepolia", "Ethereum_Sepolia", "Arbitrum_Sepolia", "Optimism_Sepolia"];
 
 export function getCctpConfig(appKitName: string): CctpChainConfig | null {
