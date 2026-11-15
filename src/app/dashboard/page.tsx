@@ -14,7 +14,7 @@ import { formatUsdc } from "@/lib/fees";
 import { Activity, ArrowRight, Globe, History, MessageSquare, ShieldCheck, Wallet, Wrench, ExternalLink } from "lucide-react";
 import { executeBridgeRecovery, executeSend } from "@/lib/client-actions";
 import { Button } from "@/components/ui/button";
-import { ARC_EXPLORER, ARC_NETWORK_NAME, getArcNetworkMeta } from "@/lib/arc-chain";
+import { ARC_EXPLORER, getArcNetworkMeta } from "@/lib/arc-chain";
 import { SupportedNetworks } from "@/components/brand/supported-networks";
 import { getInjectedProvider } from "@/sdk/wallet-adapter";
 import type { TransactionRecord, TxStep } from "@/types";

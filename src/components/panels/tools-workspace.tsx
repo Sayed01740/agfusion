@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import {
   ArrowLeftRight,
   ChevronDown,
@@ -17,17 +18,35 @@ import { cn } from "@/lib/utils";
 import { usePilotStore } from "@/store/pilot-store";
 import {
   BridgePanelBody,
-  RecoveryPanelBody,
   SendPanelBody,
 } from "@/components/panels/action-panels";
 import { ProductionSwapPanel } from "@/components/panels/production-swap-panel";
-import { QrPayCard } from "@/components/pay/qr-pay";
-import { BatchPayrollCard } from "@/components/pay/batch-payroll";
-import { RiskOracleCard } from "@/components/pay/risk-oracle";
-import { OnrampCard } from "@/components/pay/onramp-card";
-import { UnifiedBalanceCard } from "@/components/balance/unified-balance";
-import { ARC_NETWORK_NAME } from "@/lib/arc-chain";
 import { SWAP_HANDOFF_EVENT } from "@/lib/swap-handoff";
+
+const RecoveryPanelBody = dynamic(
+  () => import("@/components/panels/action-panels").then((m) => m.RecoveryPanelBody),
+  { ssr: false },
+);
+const QrPayCard = dynamic(
+  () => import("@/components/pay/qr-pay").then((m) => m.QrPayCard),
+  { ssr: false },
+);
+const BatchPayrollCard = dynamic(
+  () => import("@/components/pay/batch-payroll").then((m) => m.BatchPayrollCard),
+  { ssr: false },
+);
+const RiskOracleCard = dynamic(
+  () => import("@/components/pay/risk-oracle").then((m) => m.RiskOracleCard),
+  { ssr: false },
+);
+const OnrampCard = dynamic(
+  () => import("@/components/pay/onramp-card").then((m) => m.OnrampCard),
+  { ssr: false },
+);
+const UnifiedBalanceCard = dynamic(
+  () => import("@/components/balance/unified-balance").then((m) => m.UnifiedBalanceCard),
+  { ssr: false },
+);
 
 type TabId = "send" | "swap" | "bridge" | "more";
 

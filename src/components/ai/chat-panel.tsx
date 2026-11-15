@@ -27,12 +27,8 @@ import { runAgentStream } from "@/lib/agent-client";
 import { runUnifiedRouteFlow } from "@/blockchain/appkit-service";
 import { requireSafeRecipient } from "@/lib/balances-empty";
 import { sanitizeAgentText } from "@/lib/sanitize";
-import { ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 import { publishSwapHandoff } from "@/lib/swap-handoff";
 import { runMainnetUniswapSwap } from "@/blockchain/uniswap-mainnet-flow";
-
-const ACTIVE_ARC_CHAIN = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
-const ACTIVE_PEER_CHAIN = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
 
 const SUGGESTIONS = [
   "What can you do?",
@@ -79,6 +75,7 @@ export function ChatPanel() {
     markPreviewExecuted,
     walletAddress,
     walletChainId,
+    networkMode,
     liveBalanceUsdc,
     forceDemo,
   } = usePilotStore();
@@ -237,14 +234,15 @@ export function ChatPanel() {
     setChatError(null);
     const activeMeta = (await import("@/sdk/active-wallet")).getActiveWalletMeta();
     const effectiveAddress = walletAddress || activeMeta?.address;
-    const defaultArcChain =
+    const isMainnetActive =
       walletChainId === 5042
-        ? "Arc_Mainnet"
+        ? true
         : walletChainId === 5042002
-          ? "Arc_Testnet"
-          : ACTIVE_ARC_CHAIN;
-    const defaultArcLabel =
-      defaultArcChain === "Arc_Mainnet" ? "Arc Mainnet" : "Arc Testnet";
+          ? false
+          : networkMode === "mainnet";
+    const defaultArcChain = isMainnetActive ? "Arc_Mainnet" : "Arc_Testnet";
+    const defaultPeerChain = isMainnetActive ? "Base" : "Base_Sepolia";
+    const defaultArcLabel = isMainnetActive ? "Arc Mainnet" : "Arc Testnet";
 
     if (!effectiveAddress && preview.requiresWallet !== false) {
       setChatError(`Connect your wallet, switch to ${defaultArcLabel}, then confirm the action again.`);
@@ -277,9 +275,9 @@ export function ChatPanel() {
       const arcOr = (c: string | undefined, fallback: string) =>
         isArcId(c) ? defaultArcChain : c || fallback;
       const peerOr = (c: string | undefined) => {
-        if (!c) return ACTIVE_PEER_CHAIN;
-        if (IS_ARC_MAINNET && c === "Base_Sepolia") return "Base";
-        if (!IS_ARC_MAINNET && c === "Base") return "Base_Sepolia";
+        if (!c) return defaultPeerChain;
+        if (isMainnetActive && c === "Base_Sepolia") return "Base";
+        if (!isMainnetActive && c === "Base") return "Base_Sepolia";
         return c;
       };
 
@@ -333,7 +331,7 @@ export function ChatPanel() {
         tx = await executeBridge({
           amount,
           fromChain: (preview.fromChain ? (isArcId(preview.fromChain) ? defaultArcChain : peerOr(preview.fromChain)) : defaultArcChain) as never,
-          toChain: (preview.toChain ? (isArcId(preview.toChain) ? defaultArcChain : peerOr(preview.toChain)) : ACTIVE_PEER_CHAIN) as never,
+          toChain: (preview.toChain ? (isArcId(preview.toChain) ? defaultArcChain : peerOr(preview.toChain)) : defaultPeerChain) as never,
           token: "USDC",
           preferLive: true,
         });
@@ -413,8 +411,8 @@ export function ChatPanel() {
           err,
           "",
           preview.type === "swap"
-            ? `Swap needs: ${ARC_NETWORK_NAME} selected in your wallet and sufficient token balance for the trade & USDC gas.`
-            : `Check wallet connection, ${ARC_NETWORK_NAME} network, and funds.`,
+            ? `Swap needs: ${defaultArcLabel} selected in your wallet and sufficient token balance for the trade & USDC gas.`
+            : `Check wallet connection, ${defaultArcLabel} network, and funds.`,
         ].join("\n"),
         createdAt: new Date().toISOString(),
       });

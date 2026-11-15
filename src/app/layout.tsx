@@ -1,7 +1,36 @@
 import type { Metadata, Viewport } from "next";
+import { DM_Sans, Inter, JetBrains_Mono, Sora } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 import "./agfusion-web3-premium.css";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-sora",
+  display: "swap",
+});
 
 const siteUrl = "https://agfusion.vercel.app";
 const siteTitle = "AGFusion — Stablecoin operations on Arc";
@@ -19,10 +48,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#070a0e" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><head>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
-  </head><body className="ag-premium-shell antialiased selection:bg-emerald-500/20"><AppShell>{children}</AppShell></body></html>;
+  return (
+    <html
+      lang="en"
+      className={`${dmSans.variable} ${inter.variable} ${jetbrainsMono.variable} ${sora.variable}`}
+    >
+      <body className="ag-premium-shell antialiased selection:bg-emerald-500/20">
+        <AppShell>{children}</AppShell>
+      </body>
+    </html>
+  );
 }
-

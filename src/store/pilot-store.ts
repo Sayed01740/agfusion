@@ -15,7 +15,7 @@ import {
   mergeTransactions,
   saveTransactions,
 } from "@/lib/persistence";
-import { explorerTxUrl, ARC_NETWORK_NAME, IS_ARC_MAINNET, getArcNetworkMeta } from "@/lib/arc-chain";
+import { explorerTxUrl, IS_ARC_MAINNET, getArcNetworkMeta } from "@/lib/arc-chain";
 import { DEMO_TRANSACTIONS } from "@/lib/demo-data";
 
 function normalizeTransactionForActivity(tx: TransactionRecord): TransactionRecord {
