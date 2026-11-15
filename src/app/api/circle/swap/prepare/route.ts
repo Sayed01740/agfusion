@@ -160,8 +160,7 @@ export async function POST(req: Request) {
     const adapter = await createViemAdapterFromProvider({ provider });
 
     // Circle App Kit uses the string identifiers "Arc" and "Arc_Testnet".
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const appKitChainName = "Arc_Testnet" as any;
+    const appKitChainName = "Arc_Testnet" as never;
 
     const kit = new AppKit();
     const estimate = await kit.estimateSwap({

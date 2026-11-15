@@ -6,6 +6,7 @@ import {
   issueConfirmationToken,
 } from "@/lib/confirmation-token";
 import { readLimitedJson } from "@/lib/read-limited-json";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,11 @@ const bodySchema = z.object({
  * that capability immediately before opening the wallet.
  */
 export async function POST(req: Request) {
+  const rl = rateLimit(`aiconfirm:${clientIp(req)}`, { windowMs: 60_000, max: 60 });
+  if (!rl.ok) {
+    return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
+  }
+
   const bodyResult = await readLimitedJson(req, 16 * 1024);
   if (!bodyResult.ok) {
     return NextResponse.json(

@@ -4,6 +4,7 @@ import { orchestrateUserMessage } from "@/ai/orchestrator";
 import { resolveLlmConfig } from "@/lib/llm-config";
 import { sanitizeAgentText } from "@/lib/sanitize";
 import { readLimitedJson } from "@/lib/read-limited-json";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,11 @@ const bodySchema = z.object({
  * when a server LLM key is present.
  */
 export async function POST(req: Request) {
+  const rl = rateLimit(`chat:${clientIp(req)}`, { windowMs: 60_000, max: 30 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+
   const bodyResult = await readLimitedJson(req, 16 * 1024);
   if (!bodyResult.ok) {
     return NextResponse.json(
