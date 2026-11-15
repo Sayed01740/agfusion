@@ -7,6 +7,7 @@ import { ModalDialog } from "@/components/ui/modal-dialog";
 import {
   discoverWallets,
   type DiscoveredWallet,
+  type InjectedProvider,
 } from "@/sdk/wallet-adapter";
 import {
   ARC_CHAIN_ID,
@@ -50,7 +51,7 @@ export function WalletModal({
   open: boolean;
   onClose: () => void;
   onSelect: (wallet: DiscoveredWallet) => void;
-  onConnectCircle?: (provider: any, address: string) => void;
+  onConnectCircle?: (provider: InjectedProvider, address: string) => void;
   connecting?: boolean;
   error?: string | null;
 }) {
@@ -102,27 +103,27 @@ export function WalletModal({
         <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4 scrollbar-thin">
           {/* Circle Email Wallet — enabled only when NEXT_PUBLIC_CIRCLE_WALLET_ENABLED=true */}
           {process.env.NEXT_PUBLIC_CIRCLE_WALLET_ENABLED === "true" ? (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!email) return;
-              setEmailConnecting(true);
-              try {
-                const { authenticateWithCircleEmail, createCircleMockProvider } = await import("@/sdk/circle-pw");
-                const { setActiveProvider } = await import("@/sdk/active-wallet");
-                const { usePilotStore } = await import("@/store/pilot-store");
-                const { address } = await authenticateWithCircleEmail(email);
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!email) return;
+                setEmailConnecting(true);
+                try {
+                  const { authenticateWithCircleEmail, createCircleMockProvider } = await import("@/sdk/circle-pw");
+                  const { setActiveProvider } = await import("@/sdk/active-wallet");
+                  const { usePilotStore } = await import("@/store/pilot-store");
+                  const { address } = await authenticateWithCircleEmail(email);
 
-                // For a User-Controlled Wallet, we don't have a standard window.ethereum.
-                // Build the shared mock provider so the app recognizes a wallet is
-                // connected AND so it can be reconstructed after a page reload.
-                const chainIdRef = { value: ARC_CHAIN_ID_HEX };
-                const { provider: mockProvider } = createCircleMockProvider({
-                  address,
-                  chainIdRef,
-                });
+                  // For a User-Controlled Wallet, we don't have a standard window.ethereum.
+                  // Build the shared mock provider so the app recognizes a wallet is
+                  // connected AND so it can be reconstructed after a page reload.
+                  const chainIdRef = { value: ARC_CHAIN_ID_HEX };
+                  const { provider: mockProvider } = createCircleMockProvider({
+                    address,
+                    chainIdRef,
+                  });
 
-                setActiveProvider(mockProvider as any, {
+                setActiveProvider(mockProvider as unknown as InjectedProvider, {
                   uuid: "circle-pw",
                   name: "Circle Email Wallet",
                   address: address.toLowerCase(),
@@ -136,10 +137,10 @@ export function WalletModal({
                 // the Circle wallet.
                 usePilotStore.getState().setWallet(address, ARC_CHAIN_ID);
                 usePilotStore.getState().setAuthenticated(true);
-                onConnectCircle?.(mockProvider as any, address);
+                onConnectCircle?.(mockProvider as unknown as InjectedProvider, address);
                 onClose();
-              } catch (err: any) {
-                setEmailError(err?.message || "Failed to connect Circle Email Wallet.");
+              } catch (err: unknown) {
+                setEmailError(err instanceof Error ? err.message : "Failed to connect Circle Email Wallet.");
               } finally {
                 setEmailConnecting(false);
               }
@@ -172,24 +173,16 @@ export function WalletModal({
                   {emailConnecting ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : "Continue"}
                 </Button>
               </div>
-              <p id={emailHintId} className="text-[10px] text-muted-foreground">
-                Powered by Circle Programmable Wallets · Uses USDC for gas on Arc · Keep your email/PIN recovery active
-              </p>
-              {emailError && (
-                <p role="alert" className="text-xs text-danger rounded-lg border border-danger/20 bg-danger/10 px-2.5 py-1.5">
-                  {emailError}
-                </p>
-              )}
             </div>
-          </form>
+            </form>
           ) : (
-          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 px-4 py-3 opacity-60 cursor-not-allowed select-none">
-            <div>
-              <div className="text-sm font-medium text-foreground">Circle Email Wallet</div>
-              <div className="text-[10px] text-muted-foreground">Use an EVM wallet below for now</div>
+            <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 px-4 py-3 opacity-60 cursor-not-allowed select-none">
+              <div>
+                <div className="text-sm font-medium text-foreground">Circle Email Wallet</div>
+                <div className="text-[10px] text-muted-foreground">Use an EVM wallet below for now</div>
+              </div>
+              <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Soon</span>
             </div>
-            <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Soon</span>
-          </div>
           )}
 
           <div className="relative flex items-center py-2">

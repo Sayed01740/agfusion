@@ -19,8 +19,8 @@ export function X402Showcase() {
       setResponseStatus(res.status);
       const data = await res.json();
       setPayload(data);
-    } catch (err: any) {
-      setPayload({ error: err.message });
+    } catch (err: unknown) {
+      setPayload({ error: err instanceof Error ? err.message : "Request failed" });
     } finally {
       setLoading(false);
     }

@@ -14,9 +14,7 @@ import {
   Copy,
   Check,
   ExternalLink,
-  ChevronRight,
   Sparkles,
-  Zap,
   KeyRound,
   FileSpreadsheet,
 } from "lucide-react";

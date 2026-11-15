@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownUp, CheckCircle2, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowDownUp, Loader2, RefreshCw } from "lucide-react";
 import { encodeFunctionData, maxUint256, parseUnits, type Address } from "viem";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { TokenMark } from "@/components/brand/token-mark";
 import { usePilotStore } from "@/store/pilot-store";
 import { executeSwap } from "@/lib/client-actions";
-import { getArcDexSwapQuote, normalizeSlippageBps } from "@/blockchain/production-swap";
+import { getArcDexSwapQuote } from "@/blockchain/production-swap";
 import { explorerTxUrl, getArcNetworkMeta } from "@/lib/arc-chain";
 import { arcPublicClient, readAllowance } from "@/lib/dapp/erc20";
 import { getToken } from "@/lib/dapp/tokens";
 import { ARC_PERMIT2_CONTRACT } from "@/blockchain/uniswap-permit2";
-import { getChainId, getInjectedProvider } from "@/sdk/wallet-adapter";
-import { assertArcMainnetWalletState } from "@/blockchain/uniswap-mainnet-adapter";
 import { uid } from "@/lib/utils";
 import {
   SWAP_HANDOFF_EVENT,
@@ -23,100 +21,26 @@ import {
   consumeSwapHandoff,
   type SwapHandoff,
 } from "@/lib/swap-handoff";
-
-const ERC20_APPROVE_ABI = [
-  {
-    type: "function",
-    name: "approve",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "spender", type: "address" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-] as const;
-
-type ArcSwapToken = "USDC" | "EURC" | "cirBTC";
-const ARC_SWAP_TOKENS: ArcSwapToken[] = ["USDC", "EURC", "cirBTC"];
-const SLIPPAGE_PRESETS = ["0.5", "1", "1.5", "2", "3"];
-type SwapQuote = {
-  amountOut?: string;
-  minimumAmountOut?: string;
-  route?: string;
-  network?: "mainnet" | "testnet";
-  quoteSession?: string;
-  quoteSessionExpiresAt?: number;
-  permitData?: Record<string, unknown> | null;
-  estimatedGasUsd?: string | null;
-};
-
-type PreparedMainnetTransaction = {
-  executionEnabled: boolean;
-  receiptVerificationTicket?: string;
-  transaction: {
-    chainId: number;
-    from: string;
-    to: string;
-    data: string;
-    value: string;
-    gasLimit: string;
-    maxFeePerGas?: string;
-    maxPriorityFeePerGas?: string;
-    gasPrice?: string;
-  };
-  validation?: {
-    estimatedGas?: string;
-    estimatedGasCost?: string;
-    minimumAmountOut?: string;
-    commandNames?: string[];
-  };
-};
-
-type PendingApprovalTransaction = {
-  chainId: number;
-  from: string;
-  to: string;
-  data: string;
-  value: string;
-  spender: string;
-  amount: string;
-};
-
-function prettyAmount(value?: string) {
-  if (!value) return "—";
-  const n = Number(value);
-  if (!Number.isFinite(n)) return value;
-  return n.toLocaleString(undefined, { maximumFractionDigits: 8 });
-}
-
-function parseSlippageBps(value: string): number {
-  return normalizeSlippageBps(Number(value) * 100);
-}
-
-function minimumReceived(amountOut: string, slippage: string): string {
-  const out = Number(amountOut);
-  const pct = Number(slippage);
-  if (!Number.isFinite(out) || !Number.isFinite(pct)) return "—";
-  return (out * (1 - pct / 100)).toLocaleString(undefined, { maximumFractionDigits: 8 });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-async function getVerifiedMainnetProvider(expectedAddress: string) {
-  const provider = await getInjectedProvider();
-  const [chainId, rawAccounts] = await Promise.all([
-    getChainId(provider),
-    provider.request({ method: "eth_accounts" }),
-  ]);
-  const account = Array.isArray(rawAccounts) && typeof rawAccounts[0] === "string"
-    ? rawAccounts[0]
-    : null;
-  assertArcMainnetWalletState({ chainId, account, expectedAccount: expectedAddress });
-  return { provider, account: account as string };
-}
+import {
+  ARC_SWAP_TOKENS,
+  ERC20_APPROVE_ABI,
+  SLIPPAGE_PRESETS,
+  getVerifiedMainnetProvider,
+  isRecord,
+  minimumReceived,
+  parseSlippageBps,
+  prettyAmount,
+  type ArcSwapToken,
+  type PendingApprovalTransaction,
+  type PreparedMainnetTransaction,
+  type SwapFlowStep,
+  type SwapQuote,
+} from "./swap-helpers";
+import {
+  SwapPendingApprovalCard,
+  SwapPreparedTxCard,
+  SwapQuoteSummaryCard,
+} from "./swap-quote-cards";
 
 export function ProductionSwapPanel() {
   const { addTransaction, setActiveTx, setThinking, walletAddress, walletChainId } = usePilotStore();
@@ -133,7 +57,7 @@ export function ProductionSwapPanel() {
   const [swapBusy, setSwapBusy] = useState(false);
   const [needsTokenApproval, setNeedsTokenApproval] = useState(false);
   const [approvalMode, setApprovalMode] = useState<"exact" | "unlimited">("exact");
-  const [flowStep, setFlowStep] = useState<"idle" | "approving" | "signing" | "preparing" | "broadcasting">("idle");
+  const [flowStep, setFlowStep] = useState<SwapFlowStep>("idle");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -788,80 +712,34 @@ export function ProductionSwapPanel() {
       </div>
 
       {quote && (
-        <div className="rounded-xl border border-accent/25 bg-accent/[0.04] p-3.5 space-y-2.5">
-          <div className="flex items-center justify-between gap-3"><span className="text-[11px] text-muted-foreground">Estimated receive</span><span className="text-sm font-semibold text-foreground tabular-nums">{prettyAmount(quote.amountOut)} {tokenOut}</span></div>
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <div className="rounded-lg border border-border bg-card/70 p-2"><p className="text-muted-foreground text-[10px]">Minimum receive</p><p className="mt-0.5 text-foreground font-medium tabular-nums">{prettyAmount(minOutput)} {tokenOut}</p></div>
-            <div className="rounded-lg border border-border bg-card/70 p-2"><p className="text-muted-foreground text-[10px]">Route</p><p className="mt-0.5 text-foreground font-medium truncate">{quote.route || "Arc DEX"}</p></div>
-          </div>
-          <div className="flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-accent" />{meta.isMainnet ? "Server-validated quote" : "Verified on-chain"}</span>
-            <span className="font-semibold text-accent">{slippage}% slippage</span>
-          </div>
-          {meta.isMainnet && tokenIn !== "USDC" && (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-2.5 py-2 text-[10px]">
-              <span className="flex items-center gap-1.5 text-slate-300">
-                {needsTokenApproval ? (
-                  <><span className="h-2 w-2 rounded-full bg-amber-400" />Step 1: Approve {tokenIn} for Permit2</>
-                ) : (
-                  <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />Permit2 Allowance: Ready</>
-                )}
-              </span>
-              {needsTokenApproval && (
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={swapBusy}
-                    onClick={() => setApprovalMode("exact")}
-                    className={`rounded px-1.5 py-0.5 font-semibold transition ${approvalMode === "exact" ? "bg-cyan-400/20 text-cyan-200 border border-cyan-400/40" : "text-slate-400 hover:text-slate-200"}`}
-                  >
-                    Exact
-                  </button>
-                  <button
-                    type="button"
-                    disabled={swapBusy}
-                    onClick={() => setApprovalMode("unlimited")}
-                    className={`rounded px-1.5 py-0.5 font-semibold transition ${approvalMode === "unlimited" ? "bg-cyan-400/20 text-cyan-200 border border-cyan-400/40" : "text-slate-400 hover:text-slate-200"}`}
-                  >
-                    Unlimited
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          {meta.isMainnet && quote.quoteSessionExpiresAt && (
-            <p className="text-[10px] text-slate-500">Quote session expires at {new Date(quote.quoteSessionExpiresAt * 1000).toLocaleTimeString()}.</p>
-          )}
-          {meta.isMainnet && quote.estimatedGasUsd && <p className="text-[10px] text-slate-500">Estimated gas: ${quote.estimatedGasUsd}</p>}
-        </div>
+        <SwapQuoteSummaryCard
+          quote={quote}
+          tokenIn={tokenIn}
+          tokenOut={tokenOut}
+          minOutput={minOutput}
+          slippage={slippage}
+          isMainnet={meta.isMainnet}
+          needsTokenApproval={needsTokenApproval}
+          approvalMode={approvalMode}
+          swapBusy={swapBusy}
+          onApprovalModeChange={setApprovalMode}
+        />
       )}
 
       {pendingApproval && (
-        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3.5 space-y-2.5">
-          <p className="text-xs font-semibold text-amber-200">Permit2 ERC-20 Approval Required</p>
-          <p className="text-[11px] text-slate-300">Approve the exact input amount ({pendingApproval.amount} base units) to Permit2 ({pendingApproval.spender}).</p>
-          <Button className="w-full font-semibold" disabled={swapBusy} onClick={() => void approvePermit2InWallet()}>
-            {swapBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Approving in wallet…</> : "Approve Exact Amount to Permit2"}
-          </Button>
-        </div>
+        <SwapPendingApprovalCard
+          pendingApproval={pendingApproval}
+          swapBusy={swapBusy}
+          onApprove={() => void approvePermit2InWallet()}
+        />
       )}
 
       {prepared && (
-        <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3.5 space-y-2.5">
-          <p className="text-xs font-semibold text-amber-200">{prepared.executionEnabled ? "Validated Mainnet Swap Ready" : "Unsigned Mainnet transaction prepared"}</p>
-          <p className="text-[11px] text-slate-300">{prepared.executionEnabled ? "The server validated the Universal Router 2.1.2 calldata and passed simulation." : "The server validated the transaction and simulation. It has not been signed or broadcast."}</p>
-          <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <div><span className="text-slate-500">Destination</span><p className="break-all text-slate-200">{prepared.transaction.to}</p></div>
-            <div><span className="text-slate-500">Gas limit</span><p className="text-slate-200">{prepared.transaction.gasLimit}</p></div>
-            {prepared.validation?.estimatedGas && <div><span className="text-slate-500">Estimated gas</span><p className="text-slate-200">{prepared.validation.estimatedGas}</p></div>}
-            {prepared.validation?.estimatedGasCost && <div><span className="text-slate-500">Estimated gas cost</span><p className="text-slate-200">{prepared.validation.estimatedGasCost} wei</p></div>}
-          </div>
-          {prepared.executionEnabled && (
-            <Button className="w-full font-semibold" disabled={swapBusy} onClick={() => void executePreparedMainnetSwap()}>
-              {swapBusy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Broadcasting Swap…</> : "Sign & Broadcast Mainnet Swap"}
-            </Button>
-          )}
-        </div>
+        <SwapPreparedTxCard
+          prepared={prepared}
+          swapBusy={swapBusy}
+          onExecute={() => void executePreparedMainnetSwap()}
+        />
       )}
 
       {notice && <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2.5 text-[11px] leading-relaxed text-cyan-200">{notice}</div>}

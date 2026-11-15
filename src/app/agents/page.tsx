@@ -165,23 +165,20 @@ export default function AgentsPage() {
           : "Settling live 1 USDC on Arc — confirm in Rabby…",
       }));
       const fee = quoteSendFee("1");
-      let tx: any;
-      if (isEscrowConfigured()) {
-        tx = await runCreateEscrowTask({
-          agentAddress: payTo as Address,
-          amount: "1",
-          taskTitle: `${agent.name} Milestone Escrow`,
-        });
-      } else {
-        tx = await executeSend({
-          amount: "1",
-          token: "USDC",
-          chain: "Arc_Testnet",
-          recipient: payTo,
-          recipientLabel: `${agent.name} escrow payout`,
-          preferLive: true,
-        });
-      }
+      const tx = isEscrowConfigured()
+        ? await runCreateEscrowTask({
+            agentAddress: payTo as Address,
+            amount: "1",
+            taskTitle: `${agent.name} Milestone Escrow`,
+          })
+        : await executeSend({
+            amount: "1",
+            token: "USDC",
+            chain: "Arc_Testnet",
+            recipient: payTo,
+            recipientLabel: `${agent.name} escrow payout`,
+            preferLive: true,
+          });
       addTransaction({
         ...tx,
         feeUsd: fee.totalUsdc,

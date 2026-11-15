@@ -1,11 +1,35 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePilotStore } from "@/store/pilot-store";
 import { formatUsd } from "@/lib/utils";
 import type { TransactionRecord } from "@/types";
+
+const ChartFallback = () => (
+  <div className="flex h-56 min-h-[224px] items-center justify-center rounded-xl bg-muted/30">
+    <span className="text-xs text-muted-foreground">Loading chart...</span>
+  </div>
+);
+
+const VolumeAreaChart = dynamic(
+  () => import("@/components/analytics/analytics-charts").then((m) => m.VolumeAreaChart),
+  { ssr: false, loading: ChartFallback },
+);
+const ChainUsagePieChart = dynamic(
+  () => import("@/components/analytics/analytics-charts").then((m) => m.ChainUsagePieChart),
+  { ssr: false, loading: ChartFallback },
+);
+const AllocationBarChart = dynamic(
+  () => import("@/components/analytics/analytics-charts").then((m) => m.AllocationBarChart),
+  { ssr: false, loading: ChartFallback },
+);
+
+const formatUsdc = (value: number) =>
+  Number.isFinite(value)
+    ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
+    : "0.00";
 
 const CHAIN_COLORS: Record<string, string> = {
   Arc: "var(--color-accent)",
@@ -23,20 +47,6 @@ function shortChain(id?: string | null): string {
   if (id.includes("Arbitrum")) return "Arbitrum";
   return id.replace(/_/g, " ").split(" ")[0] || "Other";
 }
-
-const chartTooltip = {
-  background: "var(--color-card)",
-  border: "1px solid var(--color-border)",
-  borderRadius: 12,
-  color: "var(--color-foreground)",
-  boxShadow: "0 12px 28px rgba(0,0,0,.3)",
-};
-const tooltipText = { color: "var(--color-foreground)" };
-
-const formatUsdc = (value: number) =>
-  Number.isFinite(value)
-    ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
-    : "0.00";
 
 function parseTxDate(raw?: string | number | null): Date | null {
   if (!raw) return null;
@@ -83,10 +93,8 @@ function isSuccessTx(t: TransactionRecord): boolean {
 
 export default function AnalyticsPage() {
   const { balances, transactions, hydrate, walletAddress, loadServerTransactions, loadDemoTransactions, refreshBalances } = usePilotStore();
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     hydrate();
     if (walletAddress) {
       void loadServerTransactions(walletAddress);
@@ -231,57 +239,7 @@ export default function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {mounted ? (
-              <div className="h-64 min-h-[256px] w-full pt-2">
-                <ResponsiveContainer width="100%" height={256}>
-                  <AreaChart data={stats.days} margin={{ top: 10, right: 12, left: -16, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="vol" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.28} />
-                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="var(--color-border)" vertical={false} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="day"
-                      stroke="var(--color-muted-foreground)"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={{ stroke: "var(--color-border)" }}
-                    />
-                    <YAxis
-                      stroke="var(--color-muted-foreground)"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={{ stroke: "var(--color-border)" }}
-                      tickFormatter={(val) => (val >= 1000 ? `${(val / 1000).toFixed(1)}k` : String(val))}
-                    />
-                    <Tooltip
-                      contentStyle={chartTooltip}
-                      itemStyle={tooltipText}
-                      labelStyle={tooltipText}
-                      labelFormatter={(_label, payload) => {
-                        const item = payload?.[0]?.payload as { fullDate?: string; day?: string } | undefined;
-                        return item?.fullDate ? `${item.day}, ${item.fullDate}` : String(_label);
-                      }}
-                      formatter={(value) => [`${formatUsdc(Number(value))} USDC`, "Completed volume"]}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="volume"
-                      stroke="var(--color-accent)"
-                      fill="url(#vol)"
-                      strokeWidth={2}
-                      isAnimationActive={false}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="flex h-64 min-h-[256px] items-center justify-center rounded-xl bg-muted/30">
-                <span className="text-xs text-muted-foreground">Loading chart...</span>
-              </div>
-            )}
+            <VolumeAreaChart days={stats.days} />
 
             {!hasRecentVolume && (
               <div className="mt-2 flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -343,31 +301,7 @@ export default function AnalyticsPage() {
               </p>
             ) : (
               <>
-                <div className="h-56 w-full">
-                  <ResponsiveContainer width="100%" height={224}>
-                    <PieChart accessibilityLayer={false}>
-                      <Pie
-                        data={stats.chainUsage}
-                        dataKey="count"
-                        nameKey="name"
-                        innerRadius={55}
-                        outerRadius={85}
-                        stroke="var(--color-card)"
-                        isAnimationActive={false}
-                      >
-                        {stats.chainUsage.map((e) => (
-                          <Cell key={e.name} fill={e.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={chartTooltip}
-                        itemStyle={tooltipText}
-                        labelStyle={tooltipText}
-                        formatter={(value, name) => [`${value} transactions`, name]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+                <ChainUsagePieChart chainUsage={stats.chainUsage} />
                 <ul aria-label="Chain usage counts and shares" className="mt-3 space-y-2 text-xs">
                   {stats.chainUsage.map((c) => (
                     <li key={c.name} className="flex flex-wrap items-center justify-between gap-2">
@@ -393,23 +327,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             {allocation.some((b) => b.value > 0) ? (
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height={224}>
-                  <BarChart data={allocation} accessibilityLayer={false}>
-                    <CartesianGrid stroke="var(--color-border)" vertical={false} />
-                    <XAxis dataKey="name" stroke="var(--color-muted-foreground)" fontSize={11} />
-                    <YAxis stroke="var(--color-muted-foreground)" fontSize={12} />
-                    <Tooltip
-                      contentStyle={chartTooltip}
-                      itemStyle={tooltipText}
-                      labelStyle={tooltipText}
-                      cursor={{ fill: "var(--color-muted)" }}
-                      formatter={(value) => [formatUsd(Number(value)), "Value (USD)"]}
-                    />
-                    <Bar dataKey="value" fill="var(--color-accent)" radius={[8, 8, 0, 0]} isAnimationActive={false} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <AllocationBarChart allocation={allocation} />
             ) : (
               <p className="flex min-h-40 items-center justify-center rounded-xl bg-muted p-5 text-center text-sm text-muted-foreground">
                 {allocation.length === 0

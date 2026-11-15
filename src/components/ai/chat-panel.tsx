@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePilotStore } from "@/store/pilot-store";
 import { uid } from "@/lib/utils";
-import type { ActionPreview, ChatMessage } from "@/types";
+import type { ActionPreview, ChatMessage, TransactionRecord } from "@/types";
 import { ActionPreviewCard } from "@/components/ai/action-preview";
 import {
   executeBridge,
@@ -351,9 +351,9 @@ export function ChatPanel() {
         // Real ERC-8004 registration on active Arc network — never fabricate a hash.
         const { registerErc8004Agent } = await import("@/lib/erc8004");
         const result = await registerErc8004Agent();
-        tx = {
+        const deployTx: TransactionRecord = {
           id: `tx_${Math.random().toString(36).slice(2, 11)}`,
-          type: "deploy",
+          type: "deploy" as TransactionRecord["type"],
           status: "success",
           amount: "0",
           token: "USDC",
@@ -373,7 +373,8 @@ export function ChatPanel() {
           createdAt: new Date().toISOString(),
           message: preview.summary || `Agent registered successfully`,
           executionMode: "live",
-        } as any;
+        };
+        tx = deployTx;
       } else {
         throw new Error(`Unsupported action type: ${preview.type}`);
       }

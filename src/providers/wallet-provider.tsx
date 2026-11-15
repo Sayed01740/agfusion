@@ -362,8 +362,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         usePilotStore.getState().setAuthenticated(true);
         setError(null);
         alert("Auto-Agent enabled for your Circle Email Wallet. The agent will use this same smart-wallet address for Swap, Send and Bridge.");
-      } catch (e: any) {
-        setError(e?.message || "Failed to enable Circle Email Wallet agent mode.");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Failed to enable Circle Email Wallet agent mode.";
+        setError(msg);
       } finally {
         setConnecting(false);
       }
@@ -387,10 +388,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           `You must transfer some USDC on ${ARC_NETWORK_NAME} to this new address before the Agent can swap for you.`
         );
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
       console.error("[AGFusion] Auto-Agent setup failed:", e);
-      alert("Error enabling Auto-Agent: " + (e.message || "Unknown error"));
-      setError(e.message || "Failed to enable agent mode.");
+      alert("Error enabling Auto-Agent: " + msg);
+      setError(e instanceof Error ? e.message : "Failed to enable agent mode.");
     } finally {
       setConnecting(false);
     }
