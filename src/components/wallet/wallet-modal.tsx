@@ -123,57 +123,57 @@ export function WalletModal({
                     chainIdRef,
                   });
 
-                setActiveProvider(mockProvider as unknown as InjectedProvider, {
-                  uuid: "circle-pw",
-                  name: "Circle Email Wallet",
-                  address: address.toLowerCase(),
-                  smartAccountAddress: address.toLowerCase(),
-                });
-                usePilotStore.getState().setWalletType("circle");
+                  setActiveProvider(mockProvider as unknown as InjectedProvider, {
+                    uuid: "circle-pw",
+                    name: "Circle Email Wallet",
+                    address: address.toLowerCase(),
+                    smartAccountAddress: address.toLowerCase(),
+                  });
+                  usePilotStore.getState().setWalletType("circle");
 
-                // A Circle user-controlled wallet is already the user's funded wallet.
-                // Do not wrap it in a ZeroDev account here: that creates a second address,
-                // so the UI would check the smart account while the faucet funds remain in
-                // the Circle wallet.
-                usePilotStore.getState().setWallet(address, ARC_CHAIN_ID);
-                usePilotStore.getState().setAuthenticated(true);
-                onConnectCircle?.(mockProvider as unknown as InjectedProvider, address);
-                onClose();
-              } catch (err: unknown) {
-                setEmailError(err instanceof Error ? err.message : "Failed to connect Circle Email Wallet.");
-              } finally {
-                setEmailConnecting(false);
-              }
-            }}
-            className="space-y-3"
-          >
-            <div className="flex flex-col gap-2">
-              <label htmlFor={emailId} className="text-xs font-medium text-muted-foreground">
-                Create a wallet with email
-              </label>
-              <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                <input
-                  id={emailId}
-                  name="email"
-                  autoComplete="email"
-                  aria-describedby={emailHintId}
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  required
-                  className="min-h-11 min-w-0 flex-1 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                />
-                <Button
-                  type="submit"
-                  disabled={emailConnecting || !email}
-                  aria-label={emailConnecting ? "Connecting email wallet" : undefined}
-                  className="min-h-11 min-w-[100px] border-accent bg-accent bg-none text-accent-foreground hover:bg-accent/90 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:transform-none"
-                >
-                  {emailConnecting ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : "Continue"}
-                </Button>
+                  // A Circle user-controlled wallet is already the user's funded wallet.
+                  // Do not wrap it in a ZeroDev account here: that creates a second address,
+                  // so the UI would check the smart account while the faucet funds remain in
+                  // the Circle wallet.
+                  usePilotStore.getState().setWallet(address, ARC_CHAIN_ID);
+                  usePilotStore.getState().setAuthenticated(true);
+                  onConnectCircle?.(mockProvider as unknown as InjectedProvider, address);
+                  onClose();
+                } catch (err: unknown) {
+                  setEmailError(err instanceof Error ? err.message : "Failed to connect Circle Email Wallet.");
+                } finally {
+                  setEmailConnecting(false);
+                }
+              }}
+              className="space-y-3"
+            >
+              <div className="flex flex-col gap-2">
+                <label htmlFor={emailId} className="text-xs font-medium text-muted-foreground">
+                  Create a wallet with email
+                </label>
+                <div className="flex flex-col gap-2 min-[400px]:flex-row">
+                  <input
+                    id={emailId}
+                    name="email"
+                    autoComplete="email"
+                    aria-describedby={emailHintId}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    required
+                    className="min-h-11 min-w-0 flex-1 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  />
+                  <Button
+                    type="submit"
+                    disabled={emailConnecting || !email}
+                    aria-label={emailConnecting ? "Connecting email wallet" : undefined}
+                    className="min-h-11 min-w-[100px] border-accent bg-accent bg-none text-accent-foreground hover:bg-accent/90 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:transform-none"
+                  >
+                    {emailConnecting ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : "Continue"}
+                  </Button>
+                </div>
               </div>
-            </div>
             </form>
           ) : (
             <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 px-4 py-3 opacity-60 cursor-not-allowed select-none">

@@ -205,7 +205,7 @@ export default function DashboardPage() {
               <div className="min-w-0 max-w-3xl">
                 <div className="mb-2.5 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-accent">
                   <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-                  Arc Network Workspace
+                  Arc Network Dashboard
                 </div>
                 <h1 className="font-display text-2xl font-extrabold leading-[1.15] tracking-tight text-foreground sm:text-3xl lg:text-4xl">
                   Move money <span className="text-gradient">intelligently.</span>

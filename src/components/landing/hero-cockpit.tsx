@@ -288,7 +288,7 @@ export function HeroCockpit() {
           </span>
           <Button asChild size="sm" className="shimmer-button bg-accent text-accent-foreground hover:bg-accent/90 cursor-pointer">
             <Link href="/dashboard" className="flex items-center gap-1.5">
-              Open in Workspace <ArrowUpRight className="h-3.5 w-3.5" />
+              Open in Dashboard <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </Button>
         </div>
