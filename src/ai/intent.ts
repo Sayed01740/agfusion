@@ -104,7 +104,7 @@ function classify(text: string): { type: IntentType; confidence: number } {
   if (/cheapest|fastest|payout route|optimize route|best route|routing/i.test(t)) return { type: "route", confidence: 0.9 };
   if (/\bsend\b|\bpay\b|\bpayout\b|transfer \$|invoice|send\s+\d/i.test(t)) return { type: "send", confidence: 0.92 };
   if (/agent|erc-?8004|erc-?8183|reputation|autonomous|payroll|job escrow/i.test(t)) return { type: "agent", confidence: 0.88 };
-  if (/explain|what happened|failed|why|what is arc|how does/i.test(t)) return { type: "explain", confidence: 0.85 };
+  if (/explain|what happened|failed|why|what is arc|how does|chain id|rpc|explorer|contract address|token address|cctp|domain|faucet|permit2|uniswap|finality|supported chain|which chain|arc mainnet|arc testnet/i.test(t)) return { type: "explain", confidence: 0.88 };
   if (/\d/.test(t) && /\b(to|for)\s+[a-z]/i.test(t)) return { type: "send", confidence: 0.7 };
   return { type: "unknown", confidence: 0.4 };
 }

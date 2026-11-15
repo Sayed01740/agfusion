@@ -5,6 +5,7 @@
 
 import type { LlmConfig } from "@/lib/llm-config";
 import { AGENT_TOOL_DEFINITIONS } from "@/ai/tools";
+import { ARC_SYSTEM_KNOWLEDGE_BLOCK } from "@/ai/arc-knowledge";
 import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
 
 const ACTIVE_ARC_CHAIN_ID = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
@@ -221,11 +222,15 @@ Rules:
 - Keep answers under ~180 words unless they ask for detail.
 - Live app: https://agfusion.vercel.app
 
+${ARC_SYSTEM_KNOWLEDGE_BLOCK}
+
 You are only helping them understand and use AGFusion — not executing money.`;
 
 export const AGENT_SYSTEM = `You are AGFusion Agent — a helpful AI agent for stablecoin finance on Arc Network (Circle).
 
 You behave like a normal conversational agent: answer questions clearly, explain concepts, and help the user get things done.
+
+${ARC_SYSTEM_KNOWLEDGE_BLOCK}
 
 Rules:
 1. For general questions (what is Arc, how fees work, help, math, explanations): answer directly in natural language. Tools are optional.

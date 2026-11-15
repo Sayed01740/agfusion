@@ -30,6 +30,7 @@ import { runCircleSafeSwapFlow } from "@/blockchain/circle-safe-swap";
 import { CHAINS, resolveChain } from "@/lib/chains";
 import { formatUsd } from "@/lib/utils";
 import { ARC_CHAIN_ID, ARC_NETWORK_NAME, IS_ARC_MAINNET } from "@/lib/arc-chain";
+import { ARC_KNOWLEDGE, answerArcKnowledgeQuery } from "@/ai/arc-knowledge";
 
 const DEFAULT_ARC_CHAIN: ChainId = IS_ARC_MAINNET ? "Arc_Mainnet" : "Arc_Testnet";
 const DEFAULT_PEER_CHAIN: ChainId = IS_ARC_MAINNET ? "Base" : "Base_Sepolia";
@@ -61,6 +62,7 @@ export type ToolName =
   | "retry_bridge"
   | "generate_code"
   | "explain_arc"
+  | "get_arc_network_info"
   | "assess_route_risk"
   | "get_transaction_status"
   | "register_erc8004_agent";
@@ -305,13 +307,28 @@ export const AGENT_TOOL_DEFINITIONS = [
     function: {
       name: "explain_arc",
       description:
-        "Explain Arc Network concepts (USDC gas, finality, ERC-8004, ERC-8183, x402).",
+        "Explain Arc Network concepts, Mainnet & Testnet chain IDs, RPCs, token contracts (USDC, EURC, cirBTC), CCTP v2 Domain 26, Permit2/Uniswap, ERC-8004, ERC-8183, and x402.",
       parameters: {
         type: "object",
         properties: {
           topic: { type: "string" },
         },
         required: ["topic"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_arc_network_info",
+      description:
+        "Return verified Arc Mainnet and Testnet specs (chain IDs, RPCs, explorers, USDC/EURC/cirBTC contracts, CCTP v2 Domain 26 & peer chains, Permit2) and optionally query live Arc RPC block number & gas price.",
+      parameters: {
+        type: "object",
+        properties: {
+          network: { type: "string", enum: ["mainnet", "testnet", "both"] },
+          includeLiveRpc: { type: "boolean" },
+        },
       },
     },
   },
@@ -798,30 +815,61 @@ export async function executeTool(
       }
 
       case "explain_arc": {
-        const topic = String(args.topic || "arc").toLowerCase();
-        const blurbs: Record<string, string> = {
-          arc: `Arc is Circle's open Layer-1 — the Economic OS for programmable money. USDC gas, sub-second finality, EVM-compatible. Active network: ${ARC_NETWORK_NAME} (chain ID ${ARC_CHAIN_ID}).`,
-          transfer:
-            "Cross-chain USDC moves via approve → lock/burn → attestation → credit on Arc. AGFusion tracks each step and supports recovery.",
-          bridge:
-            "Cross-chain USDC moves via approve → lock/burn → attestation → credit on Arc. AGFusion tracks each step and supports recovery.",
-          unified:
-            "Unified balance deposits USDC from multiple networks into one spendable total for instant payouts on Arc.",
-          gas: "On Arc, gas is paid in USDC (not ETH). Fees are dollar line items — budgetable for payments and agents.",
-          agent:
-            "Arc agentic economy: ERC-8004 identity, ERC-8183 job escrow, x402 micropayments, USDC settlement under 1s.",
-          "8004":
-            "ERC-8004 registers agent identity and reputation onchain. Use AGFusion Agents → ERC-8004 or docs.arc.io tutorial.",
-          "8183":
-            "ERC-8183 jobs: create → set budget → fund USDC escrow → submit deliverable → complete settlement on Arc.",
-          x402: "x402 lets agents pay USDC micropayments for APIs (HTTP 402). Used for risk oracles and paid tools on Arc.",
-          payroll:
-            "Batch payroll multi-sends USDC to many recipients on Arc with per-leg USDC gas quotes.",
+        const topic = String(args.topic || "arc");
+        const hit = answerArcKnowledgeQuery(topic);
+        return {
+          ok: true,
+          summary: hit,
+          data: { topic, text: hit, knowledge: ARC_KNOWLEDGE },
         };
-        const hit =
-          Object.entries(blurbs).find(([k]) => topic.includes(k))?.[1] ||
-          blurbs.arc;
-        return { ok: true, summary: hit, data: { topic, text: hit } };
+      }
+
+      case "get_arc_network_info": {
+        const network = String(args.network || "both");
+        const includeLiveRpc = args.includeLiveRpc !== false;
+        let liveRpc: { blockNumber?: number; gasPriceWei?: string; rpcStatus?: string } | null = null;
+        if (includeLiveRpc) {
+          try {
+            const chainParam = network === "mainnet" ? "arc_mainnet" : network === "testnet" ? "arc_testnet" : "arc";
+            const [blockRes, gasRes] = await Promise.all([
+              fetch(absoluteApiUrl(`/api/rpc?chain=${chainParam}`), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] }),
+              }),
+              fetch(absoluteApiUrl(`/api/rpc?chain=${chainParam}`), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "eth_gasPrice", params: [] }),
+              }),
+            ]);
+            const blockJson = blockRes.ok ? ((await blockRes.json()) as { result?: string }) : null;
+            const gasJson = gasRes.ok ? ((await gasRes.json()) as { result?: string }) : null;
+            liveRpc = {
+              blockNumber: blockJson?.result ? parseInt(blockJson.result, 16) : undefined,
+              gasPriceWei: gasJson?.result ? BigInt(gasJson.result).toString() : undefined,
+              rpcStatus: blockRes.ok ? "healthy" : `http_${blockRes.status}`,
+            };
+          } catch {
+            liveRpc = { rpcStatus: "unavailable" };
+          }
+        }
+        const selected =
+          network === "mainnet"
+            ? { mainnet: ARC_KNOWLEDGE.mainnet }
+            : network === "testnet"
+              ? { testnet: ARC_KNOWLEDGE.testnet }
+              : { mainnet: ARC_KNOWLEDGE.mainnet, testnet: ARC_KNOWLEDGE.testnet };
+        return {
+          ok: true,
+          summary: `Arc Network specs (${network}) · Mainnet 5042 / Testnet 5042002 · CCTP Domain 26${liveRpc?.blockNumber ? ` · Live block #${liveRpc.blockNumber}` : ""}`,
+          data: {
+            ...selected,
+            cctpDomain: ARC_KNOWLEDGE.cctpDomain,
+            protocols: ARC_KNOWLEDGE.protocols,
+            liveRpc,
+          },
+        };
       }
 
       case "assess_route_risk": {
